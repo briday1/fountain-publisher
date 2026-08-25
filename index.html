@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fountain Publisher</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="file-menu">
+      <div class="brand">Fountain Publisher</div>
+      <nav class="menu-actions" aria-label="File menu">
+        <button id="newFileBtn" type="button">New</button>
+        <button id="openFileBtn" type="button">Open</button>
+        <button id="saveFileBtn" type="button">Save</button>
+        <input id="openFileInput" type="file" accept=".fountain,.txt,text/plain" hidden />
+      </nav>
+    </header>
+
+    <main class="layout">
+      <section class="source-panel" aria-label="Source panel">
+        <div class="tabs">
+          <button class="tab is-active" type="button">Source</button>
+        </div>
+        <label class="source-label" for="sourceEditor">Fountain source</label>
+        <textarea id="sourceEditor" spellcheck="false" autocomplete="off"></textarea>
+        <p id="sourceHint" class="source-hint" aria-live="polite"></p>
+      </section>
+
+      <section class="preview-panel">
+        <h2>Screenplay preview</h2>
+        <div id="preview" class="preview" contenteditable="true" aria-label="Editable screenplay preview"></div>
+      </section>
+
+      <aside id="characterSidebar" class="character-sidebar">
+        <button id="toggleSidebarBtn" type="button" class="toggle-sidebar">Characters</button>
+        <div class="character-content">
+          <h2>Characters</h2>
+          <ul id="characterList"></ul>
+        </div>
+      </aside>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
