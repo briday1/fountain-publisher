@@ -1,0 +1,17 @@
+{
+  "name": "fountain-publisher",
+  "version": "1.0.0",
+  "description": "A web app for editing and previewing Fountain screenplay files.",
+  "main": "app.js",
+  "scripts": {
+    "start": "python3 -m http.server 4173",
+    "test": "echo \"No test suite is configured yet\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://localhost:26831/briday1/fountain-publisher"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
