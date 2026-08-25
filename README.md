@@ -2,6 +2,8 @@
 
 A lightweight web app for editing and previewing Fountain screenplay files.
 
+**[Live Demo](https://briday1.github.io/fountain-publisher/)**
+
 ## Run locally
 
 ```bash
