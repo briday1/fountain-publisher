@@ -90,6 +90,21 @@ test("preview edits keep the source cursor on the edited line", async () => {
   assert.match(app, /const offset = lines\.slice\(0, index\)[\s\S]*source\.setSelectionRange\(offset, offset\)/);
 });
 
+test("preview line breaks preserve preceding lines and the viewport", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /page\.addEventListener\("beforeinput"[\s\S]*event\.preventDefault\(\);[\s\S]*insertPreviewLineAfter\(line\)/);
+  assert.match(app, /function insertPreviewLineAfter[\s\S]*lines\.splice\(index \+ 1, 0, ""\)/);
+  assert.match(app, /target\?\.focus\(\{ preventScroll: true \}\)[\s\S]*scrollTop = scrollTop/);
+});
+
+test("top-level act headings are supported in the live editor", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(html, /id="menu-insert-section"[^>]*>Act heading/);
+  assert.match(app, /match\(\/\^#\\s\+\(Act\\b\.\*\)\$\/i\)/);
+  assert.match(app, /appendToSource\("# Act 1\\n\\n"\)/);
+  assert.match(css, /\.script-line\.section\.act[^}]*display:\s*block;/);
+});
+
 test("source completions wait for typing on a new line and support explicit character lookup", async () => {
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(app, /event\.key === "Enter"\) hideCompletions\(\)/);

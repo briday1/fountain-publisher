@@ -234,6 +234,8 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .script-line.section, .script-line.synopsis, .script-line.note, .script-line.boneyard { display: none; }
 .script-line.section.source-current, .script-line.synopsis.source-current, .script-line.note.source-current, .script-line.boneyard.source-current { display: block; margin: 8px 0; padding: 5px 8px; border: 1px dashed color-mix(in srgb, var(--paper-ink) 28%, transparent); color: color-mix(in srgb, var(--paper-ink) 62%, transparent); font-size: 12px; font-style: italic; }
 .script-line.section.source-current::before, .script-line.synopsis.source-current::before, .script-line.note.source-current::before, .script-line.boneyard.source-current::before { content: "EDITOR ONLY  "; font: 700 9px/1 sans-serif; letter-spacing: .08em; opacity: .7; }
+.script-line.section.act, .script-line.section.act.source-current { display: block; margin: 32px 0 16px; padding: 0; border: 0; color: var(--paper-ink); font: 700 18px/1 var(--screenplay); font-style: normal; text-align: center; text-transform: uppercase; }
+.script-line.section.act.source-current::before { content: none; }
 .script-line.page-break { margin: 32px -96px; border-top: 1px dashed #aaa; color: transparent; }
 .empty-state { position: absolute; inset: 45px 0 0; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); }
 .empty-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }

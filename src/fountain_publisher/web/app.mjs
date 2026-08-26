@@ -368,9 +368,11 @@ function analyzeLocally(text) {
 
 function previewLineHtml(line, sceneLabel = null) {
   const centered = line.raw.trim().match(/^>\s*(.*?)\s*<$/);
+  const act = line.type === "section" ? line.raw.trim().match(/^#\s+(Act\b.*)$/i) : null;
   const type = centered ? "centered" : line.type;
-  const className = `script-line ${type}`;
-  let display = line.display;
+  const className = `script-line ${type}${act ? " act" : ""}`;
+  let display = act?.[1] || line.display;
+  const prefix = act ? "#" : line.prefix;
   if (centered) display = centered[1];
   if (sceneLabel !== null) {
     const cleanDisplay = line.display.replace(/^\./, "").replace(/\s+#[^#]+#\s*$/, "");
@@ -378,7 +380,7 @@ function previewLineHtml(line, sceneLabel = null) {
   }
   const content = display ? fountainInlineHtml(display) : "<br>";
   const sceneAttr = sceneLabel !== null ? escapeHtml(sceneLabel) : "";
-  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(line.prefix)}" data-scene-number="${sceneAttr}" contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
+  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
 }
 
 function computeSceneLabels(lines) {
@@ -429,11 +431,10 @@ function renderPreview({ focusLine = null } = {}) {
   page.hidden = state.previewMode !== "live";
   if (focusLine !== null) {
     const target = $(`[data-line="${focusLine}"]`, page);
-    target?.focus();
+    target?.focus({ preventScroll: true });
     if (target) placeCaretAtEnd(target);
-  } else {
-    $("#preview-scroll").scrollTop = scrollTop;
   }
+  $("#preview-scroll").scrollTop = scrollTop;
   updatePreviewCursor();
   applyZoom();
 }
@@ -464,6 +465,16 @@ function syncPreviewLine(element) {
   const offset = lines.slice(0, index).reduce((total, line) => total + line.length + 1, 0) + value.length;
   source.setSelectionRange(offset, offset);
   sourceChanged({ fromPreview: true });
+}
+
+function insertPreviewLineAfter(element) {
+  syncPreviewLine(element);
+  const index = Number(element.dataset.line);
+  const lines = source.value.split("\n");
+  lines.splice(index + 1, 0, "");
+  source.value = lines.join("\n");
+  sourceChanged();
+  renderPreview({ focusLine: index + 1 });
 }
 
 function hidePreviewCompletions() {
@@ -1333,6 +1344,12 @@ source.addEventListener("keydown", (event) => {
   else if (event.key === "Enter") hideCompletions();
 });
 
+page.addEventListener("beforeinput", (event) => {
+  if (event.inputType !== "insertParagraph" && event.inputType !== "insertLineBreak") return;
+  const line = event.target.closest(".script-line"); if (!line) return;
+  event.preventDefault();
+  insertPreviewLineAfter(line);
+});
 page.addEventListener("input", (event) => { const line = event.target.closest(".script-line"); if (line) { syncPreviewLine(line); showPreviewCharacterCompletions(line); } });
 page.addEventListener("keydown", (event) => {
   const line = event.target.closest(".script-line"); if (!line) return;
@@ -1341,9 +1358,7 @@ page.addEventListener("keydown", (event) => {
     if (event.key === "Tab") { event.preventDefault(); acceptPreviewCharacterCompletion(); return; }
     if (event.key === "Escape") { event.preventDefault(); hidePreviewCompletions(); return; }
   }
-  if (event.key === "Enter") {
-    event.preventDefault(); syncPreviewLine(line); const index = Number(line.dataset.line); const lines = source.value.split("\n"); lines.splice(index + 1, 0, ""); source.value = lines.join("\n"); sourceChanged(); renderPreview({ focusLine: index + 1 });
-  } else if (event.key === "Backspace" && !line.textContent && Number(line.dataset.line) > 0) {
+  if (event.key === "Backspace" && !line.textContent && Number(line.dataset.line) > 0) {
     event.preventDefault(); const index = Number(line.dataset.line); const lines = source.value.split("\n"); lines.splice(index, 1); source.value = lines.join("\n"); sourceChanged(); renderPreview({ focusLine: index - 1 });
   }
 });
@@ -1427,7 +1442,7 @@ $("#menu-insert-scene").addEventListener("click", () => { appendToSource("INT. L
 $("#menu-insert-dialogue").addEventListener("click", () => { appendToSource("CHARACTER\nDialogue here.\n\n"); });
 $("#menu-insert-direction").addEventListener("click", () => { appendToSource("Action description.\n\n"); });
 $("#menu-insert-transition").addEventListener("click", () => { appendToSource("CUT TO:\n\n"); });
-$("#menu-insert-section").addEventListener("click", () => { appendToSource("# Section Heading\n\n"); });
+$("#menu-insert-section").addEventListener("click", () => { appendToSource("# Act 1\n\n"); });
 $("#menu-insert-pagebreak").addEventListener("click", () => { appendToSource("===\n\n"); });
 $("#menu-insert-centered").addEventListener("click", () => { appendToSource("> Centered text <\n\n"); });
 
