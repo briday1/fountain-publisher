@@ -367,8 +367,11 @@ function analyzeLocally(text) {
 }
 
 function previewLineHtml(line, sceneLabel = null) {
-  const className = `script-line ${line.type}`;
+  const centered = line.raw.trim().match(/^>\s*(.*?)\s*<$/);
+  const type = centered ? "centered" : line.type;
+  const className = `script-line ${type}`;
   let display = line.display;
+  if (centered) display = centered[1];
   if (sceneLabel !== null) {
     const cleanDisplay = line.display.replace(/^\./, "").replace(/\s+#[^#]+#\s*$/, "");
     display = docSettings.sceneNumbers === "inline" ? `${sceneLabel}. ${cleanDisplay}` : cleanDisplay;
@@ -458,6 +461,8 @@ function syncPreviewLine(element) {
   else if (element.dataset.prefix) value = `${element.dataset.prefix} ${value}`;
   lines[index] = value;
   source.value = lines.join("\n");
+  const offset = lines.slice(0, index).reduce((total, line) => total + line.length + 1, 0) + value.length;
+  source.setSelectionRange(offset, offset);
   sourceChanged({ fromPreview: true });
 }
 
@@ -468,8 +473,10 @@ function hidePreviewCompletions() {
 }
 
 function showPreviewCharacterCompletions(element) {
-  const fragment = element.textContent.trim().toUpperCase();
-  if (!/^[A-Z][A-Z0-9 ._'-]*$/.test(fragment)) return hidePreviewCompletions();
+  const text = element.textContent.trim().toUpperCase();
+  const explicitCharacter = text.startsWith("@");
+  const fragment = explicitCharacter ? text.slice(1) : text;
+  if ((!explicitCharacter && !/^[A-Z][A-Z0-9 ._'-]*$/.test(fragment)) || (explicitCharacter && !/^[A-Z0-9 ._'-]*$/.test(fragment))) return hidePreviewCompletions();
   state.previewCompletionItems = state.metadata.characters.map((character) => character.name)
     .filter((name, itemIndex, names) => name.startsWith(fragment) && name !== fragment && names.indexOf(name) === itemIndex);
   state.previewCompletionIndex = 0;
@@ -505,10 +512,11 @@ function positionPreviewCompletion() {
     }
   }
   const width = Math.min(310, panelRect.width - 16);
-  const left = Math.max(8, Math.min(panelRect.width - width - 8, anchor.left - panelRect.left));
-  const below = anchor.bottom - panelRect.top + 6;
-  const top = below + 190 <= panelRect.height ? below : Math.max(8, anchor.top - panelRect.top - 196);
-  menu.style.left = `${left}px`; menu.style.top = `${top}px`;
+  const left = Math.max(panelRect.left + 8, Math.min(panelRect.right - width - 8, anchor.left));
+  const menuHeight = Math.min(menu.scrollHeight, 245);
+  const below = anchor.bottom + 6;
+  const top = below + menuHeight <= panelRect.bottom - 8 ? below : Math.max(panelRect.top + 8, anchor.top - menuHeight - 6);
+  menu.style.left = `${left}px`; menu.style.top = `${top}px`; menu.style.right = "auto"; menu.style.bottom = "auto";
 }
 
 function acceptPreviewCharacterCompletion(index = state.previewCompletionIndex) {
@@ -589,7 +597,7 @@ function renderInsights(metadata) {
   $("#stat-words").textContent = metadata.wordCount.toLocaleString();
   $("#stat-runtime").textContent = formatDuration(metadata.estimatedSeconds);
   $("#character-count").textContent = metadata.characters.length;
-  $("#character-list").innerHTML = metadata.characters.length ? `<div class="table-actions"><button type="button" data-character-analytics>Character Analytics</button></div><table><thead><tr><th>Character</th><th>Lines</th><th>Duration</th></tr></thead><tbody>${metadata.characters.map((character) => `<tr><td><button type="button" data-line="${character.lastLine}">${escapeHtml(character.name)}</button></td><td>${character.lines}</td><td>${formatDuration(character.seconds)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty-list">Character statistics appear as dialogue is written.</div>`;
+  $("#character-list").innerHTML = metadata.characters.length ? `<div class="table-actions"><button type="button" data-character-analytics>Character Analytics</button></div><ul class="character-name-list">${metadata.characters.map((character) => `<li><button type="button" data-line="${character.lastLine}">${escapeHtml(character.name)}</button></li>`).join("")}</ul>` : `<div class="empty-list">Characters appear as dialogue is written.</div>`;
   $("#scene-count").textContent = metadata.scenes.length;
   $("#scene-list").innerHTML = metadata.scenes.length ? metadata.scenes.map((scene) => `<li><span class="scene-num">${escapeHtml(scene.number)}</span><button type="button" data-line="${scene.line}">${escapeHtml(scene.heading)}</button></li>`).join("") : `<li class="empty-list">No scene headings yet.</li>`;
   $("#location-count").textContent = metadata.locations.length;
@@ -645,6 +653,13 @@ function renderCharacterAnalytics() {
   const muted = canvasColor("--muted", "#6b7280");
   const border = canvasColor("--border", "#d7d9dd");
   const accent = canvasColor("--accent", "#4c6fff");
+  const lineCounts = characters.flatMap((character) => (character.sceneLines || []).map((item) => item.lines)).filter((lines) => lines > 0);
+  const minLines = lineCounts.length ? Math.min(...lineCounts) : 0;
+  const maxLines = lineCounts.length ? Math.max(...lineCounts) : 0;
+  const legend = $("#character-analytics-legend");
+  legend.hidden = !lineCounts.length;
+  $("#character-analytics-min").textContent = `${minLines} ${minLines === 1 ? "line" : "lines"}`;
+  $("#character-analytics-max").textContent = `${maxLines} ${maxLines === 1 ? "line" : "lines"}`;
   context.fillStyle = surface;
   context.fillRect(0, 0, width, height);
   context.strokeStyle = border;
@@ -699,9 +714,13 @@ function renderCharacterAnalytics() {
       const lineCount = usage.get(index + 1) || 0;
       if (!lineCount) return;
       const x = labelWidth + index * sceneWidth + 4;
+      const intensity = maxLines === minLines ? 1 : 0.25 + 0.75 * ((lineCount - minLines) / (maxLines - minLines));
+      context.save();
+      context.globalAlpha = intensity;
       context.fillStyle = accent;
       context.fillRect(x, y + 7, sceneWidth - 8, rowHeight - 14);
-      context.fillStyle = "#fff";
+      context.restore();
+      context.fillStyle = intensity >= 0.6 ? "#fff" : ink;
       context.textAlign = "center";
       context.fillText(String(lineCount), x + (sceneWidth - 8) / 2, y + rowHeight / 2);
     });
@@ -711,7 +730,10 @@ function renderCharacterAnalytics() {
     context.textAlign = "center";
     context.fillText("Add scene headings to build the timeline.", width / 2, actHeight + sceneHeight + rowHeight / 2);
   }
-  canvas.setAttribute("aria-label", `Character dialogue timeline with ${characters.length} characters across ${scenes.length} scenes`);
+  canvas.setAttribute("aria-label", `Character dialogue timeline with ${characters.length} characters across ${scenes.length} scenes; usage ranges from ${minLines} to ${maxLines} dialogue lines`);
+  const table = $("#character-line-table");
+  table.style.width = `${width}px`;
+  table.innerHTML = characters.length ? `<table><thead><tr><th>Character</th><th>Lines</th><th>Duration</th></tr></thead><tbody>${characters.map((character) => `<tr><td>${escapeHtml(character.name)}</td><td>${character.lines}</td><td>${formatDuration(character.seconds)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty-list">Character line counts appear as dialogue is written.</div>`;
 }
 
 function characterLineUsageCsv() {
@@ -848,6 +870,10 @@ function completionCandidates() {
   const previousBlank = line === 0 || !lines[line - 1].trim();
   const items = [];
   const add = (value, detail, icon = "ƒ") => items.push({ value, detail, icon });
+  const characterFragment = (explicitCharacter ? trimmed.slice(1) : trimmed.split(/\s+/).at(-1)).toUpperCase();
+  if (explicitCharacter || (characterFragment && state.metadata.characters.some((character) => character.name.startsWith(characterFragment)))) {
+    state.metadata.characters.forEach((character) => add(character.name, `${character.lines} dialogue lines`, "@"));
+  }
   if (line < 12 && !source.value.slice(0, start).includes("\n\n") && (!trimmed || /^[A-Za-z ]*$/.test(trimmed))) {
     ["Title: ", "Credit: ", "Author: ", "Source: ", "Draft date: ", "Contact: ", "Copyright: ", "Notes: "].filter((key) => !state.metadata.titleFields.some((used) => `${used}:`.toLowerCase() === key.trim().toLowerCase())).forEach((key) => add(key, "Title page", "T"));
   }
@@ -856,7 +882,6 @@ function completionCandidates() {
   } else if (isScene(trimmed) || /^(?:INT|EXT|EST|I\/E)/i.test(trimmed)) {
     state.metadata.locations.forEach((value) => add(value, "Existing location", "⌂"));
   } else if (previousBlank) {
-    state.metadata.characters.forEach((character) => add(character.name, `${character.lines} dialogue lines`, "@"));
     if (!explicitCharacter) {
       ["INT. ", "EXT. ", "INT./EXT. ", "I/E. "].forEach((value) => add(value, "Scene heading", "#"));
       ["FADE IN:", ">CUT TO:", ">FADE OUT."].forEach((value) => add(value, "Transition", "→"));
@@ -866,7 +891,10 @@ function completionCandidates() {
   return items.filter((item, index) => items.findIndex((other) => other.value === item.value) === index && (!fragment || item.value.toUpperCase().startsWith(fragment) || item.detail === "Existing location"));
 }
 
-function showCompletions() {
+function showCompletions({ allowBlank = false } = {}) {
+  const { line, start } = currentPosition();
+  const currentText = source.value.split("\n")[line].slice(0, source.selectionStart - start).trim();
+  if (!allowBlank && !currentText) return hideCompletions();
   state.completionItems = completionCandidates(); state.completionIndex = 0;
   if (!state.completionItems.length) return hideCompletions();
   renderCompletionMenu();
@@ -876,10 +904,50 @@ function renderCompletionMenu() {
   const menu = $("#completion-menu");
   menu.hidden = false;
   menu.innerHTML = state.completionItems.map((item, index) => `<button class="completion-item ${index === state.completionIndex ? "selected" : ""}" type="button" role="option" aria-selected="${index === state.completionIndex}" data-index="${index}"><span class="completion-icon">${escapeHtml(item.icon)}</span><span>${escapeHtml(item.value)}</span><small>${escapeHtml(item.detail)}</small></button>`).join("");
+  positionSourceCompletion();
   $(".completion-item.selected", menu)?.scrollIntoView({ block: "nearest" });
 }
 
 function hideCompletions() { $("#completion-menu").hidden = true; state.completionItems = []; }
+
+function positionSourceCompletion() {
+  const menu = $("#completion-menu");
+  const sourceRect = source.getBoundingClientRect();
+  const panelRect = $("#source-panel").getBoundingClientRect();
+  const computed = getComputedStyle(source);
+  const mirror = document.createElement("div");
+  const wrapped = document.body.classList.contains("source-wrap");
+  Object.assign(mirror.style, {
+    position: "fixed",
+    visibility: "hidden",
+    pointerEvents: "none",
+    boxSizing: computed.boxSizing,
+    left: `${sourceRect.left - (wrapped ? 0 : source.scrollLeft)}px`,
+    top: `${sourceRect.top - source.scrollTop}px`,
+    width: `${wrapped ? sourceRect.width : Math.max(source.scrollWidth, sourceRect.width)}px`,
+    padding: computed.padding,
+    border: computed.border,
+    font: computed.font,
+    letterSpacing: computed.letterSpacing,
+    lineHeight: computed.lineHeight,
+    whiteSpace: wrapped ? "pre-wrap" : "pre",
+    overflowWrap: wrapped ? "anywhere" : "normal",
+    tabSize: computed.tabSize,
+  });
+  mirror.append(document.createTextNode(source.value.slice(0, source.selectionStart)));
+  const marker = document.createElement("span");
+  marker.textContent = "\u200b";
+  mirror.append(marker);
+  document.body.append(mirror);
+  const caret = marker.getBoundingClientRect();
+  mirror.remove();
+  const width = Math.min(310, panelRect.width - 16);
+  const left = Math.max(panelRect.left + 8, Math.min(panelRect.right - width - 8, caret.left));
+  const menuHeight = Math.min(menu.scrollHeight, 245);
+  const below = caret.bottom + 5;
+  const top = below + menuHeight <= panelRect.bottom - 8 ? below : Math.max(panelRect.top + 8, caret.top - menuHeight - 5);
+  menu.style.left = `${left}px`; menu.style.top = `${top}px`; menu.style.right = "auto"; menu.style.bottom = "auto";
+}
 
 function acceptCompletion(index = state.completionIndex) {
   const item = state.completionItems[index]; if (!item) return;
@@ -887,7 +955,10 @@ function acceptCompletion(index = state.completionIndex) {
   const before = source.value.slice(0, source.selectionStart);
   const current = before.slice(position.start);
   let replaceStart = position.start;
-  if (/\s-\s/.test(current)) replaceStart = position.start + current.lastIndexOf("-") + 2;
+  if (item.icon === "@") {
+    const token = current.match(/@?[A-Za-z0-9._'-]*$/)?.[0] || "";
+    replaceStart = source.selectionStart - token.length;
+  } else if (/\s-\s/.test(current)) replaceStart = position.start + current.lastIndexOf("-") + 2;
   else if (current.trim()) replaceStart = position.start + current.search(/\S/);
   const suffix = item.icon === "@" ? "\n" : "";
   source.setRangeText(item.value + suffix, replaceStart, source.selectionStart, "end");
@@ -978,6 +1049,7 @@ await micropip.install(_fp_screenplain_wheel, deps=False)
 `);
     pyodide.runPython(`
 import io
+import re
 from reportlab.lib.pagesizes import A4, letter
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -1040,6 +1112,7 @@ def _fp_number_scenes(screenplay, placement="margin", format_type="sequential"):
 
 def _fp_prepare_screenplay(source, placement="margin", format_type="sequential"):
     from screenplain.types import PageBreak
+    source = re.sub(r"(?m)^(\\s*)>(\\S(?:.*\\S)?)<\\s*$", r"\\1> \\2 <", source)
     screenplay = parse(io.StringIO(source))
     if screenplay.title_page and screenplay.paragraphs and isinstance(screenplay.paragraphs[0], PageBreak):
         del screenplay.paragraphs[0]
@@ -1242,7 +1315,11 @@ const toolbarMenus = $$(".toolbar-menu");
 
 function closeMenus(except = null) { toolbarMenus.forEach((menu) => { if (menu !== except) menu.open = false; }); }
 
-source.addEventListener("input", () => sourceChanged());
+source.addEventListener("input", (event) => {
+  sourceChanged();
+  if (event.inputType === "insertText") showCompletions();
+  else hideCompletions();
+});
 source.addEventListener("scroll", () => { $("#line-numbers").scrollTop = source.scrollTop; $("#source-highlight").scrollTop = source.scrollTop; updateCursor(); });
 source.addEventListener("click", () => { updateCursor({ scrollPreview: true }); hideCompletions(); });
 source.addEventListener("keyup", (event) => { if (!["Enter", "Tab", "Escape"].includes(event.key)) updateCursor({ scrollPreview: true }); });
@@ -1252,13 +1329,9 @@ source.addEventListener("keydown", (event) => {
     if (event.key === "Tab") { event.preventDefault(); acceptCompletion(); return; }
     if (event.key === "Escape") { event.preventDefault(); hideCompletions(); return; }
   }
-  if ((event.ctrlKey || event.metaKey) && event.code === "Space") { event.preventDefault(); showCompletions(); }
+  if ((event.ctrlKey || event.metaKey) && event.code === "Space") { event.preventDefault(); showCompletions({ allowBlank: true }); }
   else if (event.key === "Tab") { event.preventDefault(); source.setRangeText("    ", source.selectionStart, source.selectionEnd, "end"); sourceChanged(); }
   else if (event.key === "Enter") hideCompletions();
-  else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-    const { start } = currentPosition();
-    if (!/\s/.test(event.key) || source.value.slice(start, source.selectionStart).trim()) setTimeout(showCompletions, 0);
-  }
 });
 
 page.addEventListener("input", (event) => { const line = event.target.closest(".script-line"); if (line) { syncPreviewLine(line); showPreviewCharacterCompletions(line); } });

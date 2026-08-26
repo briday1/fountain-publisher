@@ -70,24 +70,37 @@ test("source and preview share syntax, cursor, and character completion behavior
   assert.match(html, /id="preview-completion-menu"/);
   assert.match(app, /function renderSourceSyntax\(/);
   assert.match(app, /showPreviewCharacterCompletions\(line\)/);
+  assert.match(app, /const explicitCharacter = text\.startsWith\("@"\)/);
   assert.match(app, /\.classList\.add\("source-current"\)/);
   assert.match(css, /\.syntax-character/);
   assert.match(css, /\.script-line\.source-current/);
 });
 
 test("completion is Tab-only and preview suggestions are caret-positioned", async () => {
-  const app = await readFile(appPath, "utf8");
+  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.doesNotMatch(app, /event\.key === "Enter" \|\| event\.key === "Tab"/);
   assert.match(app, /function positionPreviewCompletion\(/);
   assert.match(app, /caret\.getClientRects\(\)\[0\]/);
+  assert.match(app, /anchor\.bottom \+ 6/);
+  assert.match(css, /\.preview-completion-menu\s*\{[^}]*position:\s*fixed;/s);
+});
+
+test("preview edits keep the source cursor on the edited line", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /const offset = lines\.slice\(0, index\)[\s\S]*source\.setSelectionRange\(offset, offset\)/);
 });
 
 test("source completions wait for typing on a new line and support explicit character lookup", async () => {
-  const app = await readFile(appPath, "utf8");
+  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(app, /event\.key === "Enter"\) hideCompletions\(\)/);
-  assert.match(app, /event\.key\.length === 1/);
+  assert.match(app, /event\.inputType === "insertText"\) showCompletions\(\)/);
+  assert.match(app, /if \(!allowBlank && !currentText\) return hideCompletions\(\)/);
   assert.match(app, /const explicitCharacter = trimmed\.startsWith\("@"\)/);
-  assert.match(app, /explicitCharacter \? trimmed\.slice\(1\) : trimmed/);
+  assert.match(app, /state\.metadata\.characters\.some\(\(character\) => character\.name\.startsWith\(characterFragment\)\)/);
+  assert.match(app, /function positionSourceCompletion\(\)/);
+  assert.match(app, /marker\.getBoundingClientRect\(\)/);
+  assert.match(app, /current\.match\(\/@\?\[A-Za-z0-9\._'-\]\*\$\/\)/);
+  assert.match(css, /#completion-menu\s*\{[^}]*position:\s*fixed;/s);
 });
 
 test("spellcheck exposes native replacement suggestions", async () => {
@@ -119,6 +132,12 @@ test("blank documents retain a page and title inference is constrained", async (
   assert.match(app, /page\.hidden = state\.previewMode !== "live"/);
   assert.match(app, /const TITLE_KEYS = new Set/);
   assert.match(app, /titleContinuation/);
+});
+
+test("compact centered bold markup renders without literal angle markers", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /line\.raw\.trim\(\)\.match\(\/\^>\\s\*\(\.\*\?\)\\s\*</);
+  assert.match(app, /source = re\.sub\(r"\(\?m\)\^\(\\\\s\*\)>\(\\\\S/);
 });
 
 test("the long sample screenplay is opt-in with demo=1", async () => {
@@ -176,7 +195,7 @@ test("page totals come from the compiled Screenplain PDF", async () => {
   assert.ok(app.includes('/Type\\s*\\/Page\\b'));
 });
 
-test("preview toolbar, rotating arrows, and character table stay compact", async () => {
+test("preview toolbar, rotating arrows, and character list stay compact", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.doesNotMatch(html, /id="page-estimate"/);
   assert.doesNotMatch(html, /id="preview-percent"/);
@@ -184,7 +203,7 @@ test("preview toolbar, rotating arrows, and character table stay compact", async
   assert.doesNotMatch(app, /function updatePreviewStatus\(/);
   assert.match(css, /source-collapsed \.source-toggle span\s*\{\s*transform:\s*rotate\(180deg\)/);
   assert.match(css, /stats-collapsed \.stats-toggle span\s*\{\s*transform:\s*rotate\(180deg\)/);
-  assert.match(app, /<table><thead><tr><th>Character<\/th><th>Lines<\/th><th>Duration<\/th>/);
+  assert.match(app, /class="character-name-list"/);
 });
 
 test("document balance heading aligns with other insight labels", async () => {
@@ -218,7 +237,9 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.match(app, /\["Character", "Act", "Scene", "Scene Heading", "Dialogue Lines"\]/);
   assert.match(app, /\.toBlob\(resolve,\s*"image\/png"\)/);
   assert.match(css, /\.analytics-chart-scroll\s*\{[^}]*overflow:\s*auto;/s);
-  assert.match(css, /\.character-list table\s*\{[^}]*user-select:\s*text;/s);
+  assert.match(html, /id="character-line-table"/);
+  assert.match(app, /maxLines === minLines \? 1 : 0\.25 \+ 0\.75/);
+  assert.match(css, /\.analytics-gradient-legend i\s*\{[^}]*linear-gradient/s);
 });
 
 test("source word wrap defaults on and preserves logical line numbers", async () => {
