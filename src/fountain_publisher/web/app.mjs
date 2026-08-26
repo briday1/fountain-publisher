@@ -3,8 +3,6 @@ Credit: Written by
 Author: Avery Stone
 Draft date: August 25, 2026
 
-FADE IN:
-
 INT. OBSERVATORY - NIGHT
 
 A telescope turns beneath the open dome. Stars burn over the sleeping city.
@@ -20,8 +18,6 @@ Tell me that's a satellite.
 
 MAYA CHEN
 It isn't.
-
-CUT TO:
 
 EXT. CITY ROOFTOP - NIGHT
 
@@ -197,7 +193,7 @@ An answer?
 MAYA CHEN
 A promise.
 
-FADE OUT.
+>**END**<
 `;
 
 const $ = (selector, root = document) => root.querySelector(selector);

@@ -118,6 +118,8 @@ test("the long sample screenplay is opt-in with demo=1", async () => {
   assert.match(app, /let name = params\.get\("demo"\)\s*===\s*"1"/);
   const sample = app.match(/const SAMPLE = `([\s\S]*?)`;/)?.[1] || "";
   assert.ok(sample.split(/\s+/).length > 450, "demo should remain substantial");
+  assert.doesNotMatch(sample, /FADE IN:|FADE OUT\.|CUT TO:/);
+  assert.match(sample, />\*\*END\*\*</);
 });
 
 test("the active non-printing line remains visible as editor context", async () => {
