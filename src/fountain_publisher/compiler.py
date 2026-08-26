@@ -58,6 +58,8 @@ def _register_pdf_font_family() -> tuple[str, str, str, str, str]:
 class CompileOptions:
     page_size: str = "letter"
     bold_scene_headings: bool = True
+    scene_numbers: str = "margin"  # "margin", "inline", "off"
+    scene_number_format: str = "sequential"  # "sequential", "act"
 
 
 def _screenplain() -> tuple[Any, Any, Any, Any]:
@@ -83,24 +85,48 @@ def parse_screenplay(source: str) -> Any:
     return screenplay
 
 
-def number_screenplay_scenes(screenplay: Any) -> Any:
-    """Prefix scene headings in render order without changing Fountain source."""
+def number_screenplay_scenes(screenplay: Any, options: CompileOptions | None = None) -> Any:
+    """Number scenes according to placement and format options."""
     try:
         from screenplain.richstring import plain
         from screenplain.types import Slug
     except ImportError:  # pragma: no cover
         return screenplay
-    number = 0
+    opts = options or CompileOptions()
+    if opts.scene_numbers == "off":
+        for paragraph in getattr(screenplay, "paragraphs", ()):
+            if isinstance(paragraph, Slug):
+                paragraph.scene_number = None
+        return screenplay
+    try:
+        from screenplain.types import Section as _Section  # type: ignore[attr-defined]
+    except ImportError:
+        _Section = None
+    act_num = 0
+    act_scene_num = 0
+    sequential = 0
     for paragraph in getattr(screenplay, "paragraphs", ()):
-        if isinstance(paragraph, Slug):
-            number += 1
-            paragraph.line = plain(f"{number}. ") + paragraph.line
-            paragraph.scene_number = None
+        if _Section is not None and isinstance(paragraph, _Section) and getattr(paragraph, "level", 0) == 1:
+            act_num += 1
+            act_scene_num = 0
+        elif isinstance(paragraph, Slug):
+            sequential += 1
+            act_scene_num += 1
+            label = (
+                f"A{max(act_num, 1)}S{act_scene_num}"
+                if opts.scene_number_format == "act"
+                else str(sequential)
+            )
+            if opts.scene_numbers == "margin":
+                paragraph.scene_number = plain(label)
+            else:  # "inline"
+                paragraph.line = plain(f"{label}. ") + paragraph.line
+                paragraph.scene_number = None
     return screenplay
 
 
-def render_html(source: str) -> str:
-    screenplay = number_screenplay_scenes(parse_screenplay(source))
+def render_html(source: str, options: CompileOptions | None = None) -> str:
+    screenplay = number_screenplay_scenes(parse_screenplay(source), options)
     _, html, _, _ = _screenplain()
     output = io.StringIO()
     html.convert(screenplay, output, bare=True)
@@ -108,7 +134,7 @@ def render_html(source: str) -> str:
 
 
 def render_pdf(source: str, options: CompileOptions | None = None) -> bytes:
-    screenplay = number_screenplay_scenes(parse_screenplay(source))
+    screenplay = number_screenplay_scenes(parse_screenplay(source), options)
     _, _, pdf, _ = _screenplain()
     options = options or CompileOptions()
     font_family, regular_font, bold_font, italic_font, bold_italic_font = _register_pdf_font_family()
@@ -178,8 +204,8 @@ def count_pdf_pages(payload: bytes) -> int:
     return len(re.findall(rb"/Type\s*/Page\b", payload))
 
 
-def render_fdx(source: str) -> bytes:
-    screenplay = number_screenplay_scenes(parse_screenplay(source))
+def render_fdx(source: str, options: CompileOptions | None = None) -> bytes:
+    screenplay = number_screenplay_scenes(parse_screenplay(source), options)
     _, _, _, fdx = _screenplain()
     output = io.BytesIO()
     try:

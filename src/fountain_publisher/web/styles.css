@@ -217,7 +217,8 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .script-line.title-key { display: none; }
 .script-line.title-value { text-align: center; margin: 16px 0; }
 .script-line.title-value.title { margin-top: 230px; }
-.script-line.scene { margin: 32px 0 16px; font-weight: 700; text-transform: uppercase; }
+.script-line.scene { position: relative; margin: 32px 0 16px; font-weight: 700; text-transform: uppercase; }
+body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: attr(data-scene-number) "."; position: absolute; right: 100%; padding-right: 10px; top: 0; font-weight: 400; text-transform: none; color: var(--paper-ink); opacity: .45; white-space: nowrap; }
 .script-line.action { margin: 0 0 16px; }
 .script-line.character { width: 250px; margin: 16px 0 0 192px; text-transform: uppercase; }
 .script-line.parenthetical { width: 300px; margin-left: 144px; padding-left: 16px; }
@@ -233,7 +234,10 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .script-line.section.source-current, .script-line.synopsis.source-current, .script-line.note.source-current, .script-line.boneyard.source-current { display: block; margin: 8px 0; padding: 5px 8px; border: 1px dashed color-mix(in srgb, var(--paper-ink) 28%, transparent); color: color-mix(in srgb, var(--paper-ink) 62%, transparent); font-size: 12px; font-style: italic; }
 .script-line.section.source-current::before, .script-line.synopsis.source-current::before, .script-line.note.source-current::before, .script-line.boneyard.source-current::before { content: "EDITOR ONLY  "; font: 700 9px/1 sans-serif; letter-spacing: .08em; opacity: .7; }
 .script-line.page-break { margin: 32px -96px; border-top: 1px dashed #aaa; color: transparent; }
-.empty-state { position: absolute; inset: 45px 0 0; display: grid; place-content: center; justify-items: center; gap: 5px; color: var(--muted); pointer-events: none; }
+.empty-state { position: absolute; inset: 45px 0 0; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); }
+.empty-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.empty-actions button { border: 1px solid var(--border); border-radius: 5px; background: var(--surface); padding: 7px 13px; color: var(--muted); font-size: 12px; cursor: pointer; }
+.empty-actions button:hover { color: var(--ink); background: var(--surface-2); border-color: var(--border-strong); }
 .pdf-view { width: 100%; height: 100%; min-height: 0; position: relative; }
 #pdf-frame { display: block; width: 100%; height: 100%; border: 0; background: white; }
 #pdf-placeholder { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; color: var(--muted); }
@@ -286,6 +290,13 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .dialog-actions button { border: 1px solid var(--border); border-radius: 5px; background: var(--surface); padding: 7px 14px; }
 .dialog-actions .primary { border-color: var(--accent); background: var(--accent); color: white; }
 
+#title-page-dialog { width: min(430px, calc(100vw - 30px)); border: 1px solid var(--border); border-radius: 9px; padding: 0; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+#title-page-dialog::backdrop { background: rgb(0 0 0 / 40%); backdrop-filter: blur(2px); }
+#title-page-form { padding: 20px; }
+#title-page-form > p { color: var(--muted); }
+#title-page-form > label { display: flex; flex-direction: column; gap: 5px; margin: 13px 0; font-weight: 600; }
+#title-page-form input { height: 35px; border: 1px solid var(--border); background: var(--surface); border-radius: 5px; padding: 0 8px; color: var(--ink); }
+
 #docs-dialog { width: min(920px, calc(100vw - 32px)); height: min(760px, calc(100vh - 32px)); max-width: none; max-height: none; padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 #docs-dialog::backdrop { background: rgb(0 0 0 / 42%); backdrop-filter: blur(2px); }
 .docs-shell { height: 100%; display: flex; flex-direction: column; }
@@ -313,6 +324,8 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .docs-content th, .docs-content td { padding: 9px 7px; border-top: 1px solid var(--border); text-align: left; vertical-align: top; }
 .docs-content th { width: 145px; font-size: 11px; }
 .docs-content td { color: var(--muted); }
+:root[data-os="mac"] .shortcut-win { display: none; }
+:root[data-os="win"] .shortcut-mac { display: none; }
 
 @media (max-width: 900px) {
   :root { --source-w: 300px; }

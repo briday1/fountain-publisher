@@ -46,18 +46,22 @@ class ScreenplainIntegrationTests(unittest.TestCase):
     def test_html_uses_screenplain_formatter(self):
         html = render_html(SOURCE)
         self.assertIn('class="dialog"', html)
-        self.assertIn("1. INT. LAB - NIGHT", html)
+        self.assertIn("INT. LAB - NIGHT", html)
+        # Margin mode: scene number appears in margin spans, not prepended inline
+        self.assertIn('class="scnuml"', html)
 
     def test_scene_numbers_are_generated_without_source_markers(self):
         html = render_html("EXT. PARK - DAY\n\nAction.\n\nINT. HOME - NIGHT\n")
-        self.assertIn("1. EXT. PARK - DAY", html)
-        self.assertIn("2. INT. HOME - NIGHT", html)
+        self.assertIn("EXT. PARK - DAY", html)
+        self.assertIn("INT. HOME - NIGHT", html)
+        # Numbers appear in margin spans by default
+        self.assertIn('class="scnuml"', html)
 
     def test_dot_forced_int_is_a_numbered_scene(self):
         source = ".INT. BASEMENT - NIGHT\n\nA light flickers.\n"
         self.assertEqual("INT. BASEMENT - NIGHT", analyze_source(source)["scenes"][0]["heading"])
         html = render_html(source)
-        self.assertIn("1. INT. BASEMENT - NIGHT", html)
+        self.assertIn("INT. BASEMENT - NIGHT", html)
         self.assertNotIn(".INT. BASEMENT", html)
 
     def test_reportlab_pdf_pages_are_counted(self):

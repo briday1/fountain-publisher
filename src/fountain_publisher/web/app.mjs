@@ -196,12 +196,7 @@ A promise.
 >**END**<
 `;
 
-const BLANK_TEMPLATE = `Title:
-Credit: Written by
-Author:
-Draft date:
-
-`;
+const BLANK_TEMPLATE = ``;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -209,6 +204,11 @@ const TITLE_KEYS = new Set(["title", "credit", "author", "authors", "source", "d
 const source = $("#source");
 const page = $("#screenplay-page");
 const STATIC_HOST = location.hostname.endsWith(".github.io") || new URLSearchParams(location.search).get("static") === "1";
+const docSettings = {
+  sceneNumbers: localStorage.getItem("fountain-publisher.scene-numbers") ?? "margin",
+  sceneNumberFormat: localStorage.getItem("fountain-publisher.scene-number-format") ?? "sequential",
+};
+function setDocSetting(key, value) { docSettings[key] = value; localStorage.setItem(`fountain-publisher.${key}`, value); }
 const state = {
   filename: "Untitled.fountain",
   handle: null,
@@ -350,16 +350,36 @@ function analyzeLocally(text) {
   return { lineCount: lines.length, wordCount, dialogueWords, actionWords, estimatedSeconds: Math.round(wordCount / 180 * 60), characters: characterList, scenes, sections: [], locations: [...locations].sort(), titleFields };
 }
 
-function previewLineHtml(line, sceneNumber = null) {
+function previewLineHtml(line, sceneLabel = null) {
   const className = `script-line ${line.type}`;
-  const display = sceneNumber === null ? line.display : `${sceneNumber}. ${line.display.replace(/^\./, "").replace(/\s+#[^#]+#\s*$/, "")}`;
+  let display = line.display;
+  if (sceneLabel !== null) {
+    const cleanDisplay = line.display.replace(/^\./, "").replace(/\s+#[^#]+#\s*$/, "");
+    display = docSettings.sceneNumbers === "inline" ? `${sceneLabel}. ${cleanDisplay}` : cleanDisplay;
+  }
   const content = display ? fountainInlineHtml(display) : "<br>";
-  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(line.prefix)}" data-scene-number="${sceneNumber ?? ""}" contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
+  const sceneAttr = sceneLabel !== null ? escapeHtml(sceneLabel) : "";
+  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(line.prefix)}" data-scene-number="${sceneAttr}" contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
+}
+
+function computeSceneLabels(lines) {
+  const labels = new Map();
+  if (docSettings.sceneNumbers === "off") return labels;
+  let sequential = 0; let actNum = 0; let actSceneNum = 0;
+  const format = docSettings.sceneNumberFormat;
+  for (const line of lines) {
+    if (line.type === "section" && /^#\s/.test(line.raw.trimStart())) { actNum++; actSceneNum = 0; }
+    else if (line.type === "scene") {
+      sequential++; actSceneNum++;
+      labels.set(line.index, format === "act" ? `A${Math.max(actNum, 1)}S${actSceneNum}` : String(sequential));
+    }
+  }
+  return labels;
 }
 
 function renderPreviewLines(lines) {
+  const sceneLabels = computeSceneLabels(lines);
   const output = [];
-  let sceneNumber = 0;
   for (let i = 0; i < lines.length; i += 1) {
     if (lines[i].type === "character") {
       let next = i + 1;
@@ -375,8 +395,8 @@ function renderPreviewLines(lines) {
         continue;
       }
     }
-    if (lines[i].type === "scene") sceneNumber += 1;
-    output.push(previewLineHtml(lines[i], lines[i].type === "scene" ? sceneNumber : null));
+    const label = sceneLabels.get(lines[i].index) ?? null;
+    output.push(previewLineHtml(lines[i], label));
   }
   return output.join("");
 }
@@ -409,7 +429,12 @@ function syncPreviewLine(element) {
   const index = Number(element.dataset.line);
   const lines = source.value.replace(/\r\n?/g, "\n").split("\n");
   let value = element.textContent.replace(/\n/g, "");
-  if (element.dataset.sceneNumber) value = value.replace(/^\s*\d+\.\s*/, "");
+  if (element.dataset.sceneNumber) {
+    if (docSettings.sceneNumbers === "inline") {
+      const prefix = element.dataset.sceneNumber + ". ";
+      value = value.startsWith(prefix) ? value.slice(prefix.length) : value.replace(/^\s*(?:\d+|A\d+S\d+)\.\s+/, "");
+    }
+  }
   if (element.classList.contains("centered")) value = `> ${value} <`;
   else if (element.classList.contains("lyric")) value = `~${value}`;
   else if (element.classList.contains("character") && lines[index].trim().startsWith("@")) value = `@${value}`;
@@ -623,7 +648,7 @@ async function compile(revision) {
   state.compileController = controller;
   $("#compile-status").textContent = "Compiling…";
   try {
-    const response = await fetch("/api/compile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: source.value, pageSize: $("#page-size").value }), signal: controller.signal });
+    const response = await fetch("/api/compile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: source.value, pageSize: $("#page-size").value, sceneNumbers: docSettings.sceneNumbers, sceneNumberFormat: docSettings.sceneNumberFormat }), signal: controller.signal });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Compilation failed");
     if (result.pageCount == null) result.pageCount = await countPdfBlobPages(await requestBinary("/api/render/pdf"), Boolean(result.titleFields.length));
@@ -815,24 +840,43 @@ def _fp_register_pdf_fonts():
     except Exception:
         return ("Courier", "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique")
 
-def _fp_number_scenes(screenplay):
-    number = 0
+def _fp_number_scenes(screenplay, placement="margin", format_type="sequential"):
+    if placement == "off":
+        for paragraph in screenplay.paragraphs:
+            if isinstance(paragraph, Slug):
+                paragraph.scene_number = None
+        return screenplay
+    act_num = 0
+    act_scene_num = 0
+    sequential = 0
+    try:
+        from screenplain.types import Section as _Section
+    except Exception:
+        _Section = None
     for paragraph in screenplay.paragraphs:
-        if isinstance(paragraph, Slug):
-            number += 1
-            paragraph.line = plain(f"{number}. ") + paragraph.line
-            paragraph.scene_number = None
+        if _Section is not None and isinstance(paragraph, _Section) and getattr(paragraph, "level", 0) == 1:
+            act_num += 1
+            act_scene_num = 0
+        elif isinstance(paragraph, Slug):
+            sequential += 1
+            act_scene_num += 1
+            label = f"A{max(act_num, 1)}S{act_scene_num}" if format_type == "act" else str(sequential)
+            if placement == "margin":
+                paragraph.scene_number = plain(label)
+            else:
+                paragraph.line = plain(f"{label}. ") + paragraph.line
+                paragraph.scene_number = None
     return screenplay
 
-def _fp_prepare_screenplay(source):
+def _fp_prepare_screenplay(source, placement="margin", format_type="sequential"):
     from screenplain.types import PageBreak
     screenplay = parse(io.StringIO(source))
     if screenplay.title_page and screenplay.paragraphs and isinstance(screenplay.paragraphs[0], PageBreak):
         del screenplay.paragraphs[0]
-    return _fp_number_scenes(screenplay)
+    return _fp_number_scenes(screenplay, placement, format_type)
 
-def _fp_compile(source, kind, page_size):
-    screenplay = _fp_prepare_screenplay(source)
+def _fp_compile(source, kind, page_size, scene_numbers="margin", scene_number_format="sequential"):
+    screenplay = _fp_prepare_screenplay(source, scene_numbers, scene_number_format)
     font_family, regular_font, bold_font, italic_font, bold_italic_font = _fp_register_pdf_fonts()
     if kind == "pdf":
         output = io.BytesIO()
@@ -886,7 +930,9 @@ async function compileWithBrowserScreenplain(kind, selectedPageSize) {
   pyodide.globals.set("_fp_source", source.value);
   pyodide.globals.set("_fp_kind", kind);
   pyodide.globals.set("_fp_page_size", selectedPageSize);
-  const value = pyodide.runPython("_fp_compile(_fp_source, _fp_kind, _fp_page_size)");
+  pyodide.globals.set("_fp_scene_numbers", docSettings.sceneNumbers);
+  pyodide.globals.set("_fp_scene_number_format", docSettings.sceneNumberFormat);
+  const value = pyodide.runPython("_fp_compile(_fp_source, _fp_kind, _fp_page_size, _fp_scene_numbers, _fp_scene_number_format)");
   const bytes = value instanceof Uint8Array ? value : value.toJs();
   value.destroy?.();
   const types = { pdf: "application/pdf", fdx: "application/xml;charset=utf-8" };
@@ -896,7 +942,7 @@ async function compileWithBrowserScreenplain(kind, selectedPageSize) {
 async function requestBinary(path, selectedPageSize = $("#page-size").value) {
   if (STATIC_HOST && path === "/api/render/pdf") return compileWithBrowserScreenplain("pdf", selectedPageSize);
   if (STATIC_HOST && path === "/api/export/fdx") return compileWithBrowserScreenplain("fdx", selectedPageSize);
-  const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: source.value, pageSize: selectedPageSize }) });
+  const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: source.value, pageSize: selectedPageSize, sceneNumbers: docSettings.sceneNumbers, sceneNumberFormat: docSettings.sceneNumberFormat }) });
   if (!response.ok) { const value = await response.json().catch(() => ({})); throw new Error(value.error || "Export failed"); }
   return response.blob();
 }
@@ -1060,6 +1106,44 @@ $("#zoom").addEventListener("change", applyZoom); $("#zoom-out").addEventListene
 $("#open-docs").addEventListener("click", () => $("#docs-dialog").showModal());
 $("#close-docs").addEventListener("click", () => $("#docs-dialog").close());
 
+function insertAtDocumentStart(text) {
+  const current = source.value;
+  source.value = text + (current ? "\n" + current : "");
+  sourceChanged(); source.setSelectionRange(0, 0); source.scrollTop = 0; source.focus();
+}
+function appendToSource(text) {
+  const current = source.value;
+  const sep = !current ? "" : current.endsWith("\n\n") ? "" : current.endsWith("\n") ? "\n" : "\n\n";
+  source.value = current + sep + text;
+  sourceChanged(); source.focus();
+}
+
+$("#insert-title-page").addEventListener("click", () => {
+  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  $("#tp-title").value = ""; $("#tp-credit").value = "Written by"; $("#tp-author").value = ""; $("#tp-date").value = today; $("#tp-contact").value = "";
+  $("#title-page-dialog").showModal(); setTimeout(() => $("#tp-title").focus(), 0);
+});
+$("#insert-scene").addEventListener("click", () => { appendToSource("INT. LOCATION - DAY\n\n"); });
+$("#insert-dialogue").addEventListener("click", () => { appendToSource("CHARACTER\nDialogue here.\n\n"); });
+$("#insert-direction").addEventListener("click", () => { appendToSource("Action description.\n\n"); });
+$("#title-page-form").addEventListener("submit", (event) => {
+  if (event.submitter?.value !== "default") return;
+  event.preventDefault();
+  const rows = [];
+  const tp = (id, key) => { const v = $(`#${id}`).value.trim(); if (v) rows.push(`${key}: ${v}`); };
+  tp("tp-title", "Title"); tp("tp-credit", "Credit"); tp("tp-author", "Author"); tp("tp-date", "Draft date"); tp("tp-contact", "Contact");
+  if (rows.length) insertAtDocumentStart(rows.join("\n") + "\n");
+  $("#title-page-dialog").close();
+});
+
+function applySceneNumSettings() {
+  document.body.classList.remove("scene-nums-margin", "scene-nums-inline", "scene-nums-off");
+  document.body.classList.add(`scene-nums-${docSettings.sceneNumbers}`);
+  renderPreview(); scheduleCompile(0); if (state.previewMode === "pdf") refreshPdf();
+}
+$("#scene-num-placement").addEventListener("change", (event) => { setDocSetting("sceneNumbers", event.target.value); applySceneNumSettings(); });
+$("#scene-num-format").addEventListener("change", (event) => { setDocSetting("sceneNumberFormat", event.target.value); applySceneNumSettings(); });
+
 toolbarMenus.forEach((menu) => menu.addEventListener("click", (event) => {
   if (event.target.closest("button")) menu.open = false;
   else if (event.target.closest("summary")) closeMenus(menu);
@@ -1080,8 +1164,12 @@ window.addEventListener("resize", renderEditorChrome);
 
 async function initialize() {
   setTheme(state.theme);
+  const isMac = /Mac/i.test(navigator.platform) || /Mac/i.test(navigator.userAgentData?.platform || "");
+  document.documentElement.dataset.os = isMac ? "mac" : "win";
   const wordWrap = localStorage.getItem("fountain-publisher.word-wrap") !== "false";
   $("#word-wrap").checked = wordWrap; document.body.classList.toggle("source-wrap", wordWrap); source.setAttribute("wrap", wordWrap ? "soft" : "off");
+  $("#scene-num-placement").value = docSettings.sceneNumbers; $("#scene-num-format").value = docSettings.sceneNumberFormat;
+  document.body.classList.add(`scene-nums-${docSettings.sceneNumbers}`);
   const sourceWidth = Number(localStorage.getItem("fountain-publisher.--source-w")); const statsWidth = Number(localStorage.getItem("fountain-publisher.--stats-w"));
   if (sourceWidth) document.documentElement.style.setProperty("--source-w", `${sourceWidth}px`); if (statsWidth) document.documentElement.style.setProperty("--stats-w", `${statsWidth}px`);
   togglePanel("source", localStorage.getItem("fountain-publisher.source-collapsed") === "true"); togglePanel("stats", localStorage.getItem("fountain-publisher.stats-collapsed") === "true");
