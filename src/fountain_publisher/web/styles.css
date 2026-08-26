@@ -428,9 +428,6 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
   .preview-scroll.pdf-mode { padding: 0; overflow: hidden; }
   .pdf-view { height: 100%; }
 
-  /* Hide the Preview/PDF view-switcher — mobile uses the tab bar instead */
-  .view-switcher { display: none; }
-
   /* Insights: stack metric grid to a single column on narrow screens */
   .metric-grid { grid-template-columns: 1fr 1fr; }
   .insights-scroll { padding-bottom: 16px; }

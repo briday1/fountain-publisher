@@ -378,10 +378,11 @@ test("character completions appear in preview regardless of line position", asyn
   assert.match(fnMatch[0], /\/\^\[A-Z\]/);
 });
 
-test("mobile preview tab hides the Preview/PDF view-switcher", async () => {
-  const css = await readFile(cssPath, "utf8");
-  // The view-switcher must be hidden inside the mobile media query
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[^}]*\{[^@]*\.view-switcher\s*\{\s*display:\s*none;/s);
+test("mobile preview tab retains the complete preview toolbar", async () => {
+  const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.doesNotMatch(css, /@media\s*\(max-width:\s*640px\)[^@]*\.view-switcher\s*\{[^}]*display:\s*none;/s);
+  assert.match(html, /class="view-switcher"[\s\S]*data-preview-mode="live"[\s\S]*data-preview-mode="pdf"/);
+  assert.match(html, /class="preview-actions"[\s\S]*id="zoom-out"[\s\S]*id="zoom"[\s\S]*id="zoom-in"/);
 });
 
 test("mobile PDF export path remains accessible via toolbar File menu", async () => {
