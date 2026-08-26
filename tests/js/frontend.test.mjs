@@ -438,7 +438,7 @@ test("compiler failures expose actionable desktop and browser errors", async () 
 test("mobile page count is preserved across source edits", async () => {
   const app = await readFile(appPath, "utf8");
   // analyzeLocally must carry the current pageCount from state so it survives re-renders
-  assert.match(app, /pageCount:\s*state\.metadata\?\.pageCount \?\? null/);
+  assert.match(app, /const pageCount = state\.metadata\?\.pageCount \?\? null/);
 });
 
 test("mobile toolbar compresses the about menu and fixes popover visibility", async () => {
