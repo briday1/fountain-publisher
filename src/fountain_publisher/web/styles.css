@@ -102,6 +102,9 @@ kbd { border: 0; background: none; color: var(--faint); font: 11px var(--mono); 
 .about-menu > summary { padding-left: 2px; font-size: 13px; letter-spacing: -.01em; }
 .about-popover { width: 240px; padding: 14px; }
 .about-popover p { margin: 5px 0 10px; }
+.about-popover a { color: var(--accent); text-decoration: none; }
+.about-popover a:hover { text-decoration: underline; }
+.about-repo-link { display: block; margin-top: 2px; font-size: 12px; }
 .menu-separator { display: block; border-top: 1px solid var(--border); margin: 6px 3px; }
 .menu-check { color: var(--accent); font-weight: 700; }
 .setting-row select { border: 0; background: transparent; text-align: right; }
