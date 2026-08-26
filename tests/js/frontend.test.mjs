@@ -76,10 +76,17 @@ test("source and preview share syntax, cursor, and character completion behavior
 });
 
 test("completion is Tab-only and preview suggestions are caret-positioned", async () => {
-  const app = await readFile(appPath, "utf8");
+  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.doesNotMatch(app, /event\.key === "Enter" \|\| event\.key === "Tab"/);
   assert.match(app, /function positionPreviewCompletion\(/);
   assert.match(app, /caret\.getClientRects\(\)\[0\]/);
+  assert.match(app, /anchor\.bottom \+ 6/);
+  assert.match(css, /\.preview-completion-menu\s*\{[^}]*position:\s*fixed;/s);
+});
+
+test("preview edits keep the source cursor on the edited line", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /const offset = lines\.slice\(0, index\)[\s\S]*source\.setSelectionRange\(offset, offset\)/);
 });
 
 test("source completions wait for typing on a new line and support explicit character lookup", async () => {
@@ -120,6 +127,12 @@ test("blank documents retain a page and title inference is constrained", async (
   assert.match(app, /page\.hidden = state\.previewMode !== "live"/);
   assert.match(app, /const TITLE_KEYS = new Set/);
   assert.match(app, /titleContinuation/);
+});
+
+test("compact centered bold markup renders without literal angle markers", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /line\.raw\.trim\(\)\.match\(\/\^>\\s\*\(\.\*\?\)\\s\*</);
+  assert.match(app, /source = re\.sub\(r"\(\?m\)\^\(\\\\s\*\)>\(\\\\S/);
 });
 
 test("the long sample screenplay is opt-in with demo=1", async () => {

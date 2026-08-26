@@ -59,6 +59,12 @@ Third line.
 
 
 class ScreenplainIntegrationTests(unittest.TestCase):
+    def test_centered_bold_text_accepts_compact_fountain_markers(self):
+        html = render_html(">**END**<")
+        self.assertIn('class="action centered"', html)
+        self.assertIn("<strong>END</strong>", html)
+        self.assertNotIn("&gt;", html)
+
     def test_runtime_versions_are_pinned_for_browser_parity(self):
         requirements = metadata("fountain-publisher").get_all("Requires-Dist") or []
         self.assertIn("screenplain==0.12.0", requirements)

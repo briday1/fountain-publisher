@@ -367,8 +367,11 @@ function analyzeLocally(text) {
 }
 
 function previewLineHtml(line, sceneLabel = null) {
-  const className = `script-line ${line.type}`;
+  const centered = line.raw.trim().match(/^>\s*(.*?)\s*<$/);
+  const type = centered ? "centered" : line.type;
+  const className = `script-line ${type}`;
   let display = line.display;
+  if (centered) display = centered[1];
   if (sceneLabel !== null) {
     const cleanDisplay = line.display.replace(/^\./, "").replace(/\s+#[^#]+#\s*$/, "");
     display = docSettings.sceneNumbers === "inline" ? `${sceneLabel}. ${cleanDisplay}` : cleanDisplay;
@@ -458,6 +461,8 @@ function syncPreviewLine(element) {
   else if (element.dataset.prefix) value = `${element.dataset.prefix} ${value}`;
   lines[index] = value;
   source.value = lines.join("\n");
+  const offset = lines.slice(0, index).reduce((total, line) => total + line.length + 1, 0) + value.length;
+  source.setSelectionRange(offset, offset);
   sourceChanged({ fromPreview: true });
 }
 
@@ -505,10 +510,11 @@ function positionPreviewCompletion() {
     }
   }
   const width = Math.min(310, panelRect.width - 16);
-  const left = Math.max(8, Math.min(panelRect.width - width - 8, anchor.left - panelRect.left));
-  const below = anchor.bottom - panelRect.top + 6;
-  const top = below + 190 <= panelRect.height ? below : Math.max(8, anchor.top - panelRect.top - 196);
-  menu.style.left = `${left}px`; menu.style.top = `${top}px`;
+  const left = Math.max(panelRect.left + 8, Math.min(panelRect.right - width - 8, anchor.left));
+  const menuHeight = Math.min(menu.scrollHeight, 245);
+  const below = anchor.bottom + 6;
+  const top = below + menuHeight <= panelRect.bottom - 8 ? below : Math.max(panelRect.top + 8, anchor.top - menuHeight - 6);
+  menu.style.left = `${left}px`; menu.style.top = `${top}px`; menu.style.right = "auto"; menu.style.bottom = "auto";
 }
 
 function acceptPreviewCharacterCompletion(index = state.previewCompletionIndex) {
@@ -995,6 +1001,7 @@ await micropip.install(_fp_screenplain_wheel, deps=False)
 `);
     pyodide.runPython(`
 import io
+import re
 from reportlab.lib.pagesizes import A4, letter
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -1057,6 +1064,7 @@ def _fp_number_scenes(screenplay, placement="margin", format_type="sequential"):
 
 def _fp_prepare_screenplay(source, placement="margin", format_type="sequential"):
     from screenplain.types import PageBreak
+    source = re.sub(r"(?m)^(\\s*)>(\\S(?:.*\\S)?)<\\s*$", r"\\1> \\2 <", source)
     screenplay = parse(io.StringIO(source))
     if screenplay.title_page and screenplay.paragraphs and isinstance(screenplay.paragraphs[0], PageBreak):
         del screenplay.paragraphs[0]
