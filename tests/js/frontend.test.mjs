@@ -87,14 +87,26 @@ test("completion is Tab-only and preview suggestions are caret-positioned", asyn
 
 test("preview edits keep the source cursor on the edited line", async () => {
   const app = await readFile(appPath, "utf8");
-  assert.match(app, /const offset = lines\.slice\(0, index\)[\s\S]*source\.setSelectionRange\(offset, offset\)/);
+  assert.match(app, /function setSourceCursorFromPreview[\s\S]*source\.setSelectionRange\(offset, offset\)/);
+  assert.match(app, /page\.addEventListener\("focusin"[\s\S]*setSourceCursorFromPreview\(line\)/);
+  assert.doesNotMatch(app, /page\.addEventListener\("focusin"[^\n]*jumpToLine/);
 });
 
-test("preview line breaks preserve preceding lines and the viewport", async () => {
+test("preview edits are source-backed and preserve the viewport", async () => {
   const app = await readFile(appPath, "utf8");
-  assert.match(app, /page\.addEventListener\("beforeinput"[\s\S]*event\.preventDefault\(\);[\s\S]*insertPreviewLineAfter\(line\)/);
-  assert.match(app, /function insertPreviewLineAfter[\s\S]*lines\.splice\(index \+ 1, 0, ""\)/);
+  assert.match(app, /page\.addEventListener\("beforeinput"[\s\S]*event\.preventDefault\(\);[\s\S]*replacePreviewSelection\(edit/);
+  assert.match(app, /function replacePreviewSelection[\s\S]*lines\.splice\(startIndex, endIndex - startIndex \+ 1, \.\.\.replacements\)/);
+  assert.match(app, /function previewDeleteSelection/);
+  assert.match(app, /page\.addEventListener\("paste"/);
+  assert.match(app, /insertFromPaste/);
+  assert.match(app, /function fountainInlineSourceMap/);
+  assert.match(app, /const startMap =/);
+  assert.match(app, /const endMap =/);
+  assert.match(app, /const caretMap =/);
+  assert.match(app, /activeInlineMarkers/);
+  assert.match(app, /element\.classList\.contains\("scene"\)/);
   assert.match(app, /target\?\.focus\(\{ preventScroll: true \}\)[\s\S]*scrollTop = scrollTop/);
+  assert.match(app, /requestAnimationFrame\(\(\) => \{[\s\S]*previewScroll\.scrollTop = scrollTop/);
 });
 
 test("top-level act headings are supported in the live editor", async () => {
@@ -210,7 +222,7 @@ test("page totals come from the compiled Screenplain PDF", async () => {
   assert.ok(app.includes('/Type\\s*\\/Page\\b'));
 });
 
-test("preview toolbar, rotating arrows, and character list stay compact", async () => {
+test("preview toolbar and rotating arrows stay compact", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.doesNotMatch(html, /id="page-estimate"/);
   assert.doesNotMatch(html, /id="preview-percent"/);
@@ -218,7 +230,6 @@ test("preview toolbar, rotating arrows, and character list stay compact", async 
   assert.doesNotMatch(app, /function updatePreviewStatus\(/);
   assert.match(css, /source-collapsed \.source-toggle span\s*\{\s*transform:\s*rotate\(180deg\)/);
   assert.match(css, /stats-collapsed \.stats-toggle span\s*\{\s*transform:\s*rotate\(180deg\)/);
-  assert.match(app, /class="character-name-list"/);
 });
 
 test("document balance heading aligns with other insight labels", async () => {
@@ -244,8 +255,10 @@ test("in-app documentation teaches the editor and Fountain syntax", async () => 
 
 test("character analytics supports a scrollable timeline, PNG save, and CSV copy", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
-  assert.match(app, /data-character-analytics>Character Analytics/);
-  assert.match(css, /\.table-actions button\s*\{[^}]*width:\s*100%;[^}]*text-align:\s*center;/s);
+  assert.match(html, /class="character-analytics-launch"><button[^>]*data-character-analytics>Character Analytics/);
+  assert.match(css, /\.character-analytics-launch button\s*\{[^}]*width:\s*100%;[^}]*text-align:\s*center;/s);
+  assert.doesNotMatch(html, /id="character-list"|id="character-count"/);
+  assert.doesNotMatch(app, /character-name-list/);
   assert.match(html, /id="character-analytics-chart"/);
   assert.match(html, /id="copy-character-lines"[^>]*>Copy line usage CSV/);
   assert.match(app, /navigator\.clipboard\.writeText\(characterLineUsageCsv\(\)\)/);
@@ -363,10 +376,8 @@ test("mobile PDF export path remains accessible via toolbar File menu", async ()
   assert.match(html, /value="pdf"[^>]*>PDF screenplay/);
 });
 
-test("mobile Insights layout has responsive overflow and wrapping rules", async () => {
+test("mobile Insights layout has responsive wrapping rules", async () => {
   const css = await readFile(cssPath, "utf8");
-  // Inside the mobile media query: character-list allows horizontal scroll
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.character-list\s*\{[^}]*overflow-x:\s*auto;/s);
   // Inside the mobile media query: scene list buttons wrap text
   assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.scene-list button\s*\{[^}]*white-space:\s*normal;/s);
 });

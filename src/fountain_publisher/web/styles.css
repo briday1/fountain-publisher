@@ -204,7 +204,7 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .preview-actions button, .preview-actions select { height: 27px; border: 1px solid var(--border); background: var(--surface); }
 .preview-actions button { width: 28px; }
 .preview-actions select { width: 66px; }
-.preview-scroll { flex: 1 1 0; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 34px max(20px, calc((100% - 816px) / 2)); }
+.preview-scroll { flex: 1 1 0; min-height: 0; overflow: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 34px max(20px, calc((100% - 816px) / 2)); }
 .preview-scroll.pdf-mode { padding: 0; overflow: hidden; }
 .screenplay-page {
   width: 816px; min-height: 1056px; padding: 96px 96px 100px 144px; transform-origin: top left;
