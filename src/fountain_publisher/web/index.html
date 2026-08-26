@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Write, preview, and publish Fountain screenplays." />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:; worker-src 'self' blob:" />
     <link rel="icon" href="data:," />
     <title>Fountain Publisher</title>
     <link rel="stylesheet" href="styles.css" />
@@ -56,6 +57,7 @@
             </button>
             <label class="setting-row"><span>Paper</span><select id="page-size"><option value="letter">US Letter</option><option value="a4">A4</option></select></label>
             <label class="setting-row" title="Underline misspellings and right-click them for replacement suggestions"><span>Spellcheck</span><input id="spellcheck" type="checkbox" role="switch" checked /></label>
+            <label class="setting-row" title="Wrap long source lines without changing Fountain line numbers"><span>Source word wrap</span><input id="word-wrap" type="checkbox" role="switch" checked /></label>
           </div>
         </details>
         <details class="toolbar-menu">
@@ -86,7 +88,7 @@
           <div id="current-line" class="current-line" aria-hidden="true"></div>
           <div id="line-numbers" class="line-numbers" aria-hidden="true"></div>
           <pre id="source-highlight" class="source-highlight" aria-hidden="true"></pre>
-          <textarea id="source" aria-label="Fountain source" aria-describedby="editor-status spellcheck-help" autocapitalize="off" autocomplete="off" spellcheck="true" wrap="off"></textarea>
+          <textarea id="source" aria-label="Fountain source" aria-describedby="editor-status spellcheck-help" autocapitalize="off" autocomplete="off" spellcheck="true" wrap="soft"></textarea>
           <div id="completion-menu" class="completion-menu" role="listbox" aria-label="Fountain suggestions" hidden></div>
         </div>
         <footer class="editor-footer">

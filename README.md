@@ -2,7 +2,7 @@
 
 A source-first Fountain screenplay studio with a Pugflow-style application shell: collapsible and resizable panels, persistent light/dark themes, native file handling, contextual completion, a directly editable published screenplay, exact PDF preview, and production statistics.
 
-The browser app compiles Fountain to HTML, PDF, and Final Draft FDX entirely in JavaScript, so the complete studio works on static hosting. The optional Python app and CLI provide a Screenplain-backed compilation path for local workflows.
+The browser app runs Screenplain in Python/WebAssembly to compile Fountain to HTML, PDF, and Final Draft FDX, so the same compiler and settings work on static hosting and in the local Python application.
 
 The GitHub Pages demo is the complete browser application, including editing, live and PDF preview, file handling, insights, themes, documentation, and PDF/HTML/FDX export. The optional local Python application and CLI use Screenplain as their compiler.
 
@@ -45,6 +45,7 @@ fountain-publisher screenplay.fountain --page-size a4 --output screenplay.pdf
 - Source and Insights panels collapse, resize with mouse or keyboard, and remember their layout.
 - Theme follows the system until explicitly set to light or dark.
 - Use Ctrl/Command+Space for contextual title-page, character, scene, location, time-of-day, and transition completion.
+- Source word wrap is enabled by default; wrapped continuations remain part of the same numbered Fountain line.
 - Edit either the Fountain source or a line on the published screenplay page.
 - The live page is optimized for editing. Switch to **PDF** for exact output from the same compiler used by export.
 - Insights show scene count, estimated pages/runtime, dialogue/action balance, locations, and per-character dialogue lines, words, scenes, and speaking duration.

@@ -6,10 +6,8 @@
   "scripts": {
     "start": "PYTHONPATH=src python3 -m fountain_publisher",
     "build:web": "node scripts/build-web.mjs",
+    "test:wasm": "node scripts/smoke-screenplain-wasm.mjs",
     "test": "node --test tests/js/*.test.mjs && PYTHONPATH=src python3 -m unittest discover -s tests -v"
-  },
-  "dependencies": {
-    "jspdf": "^4.2.1"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"
@@ -20,5 +18,8 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "pyodide": "^314.0.6"
+  }
 }

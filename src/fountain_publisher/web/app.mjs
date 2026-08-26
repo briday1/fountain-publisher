@@ -1,5 +1,3 @@
-import { jsPDF } from "jspdf";
-
 const SAMPLE = `Title: The Last Light
 Credit: Written by
 Author: Avery Stone
@@ -207,7 +205,7 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const TITLE_KEYS = new Set(["title", "credit", "author", "authors", "source", "draft date", "date", "contact", "copyright", "notes"]);
 const source = $("#source");
 const page = $("#screenplay-page");
-const STATIC_HOST = location.hostname.endsWith(".github.io");
+const STATIC_HOST = location.hostname.endsWith(".github.io") || new URLSearchParams(location.search).get("static") === "1";
 const state = {
   filename: "Untitled.fountain",
   handle: null,
@@ -444,10 +442,26 @@ function acceptPreviewCharacterCompletion(index = state.previewCompletionIndex) 
 }
 
 function renderEditorChrome() {
-  const lineCount = source.value.split("\n").length;
-  $("#line-numbers").textContent = Array.from({ length: lineCount }, (_, i) => i + 1).join("\n");
+  renderLineNumbers();
   renderSourceSyntax();
   updateCursor();
+}
+
+function sourceWrapColumns() {
+  if (!document.body.classList.contains("source-wrap")) return Infinity;
+  const width = Math.max(1, source.clientWidth - 32);
+  const fontSize = parseFloat(getComputedStyle(source).fontSize) || 13;
+  return Math.max(1, Math.floor(width / (fontSize * 0.61)));
+}
+
+function sourceVisualRows(line, columns = sourceWrapColumns()) {
+  if (!Number.isFinite(columns)) return 1;
+  return Math.max(1, Math.ceil(line.replaceAll("\t", "    ").length / columns));
+}
+
+function renderLineNumbers() {
+  const columns = sourceWrapColumns();
+  $("#line-numbers").textContent = source.value.split("\n").map((line, index) => `${index + 1}${"\n".repeat(sourceVisualRows(line, columns) - 1)}`).join("\n");
 }
 
 function fountainSyntaxHtml(value) {
@@ -482,7 +496,8 @@ function updateCursor({ scrollPreview = false } = {}) {
   const type = classifyLines(source.value)[position.line]?.type || "action";
   const labels = { scene: "Scene heading", character: "Character", dialogue: "Dialogue", parenthetical: "Parenthetical", transition: "Transition", "title-value": "Title page", "title-value title": "Title" };
   $("#editor-status").textContent = labels[type] || type[0].toUpperCase() + type.slice(1);
-  $("#current-line").style.transform = `translateY(${position.line * 20.15 - source.scrollTop}px)`;
+  const rowsBefore = source.value.split("\n").slice(0, position.line).reduce((total, line) => total + sourceVisualRows(line), 0);
+  $("#current-line").style.transform = `translateY(${rowsBefore * 20.15 - source.scrollTop}px)`;
   updatePreviewCursor(scrollPreview);
 }
 
@@ -494,7 +509,7 @@ function renderInsights(metadata) {
   $("#stat-words").textContent = metadata.wordCount.toLocaleString();
   $("#stat-runtime").textContent = formatDuration(metadata.estimatedSeconds);
   $("#character-count").textContent = metadata.characters.length;
-  $("#character-list").innerHTML = metadata.characters.length ? `<div class="table-actions"><button type="button" data-copy-characters>Copy table</button></div><table><thead><tr><th>Character</th><th>Lines</th><th>Duration</th></tr></thead><tbody>${metadata.characters.map((character) => `<tr><td><button type="button" data-line="${character.lastLine}">${escapeHtml(character.name)}</button></td><td>${character.lines}</td><td>${formatDuration(character.seconds)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty-list">Character statistics appear as dialogue is written.</div>`;
+  $("#character-list").innerHTML = metadata.characters.length ? `<div class="table-actions"><button type="button" data-copy-characters>Copy CSV</button></div><table><thead><tr><th>Character</th><th>Lines</th><th>Duration</th></tr></thead><tbody>${metadata.characters.map((character) => `<tr><td><button type="button" data-line="${character.lastLine}">${escapeHtml(character.name)}</button></td><td>${character.lines}</td><td>${formatDuration(character.seconds)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty-list">Character statistics appear as dialogue is written.</div>`;
   $("#scene-count").textContent = metadata.scenes.length;
   $("#scene-list").innerHTML = metadata.scenes.length ? metadata.scenes.map((scene) => `<li><span class="scene-num">${escapeHtml(scene.number)}</span><button type="button" data-line="${scene.line}">${escapeHtml(scene.heading)}</button></li>`).join("") : `<li class="empty-list">No scene headings yet.</li>`;
   $("#location-count").textContent = metadata.locations.length;
@@ -653,57 +668,77 @@ function download(blob, filename) {
   const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = filename; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function xmlEscape(value) {
-  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
+let screenplainPromise;
+async function getBrowserScreenplain() {
+  if (!screenplainPromise) screenplainPromise = (async () => {
+    $("#compile-status").textContent = "Loading Screenplain…";
+    const runtimeBase = new URL("pyodide/", import.meta.url);
+    const { loadPyodide } = await import(new URL("pyodide.mjs", runtimeBase).href);
+    const pyodide = await loadPyodide({ indexURL: runtimeBase.href });
+    await pyodide.loadPackage("micropip");
+    pyodide.globals.set("_fp_reportlab_wheel", new URL("vendor/reportlab-3.6.13-py3-none-any.whl", import.meta.url).href);
+    pyodide.globals.set("_fp_pillow_wheel", new URL("vendor/pillow-12.2.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl", import.meta.url).href);
+    pyodide.globals.set("_fp_screenplain_wheel", new URL("vendor/screenplain-0.12.0-py3-none-any.whl", import.meta.url).href);
+    pyodide.globals.set("_fp_six_wheel", new URL("vendor/six-1.17.0-py2.py3-none-any.whl", import.meta.url).href);
+    await pyodide.runPythonAsync(`
+import micropip
+await micropip.install(_fp_six_wheel, deps=False)
+await micropip.install(_fp_pillow_wheel, deps=False)
+await micropip.install(_fp_reportlab_wheel, deps=False)
+await micropip.install(_fp_screenplain_wheel, deps=False)
+`);
+    pyodide.runPython(`
+import io
+from reportlab.lib.pagesizes import A4, letter
+from screenplain.export import fdx, html, pdf
+from screenplain.parsers.fountain import parse
+
+def _fp_compile(source, kind, page_size):
+    screenplay = parse(io.StringIO(source))
+    if kind == "pdf":
+        output = io.BytesIO()
+        settings = pdf.Settings(page_size=A4 if page_size == "a4" else letter, strong_slugs=False)
+        settings.slug_style.fontName = "Courier-Bold"
+        settings.title_style.fontSize = 10
+        settings.title_style.leading = 12
+        for style_name in ("title_style", "centered_style", "default_style", "contact_style"):
+            getattr(settings, style_name).fontName = "Courier"
+        pdf.to_pdf(screenplay, output, settings=settings)
+        return output.getvalue()
+    if kind == "fdx":
+        output = io.BytesIO()
+        try:
+            fdx.to_fdx(screenplay, output)
+            return output.getvalue()
+        except TypeError:
+            text = io.StringIO()
+            fdx.to_fdx(screenplay, text)
+            return text.getvalue().encode("utf-8")
+    output = io.StringIO()
+    html.convert(screenplay, output, bare=True)
+    return output.getvalue().encode("utf-8")
+`);
+    $("#compile-status").textContent = "Screenplain ready";
+    return pyodide;
+  })().catch((error) => { screenplainPromise = null; throw error; });
+  return screenplainPromise;
 }
 
-function renderClientFdx() {
-  const types = { scene: "Scene Heading", action: "Action", character: "Character", dialogue: "Dialogue", parenthetical: "Parenthetical", transition: "Transition", centered: "Action", lyric: "Lyrics" };
-  const paragraphs = classifyLines(source.value).filter((line) => types[line.type] && line.display.trim()).map((line) => `<Paragraph Type="${types[line.type]}"><Text>${xmlEscape(line.display)}</Text></Paragraph>`).join("");
-  return new Blob([`<?xml version="1.0" encoding="UTF-8" standalone="no"?><FinalDraft DocumentType="Script" Template="No" Version="1"><Content>${paragraphs}</Content></FinalDraft>`], { type: "application/xml;charset=utf-8" });
-}
-
-function renderClientPdf(selectedPageSize = $("#page-size").value) {
-  const pageSize = selectedPageSize === "a4" ? "a4" : "letter";
-  const pdf = new jsPDF({ unit: "pt", format: pageSize, compress: true });
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const left = 108; const right = 72; const top = 72; const bottom = 72; const leading = 12;
-  const lines = classifyLines(source.value);
-  const title = Object.fromEntries(lines.filter((line) => line.prefix).map((line) => [line.prefix.slice(0, -1).toLowerCase(), line.display]));
-  const hasTitle = Boolean(title.title || title.author || title.authors || title.credit);
-  let y = top;
-  const newPage = () => { pdf.addPage(); y = top; };
-  const ensure = (height = leading) => { if (y + height > pageHeight - bottom) newPage(); };
-  const write = (text, x, width, { align = "left", bold = false, before = 0, after = 0, size = 12 } = {}) => {
-    y += before; pdf.setFont("courier", bold ? "bold" : "normal"); pdf.setFontSize(size);
-    const wrapped = pdf.splitTextToSize(text || " ", width); ensure(wrapped.length * leading);
-    pdf.text(wrapped, x, y, { align }); y += wrapped.length * leading + after;
-  };
-  if (hasTitle) {
-    y = pageHeight / 3;
-    if (title.title) write(title.title, pageWidth / 2, pageWidth - 216, { align: "center", size: 10, after: 12 });
-    if (title.credit) write(title.credit, pageWidth / 2, pageWidth - 216, { align: "center" });
-    if (title.author || title.authors) write(title.author || title.authors, pageWidth / 2, pageWidth - 216, { align: "center" });
-    const lower = [title["draft date"], title.contact, title.copyright].filter(Boolean);
-    if (lower.length) { y = pageHeight - bottom - lower.length * leading; lower.forEach((value) => write(value, left, pageWidth - left - right)); }
-    pdf.addPage(); y = top;
-  }
-  lines.filter((line) => !line.prefix && !["empty", "title-value", "title-value title", "section", "synopsis", "note", "boneyard", "page-break"].includes(line.type)).forEach((line) => {
-    if (line.type === "scene") write(line.display, left, pageWidth - left - right, { bold: true, before: leading, after: leading });
-    else if (line.type === "character") write(line.display, left + 137, 250, { before: leading });
-    else if (line.type === "dialogue") write(line.display, left + 65, 252);
-    else if (line.type === "parenthetical") write(line.display, left + 94, 216);
-    else if (line.type === "transition") write(line.display, pageWidth - right, 300, { align: "right", before: leading, after: leading });
-    else if (line.type === "centered") write(line.display, pageWidth / 2, pageWidth - left - right, { align: "center", before: leading });
-    else write(line.display, left, pageWidth - left - right, { before: line.type === "action" ? leading : 0 });
-  });
-  return pdf.output("blob");
+async function compileWithBrowserScreenplain(kind, selectedPageSize) {
+  const pyodide = await getBrowserScreenplain();
+  pyodide.globals.set("_fp_source", source.value);
+  pyodide.globals.set("_fp_kind", kind);
+  pyodide.globals.set("_fp_page_size", selectedPageSize);
+  const value = pyodide.runPython("_fp_compile(_fp_source, _fp_kind, _fp_page_size)");
+  const bytes = value instanceof Uint8Array ? value : value.toJs();
+  value.destroy?.();
+  const types = { pdf: "application/pdf", fdx: "application/xml;charset=utf-8", html: "text/html;charset=utf-8" };
+  return new Blob([bytes], { type: types[kind] });
 }
 
 async function requestBinary(path, selectedPageSize = $("#page-size").value) {
-  if (STATIC_HOST && path === "/api/render/pdf") return renderClientPdf(selectedPageSize);
-  if (STATIC_HOST && path === "/api/export/fdx") return renderClientFdx();
+  if (STATIC_HOST && path === "/api/render/pdf") return compileWithBrowserScreenplain("pdf", selectedPageSize);
+  if (STATIC_HOST && path === "/api/export/fdx") return compileWithBrowserScreenplain("fdx", selectedPageSize);
   const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: source.value, pageSize: selectedPageSize }) });
   if (!response.ok) { const value = await response.json().catch(() => ({})); throw new Error(value.error || "Export failed"); }
   return response.blob();
@@ -716,7 +751,9 @@ async function exportDocument(format) {
     if (format === "pdf") blob = await requestBinary("/api/render/pdf", $("#export-page-size").value);
     else if (format === "fdx") blob = await requestBinary("/api/export/fdx");
     else if (STATIC_HOST) {
-      const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(state.filename)}</title><link rel="stylesheet" href="styles.css"></head><body><main class="screenplay-page">${page.innerHTML}</main></body></html>`;
+      const body = await compileWithBrowserScreenplain("html", $("#page-size").value);
+      const rendered = await body.text();
+      const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(state.filename)}</title><style>body{background:#ddd;margin:0;padding:40px;font:12pt Courier,monospace}.screenplay{box-sizing:border-box;width:8.5in;min-height:11in;margin:auto;padding:1in 1in 1in 1.5in;background:white}.dialog{margin-left:1in;width:3.5in}.character{margin-left:1.5in;margin-bottom:0}.parenthetical{margin-left:.5in}.transition{text-align:right}</style></head><body><main class="screenplay">${rendered}</main></body></html>`;
       blob = new Blob([html], { type: "text/html;charset=utf-8" });
     } else {
       const response = await fetch("/api/compile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: source.value, includeHtml: true }) });
@@ -798,7 +835,8 @@ function jumpToLine(oneBased, focus = true) {
   if (focus) source.focus();
   source.setSelectionRange(offset, offset + (lines[oneBased - 1]?.length || 0)); updateCursor({ scrollPreview: true });
   const lineHeight = parseFloat(getComputedStyle(source).lineHeight) || 20.15;
-  source.scrollTop = Math.max(0, (oneBased - 1) * lineHeight - source.clientHeight / 2);
+  const visualRows = lines.slice(0, oneBased - 1).reduce((total, line) => total + sourceVisualRows(line), 0);
+  source.scrollTop = Math.max(0, visualRows * lineHeight - source.clientHeight / 2);
   $("#line-numbers").scrollTop = source.scrollTop; $("#source-highlight").scrollTop = source.scrollTop; updateCursor({ scrollPreview: true });
 }
 
@@ -846,8 +884,9 @@ $("#completion-menu").addEventListener("mousedown", (event) => { const item = ev
 $("#character-list").addEventListener("click", async (event) => {
   if (event.target.closest("[data-copy-characters]")) {
     const rows = [["Character", "Lines", "Duration"], ...state.metadata.characters.map((character) => [character.name, character.lines, formatDuration(character.seconds)])];
-    const text = rows.map((row) => row.join("\t")).join("\n");
-    try { await navigator.clipboard.writeText(text); toast("Character table copied"); }
+    const csvCell = (value) => `"${String(value).replaceAll('"', '""')}"`;
+    const text = rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+    try { await navigator.clipboard.writeText(text); toast("Character CSV copied"); }
     catch { toast("Clipboard access was denied"); }
     return;
   }
@@ -868,6 +907,13 @@ $("#theme").addEventListener("click", cycleTheme); $("#spellcheck").addEventList
   renderPreview();
   // Refocusing prompts Chromium/WebKit to rerun the native checker immediately.
   if (enabled) { const start = source.selectionStart; const end = source.selectionEnd; source.blur(); source.focus(); source.setSelectionRange(start, end); }
+});
+$("#word-wrap").addEventListener("change", () => {
+  const enabled = $("#word-wrap").checked;
+  localStorage.setItem("fountain-publisher.word-wrap", String(enabled));
+  document.body.classList.toggle("source-wrap", enabled);
+  source.setAttribute("wrap", enabled ? "soft" : "off");
+  renderEditorChrome();
 });
 $("#page-size").addEventListener("change", () => { scheduleCompile(0); if (state.previewMode === "pdf") refreshPdf(); });
 $$('[data-preview-mode]').forEach((button) => button.addEventListener("click", () => setPreviewMode(button.dataset.previewMode)));
@@ -892,9 +938,12 @@ document.addEventListener("keydown", (event) => {
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") { event.preventDefault(); newFile(); }
 });
 window.addEventListener("beforeunload", (event) => { if (document.body.classList.contains("dirty")) event.preventDefault(); });
+window.addEventListener("resize", renderEditorChrome);
 
 async function initialize() {
   setTheme(state.theme);
+  const wordWrap = localStorage.getItem("fountain-publisher.word-wrap") !== "false";
+  $("#word-wrap").checked = wordWrap; document.body.classList.toggle("source-wrap", wordWrap); source.setAttribute("wrap", wordWrap ? "soft" : "off");
   const sourceWidth = Number(localStorage.getItem("fountain-publisher.--source-w")); const statsWidth = Number(localStorage.getItem("fountain-publisher.--stats-w"));
   if (sourceWidth) document.documentElement.style.setProperty("--source-w", `${sourceWidth}px`); if (statsWidth) document.documentElement.style.setProperty("--stats-w", `${statsWidth}px`);
   togglePanel("source", localStorage.getItem("fountain-publisher.source-collapsed") === "true"); togglePanel("stats", localStorage.getItem("fountain-publisher.stats-collapsed") === "true");

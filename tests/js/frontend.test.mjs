@@ -154,19 +154,28 @@ test("in-app documentation teaches the editor and Fountain syntax", async () => 
   assert.match(css, /\.docs-layout\s*\{[^}]*grid-template-columns:\s*175px 1fr;/s);
 });
 
-test("character table supports selection and clipboard export", async () => {
+test("character table supports selection and CSV clipboard export", async () => {
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
-  assert.match(app, /data-copy-characters>Copy table/);
+  assert.match(app, /data-copy-characters>Copy CSV/);
   assert.match(app, /navigator\.clipboard\.writeText\(text\)/);
+  assert.match(app, /row\.map\(csvCell\)\.join\(","\)/);
   assert.match(app, /\["Character", "Lines", "Duration"\]/);
   assert.match(css, /\.character-list table\s*\{[^}]*user-select:\s*text;/s);
 });
 
-test("GitHub Pages mode includes browser PDF and FDX publishing", async () => {
+test("source word wrap defaults on and preserves logical line numbers", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(html, /id="word-wrap"[^>]*checked/);
+  assert.match(app, /function sourceVisualRows\(/);
+  assert.match(app, /source\.setAttribute\("wrap", enabled \? "soft" : "off"\)/);
+  assert.match(css, /body\.source-wrap #source/);
+});
+
+test("GitHub Pages mode runs Screenplain in Pyodide", async () => {
   const app = await readFile(appPath, "utf8");
   assert.match(app, /STATIC_HOST = location\.hostname\.endsWith\("\.github\.io"\)/);
-  assert.match(app, /function renderClientPdf\(/);
-  assert.match(app, /function renderClientFdx\(/);
-  assert.match(app, /pdf\.output\("blob"\)/);
+  assert.match(app, /function getBrowserScreenplain\(/);
+  assert.match(app, /screenplain-0\.12\.0-py3-none-any\.whl/);
+  assert.match(app, /pdf\.to_pdf\(screenplay, output, settings=settings\)/);
   assert.match(app, /STATIC_HOST[\s\S]*Browser preview/);
 });
