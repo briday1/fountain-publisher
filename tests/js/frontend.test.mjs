@@ -236,6 +236,8 @@ test("GitHub Pages mode runs Screenplain in Pyodide", async () => {
   assert.match(app, /STATIC_HOST = location\.hostname\.endsWith\("\.github\.io"\)/);
   assert.match(app, /function getBrowserScreenplain\(/);
   assert.match(app, /screenplain-0\.12\.0-py3-none-any\.whl/);
+  assert.match(app, /CourierPrime-Regular\.ttf/);
+  assert.match(app, /\/fonts\/CourierPrime-Regular\.ttf/);
   assert.match(app, /pdf\.to_pdf\(screenplay, output, template_constructor=NumberedDocTemplate, settings=settings\)/);
   assert.match(app, /STATIC_HOST \? compileStaticPageCount\(revision\) : compile\(revision\)/);
 });

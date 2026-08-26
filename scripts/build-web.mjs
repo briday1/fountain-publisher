@@ -7,6 +7,7 @@ await mkdir(output, { recursive: true });
 await Promise.all([
   cp("src/fountain_publisher/web/index.html", `${output}/index.html`),
   cp("src/fountain_publisher/web/styles.css", `${output}/styles.css`),
+  cp("src/fountain_publisher/web/fonts", `${output}/fonts`, { recursive: true }),
   cp("src/fountain_publisher/web/vendor", `${output}/vendor`, { recursive: true }),
   cp("node_modules/pyodide", `${output}/pyodide`, { recursive: true }),
 ]);

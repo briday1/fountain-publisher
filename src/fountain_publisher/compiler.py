@@ -6,6 +6,7 @@ import io
 import re
 from collections import defaultdict
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 SCENE_RE = re.compile(r"^(?:\.|(?:INT|EXT|EST|INT\.?/EXT\.?|I/E)[ .]).+", re.IGNORECASE)
@@ -15,6 +16,42 @@ TITLE_KEYS = {"title", "credit", "author", "authors", "source", "draft date", "d
 SECTION_RE = re.compile(r"^(#{1,6})\s+(.+)$")
 SCENE_NUMBER_RE = re.compile(r"\s+#([^#]+)#\s*$")
 CHARACTER_EXTENSION_RE = re.compile(r"\s*\([^)]*\)\s*$")
+COURIER_PRIME_FONT_ROOT = Path(__file__).resolve().with_name("web") / "fonts"
+COURIER_PRIME_FONT_FILES = {
+    "CourierPrime": "CourierPrime-Regular.ttf",
+    "CourierPrime-Bold": "CourierPrime-Bold.ttf",
+    "CourierPrime-Italic": "CourierPrime-Italic.ttf",
+    "CourierPrime-BoldItalic": "CourierPrime-BoldItalic.ttf",
+}
+
+
+def _register_pdf_font_family() -> tuple[str, str, str, str, str]:
+    """Register bundled screenplay fonts and return usable font names."""
+    try:
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+    except ImportError:
+        return ("Courier", "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique")
+
+    try:
+        for font_name, file_name in COURIER_PRIME_FONT_FILES.items():
+            font_path = COURIER_PRIME_FONT_ROOT / file_name
+            if not font_path.is_file():
+                raise FileNotFoundError(font_path)
+            try:
+                pdfmetrics.getFont(font_name)
+            except KeyError:
+                pdfmetrics.registerFont(TTFont(font_name, str(font_path)))
+        pdfmetrics.registerFontFamily(
+            "CourierPrime",
+            normal="CourierPrime",
+            bold="CourierPrime-Bold",
+            italic="CourierPrime-Italic",
+            boldItalic="CourierPrime-BoldItalic",
+        )
+        return ("CourierPrime", "CourierPrime", "CourierPrime-Bold", "CourierPrime-Italic", "CourierPrime-BoldItalic")
+    except Exception:
+        return ("Courier", "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique")
 
 
 @dataclass(frozen=True)
@@ -74,6 +111,7 @@ def render_pdf(source: str, options: CompileOptions | None = None) -> bytes:
     screenplay = number_screenplay_scenes(parse_screenplay(source))
     _, _, pdf, _ = _screenplain()
     options = options or CompileOptions()
+    font_family, regular_font, bold_font, italic_font, bold_italic_font = _register_pdf_font_family()
     try:
         from reportlab.lib.pagesizes import A4, letter
     except ImportError as error:  # pragma: no cover
@@ -84,8 +122,15 @@ def render_pdf(source: str, options: CompileOptions | None = None) -> bytes:
         # Keep it disabled and use slug_style for bold so headings are not underlined.
         strong_slugs=False,
     )
+    font_settings = getattr(settings, "font_settings", None)
+    if font_settings is not None:
+        font_settings.family_name = font_family
+        font_settings.regular = regular_font
+        font_settings.bold = bold_font
+        font_settings.italic = italic_font
+        font_settings.bold_italic = bold_italic_font
     if hasattr(settings, "slug_style"):
-        settings.slug_style.fontName = "Courier-Bold" if options.bold_scene_headings else "Courier"
+        settings.slug_style.fontName = bold_font if options.bold_scene_headings else regular_font
     # Screenplain's default doubles title text to 24pt. Keep title pages in
     # restrained screenplay typography instead of turning the title into a poster.
     if hasattr(settings, "title_style"):
@@ -100,7 +145,7 @@ def render_pdf(source: str, options: CompileOptions | None = None) -> bytes:
     for style_name in ("title_style", "centered_style", "default_style", "contact_style"):
         style = getattr(settings, style_name, None)
         if style is not None:
-            style.fontName = "Courier"
+            style.fontName = regular_font
             style.fontSize = settings.font_size
             style.leading = title_leading
     settings.title_style.spaceAfter = -settings.line_height

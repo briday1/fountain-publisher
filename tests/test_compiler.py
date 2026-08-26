@@ -80,6 +80,13 @@ class ScreenplainIntegrationTests(unittest.TestCase):
             centered_style=SimpleNamespace(fontName="Courier-Bold"),
             default_style=SimpleNamespace(fontName="Courier-Bold"),
             contact_style=SimpleNamespace(fontName="Courier-Bold"),
+            font_settings=SimpleNamespace(
+                family_name="Courier",
+                regular="Courier",
+                bold="Courier-Bold",
+                italic="Courier-Oblique",
+                bold_italic="Courier-BoldOblique",
+            ),
             font_size=12,
             line_height=12,
         )
@@ -97,11 +104,16 @@ class ScreenplainIntegrationTests(unittest.TestCase):
         self.assertEqual(24, settings.default_style.leading)
         self.assertEqual(24, settings.contact_style.leading)
         self.assertEqual(-12, settings.title_style.spaceAfter)
-        self.assertEqual("Courier", settings.title_style.fontName)
-        self.assertEqual("Courier", settings.centered_style.fontName)
-        self.assertEqual("Courier", settings.default_style.fontName)
-        self.assertEqual("Courier", settings.contact_style.fontName)
-        self.assertEqual("Courier-Bold", settings.slug_style.fontName)
+        self.assertEqual("CourierPrime", settings.title_style.fontName)
+        self.assertEqual("CourierPrime", settings.centered_style.fontName)
+        self.assertEqual("CourierPrime", settings.default_style.fontName)
+        self.assertEqual("CourierPrime", settings.contact_style.fontName)
+        self.assertEqual("CourierPrime-Bold", settings.slug_style.fontName)
+        self.assertEqual("CourierPrime", settings.font_settings.family_name)
+        self.assertEqual("CourierPrime", settings.font_settings.regular)
+        self.assertEqual("CourierPrime-Bold", settings.font_settings.bold)
+        self.assertEqual("CourierPrime-Italic", settings.font_settings.italic)
+        self.assertEqual("CourierPrime-BoldItalic", settings.font_settings.bold_italic)
         self.assertFalse(fake_pdf.Settings.call_args.kwargs["strong_slugs"])
 
 

@@ -1,4 +1,4 @@
-@font-face { font-family: "Courier Prime Local"; src: local("Courier Prime"), local("CourierPrime-Regular"); }
+@font-face { font-family: "Courier Prime Local"; src: local("Courier Prime"), local("CourierPrime-Regular"), url("fonts/CourierPrime-Regular.ttf") format("truetype"); }
 
 :root {
   color-scheme: light dark;
