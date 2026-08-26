@@ -231,7 +231,7 @@ test("the active non-printing line remains visible as editor context", async () 
 });
 
 test("scene outline clicks synchronize source and live preview", async () => {
-  const app = await readFile(appPath, "utf8");
+  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(app, /function jumpToLine[\s\S]*updateCursor\(\{ scrollPreview: true \}\)/);
   assert.match(app, /function jumpToInsightScene[\s\S]*jumpToLine\(oneBased, false\)/);
   assert.match(app, /#scene-list[\s\S]*jumpToInsightScene\(Number\(button\.dataset\.line\)\)/);
@@ -239,6 +239,7 @@ test("scene outline clicks synchronize source and live preview", async () => {
   assert.match(app, /function scrollPreviewTarget[\s\S]*previewScroll\.scrollTop = Math\.max\(0, top\)/);
   assert.match(app, /previewScroll\.scrollLeft = boundedScrollLeft\(previewScroll, left\)/);
   assert.doesNotMatch(app, /target\?\.scrollIntoView/);
+  assert.match(css, /\.preview-toolbar\s*\{[^}]*flex:\s*0 0 auto;/s);
 });
 
 test("live preview numbers scene headings via computed labels", async () => {
