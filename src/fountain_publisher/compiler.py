@@ -145,6 +145,24 @@ def number_screenplay_scenes(screenplay: Any, options: CompileOptions | None = N
     return screenplay
 
 
+def format_pdf_act_headings(screenplay: Any) -> Any:
+    """Turn top-level Act sections into centered, bold PDF paragraphs."""
+    try:
+        from screenplain.richstring import bold
+        from screenplain.types import Action, Section
+    except ImportError:  # pragma: no cover
+        return screenplay
+    screenplay.paragraphs = [
+        Action([bold(str(paragraph.text).upper())], centered=True)
+        if isinstance(paragraph, Section)
+        and getattr(paragraph, "level", 0) == 1
+        and re.match(r"^Act\b", str(paragraph.text), re.IGNORECASE)
+        else paragraph
+        for paragraph in getattr(screenplay, "paragraphs", ())
+    ]
+    return screenplay
+
+
 def render_html(source: str, options: CompileOptions | None = None) -> str:
     screenplay = number_screenplay_scenes(parse_screenplay(source), options)
     _, html, _, _ = _screenplain()
@@ -154,7 +172,7 @@ def render_html(source: str, options: CompileOptions | None = None) -> str:
 
 
 def render_pdf(source: str, options: CompileOptions | None = None) -> bytes:
-    screenplay = number_screenplay_scenes(parse_screenplay(source), options)
+    screenplay = format_pdf_act_headings(number_screenplay_scenes(parse_screenplay(source), options))
     _, _, pdf, _ = _screenplain()
     options = options or CompileOptions()
     _patch_scene_numbers_left_only()

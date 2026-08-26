@@ -4,7 +4,16 @@ from unittest import mock
 from types import SimpleNamespace
 from importlib.metadata import metadata
 
-from fountain_publisher.compiler import CompileOptions, analyze_source, count_pdf_pages, render_fdx, render_html, render_pdf
+from fountain_publisher.compiler import (
+    CompileOptions,
+    analyze_source,
+    count_pdf_pages,
+    format_pdf_act_headings,
+    parse_screenplay,
+    render_fdx,
+    render_html,
+    render_pdf,
+)
 
 
 SOURCE = """Title: Signals
@@ -56,6 +65,18 @@ Third line.
         self.assertEqual(["Act One", "Act Two"], [scene["act"] for scene in result["scenes"]])
         self.assertEqual([1, 2], [scene["actNumber"] for scene in result["scenes"]])
         self.assertEqual([{"scene": 1, "lines": 2}, {"scene": 2, "lines": 1}], result["characters"][0]["sceneLines"])
+
+    def test_top_level_act_headings_are_prepared_for_pdf(self):
+        from screenplain.types import Action, Section
+
+        screenplay = format_pdf_act_headings(
+            parse_screenplay("# Act One\n\n## Private outline\n\nINT. LAB - NIGHT\n")
+        )
+        self.assertIsInstance(screenplay.paragraphs[0], Action)
+        self.assertTrue(screenplay.paragraphs[0].centered)
+        self.assertEqual("ACT ONE", str(screenplay.paragraphs[0].lines[0]))
+        self.assertIn("<strong>ACT ONE</strong>", screenplay.paragraphs[0].lines[0].to_html())
+        self.assertIsInstance(screenplay.paragraphs[1], Section)
 
 
 class ScreenplainIntegrationTests(unittest.TestCase):

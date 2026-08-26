@@ -76,6 +76,16 @@ test("source and preview share syntax, cursor, and character completion behavior
   assert.match(css, /\.script-line\.source-current/);
 });
 
+test("source highlighting follows the textarea viewport and rendered line geometry", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /function syncSourceOverlay\(\)/);
+  assert.match(app, /highlight\.style\.width = source\.clientWidth/);
+  assert.match(app, /highlight\.scrollLeft = source\.scrollLeft/);
+  assert.match(app, /data-source-line=/);
+  assert.match(app, /sourceLine\.getBoundingClientRect\(\)\.top - source\.getBoundingClientRect\(\)\.top/);
+  assert.doesNotMatch(app, /rowsBefore \* 20\.15/);
+});
+
 test("completion is Tab-only and preview suggestions are caret-positioned", async () => {
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.doesNotMatch(app, /event\.key === "Enter" \|\| event\.key === "Tab"/);
@@ -107,6 +117,9 @@ test("preview edits are source-backed and preserve the viewport", async () => {
   assert.match(app, /element\.classList\.contains\("scene"\)/);
   assert.match(app, /target\?\.focus\(\{ preventScroll: true \}\)[\s\S]*scrollTop = scrollTop/);
   assert.match(app, /requestAnimationFrame\(\(\) => \{[\s\S]*previewScroll\.scrollTop = scrollTop/);
+  assert.match(app, /const insertAbove = collapsed && edit\.startOffset === 0 && insertedText\.startsWith\("\\n"\)/);
+  assert.match(app, /const focusLine = insertAbove \? startIndex/);
+  assert.match(app, /event\.key === "ArrowUp" && line\.classList\.contains\("scene"\)/);
 });
 
 test("top-level act headings are supported in the live editor", async () => {
@@ -115,6 +128,8 @@ test("top-level act headings are supported in the live editor", async () => {
   assert.match(app, /match\(\/\^#\\s\+\(Act\\b\.\*\)\$\/i\)/);
   assert.match(app, /appendToSource\("# Act 1\\n\\n"\)/);
   assert.match(css, /\.script-line\.section\.act[^}]*display:\s*block;/);
+  assert.match(app, /function _fp_format_pdf_act_headings\(screenplay\)/);
+  assert.match(app, /Action\(\[bold\(str\(paragraph\.text\)\.upper\(\)\)\], centered=True\)/);
 });
 
 test("source completions wait for typing on a new line and support explicit character lookup", async () => {
@@ -127,6 +142,7 @@ test("source completions wait for typing on a new line and support explicit char
   assert.match(app, /function positionSourceCompletion\(\)/);
   assert.match(app, /marker\.getBoundingClientRect\(\)/);
   assert.match(app, /current\.match\(\/@\?\[A-Za-z0-9\._'-\]\*\$\/\)/);
+  assert.match(app, /item\.value\.toUpperCase\(\) !== characterFragment/);
   assert.match(css, /#completion-menu\s*\{[^}]*position:\s*fixed;/s);
 });
 
