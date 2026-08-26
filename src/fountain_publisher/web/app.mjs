@@ -805,11 +805,18 @@ function renderSourceSyntax() {
   }).join("\n");
 }
 
+function boundedScrollLeft(element, value = element.scrollLeft) {
+  const max = Math.max(0, element.scrollWidth - element.clientWidth);
+  return Math.min(max, Math.max(0, value));
+}
+
 function syncSourceOverlay() {
   const highlight = $("#source-highlight");
   highlight.style.width = source.clientWidth ? `${source.clientWidth}px` : "";
+  const scrollLeft = boundedScrollLeft(source);
+  if (scrollLeft !== source.scrollLeft) source.scrollLeft = scrollLeft;
   highlight.scrollTop = source.scrollTop;
-  highlight.scrollLeft = source.scrollLeft;
+  highlight.scrollLeft = boundedScrollLeft(highlight, scrollLeft);
 }
 
 function currentPosition() {
@@ -1169,12 +1176,13 @@ function positionSourceCompletion() {
   const computed = getComputedStyle(source);
   const mirror = document.createElement("div");
   const wrapped = document.body.classList.contains("source-wrap");
+  const sourceScrollLeft = boundedScrollLeft(source);
   Object.assign(mirror.style, {
     position: "fixed",
     visibility: "hidden",
     pointerEvents: "none",
     boxSizing: computed.boxSizing,
-    left: `${sourceRect.left - (wrapped ? 0 : source.scrollLeft)}px`,
+    left: `${sourceRect.left - (wrapped ? 0 : sourceScrollLeft)}px`,
     top: `${sourceRect.top - source.scrollTop}px`,
     width: `${wrapped ? sourceRect.width : Math.max(source.scrollWidth, sourceRect.width)}px`,
     padding: computed.padding,
