@@ -82,6 +82,14 @@ test("completion is Tab-only and preview suggestions are caret-positioned", asyn
   assert.match(app, /caret\.getClientRects\(\)\[0\]/);
 });
 
+test("source completions wait for typing on a new line and support explicit character lookup", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /event\.key === "Enter"\) hideCompletions\(\)/);
+  assert.match(app, /event\.key\.length === 1/);
+  assert.match(app, /const explicitCharacter = trimmed\.startsWith\("@"\)/);
+  assert.match(app, /explicitCharacter \? trimmed\.slice\(1\) : trimmed/);
+});
+
 test("spellcheck exposes native replacement suggestions", async () => {
   const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
   assert.match(html, /Right-click spelling for suggestions/);
