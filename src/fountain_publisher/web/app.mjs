@@ -581,6 +581,20 @@ function previewSelection(line = document.activeElement.closest?.(".script-line"
   };
 }
 
+function previewCaretIsOnFirstVisualRow(line) {
+  const selection = getSelection();
+  if (!selection?.rangeCount || !line.contains(selection.focusNode)) return false;
+  const content = document.createRange();
+  content.selectNodeContents(line);
+  const firstTop = content.getClientRects()[0]?.top;
+  const caret = selection.getRangeAt(0).cloneRange();
+  caret.collapse(false);
+  const caretRects = [...caret.getClientRects()];
+  return firstTop !== undefined
+    && caretRects.length > 0
+    && caretRects.every((rect) => Math.abs(rect.top - firstTop) < 1);
+}
+
 function sourceOffsetForLine(lines, index, column) {
   return lines.slice(0, index).reduce((total, value) => total + value.length + 1, 0) + column;
 }
@@ -627,7 +641,7 @@ function replacePreviewSelection(edit, text) {
   let insertedText = text.replace(/\r\n?/g, "\n");
   const displayLines = `${before}${insertedText}${after}`.split("\n");
   const collapsed = startIndex === endIndex && edit.startOffset === edit.endOffset;
-  const insertAbove = collapsed && edit.startOffset === 0 && insertedText.startsWith("\n");
+  const insertAbove = collapsed && edit.startOffset === 0 && insertedText === "\n";
   const rawStart = insertAbove ? 0 : previewSourceOffset(edit.startLine, lines[startIndex], edit.startOffset, collapsed ? "caret" : "start");
   const rawEnd = insertAbove ? 0 : previewSourceOffset(edit.endLine, lines[endIndex], edit.endOffset, collapsed ? "caret" : "end");
   const trailingSource = lines[endIndex].slice(rawEnd);
@@ -1618,7 +1632,7 @@ page.addEventListener("keydown", (event) => {
     if (event.key === "Tab") { event.preventDefault(); acceptPreviewCharacterCompletion(); return; }
     if (event.key === "Escape") { event.preventDefault(); hidePreviewCompletions(); return; }
   }
-  if (event.key === "ArrowUp" && line.classList.contains("scene")) {
+  if (event.key === "ArrowUp" && line.classList.contains("scene") && previewCaretIsOnFirstVisualRow(line)) {
     const edit = previewSelection(line);
     const adjacent = $(`[data-line="${Number(line.dataset.line) - 1}"]`, page);
     if (edit && edit.startLine === edit.endLine && edit.startOffset === edit.endOffset && adjacent) {
