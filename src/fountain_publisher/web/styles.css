@@ -142,8 +142,8 @@ body.dirty #dirty-dot { background: var(--accent); }
 #source-panel { border-right: 1px solid var(--border); }
 #stats-panel { border-left: 1px solid var(--border); }
 .panel-title { min-height: 58px; display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 9px 15px; border-bottom: 1px solid var(--border); }
-.panel-title small, .dialog-heading small { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .12em; }
-.panel-title h1, .panel-title h2 { margin: 1px 0 0; font-size: 16px; line-height: 1.1; }
+.panel-title small, .preview-title small, .dialog-heading small { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .12em; }
+.panel-title h1, .panel-title h2, .preview-title h2 { margin: 1px 0 0; font-size: 16px; line-height: 1.1; }
 .panel-toggle { border: 0; border-right: 1px solid var(--border); border-left: 1px solid var(--border); background: var(--panel); padding: 0; color: var(--muted); position: relative; z-index: 4; }
 .panel-toggle:hover { background: var(--surface-2); color: var(--ink); }
 .panel-toggle b { display: none; writing-mode: vertical-rl; font-size: 10px; text-transform: uppercase; letter-spacing: .12em; }
@@ -198,7 +198,8 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .editor-footer > span:last-child { white-space: nowrap; }
 
 .preview-panel { min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; position: relative; background: var(--bg); }
-.preview-toolbar { min-height: 45px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.preview-toolbar { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 12px 6px 15px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.preview-heading { display: flex; align-items: center; gap: 16px; }
 .view-switcher { display: flex; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); }
 .view-switcher button { border: 0; border-radius: 4px; padding: 5px 12px; background: transparent; color: var(--muted); }
 .view-switcher button.active { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / 10%); }
@@ -240,7 +241,7 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .script-line.section.act, .script-line.section.act.source-current { display: block; margin: 32px 0 16px; padding: 0; border: 0; color: var(--paper-ink); font: 700 18px/1 var(--screenplay); font-style: normal; text-align: center; text-transform: uppercase; }
 .script-line.section.act.source-current::before { content: none; }
 .script-line.page-break { margin: 32px -96px; border-top: 1px dashed #aaa; color: transparent; }
-.empty-state { position: absolute; inset: 45px 0 0; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); }
+.empty-state { position: absolute; inset: 58px 0 0; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); }
 .empty-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .empty-actions button { border: 1px solid var(--border); border-radius: 5px; background: var(--surface); padding: 7px 13px; color: var(--muted); font-size: 12px; cursor: pointer; }
 .empty-actions button:hover { color: var(--ink); background: var(--surface-2); border-color: var(--border-strong); }

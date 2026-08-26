@@ -20,6 +20,19 @@ test("application shell exposes editing, preview, and insights regions", async (
   assert.match(html, /id="export-pdf"/);
 });
 
+test("desktop panel headers share a height and preview controls follow its title", async () => {
+  const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(html, /class="preview-heading"[\s\S]*<small>SCREENPLAY<\/small><h2>Preview<\/h2>[\s\S]*class="view-switcher"/);
+  assert.match(css, /\.panel-title\s*\{[^}]*min-height:\s*58px;/s);
+  assert.match(css, /\.preview-toolbar\s*\{[^}]*min-height:\s*58px;/s);
+});
+
+test("browser page-count compilation only updates metrics present in the document", async () => {
+  const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
+  assert.doesNotMatch(html, /id="stat-runtime"/);
+  assert.doesNotMatch(app, /\$\("#stat-runtime"\)\.textContent/);
+});
+
 test("hidden preview layers cannot be displayed by component styles", async () => {
   const css = await readFile(cssPath, "utf8");
   assert.match(css, /\[hidden\]\s*\{\s*display:\s*none\s*!important;/);

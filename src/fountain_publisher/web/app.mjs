@@ -1072,7 +1072,6 @@ async function compileStaticPageCount(revision) {
     state.metadata.pageCount = pageCount;
     state.metadata.estimatedSeconds = pageCount * 60;
     $("#stat-pages").textContent = pageCount;
-    $("#stat-runtime").textContent = formatDuration(state.metadata.estimatedSeconds);
     $("#compile-status").textContent = "Compiled";
   } catch (error) {
     if (revision !== state.compileRevision) return;
