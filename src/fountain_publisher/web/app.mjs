@@ -848,11 +848,8 @@ function renderInsights(metadata) {
   $("#stat-pages").textContent = metadata.pageCount ?? "—";
   $("#stat-scenes").textContent = metadata.scenes.length;
   $("#stat-words").textContent = metadata.wordCount.toLocaleString();
-  $("#stat-runtime").textContent = formatDuration(metadata.estimatedSeconds);
   $("#scene-count").textContent = metadata.scenes.length;
   $("#scene-list").innerHTML = metadata.scenes.length ? metadata.scenes.map((scene) => `<li><span class="scene-num">${escapeHtml(scene.number)}</span><button type="button" data-line="${scene.line}">${escapeHtml(scene.heading)}</button></li>`).join("") : `<li class="empty-list">No scene headings yet.</li>`;
-  $("#location-count").textContent = metadata.locations.length;
-  $("#location-list").innerHTML = metadata.locations.length ? metadata.locations.map((location) => `<li>${escapeHtml(location)}</li>`).join("") : `<li class="empty-list">No locations yet.</li>`;
   const contentWords = metadata.dialogueWords + metadata.actionWords;
   const dialoguePercent = contentWords ? Math.round(metadata.dialogueWords / contentWords * 100) : 0;
   $("#dialogue-bar").style.width = `${dialoguePercent}%`;
