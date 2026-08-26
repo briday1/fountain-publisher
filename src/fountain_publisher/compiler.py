@@ -250,11 +250,13 @@ def analyze_source(source: str) -> dict[str, Any]:
     sections: list[dict[str, Any]] = []
     title_fields: list[str] = []
     characters: dict[str, dict[str, Any]] = defaultdict(
-        lambda: {"cues": 0, "lines": 0, "words": 0, "scenes": set(), "last_line": 0}
+        lambda: {"cues": 0, "lines": 0, "words": 0, "scenes": set(), "scene_lines": defaultdict(int), "last_line": 0}
     )
     locations: set[str] = set()
     active_character: str | None = None
     current_scene = 0
+    current_act = ""
+    current_act_number = 0
     title_page = True
     in_boneyard = False
     dialogue_words = 0
@@ -286,7 +288,12 @@ def analyze_source(source: str) -> dict[str, Any]:
 
         section_match = SECTION_RE.match(stripped)
         if section_match:
-            sections.append({"level": len(section_match.group(1)), "title": section_match.group(2), "line": line_number})
+            level = len(section_match.group(1))
+            title = section_match.group(2)
+            sections.append({"level": level, "title": title, "line": line_number})
+            if level == 1:
+                current_act = title
+                current_act_number += 1
             active_character = None
             continue
 
@@ -299,7 +306,16 @@ def analyze_source(source: str) -> dict[str, Any]:
             location = re.split(r"\s+-\s+", location, maxsplit=1)[0].strip()
             if location:
                 locations.add(location)
-            scenes.append({"number": scene_number, "heading": clean_heading, "line": line_number, "words": 0})
+            scenes.append(
+                {
+                    "number": scene_number,
+                    "heading": clean_heading,
+                    "line": line_number,
+                    "words": 0,
+                    "act": current_act or "Screenplay",
+                    "actNumber": current_act_number,
+                }
+            )
             current_scene = len(scenes)
             active_character = None
             continue
@@ -325,6 +341,8 @@ def analyze_source(source: str) -> dict[str, Any]:
             record = characters[active_character]
             record["lines"] += 1
             record["words"] += words
+            if current_scene:
+                record["scene_lines"][current_scene] += 1
             dialogue_words += words
         else:
             action_words += words
@@ -342,6 +360,10 @@ def analyze_source(source: str) -> dict[str, Any]:
                 "words": record["words"],
                 "seconds": seconds,
                 "scenes": len(record["scenes"]),
+                "sceneLines": [
+                    {"scene": scene, "lines": count}
+                    for scene, count in sorted(record["scene_lines"].items())
+                ],
                 "lastLine": record["last_line"],
             }
         )

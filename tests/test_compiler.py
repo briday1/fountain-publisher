@@ -36,6 +36,27 @@ class AnalyzeSourceTests(unittest.TestCase):
         result = analyze_source(SOURCE)
         self.assertEqual(["Title", "Author"], result["titleFields"])
 
+    def test_character_line_usage_is_grouped_by_act_and_scene(self):
+        source = """# Act One
+
+INT. LAB - NIGHT
+
+MAYA
+First line.
+Second line.
+
+# Act Two
+
+EXT. PARK - DAY
+
+MAYA
+Third line.
+"""
+        result = analyze_source(source)
+        self.assertEqual(["Act One", "Act Two"], [scene["act"] for scene in result["scenes"]])
+        self.assertEqual([1, 2], [scene["actNumber"] for scene in result["scenes"]])
+        self.assertEqual([{"scene": 1, "lines": 2}, {"scene": 2, "lines": 1}], result["characters"][0]["sceneLines"])
+
 
 class ScreenplainIntegrationTests(unittest.TestCase):
     def test_runtime_versions_are_pinned_for_browser_parity(self):

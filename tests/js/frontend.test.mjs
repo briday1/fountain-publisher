@@ -208,12 +208,16 @@ test("in-app documentation teaches the editor and Fountain syntax", async () => 
   assert.match(css, /\.docs-layout\s*\{[^}]*grid-template-columns:\s*175px 1fr;/s);
 });
 
-test("character table supports selection and CSV clipboard export", async () => {
-  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
-  assert.match(app, /data-copy-characters>Copy CSV/);
-  assert.match(app, /navigator\.clipboard\.writeText\(text\)/);
+test("character analytics supports a scrollable timeline, PNG save, and CSV copy", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(app, /data-character-analytics>Character Analytics/);
+  assert.match(html, /id="character-analytics-chart"/);
+  assert.match(html, /id="copy-character-lines"[^>]*>Copy line usage CSV/);
+  assert.match(app, /navigator\.clipboard\.writeText\(characterLineUsageCsv\(\)\)/);
   assert.match(app, /row\.map\(csvCell\)\.join\(","\)/);
-  assert.match(app, /\["Character", "Lines", "Duration"\]/);
+  assert.match(app, /\["Character", "Act", "Scene", "Scene Heading", "Dialogue Lines"\]/);
+  assert.match(app, /\.toBlob\(resolve,\s*"image\/png"\)/);
+  assert.match(css, /\.analytics-chart-scroll\s*\{[^}]*overflow:\s*auto;/s);
   assert.match(css, /\.character-list table\s*\{[^}]*user-select:\s*text;/s);
 });
 
