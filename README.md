@@ -1,10 +1,12 @@
 # Fountain Publisher
 
+[Open the live app at fountain-publisher.com.](https://fountain-publisher.com)
+
 A source-first Fountain screenplay studio with a Pugflow-style application shell: collapsible and resizable panels, persistent light/dark themes, native file handling, contextual completion, a directly editable published screenplay, exact PDF preview, and production statistics.
 
-The browser app runs Screenplain 0.12.0 in Python/WebAssembly to compile Fountain to HTML, PDF, and Final Draft FDX. Both browser and local Python paths pin ReportLab 5.0.1, bundle Courier Prime, and apply the same PDF settings for consistent output.
+The browser and local Python apps use [Screenplain](https://github.com/vilcans/screenplain) 0.12.0 as the authoritative Fountain parser and PDF/Final Draft compiler. The browser runs it in Python/WebAssembly. Both paths pin ReportLab 5.0.1, bundle Courier Prime, and apply the same PDF settings for consistent output.
 
-The GitHub Pages demo is the complete browser application, including editing, live and PDF preview, file handling, insights, themes, documentation, and PDF/HTML/FDX export. The optional local Python application and CLI use Screenplain as their compiler.
+The live site is the complete browser application, including editing, live and PDF preview, file handling, insights, themes, documentation, and PDF/FDX export. The optional local Python application and CLI use the same Screenplain compiler.
 
 ## Install and run
 
@@ -39,7 +41,7 @@ fountain-publisher screenplay.fountain --page-size a4 --output screenplay.pdf
 
 ## Editor workflow
 
-- **File** supports New, Open, Save, Save As, PDF, HTML, and Final Draft export.
+- **File** supports New, Open, Save, Save As, PDF, and Final Draft export.
 - Save overwrites the open file where the browser's File System Access API is available; other browsers download safely.
 - Source and Insights panels collapse, resize with mouse or keyboard, and remember their layout.
 - Theme follows the system until explicitly set to light or dark.
