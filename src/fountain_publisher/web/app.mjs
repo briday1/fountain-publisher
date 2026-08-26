@@ -205,7 +205,7 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const TITLE_KEYS = new Set(["title", "credit", "author", "authors", "source", "draft date", "date", "contact", "copyright", "notes"]);
 const source = $("#source");
 const page = $("#screenplay-page");
-const STATIC_HOST = location.hostname.endsWith(".github.io") || new URLSearchParams(location.search).get("static") === "1";
+let STATIC_HOST = location.hostname.endsWith(".github.io") || new URLSearchParams(location.search).get("static") === "1";
 const docSettings = {
   sceneNumbers: localStorage.getItem("fountain-publisher.scene-numbers") ?? "margin",
   sceneNumberFormat: localStorage.getItem("fountain-publisher.scene-number-format") ?? "sequential",
@@ -661,6 +661,11 @@ async function compile(revision) {
   $("#compile-status").textContent = "Compiling…";
   try {
     const response = await fetch("/api/compile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: source.value, pageSize: $("#page-size").value, sceneNumbers: docSettings.sceneNumbers, sceneNumberFormat: docSettings.sceneNumberFormat }), signal: controller.signal });
+    if (shouldUseBrowserCompiler(response, "application/json")) {
+      STATIC_HOST = true;
+      await compileStaticPageCount(revision);
+      return;
+    }
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Compilation failed");
     if (result.pageCount == null) result.pageCount = await countPdfBlobPages(await requestBinary("/api/render/pdf"), Boolean(result.titleFields.length));
@@ -987,12 +992,24 @@ async function compileWithBrowserScreenplain(kind, selectedPageSize) {
   return new Blob([bytes], { type: types[kind] });
 }
 
+function shouldUseBrowserCompiler(response, expectedType) {
+  return [404, 405].includes(response.status) || !response.headers.get("Content-Type")?.includes(expectedType);
+}
+
+function compileBinaryWithBrowser(path, selectedPageSize) {
+  const kind = path === "/api/render/pdf" ? "pdf" : "fdx";
+  return compileWithBrowserScreenplain(kind, selectedPageSize);
+}
+
 async function requestBinary(path, selectedPageSize = $("#page-size").value) {
-  if (STATIC_HOST && path === "/api/render/pdf") return compileWithBrowserScreenplain("pdf", selectedPageSize);
-  if (STATIC_HOST && path === "/api/export/fdx") return compileWithBrowserScreenplain("fdx", selectedPageSize);
+  if (STATIC_HOST) return compileBinaryWithBrowser(path, selectedPageSize);
   const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: source.value, pageSize: selectedPageSize, sceneNumbers: docSettings.sceneNumbers, sceneNumberFormat: docSettings.sceneNumberFormat }) });
+  const expectedType = path === "/api/render/pdf" ? "application/pdf" : "application/xml";
+  if (shouldUseBrowserCompiler(response, expectedType)) {
+    STATIC_HOST = true;
+    return compileBinaryWithBrowser(path, selectedPageSize);
+  }
   if (!response.ok) { const value = await response.json().catch(() => ({})); throw new Error(value.error || "Export failed"); }
-  if (path === "/api/render/pdf" && !response.headers.get("Content-Type")?.includes("application/pdf")) throw new Error("Desktop compiler returned an invalid PDF response");
   return response.blob();
 }
 

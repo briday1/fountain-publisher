@@ -247,6 +247,14 @@ test("GitHub Pages mode runs Screenplain in Pyodide", async () => {
   assert.match(app, /STATIC_HOST \? compileStaticPageCount\(revision\) : compile\(revision\)/);
 });
 
+test("custom static hosts fall back to browser compilation instead of parsing HTML", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /shouldUseBrowserCompiler\(response,\s*"application\/json"\)/);
+  assert.match(app, /STATIC_HOST = true;\s*await compileStaticPageCount\(revision\)/);
+  assert.match(app, /shouldUseBrowserCompiler\(response,\s*expectedType\)/);
+  assert.match(app, /STATIC_HOST = true;\s*return compileBinaryWithBrowser\(path,\s*selectedPageSize\)/);
+});
+
 test("scene numbers default to margin, support act format, and apply to PDF", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(app, /sceneNumbers.*"margin"/);
@@ -382,7 +390,7 @@ test("compiler failures expose actionable desktop and browser errors", async () 
   const app = await readFile(appPath, "utf8");
   assert.match(app, /Desktop compiler unavailable:.*Restart Fountain Publisher/);
   assert.match(app, /Browser PDF compiler failed:.*Reload the page/);
-  assert.match(app, /Desktop compiler returned an invalid PDF response/);
+  assert.match(app, /function shouldUseBrowserCompiler\(/);
 });
 
 test("mobile page count is preserved across source edits", async () => {
