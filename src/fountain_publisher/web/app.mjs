@@ -354,6 +354,7 @@ function analyzeLocally(text) {
   const typed = classifyLines(text);
   const characters = new Map();
   const scenes = [];
+  const sections = [];
   const locations = new Set();
   const titleFields = [];
   let active = "";
@@ -367,7 +368,10 @@ function analyzeLocally(text) {
     if (line.prefix) titleFields.push(line.prefix.slice(0, -1));
     if (line.type === "section") {
       const match = line.raw.trim().match(/^(#{1,6})\s+(.+)$/);
-      if (match?.[1].length === 1) { currentAct = match[2]; currentActNumber += 1; }
+      if (match) {
+        sections.push({ level: match[1].length, title: match[2], line: index + 1 });
+        if (match[1].length === 1) { currentAct = match[2]; currentActNumber += 1; }
+      }
     } else if (line.type === "scene") {
       const heading = line.display.replace(/^\./, "").replace(/\s+#[^#]+#\s*$/, "").toUpperCase();
       const number = line.display.match(/#([^#]+)#/)?.[1] || String(scenes.length + 1);
@@ -400,7 +404,7 @@ function analyzeLocally(text) {
   })).sort((a, b) => b.words - a.words || a.name.localeCompare(b.name));
   const wordCount = dialogueWords + actionWords;
   const pageCount = state.metadata?.pageCount ?? null;
-  return { lineCount: lines.length, wordCount, dialogueWords, actionWords, estimatedSeconds: pageCount == null ? 0 : pageCount * 60, characters: characterList, scenes, sections: [], locations: [...locations].sort(), titleFields, pageCount };
+  return { lineCount: lines.length, wordCount, dialogueWords, actionWords, estimatedSeconds: pageCount == null ? 0 : pageCount * 60, characters: characterList, scenes, sections, locations: [...locations].sort(), titleFields, pageCount };
 }
 
 function previewLineHtml(line, sceneLabel = null) {
@@ -924,6 +928,10 @@ function renderInsights(metadata) {
   $("#stat-pages").textContent = metadata.pageCount ?? "—";
   $("#stat-scenes").textContent = metadata.scenes.length;
   $("#stat-words").textContent = metadata.wordCount.toLocaleString();
+  const acts = (metadata.sections || []).filter((section) => section.level === 1);
+  $("#act-outline-section").hidden = !acts.length;
+  $("#act-count").textContent = acts.length;
+  $("#act-list").innerHTML = acts.map((act, index) => `<li><button type="button" data-line="${act.line}"><span class="act-num">${index + 1}</span>${escapeHtml(act.title)}</button></li>`).join("");
   $("#scene-count").textContent = metadata.scenes.length;
   $("#scene-list").innerHTML = metadata.scenes.length ? metadata.scenes.map((scene) => `<li><span class="scene-num">${escapeHtml(scene.number)}</span><button type="button" data-line="${scene.line}">${escapeHtml(scene.heading)}</button></li>`).join("") : `<li class="empty-list">No scene headings yet.</li>`;
   const contentWords = metadata.dialogueWords + metadata.actionWords;
@@ -1750,6 +1758,7 @@ $("#close-character-analytics").addEventListener("click", () => $("#character-an
 $("#copy-character-lines").addEventListener("click", copyCharacterLineUsage);
 $("#save-character-analytics").addEventListener("click", saveCharacterAnalyticsPng);
 $("#scene-list").addEventListener("click", (event) => { const button = event.target.closest("button[data-line]"); if (button) jumpToInsightScene(Number(button.dataset.line)); });
+$("#act-list").addEventListener("click", (event) => { const button = event.target.closest("button[data-line]"); if (button) jumpToInsightScene(Number(button.dataset.line)); });
 
 $("#new-file").addEventListener("click", newFile); $("#open-file").addEventListener("click", openFile); $("#save-file").addEventListener("click", () => saveFile(false)); $("#save-file-as").addEventListener("click", () => saveFile(true));
 $("#file-input").addEventListener("change", async (event) => { const file = event.target.files?.[0]; if (file) { state.handle = null; setDocument(await file.text(), file.name, true); } event.target.value = ""; });
