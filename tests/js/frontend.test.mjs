@@ -114,7 +114,7 @@ test("blank documents retain a page and title inference is constrained", async (
 
 test("the long sample screenplay is opt-in with demo=1", async () => {
   const app = await readFile(appPath, "utf8");
-  assert.match(app, /params\.get\("demo"\)\s*===\s*"1"\s*\?\s*SAMPLE\s*:\s*""/);
+  assert.match(app, /params\.get\("demo"\)\s*===\s*"1"\s*\?\s*SAMPLE\s*:\s*BLANK_TEMPLATE/);
   assert.match(app, /let name = params\.get\("demo"\)\s*===\s*"1"/);
   const sample = app.match(/const SAMPLE = `([\s\S]*?)`;/)?.[1] || "";
   assert.ok(sample.split(/\s+/).length > 450, "demo should remain substantial");
@@ -122,6 +122,12 @@ test("the long sample screenplay is opt-in with demo=1", async () => {
   assert.match(sample, />\*\*END\*\*</);
   assert.match(app, /function fountainInlineHtml[\s\S]*<strong>\$1<\/strong>/);
   assert.match(app, /const content = display \? fountainInlineHtml\(display\)/);
+});
+
+test("new documents start with a fill-in title page", async () => {
+  const app = await readFile(appPath, "utf8");
+  const template = app.match(/const BLANK_TEMPLATE = `([\s\S]*?)`;/)?.[1] || "";
+  assert.match(template, /^Title:\nCredit: Written by\nAuthor:\nDraft date:\nContact:\n\n$/);
 });
 
 test("the active non-printing line remains visible as editor context", async () => {

@@ -196,6 +196,14 @@ A promise.
 >**END**<
 `;
 
+const BLANK_TEMPLATE = `Title:
+Credit: Written by
+Author:
+Draft date:
+Contact:
+
+`;
+
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const TITLE_KEYS = new Set(["title", "credit", "author", "authors", "source", "draft date", "date", "contact", "copyright", "notes"]);
@@ -1022,7 +1030,7 @@ async function initialize() {
   togglePanel("source", localStorage.getItem("fountain-publisher.source-collapsed") === "true"); togglePanel("stats", localStorage.getItem("fountain-publisher.stats-collapsed") === "true");
   installResizer($("#source-resizer"), "--source-w", 1, 250, 650); installResizer($("#stats-resizer"), "--stats-w", -1, 240, 520);
   const params = new URLSearchParams(location.search);
-  let text = params.get("demo") === "1" ? SAMPLE : "";
+  let text = params.get("demo") === "1" ? SAMPLE : BLANK_TEMPLATE;
   let name = params.get("demo") === "1" ? "The Last Light.fountain" : "Untitled.fountain";
   if (params.has("project")) {
     try { const response = await fetch("/api/project"); const project = await response.json(); text = project.source; name = project.filename; } catch { /* keep selected blank/demo document */ }
