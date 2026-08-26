@@ -928,18 +928,30 @@ function renderInsights(metadata) {
   $("#stat-pages").textContent = metadata.pageCount ?? "—";
   $("#stat-scenes").textContent = metadata.scenes.length;
   $("#stat-words").textContent = metadata.wordCount.toLocaleString();
-  const acts = (metadata.sections || []).filter((section) => section.level === 1);
-  $("#act-outline-section").hidden = !acts.length;
-  $("#act-count").textContent = acts.length;
-  $("#act-list").innerHTML = acts.map((act, index) => `<li><button type="button" data-line="${act.line}"><span class="act-num">${index + 1}</span>${escapeHtml(act.title)}</button></li>`).join("");
   $("#scene-count").textContent = metadata.scenes.length;
-  $("#scene-list").innerHTML = metadata.scenes.length ? metadata.scenes.map((scene) => `<li><span class="scene-num">${escapeHtml(scene.number)}</span><button type="button" data-line="${scene.line}">${escapeHtml(scene.heading)}</button></li>`).join("") : `<li class="empty-list">No scene headings yet.</li>`;
+  $("#scene-list").innerHTML = renderOutline(metadata);
   const contentWords = metadata.dialogueWords + metadata.actionWords;
   const dialoguePercent = contentWords ? Math.round(metadata.dialogueWords / contentWords * 100) : 0;
   $("#dialogue-bar").style.width = `${dialoguePercent}%`;
   $("#dialogue-percent").textContent = `${dialoguePercent}%`;
   $("#action-percent").textContent = `${100 - dialoguePercent}%`;
   if ($("#character-analytics-dialog").open) renderCharacterAnalytics();
+}
+
+function outlineSceneRow(scene) {
+  return `<li><span class="scene-num">${escapeHtml(scene.number)}</span><button type="button" data-line="${scene.line}">${escapeHtml(scene.heading)}</button></li>`;
+}
+
+function renderOutline(metadata) {
+  const scenes = metadata.scenes || [];
+  const acts = (metadata.sections || []).filter((section) => section.level === 1);
+  if (!acts.length) return scenes.length ? scenes.map(outlineSceneRow).join("") : `<li class="empty-list">No scene headings yet.</li>`;
+  const beforeActs = scenes.filter((scene) => !scene.actNumber).map(outlineSceneRow).join("");
+  const grouped = acts.map((act, index) => {
+    const actScenes = scenes.filter((scene) => scene.actNumber === index + 1).map(outlineSceneRow).join("");
+    return `<li class="outline-act"><button class="outline-act-heading" type="button" data-line="${act.line}"><span>${index + 1}</span>${escapeHtml(act.title)}</button><ol>${actScenes || `<li class="empty-list">No scenes in this act.</li>`}</ol></li>`;
+  }).join("");
+  return beforeActs + grouped;
 }
 
 function formatDuration(seconds) {
@@ -1758,7 +1770,6 @@ $("#close-character-analytics").addEventListener("click", () => $("#character-an
 $("#copy-character-lines").addEventListener("click", copyCharacterLineUsage);
 $("#save-character-analytics").addEventListener("click", saveCharacterAnalyticsPng);
 $("#scene-list").addEventListener("click", (event) => { const button = event.target.closest("button[data-line]"); if (button) jumpToInsightScene(Number(button.dataset.line)); });
-$("#act-list").addEventListener("click", (event) => { const button = event.target.closest("button[data-line]"); if (button) jumpToInsightScene(Number(button.dataset.line)); });
 
 $("#new-file").addEventListener("click", newFile); $("#open-file").addEventListener("click", openFile); $("#save-file").addEventListener("click", () => saveFile(false)); $("#save-file-as").addEventListener("click", () => saveFile(true));
 $("#file-input").addEventListener("change", async (event) => { const file = event.target.files?.[0]; if (file) { state.handle = null; setDocument(await file.text(), file.name, true); } event.target.value = ""; });

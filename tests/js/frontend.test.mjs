@@ -278,15 +278,16 @@ test("scene outline clicks synchronize source and live preview", async () => {
   assert.match(css, /\.preview-toolbar\s*\{[^}]*flex:\s*0 0 auto;/s);
 });
 
-test("Insights separates top-level acts from the scene outline", async () => {
+test("Insights nests scenes beneath top-level acts in one outline", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
-  assert.match(html, /id="act-outline-section"[^>]*hidden[\s\S]*<summary>Acts/);
   assert.match(html, /<summary>Outline <small id="scene-count">/);
   assert.doesNotMatch(html, /Scene outline/);
+  assert.doesNotMatch(html, /id="act-outline-section"|id="act-list"/);
   assert.match(app, /sections\.push\(\{ level: match\[1\]\.length, title: match\[2\], line: index \+ 1 \}\)/);
   assert.match(app, /filter\(\(section\) => section\.level === 1\)/);
-  assert.match(app, /#act-list[\s\S]*jumpToInsightScene/);
-  assert.match(css, /\.act-list button\s*\{[^}]*display:\s*flex;/s);
+  assert.match(app, /class="outline-act"[\s\S]*class="outline-act-heading"[\s\S]*<ol>\$\{actScenes/);
+  assert.match(app, /scene\.actNumber === index \+ 1/);
+  assert.match(css, /\.scene-list \.outline-act > ol\s*\{[^}]*padding:\s*0 0 4px 12px;/s);
 });
 
 test("live preview numbers scene headings via computed labels", async () => {
