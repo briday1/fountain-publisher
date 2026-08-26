@@ -1048,8 +1048,6 @@ function renderCharacterAnalytics() {
   characters.forEach((character, row) => {
     const y = actHeight + sceneHeight + row * rowHeight;
     if (row % 2 === 1) { context.fillStyle = surface2; context.fillRect(0, y, width, rowHeight); }
-    context.strokeStyle = border;
-    context.beginPath(); context.moveTo(0, y + rowHeight + 0.5); context.lineTo(width, y + rowHeight + 0.5); context.stroke();
     context.fillStyle = ink;
     context.textAlign = "left";
     context.fillText(fitCanvasText(context, character.name, labelWidth - 20), 12, y + rowHeight / 2);

@@ -358,6 +358,7 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.doesNotMatch(app, /table\.style\.width/);
   assert.match(app, /maxLines === minLines \? 1 : 0\.25 \+ 0\.75/);
   assert.match(app, /canvasColor\("--syntax-character", "#7c3aed"\)/);
+  assert.doesNotMatch(app, /moveTo\(0, y \+ rowHeight \+ 0\.5\)/);
   assert.match(css, /\.analytics-gradient-legend i\s*\{[^}]*var\(--syntax-character\)[^}]*var\(--syntax-character\)/s);
 });
 
