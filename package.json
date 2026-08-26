@@ -2,10 +2,10 @@
   "name": "fountain-publisher",
   "version": "1.0.0",
   "description": "A web app for editing and previewing Fountain screenplay files.",
-  "main": "app.js",
+  "main": "src/fountain_publisher/web/app.mjs",
   "scripts": {
-    "start": "python3 -m http.server 4173",
-    "test": "echo \"No test suite is configured yet\""
+    "start": "PYTHONPATH=src python3 -m fountain_publisher",
+    "test": "node --test tests/js/*.test.mjs && PYTHONPATH=src python3 -m unittest discover -s tests -v"
   },
   "repository": {
     "type": "git",
