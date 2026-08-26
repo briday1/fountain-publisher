@@ -322,31 +322,46 @@ function analyzeLocally(text) {
   const titleFields = [];
   let active = "";
   let currentScene = 0;
+  let currentAct = "";
+  let currentActNumber = 0;
   let dialogueWords = 0;
   let actionWords = 0;
   typed.forEach((line, index) => {
     const words = (line.display.match(/[\p{L}\p{N}'’-]+/gu) || []).length;
     if (line.prefix) titleFields.push(line.prefix.slice(0, -1));
-    if (line.type === "scene") {
+    if (line.type === "section") {
+      const match = line.raw.trim().match(/^(#{1,6})\s+(.+)$/);
+      if (match?.[1].length === 1) { currentAct = match[2]; currentActNumber += 1; }
+    } else if (line.type === "scene") {
       const heading = line.display.replace(/^\./, "").replace(/\s+#[^#]+#\s*$/, "").toUpperCase();
       const number = line.display.match(/#([^#]+)#/)?.[1] || String(scenes.length + 1);
-      scenes.push({ number, heading, line: index + 1, words: 0 });
+      scenes.push({ number, heading, line: index + 1, words: 0, act: currentAct || "Screenplay", actNumber: currentActNumber });
       currentScene = scenes.length;
       const location = heading.replace(/^(?:INT|EXT|EST|INT\.?\/EXT\.?|I\/E)[ .]+/i, "").split(/\s+-\s+/)[0].trim();
       if (location) locations.add(location);
       active = "";
     } else if (line.type === "character") {
       active = cleanCharacter(line.display);
-      const entry = characters.get(active) || { name: active, cues: 0, lines: 0, words: 0, seconds: 0, sceneSet: new Set(), lastLine: 0 };
+      const entry = characters.get(active) || { name: active, cues: 0, lines: 0, words: 0, seconds: 0, sceneSet: new Set(), sceneLineMap: new Map(), lastLine: 0 };
       entry.cues += 1; entry.lastLine = index + 1; if (currentScene) entry.sceneSet.add(currentScene); characters.set(active, entry);
     } else if (line.type === "dialogue") {
       const entry = characters.get(active);
-      if (entry) { entry.lines += 1; entry.words += words; dialogueWords += words; }
+      if (entry) {
+        entry.lines += 1; entry.words += words; dialogueWords += words;
+        if (currentScene) entry.sceneLineMap.set(currentScene, (entry.sceneLineMap.get(currentScene) || 0) + 1);
+      }
     } else if (!["empty", "parenthetical", "section", "synopsis", "note", "boneyard", "title-value", "title-value title"].includes(line.type)) {
       active = ""; actionWords += words; if (scenes.length) scenes.at(-1).words += words;
     }
   });
-  const characterList = [...characters.values()].map((entry) => ({ ...entry, seconds: Math.round(entry.words / 130 * 60), scenes: entry.sceneSet.size, sceneSet: undefined })).sort((a, b) => b.words - a.words || a.name.localeCompare(b.name));
+  const characterList = [...characters.values()].map((entry) => ({
+    ...entry,
+    seconds: Math.round(entry.words / 130 * 60),
+    scenes: entry.sceneSet.size,
+    sceneLines: [...entry.sceneLineMap].map(([scene, lineCount]) => ({ scene, lines: lineCount })),
+    sceneSet: undefined,
+    sceneLineMap: undefined,
+  })).sort((a, b) => b.words - a.words || a.name.localeCompare(b.name));
   const wordCount = dialogueWords + actionWords;
   return { lineCount: lines.length, wordCount, dialogueWords, actionWords, estimatedSeconds: Math.round(wordCount / 180 * 60), characters: characterList, scenes, sections: [], locations: [...locations].sort(), titleFields, pageCount: state.metadata?.pageCount ?? null };
 }
@@ -574,7 +589,7 @@ function renderInsights(metadata) {
   $("#stat-words").textContent = metadata.wordCount.toLocaleString();
   $("#stat-runtime").textContent = formatDuration(metadata.estimatedSeconds);
   $("#character-count").textContent = metadata.characters.length;
-  $("#character-list").innerHTML = metadata.characters.length ? `<div class="table-actions"><button type="button" data-copy-characters>Copy CSV</button></div><table><thead><tr><th>Character</th><th>Lines</th><th>Duration</th></tr></thead><tbody>${metadata.characters.map((character) => `<tr><td><button type="button" data-line="${character.lastLine}">${escapeHtml(character.name)}</button></td><td>${character.lines}</td><td>${formatDuration(character.seconds)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty-list">Character statistics appear as dialogue is written.</div>`;
+  $("#character-list").innerHTML = metadata.characters.length ? `<div class="table-actions"><button type="button" data-character-analytics>Character Analytics</button></div><table><thead><tr><th>Character</th><th>Lines</th><th>Duration</th></tr></thead><tbody>${metadata.characters.map((character) => `<tr><td><button type="button" data-line="${character.lastLine}">${escapeHtml(character.name)}</button></td><td>${character.lines}</td><td>${formatDuration(character.seconds)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty-list">Character statistics appear as dialogue is written.</div>`;
   $("#scene-count").textContent = metadata.scenes.length;
   $("#scene-list").innerHTML = metadata.scenes.length ? metadata.scenes.map((scene) => `<li><span class="scene-num">${escapeHtml(scene.number)}</span><button type="button" data-line="${scene.line}">${escapeHtml(scene.heading)}</button></li>`).join("") : `<li class="empty-list">No scene headings yet.</li>`;
   $("#location-count").textContent = metadata.locations.length;
@@ -584,12 +599,149 @@ function renderInsights(metadata) {
   $("#dialogue-bar").style.width = `${dialoguePercent}%`;
   $("#dialogue-percent").textContent = `${dialoguePercent}%`;
   $("#action-percent").textContent = `${100 - dialoguePercent}%`;
+  if ($("#character-analytics-dialog").open) renderCharacterAnalytics();
 }
 
 function formatDuration(seconds) {
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60); const remainder = seconds % 60;
   return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
+}
+
+function canvasColor(name, fallback) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+
+function fitCanvasText(context, value, width) {
+  const text = String(value);
+  if (context.measureText(text).width <= width) return text;
+  let clipped = text;
+  while (clipped.length && context.measureText(`${clipped}…`).width > width) clipped = clipped.slice(0, -1);
+  return clipped ? `${clipped}…` : "";
+}
+
+function renderCharacterAnalytics() {
+  const canvas = $("#character-analytics-chart");
+  const characters = state.metadata.characters;
+  const scenes = state.metadata.scenes;
+  const scale = Math.min(window.devicePixelRatio || 1, 2);
+  const labelWidth = 150;
+  const sceneWidth = 92;
+  const actHeight = 28;
+  const sceneHeight = 54;
+  const rowHeight = 34;
+  const width = Math.max(720, labelWidth + scenes.length * sceneWidth + 18);
+  const height = actHeight + sceneHeight + Math.max(characters.length, 1) * rowHeight + 18;
+  canvas.width = Math.ceil(width * scale);
+  canvas.height = Math.ceil(height * scale);
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+  const context = canvas.getContext("2d");
+  context.scale(scale, scale);
+
+  const surface = canvasColor("--surface", "#fff");
+  const surface2 = canvasColor("--surface-2", "#f2f2f2");
+  const ink = canvasColor("--ink", "#202124");
+  const muted = canvasColor("--muted", "#6b7280");
+  const border = canvasColor("--border", "#d7d9dd");
+  const accent = canvasColor("--accent", "#4c6fff");
+  context.fillStyle = surface;
+  context.fillRect(0, 0, width, height);
+  context.strokeStyle = border;
+  context.lineWidth = 1;
+  context.font = "600 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  context.textBaseline = "middle";
+
+  let groupStart = 0;
+  while (groupStart < scenes.length) {
+    const act = scenes[groupStart].act || "Screenplay";
+    let groupEnd = groupStart + 1;
+    while (groupEnd < scenes.length && (scenes[groupEnd].act || "Screenplay") === act) groupEnd += 1;
+    const x = labelWidth + groupStart * sceneWidth;
+    const groupWidth = (groupEnd - groupStart) * sceneWidth;
+    context.fillStyle = surface2;
+    context.fillRect(x, 0, groupWidth, actHeight);
+    context.fillStyle = ink;
+    context.textAlign = "center";
+    context.fillText(fitCanvasText(context, act, groupWidth - 12), x + groupWidth / 2, actHeight / 2);
+    context.strokeRect(x + 0.5, 0.5, groupWidth, actHeight);
+    groupStart = groupEnd;
+  }
+
+  context.fillStyle = surface2;
+  context.fillRect(0, 0, labelWidth, actHeight + sceneHeight);
+  context.fillStyle = muted;
+  context.textAlign = "left";
+  context.fillText("CHARACTER", 12, actHeight + sceneHeight / 2);
+  scenes.forEach((scene, index) => {
+    const x = labelWidth + index * sceneWidth;
+    context.strokeStyle = border;
+    context.strokeRect(x + 0.5, actHeight + 0.5, sceneWidth, sceneHeight);
+    context.fillStyle = ink;
+    context.textAlign = "center";
+    context.fillText(String(scene.number), x + sceneWidth / 2, actHeight + 16);
+    context.fillStyle = muted;
+    context.font = "9px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    context.fillText(fitCanvasText(context, scene.heading, sceneWidth - 10), x + sceneWidth / 2, actHeight + 36);
+    context.font = "600 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  });
+
+  characters.forEach((character, row) => {
+    const y = actHeight + sceneHeight + row * rowHeight;
+    if (row % 2 === 1) { context.fillStyle = surface2; context.fillRect(0, y, width, rowHeight); }
+    context.strokeStyle = border;
+    context.beginPath(); context.moveTo(0, y + rowHeight + 0.5); context.lineTo(width, y + rowHeight + 0.5); context.stroke();
+    context.fillStyle = ink;
+    context.textAlign = "left";
+    context.fillText(fitCanvasText(context, character.name, labelWidth - 20), 12, y + rowHeight / 2);
+    const usage = new Map((character.sceneLines || []).map((item) => [item.scene, item.lines]));
+    scenes.forEach((scene, index) => {
+      const lineCount = usage.get(index + 1) || 0;
+      if (!lineCount) return;
+      const x = labelWidth + index * sceneWidth + 4;
+      context.fillStyle = accent;
+      context.fillRect(x, y + 7, sceneWidth - 8, rowHeight - 14);
+      context.fillStyle = "#fff";
+      context.textAlign = "center";
+      context.fillText(String(lineCount), x + (sceneWidth - 8) / 2, y + rowHeight / 2);
+    });
+  });
+  if (!scenes.length) {
+    context.fillStyle = muted;
+    context.textAlign = "center";
+    context.fillText("Add scene headings to build the timeline.", width / 2, actHeight + sceneHeight + rowHeight / 2);
+  }
+  canvas.setAttribute("aria-label", `Character dialogue timeline with ${characters.length} characters across ${scenes.length} scenes`);
+}
+
+function characterLineUsageCsv() {
+  const rows = [["Character", "Act", "Scene", "Scene Heading", "Dialogue Lines"]];
+  state.metadata.characters.forEach((character) => {
+    (character.sceneLines || []).forEach((usage) => {
+      const scene = state.metadata.scenes[usage.scene - 1];
+      if (scene) rows.push([character.name, scene.act || "Screenplay", scene.number, scene.heading, usage.lines]);
+    });
+  });
+  const csvCell = (value) => `"${String(value).replaceAll('"', '""')}"`;
+  return rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+}
+
+function openCharacterAnalytics() {
+  renderCharacterAnalytics();
+  $("#character-analytics-dialog").showModal();
+}
+
+async function copyCharacterLineUsage() {
+  try { await navigator.clipboard.writeText(characterLineUsageCsv()); toast("Line usage CSV copied"); }
+  catch { toast("Clipboard access was denied"); }
+}
+
+async function saveCharacterAnalyticsPng() {
+  renderCharacterAnalytics();
+  const blob = await new Promise((resolve) => $("#character-analytics-chart").toBlob(resolve, "image/png"));
+  if (!blob) { toast("Could not create analytics image"); return; }
+  await download(blob, normalizedFilename("character-analytics.png"));
+  toast("Character analytics PNG saved");
 }
 
 function recordHistory() {
@@ -1128,16 +1280,12 @@ page.addEventListener("focusout", () => setTimeout(() => { if (!$("#preview-comp
 $("#preview-completion-menu").addEventListener("mousedown", (event) => { const item = event.target.closest(".completion-item"); if (item) { event.preventDefault(); acceptPreviewCharacterCompletion(Number(item.dataset.index)); } });
 $("#completion-menu").addEventListener("mousedown", (event) => { const item = event.target.closest(".completion-item"); if (item) { event.preventDefault(); acceptCompletion(Number(item.dataset.index)); } });
 $("#character-list").addEventListener("click", async (event) => {
-  if (event.target.closest("[data-copy-characters]")) {
-    const rows = [["Character", "Lines", "Duration"], ...state.metadata.characters.map((character) => [character.name, character.lines, formatDuration(character.seconds)])];
-    const csvCell = (value) => `"${String(value).replaceAll('"', '""')}"`;
-    const text = rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
-    try { await navigator.clipboard.writeText(text); toast("Character CSV copied"); }
-    catch { toast("Clipboard access was denied"); }
-    return;
-  }
+  if (event.target.closest("[data-character-analytics]")) { openCharacterAnalytics(); return; }
   const button = event.target.closest("button[data-line]"); if (button) jumpToLine(Number(button.dataset.line));
 });
+$("#close-character-analytics").addEventListener("click", () => $("#character-analytics-dialog").close());
+$("#copy-character-lines").addEventListener("click", copyCharacterLineUsage);
+$("#save-character-analytics").addEventListener("click", saveCharacterAnalyticsPng);
 $("#scene-list").addEventListener("click", (event) => { const button = event.target.closest("button[data-line]"); if (button) jumpToInsightScene(Number(button.dataset.line)); });
 
 $("#new-file").addEventListener("click", newFile); $("#open-file").addEventListener("click", openFile); $("#save-file").addEventListener("click", () => saveFile(false)); $("#save-file-as").addEventListener("click", () => saveFile(true));

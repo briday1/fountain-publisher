@@ -192,6 +192,23 @@
       </form>
     </dialog>
 
+    <dialog id="character-analytics-dialog" aria-labelledby="character-analytics-title">
+      <article class="analytics-shell">
+        <header class="analytics-header">
+          <div><small>INSIGHTS</small><h2 id="character-analytics-title">Character Analytics</h2></div>
+          <button id="close-character-analytics" type="button" aria-label="Close character analytics">×</button>
+        </header>
+        <p>Dialogue lines by character across acts and scenes. Scroll or pan to explore the full screenplay.</p>
+        <div class="analytics-chart-scroll">
+          <canvas id="character-analytics-chart" role="img"></canvas>
+        </div>
+        <footer class="analytics-actions">
+          <button id="copy-character-lines" type="button">Copy line usage CSV</button>
+          <button class="primary" id="save-character-analytics" type="button">Save PNG</button>
+        </footer>
+      </article>
+    </dialog>
+
     <dialog id="docs-dialog" aria-labelledby="docs-title">
       <article class="docs-shell">
         <header class="docs-header"><div><small>FOUNTAIN PUBLISHER</small><h2 id="docs-title">Documentation</h2></div><button id="close-docs" type="button" aria-label="Close documentation">×</button></header>
