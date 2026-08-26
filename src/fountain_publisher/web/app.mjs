@@ -1,5 +1,3 @@
-import { mobileShareFile } from "./browser-capabilities.mjs";
-
 const SAMPLE = `Title: The Last Light
 Credit: Written by
 Author: Avery Stone
@@ -226,6 +224,7 @@ const state = {
   previewCompletionLine: null,
   previewMode: "live",
   pdfUrl: null,
+  insightLine: null,
   history: [],
   historyIndex: -1,
   theme: localStorage.getItem("fountain-publisher.theme") || "system",
@@ -786,19 +785,6 @@ function normalizedFilename(extension) {
 }
 
 async function download(blob, filename) {
-  const file = mobileShareFile(blob, filename, {
-    mobileLayout: matchMedia("(max-width: 640px)").matches,
-    navigatorObject: navigator,
-    FileConstructor: globalThis.File,
-  });
-  if (file) {
-    try {
-      await navigator.share({ files: [file], title: filename });
-      return;
-    } catch (error) {
-      if (error.name === "AbortError") throw error;
-    }
-  }
   const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = filename; document.body.appendChild(anchor); anchor.click(); document.body.removeChild(anchor); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
@@ -1089,6 +1075,11 @@ function jumpToLine(oneBased, focus = true) {
   $("#line-numbers").scrollTop = source.scrollTop; $("#source-highlight").scrollTop = source.scrollTop; updateCursor({ scrollPreview: true });
 }
 
+function jumpToInsightScene(oneBased) {
+  state.insightLine = oneBased;
+  jumpToLine(oneBased, false);
+}
+
 let toastTimer;
 function toast(message) { const element = $("#toast"); element.textContent = message; element.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => element.classList.remove("show"), 2200); }
 
@@ -1140,7 +1131,7 @@ $("#character-list").addEventListener("click", async (event) => {
   }
   const button = event.target.closest("button[data-line]"); if (button) jumpToLine(Number(button.dataset.line));
 });
-$("#scene-list").addEventListener("click", (event) => { const button = event.target.closest("button[data-line]"); if (button) jumpToLine(Number(button.dataset.line)); });
+$("#scene-list").addEventListener("click", (event) => { const button = event.target.closest("button[data-line]"); if (button) jumpToInsightScene(Number(button.dataset.line)); });
 
 $("#new-file").addEventListener("click", newFile); $("#open-file").addEventListener("click", openFile); $("#save-file").addEventListener("click", () => saveFile(false)); $("#save-file-as").addEventListener("click", () => saveFile(true));
 $("#file-input").addEventListener("change", async (event) => { const file = event.target.files?.[0]; if (file) { state.handle = null; setDocument(await file.text(), file.name, true); } event.target.value = ""; });
@@ -1238,6 +1229,7 @@ function setMobileTab(panel) {
   localStorage.setItem("fountain-publisher.mobile-tab", panel);
   if (panel === "preview" && state.previewMode === "pdf") refreshPdf();
   if (panel === "source") renderEditorChrome();
+  if (panel !== "stats" && state.insightLine !== null) requestAnimationFrame(() => jumpToLine(state.insightLine, false));
 }
 
 $$(".mobile-tab").forEach((tab) => tab.addEventListener("click", () => setMobileTab(tab.dataset.mobilePanel)));
