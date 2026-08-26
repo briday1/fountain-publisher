@@ -46,11 +46,15 @@ class FountainRequestHandler(SimpleHTTPRequestHandler):
             source = body.get("source")
             if not isinstance(source, str):
                 raise ValueError("source must be a string")
-            options = CompileOptions(page_size=str(body.get("pageSize", "letter")))
+            options = CompileOptions(
+                page_size=str(body.get("pageSize", "letter")),
+                scene_numbers=str(body.get("sceneNumbers", "margin")),
+                scene_number_format=str(body.get("sceneNumberFormat", "sequential")),
+            )
             if path == "/api/render/pdf":
                 return self._send_bytes(render_pdf(source, options), "application/pdf")
             if path == "/api/export/fdx":
-                return self._send_bytes(render_fdx(source), "application/xml; charset=utf-8")
+                return self._send_bytes(render_fdx(source, options), "application/xml; charset=utf-8")
             payload = analyze_source(source)
             physical_pages = count_pdf_pages(render_pdf(source, options))
             payload["pageCount"] = max(0, physical_pages - (1 if payload["titleFields"] else 0))

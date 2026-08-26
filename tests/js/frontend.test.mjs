@@ -125,10 +125,14 @@ test("the long sample screenplay is opt-in with demo=1", async () => {
   assert.match(app, /const content = display \? fountainInlineHtml\(display\)/);
 });
 
-test("new documents start with a fill-in title page", async () => {
-  const app = await readFile(appPath, "utf8");
-  const template = app.match(/const BLANK_TEMPLATE = `([\s\S]*?)`;/)?.[1] || "";
-  assert.match(template, /^Title:\nCredit: Written by\nAuthor:\nDraft date:\n\n$/);
+test("new documents open to a blank canvas with starter helpers", async () => {
+  const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
+  const template = app.match(/const BLANK_TEMPLATE = `([\s\S]*?)`;/)?.[1] ?? "";
+  assert.equal(template, "");
+  assert.match(html, /id="title-page-dialog"/);
+  assert.match(html, /id="insert-title-page"/);
+  assert.match(html, /id="insert-scene"/);
+  assert.match(html, /id="insert-dialogue"/);
 });
 
 test("the active non-printing line remains visible as editor context", async () => {
@@ -143,12 +147,12 @@ test("scene outline clicks synchronize source and live preview", async () => {
   assert.match(app, /#scene-list[\s\S]*jumpToLine\(Number\(button\.dataset\.line\)\)/);
 });
 
-test("live preview automatically prefixes scene headings", async () => {
+test("live preview numbers scene headings via computed labels", async () => {
   const app = await readFile(appPath, "utf8");
-  assert.match(app, /`\$\{sceneNumber\}\. \$\{line\.display/);
+  assert.match(app, /function computeSceneLabels\(/);
   assert.match(app, /line\.display\.replace\(\/\^\\\.\//);
-  assert.match(app, /if \(lines\[i\]\.type === "scene"\) sceneNumber \+= 1/);
-  assert.match(app, /paragraph\.line = plain\(f"\{number\}\. "\) \+ paragraph\.line/);
+  assert.match(app, /sceneLabels\.get\(lines\[i\]\.index\)/);
+  assert.match(app, /paragraph\.line = plain\(f"\{label\}\. "\) \+ paragraph\.line/);
 });
 
 test("page totals come from the compiled Screenplain PDF", async () => {
@@ -240,4 +244,16 @@ test("GitHub Pages mode runs Screenplain in Pyodide", async () => {
   assert.match(app, /\/fonts\/CourierPrime-Regular\.ttf/);
   assert.match(app, /pdf\.to_pdf\(screenplay, output, template_constructor=NumberedDocTemplate, settings=settings\)/);
   assert.match(app, /STATIC_HOST \? compileStaticPageCount\(revision\) : compile\(revision\)/);
+});
+
+test("scene numbers default to margin, support act format, and apply to PDF", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(app, /sceneNumbers.*"margin"/);
+  assert.match(app, /sceneNumberFormat.*"sequential"/);
+  assert.match(app, /function computeSceneLabels\(/);
+  assert.match(app, /A\$\{Math\.max\(actNum,\s*1\)\}S\$\{actSceneNum\}/);
+  assert.match(css, /body\.scene-nums-margin.*::before/s);
+  assert.match(css, /position:\s*absolute;/);
+  assert.match(html, /id="scene-num-placement"/);
+  assert.match(html, /id="scene-num-format"/);
 });

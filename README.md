@@ -48,6 +48,9 @@ fountain-publisher screenplay.fountain --page-size a4 --output screenplay.pdf
 - Edit either the Fountain source or a line on the published screenplay page.
 - The live page is optimized for editing. Switch to **PDF** for exact output from the same compiler used by export.
 - Insights show scene count, estimated pages/runtime, dialogue/action balance, locations, and per-character dialogue lines, words, scenes, and speaking duration.
+- A blank document shows a **Blank page** overlay with helper buttons — **Add title page** (opens a form to fill in Title, Credit, Author, Draft date, and Contact), **Add scene**, **Add dialogue**, and **Add direction** — that insert formatted Fountain snippets. You can also just start typing in Source and Fountain formats automatically.
+- The **Documentation** shortcuts table shows only the shortcuts for your operating system (macOS or Windows/Linux).
+- Scene numbers appear in the left margin by default. Use **Settings → Scene Numbers** to change the placement (Margin/Inline/Off) or format (Sequential 1 2 3 vs Act-prefixed A1S1 A1S2). Act prefixes are derived from top-level `# Act` section headings. Both the live preview and exported PDF respect these settings.
 
 ## Tests
 
