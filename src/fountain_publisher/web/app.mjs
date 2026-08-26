@@ -200,7 +200,6 @@ const BLANK_TEMPLATE = `Title:
 Credit: Written by
 Author:
 Draft date:
-Contact:
 
 `;
 

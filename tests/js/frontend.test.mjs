@@ -127,7 +127,7 @@ test("the long sample screenplay is opt-in with demo=1", async () => {
 test("new documents start with a fill-in title page", async () => {
   const app = await readFile(appPath, "utf8");
   const template = app.match(/const BLANK_TEMPLATE = `([\s\S]*?)`;/)?.[1] || "";
-  assert.match(template, /^Title:\nCredit: Written by\nAuthor:\nDraft date:\nContact:\n\n$/);
+  assert.match(template, /^Title:\nCredit: Written by\nAuthor:\nDraft date:\n\n$/);
 });
 
 test("the active non-printing line remains visible as editor context", async () => {
