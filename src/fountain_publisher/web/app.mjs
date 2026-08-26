@@ -786,11 +786,10 @@ function sourceVisualRows(line, columns = sourceWrapColumns()) {
 }
 
 function renderLineNumbers() {
-  const columns = sourceWrapColumns();
-  $("#line-numbers").textContent = source.value.split("\n").map((line, index) => {
+  $("#line-numbers").innerHTML = source.value.split("\n").map((line, index) => {
     const renderedRows = $(`[data-source-line="${index}"]`, $("#source-highlight"))?.getClientRects().length;
-    return `${index + 1}${"\n".repeat((renderedRows || sourceVisualRows(line, columns)) - 1)}`;
-  }).join("\n");
+    return `<span class="line-number" style="--source-rows:${renderedRows || 1}">${index + 1}</span>`;
+  }).join("");
 }
 
 function fountainSyntaxHtml(value) {
@@ -1556,7 +1555,7 @@ function togglePanel(panel, force) {
 
 function installResizer(element, variable, side, min, max) {
   let startX = 0; let startWidth = 0;
-  const apply = (width) => { const next = Math.max(min, Math.min(max, width)); document.documentElement.style.setProperty(variable, `${next}px`); localStorage.setItem(`fountain-publisher.${variable}`, String(next)); element.setAttribute("aria-valuenow", String(Math.round(next))); };
+  const apply = (width) => { const next = Math.max(min, Math.min(max, width)); document.documentElement.style.setProperty(variable, `${next}px`); localStorage.setItem(`fountain-publisher.${variable}`, String(next)); element.setAttribute("aria-valuenow", String(Math.round(next))); if (variable === "--source-w") renderEditorChrome(); };
   element.addEventListener("pointerdown", (event) => { startX = event.clientX; startWidth = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(variable)); element.setPointerCapture(event.pointerId); });
   element.addEventListener("pointermove", (event) => { if (!element.hasPointerCapture(event.pointerId)) return; apply(startWidth + (event.clientX - startX) * side); });
   element.addEventListener("dblclick", () => apply(variable === "--source-w" ? 370 : 310));

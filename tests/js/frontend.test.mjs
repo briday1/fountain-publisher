@@ -306,9 +306,12 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
 test("source word wrap defaults on and preserves logical line numbers", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="word-wrap"[^>]*checked/);
-  assert.match(app, /function sourceVisualRows\(/);
   assert.match(app, /source\.setAttribute\("wrap", enabled \? "soft" : "off"\)/);
+  assert.match(app, /getClientRects\(\)\.length/);
+  assert.match(app, /class="line-number" style="--source-rows:/);
+  assert.match(app, /variable === "--source-w"\) renderEditorChrome\(\)/);
   assert.match(css, /body\.source-wrap #source/);
+  assert.match(css, /\.line-number\s*\{[^}]*height:\s*calc\(var\(--source-rows\) \* 1\.55em\)/s);
 });
 
 test("shared undo and redo work from source and screenplay focus", async () => {
