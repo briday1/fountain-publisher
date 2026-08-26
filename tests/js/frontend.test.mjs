@@ -236,6 +236,9 @@ test("scene outline clicks synchronize source and live preview", async () => {
   assert.match(app, /function jumpToInsightScene[\s\S]*jumpToLine\(oneBased, false\)/);
   assert.match(app, /#scene-list[\s\S]*jumpToInsightScene\(Number\(button\.dataset\.line\)\)/);
   assert.match(app, /function setMobileTab[\s\S]*requestAnimationFrame\(\(\) => jumpToLine\(state\.insightLine, false\)\)/);
+  assert.match(app, /function scrollPreviewTarget[\s\S]*previewScroll\.scrollTop = Math\.max\(0, top\)/);
+  assert.match(app, /previewScroll\.scrollLeft = boundedScrollLeft\(previewScroll, left\)/);
+  assert.doesNotMatch(app, /target\?\.scrollIntoView/);
 });
 
 test("live preview numbers scene headings via computed labels", async () => {
