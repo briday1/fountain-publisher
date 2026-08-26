@@ -197,6 +197,15 @@ test("theme control uses Pugflow-style sun and moon icons", async () => {
   assert.match(css, /data-effective-theme="dark"[^}]*\.theme-sun\s*\{\s*display:\s*none;/);
 });
 
+test("source editor uses the paired Classic Scriptwriter palettes only", async () => {
+  const css = await readFile(cssPath, "utf8");
+  assert.match(css, /:root\s*\{[\s\S]*--source-bg:\s*#faf6ee;[\s\S]*--source-ink:\s*#1a1917;[\s\S]*--syntax-scene:\s*#a36a00;[\s\S]*--syntax-character:\s*#2b2a27;[\s\S]*--syntax-parenthetical:\s*#706e69;[\s\S]*--syntax-ignored:\s*#3a633a;/);
+  assert.match(css, /:root\[data-theme="dark"\]\s*\{[\s\S]*--source-bg:\s*#1e1e1e;[\s\S]*--source-ink:\s*#f5f2eb;[\s\S]*--syntax-scene:\s*#e2b875;[\s\S]*--syntax-character:\s*#d4d4d4;[\s\S]*--syntax-parenthetical:\s*#8c8a85;[\s\S]*--syntax-ignored:\s*#638563;/);
+  assert.match(css, /\.editor-shell\s*\{[^}]*background:\s*var\(--source-bg\);/s);
+  assert.match(css, /\.source-highlight\s*\{[^}]*color:\s*var\(--source-ink\);/s);
+  assert.match(css, /\.line-numbers\s*\{[^}]*background:\s*var\(--source-gutter-bg\);/s);
+});
+
 test("blank documents retain a page and title inference is constrained", async () => {
   const app = await readFile(appPath, "utf8");
   assert.match(app, /page\.hidden = state\.previewMode !== "live"/);

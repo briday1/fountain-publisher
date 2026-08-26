@@ -17,13 +17,17 @@
   --accent: #366fc2;
   --accent-soft: #e6effc;
   --danger: #c43f3f;
-  --syntax-title: #8a5800;
-  --syntax-scene: #6842b8;
-  --syntax-character: #087b83;
-  --syntax-parenthetical: #a52a72;
-  --syntax-transition: #2866b1;
-  --syntax-structure: #7650a8;
-  --syntax-ignored: #8a8f94;
+  --source-bg: #faf6ee;
+  --source-gutter-bg: #f2ebdd;
+  --source-ink: #1a1917;
+  --source-muted: #706e69;
+  --syntax-title: #a36a00;
+  --syntax-scene: #a36a00;
+  --syntax-character: #2b2a27;
+  --syntax-parenthetical: #706e69;
+  --syntax-transition: #2b2a27;
+  --syntax-structure: #a36a00;
+  --syntax-ignored: #3a633a;
   --paper: #fff;
   --paper-ink: #101010;
   --shadow: 0 8px 28px rgb(20 24 28 / 13%);
@@ -45,13 +49,17 @@
   --accent: #75a8ed;
   --accent-soft: #263c59;
   --danger: #f08080;
-  --syntax-title: #e7b75f;
-  --syntax-scene: #c6a8ff;
-  --syntax-character: #65d4c7;
-  --syntax-parenthetical: #ff91c8;
-  --syntax-transition: #8fc1ff;
-  --syntax-structure: #c6a8ff;
-  --syntax-ignored: #858c93;
+  --source-bg: #1e1e1e;
+  --source-gutter-bg: #252422;
+  --source-ink: #f5f2eb;
+  --source-muted: #8c8a85;
+  --syntax-title: #e2b875;
+  --syntax-scene: #e2b875;
+  --syntax-character: #d4d4d4;
+  --syntax-parenthetical: #8c8a85;
+  --syntax-transition: #d4d4d4;
+  --syntax-structure: #e2b875;
+  --syntax-ignored: #638563;
   --paper: #17191b;
   --paper-ink: #f1f1ef;
   --shadow: 0 10px 35px rgb(0 0 0 / 40%);
@@ -64,8 +72,9 @@
     --ink: #eceeef; --muted: #a6abb0; --faint: #747a80; --border: #3a3e42;
     --border-strong: #50555b; --accent: #75a8ed; --accent-soft: #263c59;
     --danger: #f08080; --paper: #17191b; --paper-ink: #f1f1ef;
-    --syntax-title: #e7b75f; --syntax-scene: #c6a8ff; --syntax-character: #65d4c7;
-    --syntax-parenthetical: #ff91c8; --syntax-transition: #8fc1ff; --syntax-structure: #c6a8ff; --syntax-ignored: #858c93;
+    --source-bg: #1e1e1e; --source-gutter-bg: #252422; --source-ink: #f5f2eb; --source-muted: #8c8a85;
+    --syntax-title: #e2b875; --syntax-scene: #e2b875; --syntax-character: #d4d4d4;
+    --syntax-parenthetical: #8c8a85; --syntax-transition: #d4d4d4; --syntax-structure: #e2b875; --syntax-ignored: #638563;
     --shadow: 0 10px 35px rgb(0 0 0 / 40%);
   }
 }
@@ -167,25 +176,25 @@ body.stats-collapsed .stats-toggle b, body.stats-collapsed .stats-toggle span { 
 body.stats-collapsed .stats-toggle span { transform: rotate(180deg); }
 body.source-collapsed.stats-collapsed #workspace { grid-template-columns: 0 22px 0 minmax(320px, 1fr) 0 22px 0; }
 
-.editor-shell { flex: 1; min-height: 0; position: relative; display: grid; grid-template-columns: 43px 1fr; overflow: hidden; background: var(--surface); }
-.line-numbers { grid-column: 1; overflow: hidden; padding: 14px 9px 90px 0; text-align: right; color: var(--faint); background: var(--surface-2); border-right: 1px solid var(--border); font: 13px/1.55 var(--mono); user-select: none; }
+.editor-shell { flex: 1; min-height: 0; position: relative; display: grid; grid-template-columns: 43px 1fr; overflow: hidden; background: var(--source-bg); }
+.line-numbers { grid-column: 1; overflow: hidden; padding: 14px 9px 90px 0; text-align: right; color: var(--source-muted); background: var(--source-gutter-bg); border-right: 1px solid var(--border); font: 13px/1.55 var(--mono); user-select: none; }
 .line-number { display: block; height: calc(var(--source-rows) * 1.55em); }
-#source { grid-column: 2; grid-row: 1; width: 100%; height: 100%; resize: none; border: 0; outline: 0; padding: 14px 16px 90px; margin: 0; background: transparent; white-space: pre; overflow: auto; tab-size: 4; font: 13px/1.55 var(--mono); caret-color: var(--accent); }
-.source-highlight { grid-column: 2; grid-row: 1; width: 100%; height: 100%; overflow: hidden; padding: 14px 16px 90px; margin: 0; white-space: pre; tab-size: 4; color: var(--ink); font: 13px/1.55 var(--mono); pointer-events: none; }
+#source { grid-column: 2; grid-row: 1; width: 100%; height: 100%; resize: none; border: 0; outline: 0; padding: 14px 16px 90px; margin: 0; background: transparent; white-space: pre; overflow: auto; tab-size: 4; font: 13px/1.55 var(--mono); caret-color: var(--syntax-scene); }
+.source-highlight { grid-column: 2; grid-row: 1; width: 100%; height: 100%; overflow: hidden; padding: 14px 16px 90px; margin: 0; white-space: pre; tab-size: 4; color: var(--source-ink); font: 13px/1.55 var(--mono); pointer-events: none; }
 body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-wrap; overflow-wrap: anywhere; }
 #source { color: transparent; -webkit-text-fill-color: transparent; }
 #source::selection { background: color-mix(in srgb, var(--accent) 28%, transparent); }
 .source-highlight .syntax-title { color: var(--syntax-title); }
 .source-highlight .syntax-scene { color: var(--syntax-scene); font-weight: 700; }
 .source-highlight .syntax-character { color: var(--syntax-character); font-weight: 700; }
-.source-highlight .syntax-dialogue { color: var(--ink); }
+.source-highlight .syntax-dialogue, .source-highlight .syntax-action { color: var(--source-ink); }
 .source-highlight .syntax-parenthetical { color: var(--syntax-parenthetical); }
 .source-highlight .syntax-transition { color: var(--syntax-transition); font-weight: 700; }
 .source-highlight .syntax-section, .source-highlight .syntax-synopsis { color: var(--syntax-structure); }
 .source-highlight .syntax-note, .source-highlight .syntax-boneyard { color: var(--syntax-ignored); }
 .source-highlight .syntax-lyric { color: var(--syntax-parenthetical); font-style: italic; }
-.source-highlight .fountain-markup { color: var(--faint); }
-.current-line { position: absolute; left: 43px; right: 0; height: 20.15px; top: 14px; background: color-mix(in srgb, var(--accent) 7%, transparent); pointer-events: none; z-index: 0; }
+.source-highlight .fountain-markup { color: var(--source-muted); }
+.current-line { position: absolute; left: 43px; right: 0; height: 20.15px; top: 14px; background: color-mix(in srgb, var(--syntax-scene) 8%, transparent); pointer-events: none; z-index: 0; }
 #source, .line-numbers { position: relative; z-index: 1; }
 #source { z-index: 2; }
 .completion-menu { position: absolute; z-index: 10; left: 55px; bottom: 12px; min-width: 240px; max-width: calc(100% - 70px); max-height: 245px; overflow: auto; padding: 5px; border: 1px solid var(--border); background: var(--surface); border-radius: 6px; box-shadow: var(--shadow); }
