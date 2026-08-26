@@ -178,6 +178,11 @@ test("document balance heading aligns with other insight labels", async () => {
   assert.match(css, /\.insight-section > summary small\s*\{[^}]*margin-left:\s*auto;/s);
 });
 
+test("empty scene messages use the full list width", async () => {
+  const css = await readFile(cssPath, "utf8");
+  assert.match(css, /\.scene-list li\.empty-list\s*\{\s*display:\s*block;/);
+});
+
 test("in-app documentation teaches the editor and Fountain syntax", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="docs-dialog"/);
