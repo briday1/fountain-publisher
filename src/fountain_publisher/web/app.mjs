@@ -1711,19 +1711,81 @@ function appendToSource(text) {
   sourceChanged(); source.focus();
 }
 
+function parseTitleBlock(text) {
+  const fields = {};
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  let fieldSeen = false;
+  let lastKey = null;
+  for (const raw of lines) {
+    const trimmed = raw.trim();
+    if (!trimmed) { if (fieldSeen) break; continue; }
+    const match = raw.match(/^([A-Za-z][A-Za-z ]+):(.*)/);
+    if (match && TITLE_KEYS.has(match[1].trim().toLowerCase())) {
+      lastKey = match[1].trim().toLowerCase();
+      fields[lastKey] = match[2].trim();
+      fieldSeen = true;
+    } else if (fieldSeen && lastKey && /^\s+/.test(raw)) {
+      fields[lastKey] = (fields[lastKey] ? fields[lastKey] + " " : "") + trimmed;
+    } else {
+      break;
+    }
+  }
+  return fields;
+}
+
+function titleBlockLineCount(text) {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  let fieldSeen = false;
+  let count = 0;
+  for (const raw of lines) {
+    const trimmed = raw.trim();
+    if (!trimmed) { if (fieldSeen) { count += 1; break; } count += 1; continue; }
+    const match = raw.match(/^([A-Za-z][A-Za-z ]+):(.*)/);
+    if ((match && TITLE_KEYS.has(match[1].trim().toLowerCase())) || (fieldSeen && /^\s+/.test(raw))) {
+      fieldSeen = true; count += 1;
+    } else { break; }
+  }
+  return count;
+}
+
 $("#title-page-form").addEventListener("submit", (event) => {
   if (event.submitter?.value !== "default") return;
   event.preventDefault();
   const rows = [];
   const tp = (id, key) => { const v = $(`#${id}`).value.trim(); if (v) rows.push(`${key}: ${v}`); };
   tp("tp-title", "Title"); tp("tp-credit", "Credit"); tp("tp-author", "Author"); tp("tp-date", "Draft date"); tp("tp-contact", "Contact");
-  if (rows.length) insertAtDocumentStart(rows.join("\n") + "\n");
+  if (rows.length) {
+    const newBlock = rows.join("\n") + "\n";
+    if (state.metadata.titleFields.length > 0) {
+      const current = source.value;
+      const removeLines = titleBlockLineCount(current);
+      const remainder = current.replace(/\r\n?/g, "\n").split("\n").slice(removeLines).join("\n");
+      source.value = newBlock + (remainder ? "\n" + remainder : "");
+      sourceChanged(); source.setSelectionRange(0, 0); source.scrollTop = 0; source.focus();
+    } else {
+      insertAtDocumentStart(newBlock);
+    }
+  }
   $("#title-page-dialog").close();
 });
 
 function openTitlePageDialog() {
-  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  $("#tp-title").value = ""; $("#tp-credit").value = "Written by"; $("#tp-author").value = ""; $("#tp-date").value = today; $("#tp-contact").value = "";
+  const hasTitlePage = state.metadata.titleFields.length > 0;
+  const label = hasTitlePage ? "Edit title page" : "Add title page";
+  $("#tp-heading").textContent = label;
+  $("#title-page-dialog").querySelector("button.primary").textContent = label;
+  if (hasTitlePage) {
+    const existing = parseTitleBlock(source.value);
+    const get = (key) => existing[key] ?? "";
+    $("#tp-title").value = get("title");
+    $("#tp-credit").value = get("credit");
+    $("#tp-author").value = get("author") || get("authors");
+    $("#tp-date").value = get("draft date") || get("date");
+    $("#tp-contact").value = get("contact");
+  } else {
+    const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    $("#tp-title").value = ""; $("#tp-credit").value = "Written by"; $("#tp-author").value = ""; $("#tp-date").value = today; $("#tp-contact").value = "";
+  }
   $("#title-page-dialog").showModal(); setTimeout(() => $("#tp-title").focus(), 0);
 }
 $("#insert-title-page").addEventListener("click", openTitlePageDialog);
