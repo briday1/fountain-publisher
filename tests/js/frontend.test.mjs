@@ -85,7 +85,8 @@ test("completion is Tab-only and preview suggestions are caret-positioned", asyn
 test("source completions wait for typing on a new line and support explicit character lookup", async () => {
   const app = await readFile(appPath, "utf8");
   assert.match(app, /event\.key === "Enter"\) hideCompletions\(\)/);
-  assert.match(app, /event\.key\.length === 1/);
+  assert.match(app, /event\.inputType === "insertText"\) showCompletions\(\)/);
+  assert.match(app, /if \(!allowBlank && !currentText\) return hideCompletions\(\)/);
   assert.match(app, /const explicitCharacter = trimmed\.startsWith\("@"\)/);
   assert.match(app, /explicitCharacter \? trimmed\.slice\(1\) : trimmed/);
 });

@@ -901,7 +901,10 @@ function completionCandidates() {
   return items.filter((item, index) => items.findIndex((other) => other.value === item.value) === index && (!fragment || item.value.toUpperCase().startsWith(fragment) || item.detail === "Existing location"));
 }
 
-function showCompletions() {
+function showCompletions({ allowBlank = false } = {}) {
+  const { line, start } = currentPosition();
+  const currentText = source.value.split("\n")[line].slice(0, source.selectionStart - start).trim();
+  if (!allowBlank && !currentText) return hideCompletions();
   state.completionItems = completionCandidates(); state.completionIndex = 0;
   if (!state.completionItems.length) return hideCompletions();
   renderCompletionMenu();
@@ -1277,7 +1280,11 @@ const toolbarMenus = $$(".toolbar-menu");
 
 function closeMenus(except = null) { toolbarMenus.forEach((menu) => { if (menu !== except) menu.open = false; }); }
 
-source.addEventListener("input", () => sourceChanged());
+source.addEventListener("input", (event) => {
+  sourceChanged();
+  if (event.inputType === "insertText") showCompletions();
+  else hideCompletions();
+});
 source.addEventListener("scroll", () => { $("#line-numbers").scrollTop = source.scrollTop; $("#source-highlight").scrollTop = source.scrollTop; updateCursor(); });
 source.addEventListener("click", () => { updateCursor({ scrollPreview: true }); hideCompletions(); });
 source.addEventListener("keyup", (event) => { if (!["Enter", "Tab", "Escape"].includes(event.key)) updateCursor({ scrollPreview: true }); });
@@ -1287,13 +1294,9 @@ source.addEventListener("keydown", (event) => {
     if (event.key === "Tab") { event.preventDefault(); acceptCompletion(); return; }
     if (event.key === "Escape") { event.preventDefault(); hideCompletions(); return; }
   }
-  if ((event.ctrlKey || event.metaKey) && event.code === "Space") { event.preventDefault(); showCompletions(); }
+  if ((event.ctrlKey || event.metaKey) && event.code === "Space") { event.preventDefault(); showCompletions({ allowBlank: true }); }
   else if (event.key === "Tab") { event.preventDefault(); source.setRangeText("    ", source.selectionStart, source.selectionEnd, "end"); sourceChanged(); }
   else if (event.key === "Enter") hideCompletions();
-  else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-    const { start } = currentPosition();
-    if (!/\s/.test(event.key) || source.value.slice(start, source.selectionStart).trim()) setTimeout(showCompletions, 0);
-  }
 });
 
 page.addEventListener("input", (event) => { const line = event.target.closest(".script-line"); if (line) { syncPreviewLine(line); showPreviewCharacterCompletions(line); } });
