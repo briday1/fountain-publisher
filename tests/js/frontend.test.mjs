@@ -287,6 +287,38 @@ test("character completions appear in preview regardless of line position", asyn
   assert.match(fnMatch[0], /\/\^\[A-Z\]/);
 });
 
+test("mobile preview tab hides the Preview/PDF view-switcher", async () => {
+  const css = await readFile(cssPath, "utf8");
+  // The view-switcher must be hidden inside the mobile media query
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[^}]*\{[^@]*\.view-switcher\s*\{\s*display:\s*none;/s);
+});
+
+test("mobile PDF export path remains accessible via toolbar File menu", async () => {
+  const html = await readFile(htmlPath, "utf8");
+  // Export PDF button must exist in the toolbar (not inside .view-switcher)
+  assert.match(html, /id="export-pdf"/);
+  // The export dialog must include a PDF format option
+  assert.match(html, /id="export-dialog"/);
+  assert.match(html, /value="pdf"[^>]*>PDF screenplay/);
+});
+
+test("mobile Insights layout has responsive overflow and wrapping rules", async () => {
+  const css = await readFile(cssPath, "utf8");
+  // Inside the mobile media query: character-list allows horizontal scroll
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.character-list\s*\{[^}]*overflow-x:\s*auto;/s);
+  // Inside the mobile media query: scene list buttons wrap text
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.scene-list button\s*\{[^}]*white-space:\s*normal;/s);
+});
+
+test("line numbers are correct before the source panel is interacted with", async () => {
+  const app = await readFile(appPath, "utf8");
+  // sourceWrapColumns must bail out (return Infinity) when clientWidth is 0
+  // so line numbers don't go sparse on hidden panels (mobile or any init state)
+  assert.match(app, /function sourceWrapColumns[\s\S]*?if \(!source\.clientWidth\) return Infinity;/);
+  // setMobileTab must re-render editor chrome when switching to source tab
+  assert.match(app, /function setMobileTab[\s\S]*?if \(panel === "source"\) renderEditorChrome\(\);/);
+});
+
 test("browser Screenplain compile handles missing style attributes defensively", async () => {
   const app = await readFile(appPath, "utf8");
   // slug_style access must be guarded
