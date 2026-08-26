@@ -761,6 +761,18 @@ async function getBrowserScreenplain() {
     pyodide.globals.set("_fp_pillow_wheel", new URL("vendor/pillow-12.2.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl", import.meta.url).href);
     pyodide.globals.set("_fp_screenplain_wheel", new URL("vendor/screenplain-0.12.0-py3-none-any.whl", import.meta.url).href);
     pyodide.globals.set("_fp_six_wheel", new URL("vendor/six-1.17.0-py2.py3-none-any.whl", import.meta.url).href);
+    const fontFiles = [
+      "CourierPrime-Regular.ttf",
+      "CourierPrime-Bold.ttf",
+      "CourierPrime-Italic.ttf",
+      "CourierPrime-BoldItalic.ttf",
+    ];
+    pyodide.FS.mkdirTree("/fonts");
+    await Promise.all(fontFiles.map(async (fontFile) => {
+      const response = await fetch(new URL(`fonts/${fontFile}`, import.meta.url));
+      if (!response.ok) throw new Error(`Unable to load PDF font ${fontFile}`);
+      pyodide.FS.writeFile(`/fonts/${fontFile}`, new Uint8Array(await response.arrayBuffer()));
+    }));
     await pyodide.runPythonAsync(`
 import micropip
 await micropip.install(_fp_six_wheel, deps=False)
@@ -772,10 +784,36 @@ await micropip.install(_fp_screenplain_wheel, deps=False)
     pyodide.runPython(`
 import io
 from reportlab.lib.pagesizes import A4, letter
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from screenplain.export import fdx, pdf
 from screenplain.parsers.fountain import parse
 from screenplain.richstring import plain
 from screenplain.types import Slug
+
+def _fp_register_pdf_fonts():
+    try:
+        fonts = {
+            "CourierPrime": "/fonts/CourierPrime-Regular.ttf",
+            "CourierPrime-Bold": "/fonts/CourierPrime-Bold.ttf",
+            "CourierPrime-Italic": "/fonts/CourierPrime-Italic.ttf",
+            "CourierPrime-BoldItalic": "/fonts/CourierPrime-BoldItalic.ttf",
+        }
+        for name, path in fonts.items():
+            try:
+                pdfmetrics.getFont(name)
+            except KeyError:
+                pdfmetrics.registerFont(TTFont(name, path))
+        pdfmetrics.registerFontFamily(
+            "CourierPrime",
+            normal="CourierPrime",
+            bold="CourierPrime-Bold",
+            italic="CourierPrime-Italic",
+            boldItalic="CourierPrime-BoldItalic",
+        )
+        return ("CourierPrime", "CourierPrime", "CourierPrime-Bold", "CourierPrime-Italic", "CourierPrime-BoldItalic")
+    except Exception:
+        return ("Courier", "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique")
 
 def _fp_number_scenes(screenplay):
     number = 0
@@ -795,15 +833,23 @@ def _fp_prepare_screenplay(source):
 
 def _fp_compile(source, kind, page_size):
     screenplay = _fp_prepare_screenplay(source)
+    font_family, regular_font, bold_font, italic_font, bold_italic_font = _fp_register_pdf_fonts()
     if kind == "pdf":
         output = io.BytesIO()
         settings = pdf.Settings(page_size=A4 if page_size == "a4" else letter, strong_slugs=False)
-        settings.slug_style.fontName = "Courier-Bold"
+        font_settings = getattr(settings, "font_settings", None)
+        if font_settings is not None:
+            font_settings.family_name = font_family
+            font_settings.regular = regular_font
+            font_settings.bold = bold_font
+            font_settings.italic = italic_font
+            font_settings.bold_italic = bold_italic_font
+        settings.slug_style.fontName = bold_font
         settings.title_style.fontSize = settings.font_size
         title_leading = settings.line_height * 2
         for style_name in ("title_style", "centered_style", "default_style", "contact_style"):
             style = getattr(settings, style_name)
-            style.fontName = "Courier"
+            style.fontName = regular_font
             style.fontSize = settings.font_size
             style.leading = title_leading
         settings.title_style.spaceAfter = -settings.line_height
