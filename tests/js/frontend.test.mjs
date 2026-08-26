@@ -318,6 +318,8 @@ test("source word wrap defaults on and preserves logical line numbers", async ()
   assert.match(app, /source\.setAttribute\("wrap", enabled \? "soft" : "off"\)/);
   assert.match(app, /getClientRects\(\)\.length/);
   assert.match(app, /class="line-number" style="--source-rows:/);
+  assert.match(app, /const newline = index < lines\.length - 1 \? "\\n" : "";/);
+  assert.match(app, />\$\{value\}\$\{newline\}<\/span>`;\s*\}\)\.join\(""\)/);
   assert.match(app, /variable === "--source-w"\) renderEditorChrome\(\)/);
   assert.match(css, /body\.source-wrap #source/);
   assert.match(css, /\.line-number\s*\{[^}]*height:\s*calc\(var\(--source-rows\) \* 1\.55em\)/s);
