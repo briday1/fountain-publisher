@@ -151,8 +151,9 @@ test("preview edits are source-backed and preserve the viewport", async () => {
   assert.match(app, /requestAnimationFrame\(\(\) => \{[\s\S]*previewScroll\.scrollTop = scrollTop/);
   assert.doesNotMatch(app, /const insertAbove =/);
   assert.match(app, /const focusLine = startIndex \+ displayLines\.length - 1/);
-  assert.match(app, /function previewCaretIsOnFirstVisualRow\(line\)/);
-  assert.match(app, /event\.key === "ArrowUp" && line\.classList\.contains\("scene"\) && previewCaretIsOnFirstVisualRow\(line\)/);
+  assert.match(app, /function previewCaretIsOnVisualEdge\(line, edge\)/);
+  assert.match(app, /event\.key === "ArrowUp" \? -1 : event\.key === "ArrowDown" \? 1 : 0/);
+  assert.match(app, /Number\(line\.dataset\.line\) \+ verticalDirection/);
 });
 
 test("top-level act headings are supported in the live editor", async () => {

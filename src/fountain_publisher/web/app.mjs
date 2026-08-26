@@ -622,18 +622,23 @@ function previewSelection(line = document.activeElement.closest?.(".script-line"
   };
 }
 
-function previewCaretIsOnFirstVisualRow(line) {
+function previewCaretIsOnVisualEdge(line, edge) {
   const selection = getSelection();
   if (!selection?.rangeCount || !line.contains(selection.focusNode)) return false;
+  const edit = previewSelection(line);
+  if (!edit || edit.startLine !== edit.endLine || edit.startOffset !== edit.endOffset) return false;
+  if (!line.textContent.length) return true;
   const content = document.createRange();
   content.selectNodeContents(line);
-  const firstTop = content.getClientRects()[0]?.top;
+  const contentRects = [...content.getClientRects()];
+  const edgeTop = edge === "first" ? contentRects[0]?.top : contentRects.at(-1)?.top;
   const caret = selection.getRangeAt(0).cloneRange();
   caret.collapse(false);
   const caretRects = [...caret.getClientRects()];
-  return firstTop !== undefined
+  if (!caretRects.length) return edge === "first" ? edit.startOffset === 0 : edit.startOffset === line.textContent.length;
+  return edgeTop !== undefined
     && caretRects.length > 0
-    && caretRects.every((rect) => Math.abs(rect.top - firstTop) < 1);
+    && caretRects.every((rect) => Math.abs(rect.top - edgeTop) < 1);
 }
 
 function sourceOffsetForLine(lines, index, column) {
@@ -1755,9 +1760,13 @@ page.addEventListener("keydown", (event) => {
     if (event.key === "Tab") { event.preventDefault(); acceptPreviewCharacterCompletion(); return; }
     if (event.key === "Escape") { event.preventDefault(); hidePreviewCompletions(); return; }
   }
-  if (event.key === "ArrowUp" && line.classList.contains("scene") && previewCaretIsOnFirstVisualRow(line)) {
+  const verticalDirection = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
+  const atVerticalEdge = verticalDirection === -1
+    ? previewCaretIsOnVisualEdge(line, "first")
+    : verticalDirection === 1 && previewCaretIsOnVisualEdge(line, "last");
+  if (verticalDirection && atVerticalEdge) {
     const edit = previewSelection(line);
-    const adjacent = $(`[data-line="${Number(line.dataset.line) - 1}"]`, page);
+    const adjacent = $(`[data-line="${Number(line.dataset.line) + verticalDirection}"]`, page);
     if (edit && edit.startLine === edit.endLine && edit.startOffset === edit.endOffset && adjacent) {
       event.preventDefault();
       const offset = Math.min(edit.startOffset, adjacent.textContent.length);
