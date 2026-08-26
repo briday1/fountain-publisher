@@ -91,9 +91,12 @@ test("source and preview share syntax, cursor, and character completion behavior
 
 test("source highlighting follows the textarea viewport and rendered line geometry", async () => {
   const app = await readFile(appPath, "utf8");
+  assert.match(app, /function boundedScrollLeft\(/);
+  assert.match(app, /Math\.max\(0, element\.scrollWidth - element\.clientWidth\)/);
   assert.match(app, /function syncSourceOverlay\(\)/);
   assert.match(app, /highlight\.style\.width = source\.clientWidth/);
-  assert.match(app, /highlight\.scrollLeft = source\.scrollLeft/);
+  assert.match(app, /if \(scrollLeft !== source\.scrollLeft\) source\.scrollLeft = scrollLeft/);
+  assert.match(app, /highlight\.scrollLeft = boundedScrollLeft\(highlight, scrollLeft\)/);
   assert.match(app, /data-source-line=/);
   assert.match(app, /sourceLine\.getBoundingClientRect\(\)\.top - source\.getBoundingClientRect\(\)\.top/);
   assert.doesNotMatch(app, /rowsBefore \* 20\.15/);
@@ -154,6 +157,8 @@ test("source completions wait for typing on a new line and support explicit char
   assert.match(app, /const explicitCharacter = trimmed\.startsWith\("@"\)/);
   assert.match(app, /state\.metadata\.characters\.some\(\(character\) => character\.name\.startsWith\(characterFragment\)\)/);
   assert.match(app, /function positionSourceCompletion\(\)/);
+  assert.match(app, /const sourceScrollLeft = boundedScrollLeft\(source\)/);
+  assert.match(app, /wrapped \? 0 : sourceScrollLeft/);
   assert.match(app, /marker\.getBoundingClientRect\(\)/);
   assert.match(app, /current\.match\(\/@\?\[A-Za-z0-9\._'-\]\*\$\/\)/);
   assert.match(app, /item\.value\.toUpperCase\(\) !== characterFragment/);
