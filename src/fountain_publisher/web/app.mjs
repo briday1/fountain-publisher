@@ -581,6 +581,20 @@ function previewSelection(line = document.activeElement.closest?.(".script-line"
   };
 }
 
+function previewCaretIsOnFirstVisualRow(line) {
+  const selection = getSelection();
+  if (!selection?.rangeCount || !line.contains(selection.focusNode)) return false;
+  const content = document.createRange();
+  content.selectNodeContents(line);
+  const firstTop = content.getClientRects()[0]?.top;
+  const caret = selection.getRangeAt(0).cloneRange();
+  caret.collapse(false);
+  const caretRects = [...caret.getClientRects()];
+  return firstTop !== undefined
+    && caretRects.length > 0
+    && caretRects.every((rect) => Math.abs(rect.top - firstTop) < 1);
+}
+
 function sourceOffsetForLine(lines, index, column) {
   return lines.slice(0, index).reduce((total, value) => total + value.length + 1, 0) + column;
 }
@@ -627,8 +641,10 @@ function replacePreviewSelection(edit, text) {
   let insertedText = text.replace(/\r\n?/g, "\n");
   const displayLines = `${before}${insertedText}${after}`.split("\n");
   const collapsed = startIndex === endIndex && edit.startOffset === edit.endOffset;
-  const rawStart = previewSourceOffset(edit.startLine, lines[startIndex], edit.startOffset, collapsed ? "caret" : "start");
-  const rawEnd = previewSourceOffset(edit.endLine, lines[endIndex], edit.endOffset, collapsed ? "caret" : "end");
+  const insertAbove = collapsed && edit.startOffset === 0 && insertedText === "\n";
+  const rawStart = insertAbove ? 0 : previewSourceOffset(edit.startLine, lines[startIndex], edit.startOffset, collapsed ? "caret" : "start");
+  const rawEnd = insertAbove ? 0 : previewSourceOffset(edit.endLine, lines[endIndex], edit.endOffset, collapsed ? "caret" : "end");
+  const trailingSource = lines[endIndex].slice(rawEnd);
   if (startIndex === endIndex && insertedText.includes("\n")) {
     const markers = activeInlineMarkers(lines[startIndex], rawStart);
     if (markers.length) insertedText = insertedText.replaceAll("\n", `${[...markers].reverse().join("")}\n${markers.join("")}`);
@@ -641,9 +657,9 @@ function replacePreviewSelection(edit, text) {
   }
   lines.splice(startIndex, endIndex - startIndex + 1, ...replacements);
   source.value = lines.join("\n");
-  const focusLine = startIndex + displayLines.length - 1;
-  const focusOffset = displayLines.length === 1 ? before.length + text.length : text.split(/\r\n?|\n/).at(-1).length;
-  const sourceColumn = replacements.at(-1).length - lines[endIndex].slice(rawEnd).length;
+  const focusLine = insertAbove ? startIndex : startIndex + displayLines.length - 1;
+  const focusOffset = insertAbove ? 0 : displayLines.length === 1 ? before.length + text.length : text.split(/\r\n?|\n/).at(-1).length;
+  const sourceColumn = replacements.at(-1).length - trailingSource.length;
   const sourceOffset = sourceOffsetForLine(lines, focusLine, Math.max(0, sourceColumn));
   source.setSelectionRange(sourceOffset, sourceOffset);
   sourceChanged({ fromPreview: true });
@@ -749,8 +765,9 @@ function acceptPreviewCharacterCompletion(index = state.previewCompletionIndex) 
 }
 
 function renderEditorChrome() {
-  renderLineNumbers();
   renderSourceSyntax();
+  syncSourceOverlay();
+  renderLineNumbers();
   updateCursor();
 }
 
@@ -769,7 +786,10 @@ function sourceVisualRows(line, columns = sourceWrapColumns()) {
 
 function renderLineNumbers() {
   const columns = sourceWrapColumns();
-  $("#line-numbers").textContent = source.value.split("\n").map((line, index) => `${index + 1}${"\n".repeat(sourceVisualRows(line, columns) - 1)}`).join("\n");
+  $("#line-numbers").textContent = source.value.split("\n").map((line, index) => {
+    const renderedRows = $(`[data-source-line="${index}"]`, $("#source-highlight"))?.getClientRects().length;
+    return `${index + 1}${"\n".repeat((renderedRows || sourceVisualRows(line, columns)) - 1)}`;
+  }).join("\n");
 }
 
 function fountainSyntaxHtml(value) {
@@ -781,8 +801,15 @@ function renderSourceSyntax() {
   $("#source-highlight").innerHTML = classifyLines(source.value).map((line) => {
     const name = classes[line.type];
     const value = fountainSyntaxHtml(line.raw) || " ";
-    return name ? `<span class="syntax-${name}">${value}</span>` : value;
+    return `<span data-source-line="${line.index}"${name ? ` class="syntax-${name}"` : ""}>${value}</span>`;
   }).join("\n");
+}
+
+function syncSourceOverlay() {
+  const highlight = $("#source-highlight");
+  highlight.style.width = source.clientWidth ? `${source.clientWidth}px` : "";
+  highlight.scrollTop = source.scrollTop;
+  highlight.scrollLeft = source.scrollLeft;
 }
 
 function currentPosition() {
@@ -804,8 +831,14 @@ function updateCursor({ scrollPreview = false } = {}) {
   const type = classifyLines(source.value)[position.line]?.type || "action";
   const labels = { scene: "Scene heading", character: "Character", dialogue: "Dialogue", parenthetical: "Parenthetical", transition: "Transition", "title-value": "Title page", "title-value title": "Title" };
   $("#editor-status").textContent = labels[type] || type[0].toUpperCase() + type.slice(1);
-  const rowsBefore = source.value.split("\n").slice(0, position.line).reduce((total, line) => total + sourceVisualRows(line), 0);
-  $("#current-line").style.transform = `translateY(${rowsBefore * 20.15 - source.scrollTop}px)`;
+  const computed = getComputedStyle(source);
+  const lineHeight = parseFloat(computed.lineHeight) || 20.15;
+  const sourceLine = $(`[data-source-line="${position.line}"]`, $("#source-highlight"));
+  const lineTop = sourceLine
+    ? sourceLine.getBoundingClientRect().top - source.getBoundingClientRect().top - parseFloat(computed.paddingTop)
+    : -source.scrollTop;
+  $("#current-line").style.height = `${lineHeight}px`;
+  $("#current-line").style.transform = `translateY(${lineTop}px)`;
   updatePreviewCursor(scrollPreview);
 }
 
@@ -1107,7 +1140,9 @@ function completionCandidates() {
     }
   }
   const fragment = (explicitCharacter ? trimmed.slice(1) : trimmed).split(/(?:\s-\s|\s+)/).at(-1).toUpperCase();
-  return items.filter((item, index) => items.findIndex((other) => other.value === item.value) === index && (!fragment || item.value.toUpperCase().startsWith(fragment) || item.detail === "Existing location"));
+  return items.filter((item, index) => items.findIndex((other) => other.value === item.value) === index
+    && (item.icon !== "@" || item.value.toUpperCase() !== characterFragment)
+    && (!fragment || item.value.toUpperCase().startsWith(fragment) || item.detail === "Existing location"));
 }
 
 function showCompletions({ allowBlank = false } = {}) {
@@ -1274,8 +1309,8 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from screenplain.export import fdx, pdf
 from screenplain.parsers.fountain import parse
-from screenplain.richstring import plain
-from screenplain.types import Slug
+from screenplain.richstring import bold, plain
+from screenplain.types import Action, Section, Slug
 
 def _fp_register_pdf_fonts():
     try:
@@ -1337,6 +1372,17 @@ def _fp_prepare_screenplay(source, placement="margin", format_type="sequential")
         del screenplay.paragraphs[0]
     return _fp_number_scenes(screenplay, placement, format_type)
 
+def _fp_format_pdf_act_headings(screenplay):
+    screenplay.paragraphs = [
+        Action([bold(str(paragraph.text).upper())], centered=True)
+        if isinstance(paragraph, Section)
+        and getattr(paragraph, "level", 0) == 1
+        and re.match(r"^Act\\b", str(paragraph.text), re.IGNORECASE)
+        else paragraph
+        for paragraph in screenplay.paragraphs
+    ]
+    return screenplay
+
 def _fp_patch_scene_numbers_left_only():
     try:
         from reportlab.lib.units import inch as _inch
@@ -1356,6 +1402,7 @@ def _fp_compile(source, kind, page_size, scene_numbers="margin", scene_number_fo
     screenplay = _fp_prepare_screenplay(source, scene_numbers, scene_number_format)
     font_family, regular_font, bold_font, italic_font, bold_italic_font = _fp_register_pdf_fonts()
     if kind == "pdf":
+        screenplay = _fp_format_pdf_act_headings(screenplay)
         output = io.BytesIO()
         settings = pdf.Settings(page_size=A4 if page_size == "a4" else letter, strong_slugs=False)
         font_settings = getattr(settings, "font_settings", None)
@@ -1539,7 +1586,7 @@ source.addEventListener("input", (event) => {
   if (event.inputType === "insertText") showCompletions();
   else hideCompletions();
 });
-source.addEventListener("scroll", () => { $("#line-numbers").scrollTop = source.scrollTop; $("#source-highlight").scrollTop = source.scrollTop; updateCursor(); });
+source.addEventListener("scroll", () => { $("#line-numbers").scrollTop = source.scrollTop; syncSourceOverlay(); updateCursor(); });
 source.addEventListener("click", () => { updateCursor({ scrollPreview: true }); hideCompletions(); });
 source.addEventListener("keyup", (event) => { if (!["Enter", "Tab", "Escape"].includes(event.key)) updateCursor({ scrollPreview: true }); });
 source.addEventListener("keydown", (event) => {
@@ -1584,6 +1631,17 @@ page.addEventListener("keydown", (event) => {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); state.previewCompletionIndex = (state.previewCompletionIndex + (event.key === "ArrowDown" ? 1 : -1) + state.previewCompletionItems.length) % state.previewCompletionItems.length; renderPreviewCharacterCompletions(); return; }
     if (event.key === "Tab") { event.preventDefault(); acceptPreviewCharacterCompletion(); return; }
     if (event.key === "Escape") { event.preventDefault(); hidePreviewCompletions(); return; }
+  }
+  if (event.key === "ArrowUp" && line.classList.contains("scene") && previewCaretIsOnFirstVisualRow(line)) {
+    const edit = previewSelection(line);
+    const adjacent = $(`[data-line="${Number(line.dataset.line) - 1}"]`, page);
+    if (edit && edit.startLine === edit.endLine && edit.startOffset === edit.endOffset && adjacent) {
+      event.preventDefault();
+      const offset = Math.min(edit.startOffset, adjacent.textContent.length);
+      adjacent.focus({ preventScroll: true });
+      placeCaretAtOffset(adjacent, offset);
+      setSourceCursorFromPreview(adjacent, offset);
+    }
   }
 });
 page.addEventListener("focusin", (event) => { const line = event.target.closest(".script-line"); if (line) setSourceCursorFromPreview(line); });
