@@ -357,7 +357,17 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.match(html, /class="analytics-chart-scroll">\s*<canvas[^>]+><\/canvas>\s*<\/div>\s*<div id="character-line-table"/s);
   assert.doesNotMatch(app, /table\.style\.width/);
   assert.match(app, /maxLines === minLines \? 1 : 0\.25 \+ 0\.75/);
-  assert.match(css, /\.analytics-gradient-legend i\s*\{[^}]*linear-gradient/s);
+  assert.match(app, /canvasColor\("--syntax-character", "#7c3aed"\)/);
+  assert.match(css, /\.analytics-gradient-legend i\s*\{[^}]*var\(--syntax-character\)[^}]*var\(--syntax-character\)/s);
+});
+
+test("insight colors coordinate with the source palette", async () => {
+  const css = await readFile(cssPath, "utf8");
+  assert.match(css, /\.balance > div\s*\{[^}]*background:\s*var\(--syntax-scene\);/s);
+  assert.match(css, /\.balance > div span\s*\{[^}]*background:\s*var\(--syntax-character\);/s);
+  assert.match(css, /\.metric-grid div:nth-child\(1\)\s*\{[^}]*var\(--metric-pages-bg\)[^}]*var\(--metric-pages-ink\)/s);
+  assert.match(css, /\.metric-grid div:nth-child\(2\)\s*\{[^}]*var\(--metric-scenes-bg\)[^}]*var\(--metric-scenes-ink\)/s);
+  assert.match(css, /\.metric-grid div:nth-child\(3\)\s*\{[^}]*var\(--metric-words-bg\)[^}]*var\(--metric-words-ink\)/s);
 });
 
 test("source word wrap defaults on and preserves logical line numbers", async () => {

@@ -996,7 +996,7 @@ function renderCharacterAnalytics() {
   const ink = canvasColor("--ink", "#202124");
   const muted = canvasColor("--muted", "#6b7280");
   const border = canvasColor("--border", "#d7d9dd");
-  const accent = canvasColor("--accent", "#4c6fff");
+  const characterColor = canvasColor("--syntax-character", "#7c3aed");
   const lineCounts = characters.flatMap((character) => (character.sceneLines || []).map((item) => item.lines)).filter((lines) => lines > 0);
   const minLines = lineCounts.length ? Math.min(...lineCounts) : 0;
   const maxLines = lineCounts.length ? Math.max(...lineCounts) : 0;
@@ -1061,7 +1061,7 @@ function renderCharacterAnalytics() {
       const intensity = maxLines === minLines ? 1 : 0.25 + 0.75 * ((lineCount - minLines) / (maxLines - minLines));
       context.save();
       context.globalAlpha = intensity;
-      context.fillStyle = accent;
+      context.fillStyle = characterColor;
       context.fillRect(x, y + 7, sceneWidth - 8, rowHeight - 14);
       context.restore();
       context.fillStyle = intensity >= 0.6 ? "#fff" : ink;
