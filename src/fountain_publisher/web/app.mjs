@@ -203,6 +203,7 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const TITLE_KEYS = new Set(["title", "credit", "author", "authors", "source", "draft date", "date", "contact", "copyright", "notes"]);
 const source = $("#source");
 const page = $("#screenplay-page");
+const WORKSPACE_CACHE_KEY = "fountain-publisher.workspace.v1";
 let STATIC_HOST = location.hostname.endsWith(".github.io") || new URLSearchParams(location.search).get("static") === "1";
 const docSettings = {
   sceneNumbers: localStorage.getItem("fountain-publisher.scene-numbers") ?? "margin",
@@ -228,10 +229,45 @@ const state = {
   history: [],
   historyIndex: -1,
   theme: localStorage.getItem("fountain-publisher.theme") || "system",
+  cacheEnabled: false,
+  cacheTimer: 0,
 };
 
 function emptyMetadata() {
   return { lineCount: 1, wordCount: 0, dialogueWords: 0, actionWords: 0, estimatedSeconds: 0, characters: [], scenes: [], sections: [], locations: [], titleFields: [] };
+}
+
+function readWorkspaceCache() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(WORKSPACE_CACHE_KEY) || "null");
+    return cached?.version === 1 && typeof cached.source === "string" ? cached : null;
+  } catch { return null; }
+}
+
+function persistWorkspaceNow() {
+  if (!state.cacheEnabled) return;
+  clearTimeout(state.cacheTimer);
+  try {
+    localStorage.setItem(WORKSPACE_CACHE_KEY, JSON.stringify({
+      version: 1,
+      source: source.value,
+      filename: state.filename,
+      savedSource: state.savedSource,
+      selectionStart: source.selectionStart,
+      selectionEnd: source.selectionEnd,
+      sourceScrollTop: source.scrollTop,
+      previewScrollTop: $("#preview-scroll").scrollTop,
+      previewMode: state.previewMode,
+      zoom: $("#zoom").value,
+      updatedAt: Date.now(),
+    }));
+  } catch { /* Editing must continue even if private mode or quota blocks caching. */ }
+}
+
+function scheduleWorkspaceCache() {
+  if (!state.cacheEnabled) return;
+  clearTimeout(state.cacheTimer);
+  state.cacheTimer = setTimeout(persistWorkspaceNow, 120);
 }
 
 function escapeHtml(value) {
@@ -1063,6 +1099,7 @@ function sourceChanged({ fromPreview = false, record = true } = {}) {
   if (!fromPreview) renderPreview();
   renderInsights(analyzeLocally(source.value));
   scheduleCompile();
+  scheduleWorkspaceCache();
 }
 
 function scheduleCompile(delay = 350) {
@@ -1244,7 +1281,7 @@ function acceptCompletion(index = state.completionIndex) {
 
 async function newFile() {
   if (!(await confirmDiscard())) return;
-  state.handle = null; setDocument("", "Untitled.fountain", true); source.focus();
+  state.handle = null; setDocument(BLANK_TEMPLATE, "Untitled.fountain", true); source.focus();
 }
 
 async function confirmDiscard() {
@@ -1546,6 +1583,7 @@ async function setPreviewMode(mode) {
   $$('[data-preview-mode]').forEach((button) => { button.classList.toggle("active", button.dataset.previewMode === mode); const check = $(".menu-check", button); if (check) check.textContent = button.dataset.previewMode === mode ? "✓" : ""; });
   page.hidden = mode !== "live"; $("#empty-state").hidden = mode !== "live" || Boolean(source.value.trim()); $("#pdf-view").hidden = mode !== "pdf";
   $("#preview-scroll").classList.toggle("pdf-mode", mode === "pdf");
+  scheduleWorkspaceCache();
   if (mode === "pdf") await refreshPdf();
 }
 
@@ -1590,6 +1628,7 @@ function installResizer(element, variable, side, min, max) {
 function applyZoom() {
   const scale = Number($("#zoom").value) / 100;
   page.style.transform = `scale(${scale})`; page.style.marginBottom = `${1056 * (scale - 1)}px`; page.style.marginRight = `${816 * (scale - 1)}px`;
+  scheduleWorkspaceCache();
 }
 
 function jumpToLine(oneBased, focus = true) {
@@ -1619,9 +1658,10 @@ source.addEventListener("input", (event) => {
   if (event.inputType === "insertText") showCompletions();
   else hideCompletions();
 });
-source.addEventListener("scroll", () => { $("#line-numbers").scrollTop = source.scrollTop; syncSourceOverlay(); updateCursor(); });
-source.addEventListener("click", () => { updateCursor({ scrollPreview: true }); hideCompletions(); });
-source.addEventListener("keyup", (event) => { if (!["Enter", "Tab", "Escape"].includes(event.key)) updateCursor({ scrollPreview: true }); });
+source.addEventListener("scroll", () => { $("#line-numbers").scrollTop = source.scrollTop; syncSourceOverlay(); updateCursor(); scheduleWorkspaceCache(); });
+source.addEventListener("click", () => { updateCursor({ scrollPreview: true }); hideCompletions(); scheduleWorkspaceCache(); });
+source.addEventListener("select", scheduleWorkspaceCache);
+source.addEventListener("keyup", (event) => { if (!["Enter", "Tab", "Escape"].includes(event.key)) updateCursor({ scrollPreview: true }); scheduleWorkspaceCache(); });
 source.addEventListener("keydown", (event) => {
   if (!$("#completion-menu").hidden) {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); state.completionIndex = (state.completionIndex + (event.key === "ArrowDown" ? 1 : -1) + state.completionItems.length) % state.completionItems.length; renderCompletionMenu(); return; }
@@ -1854,6 +1894,7 @@ function setMobileTab(panel) {
 }
 
 $$(".mobile-tab").forEach((tab) => tab.addEventListener("click", () => setMobileTab(tab.dataset.mobilePanel)));
+$("#preview-scroll").addEventListener("scroll", scheduleWorkspaceCache);
 
 toolbarMenus.forEach((menu) => menu.addEventListener("click", (event) => {
   if (event.target.closest("button")) menu.open = false;
@@ -1870,7 +1911,7 @@ document.addEventListener("keydown", (event) => {
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "o") { event.preventDefault(); openFile(); }
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") { event.preventDefault(); newFile(); }
 });
-window.addEventListener("beforeunload", (event) => { if (document.body.classList.contains("dirty")) event.preventDefault(); });
+window.addEventListener("beforeunload", persistWorkspaceNow);
 window.addEventListener("resize", renderEditorChrome);
 
 async function initialize() {
@@ -1885,14 +1926,30 @@ async function initialize() {
   togglePanel("source", localStorage.getItem("fountain-publisher.source-collapsed") === "true"); togglePanel("stats", localStorage.getItem("fountain-publisher.stats-collapsed") === "true");
   installResizer($("#source-resizer"), "--source-w", 1, 250, 650); installResizer($("#stats-resizer"), "--stats-w", -1, 240, 520);
   const params = new URLSearchParams(location.search);
+  const cached = params.get("demo") === "1" ? null : readWorkspaceCache();
   let text = params.get("demo") === "1" ? SAMPLE : BLANK_TEMPLATE;
   let name = params.get("demo") === "1" ? "The Last Light.fountain" : "Untitled.fountain";
   if (params.has("project")) {
     try { const response = await fetch("/api/project"); const project = await response.json(); text = project.source; name = project.filename; } catch { /* keep selected blank/demo document */ }
   }
-  setDocument(text, name, true);
+  const restore = cached && (!params.has("project") || cached.filename === name);
+  if (restore) { text = cached.source; name = cached.filename || name; state.savedSource = typeof cached.savedSource === "string" ? cached.savedSource : text; }
+  state.cacheEnabled = params.get("demo") !== "1";
+  setDocument(text, name, !restore);
   setMobileTab(localStorage.getItem("fountain-publisher.mobile-tab") || "source");
-  await setPreviewMode(localStorage.getItem("fountain-publisher.preview") || "live");
+  if (restore && ["70", "85", "100", "115", "130"].includes(String(cached.zoom))) $("#zoom").value = String(cached.zoom);
+  applyZoom();
+  const restoredMode = ["live", "pdf"].includes(cached?.previewMode) ? cached.previewMode : "live";
+  await setPreviewMode(restore ? restoredMode : localStorage.getItem("fountain-publisher.preview") || "live");
+  if (restore) requestAnimationFrame(() => {
+    const start = Math.min(Number(cached.selectionStart) || 0, source.value.length);
+    const end = Math.min(Number(cached.selectionEnd) || start, source.value.length);
+    source.setSelectionRange(start, end);
+    source.scrollTop = Math.max(0, Number(cached.sourceScrollTop) || 0);
+    $("#preview-scroll").scrollTop = Math.max(0, Number(cached.previewScrollTop) || 0);
+    $("#line-numbers").scrollTop = source.scrollTop; syncSourceOverlay(); updateCursor();
+    toast("Workspace restored");
+  });
 }
 
 initialize();

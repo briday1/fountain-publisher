@@ -224,6 +224,17 @@ test("new documents open to a blank canvas with starter helpers", async () => {
   assert.match(html, /id="insert-dialogue"/);
 });
 
+test("the browser continuously restores a separate local recovery workspace", async () => {
+  const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
+  assert.match(app, /WORKSPACE_CACHE_KEY = "fountain-publisher\.workspace\.v1"/);
+  assert.match(app, /function persistWorkspaceNow\([\s\S]*source:\s*source\.value[\s\S]*savedSource:\s*state\.savedSource[\s\S]*selectionStart:[\s\S]*sourceScrollTop:[\s\S]*previewScrollTop:[\s\S]*previewMode:[\s\S]*zoom:/);
+  assert.match(app, /window\.addEventListener\("beforeunload", persistWorkspaceNow\)/);
+  assert.doesNotMatch(app, /beforeunload[^\n]*preventDefault/);
+  assert.match(app, /toast\("Workspace restored"\)/);
+  assert.match(html, /continuously cached in this browser/);
+  assert.match(html, /recovery draft is separate from your files/);
+});
+
 test("the active non-printing line remains visible as editor context", async () => {
   const css = await readFile(cssPath, "utf8");
   assert.match(css, /\.script-line\.section\.source-current/);
