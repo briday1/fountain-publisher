@@ -938,17 +938,21 @@ function renderInsights(metadata) {
   if ($("#character-analytics-dialog").open) renderCharacterAnalytics();
 }
 
-function outlineSceneRow(scene) {
-  return `<li><span class="scene-num">${escapeHtml(scene.number)}</span><button type="button" data-line="${scene.line}">${escapeHtml(scene.heading)}</button></li>`;
+function outlineSceneRow(scene, label = scene.number) {
+  return `<li><span class="scene-num">${escapeHtml(label)}</span><button type="button" data-line="${scene.line}">${escapeHtml(scene.heading)}</button></li>`;
 }
 
 function renderOutline(metadata) {
   const scenes = metadata.scenes || [];
   const acts = (metadata.sections || []).filter((section) => section.level === 1);
-  if (!acts.length) return scenes.length ? scenes.map(outlineSceneRow).join("") : `<li class="empty-list">No scene headings yet.</li>`;
-  const beforeActs = scenes.filter((scene) => !scene.actNumber).map(outlineSceneRow).join("");
+  if (!acts.length) return scenes.length ? scenes.map((scene) => outlineSceneRow(scene)).join("") : `<li class="empty-list">No scene headings yet.</li>`;
+  const beforeActs = scenes.filter((scene) => !scene.actNumber).map((scene) => outlineSceneRow(scene)).join("");
   const grouped = acts.map((act, index) => {
-    const actScenes = scenes.filter((scene) => scene.actNumber === index + 1).map(outlineSceneRow).join("");
+    const actNumber = index + 1;
+    const actScenes = scenes
+      .filter((scene) => scene.actNumber === actNumber)
+      .map((scene, sceneIndex) => outlineSceneRow(scene, String(sceneIndex + 1)))
+      .join("");
     return `<li class="outline-act"><button class="outline-act-heading" type="button" data-line="${act.line}"><span>${index + 1}</span>${escapeHtml(act.title)}</button><ol>${actScenes || `<li class="empty-list">No scenes in this act.</li>`}</ol></li>`;
   }).join("");
   return beforeActs + grouped;
@@ -1032,13 +1036,20 @@ function renderCharacterAnalytics() {
   context.fillStyle = muted;
   context.textAlign = "left";
   context.fillText("CHARACTER", 12, actHeight + sceneHeight / 2);
+  const actSceneCounts = new Map();
+  const sceneLabels = scenes.map((scene, index) => {
+    if (!scene.actNumber) return String(index + 1);
+    const sceneInAct = (actSceneCounts.get(scene.actNumber) || 0) + 1;
+    actSceneCounts.set(scene.actNumber, sceneInAct);
+    return String(sceneInAct);
+  });
   scenes.forEach((scene, index) => {
     const x = labelWidth + index * sceneWidth;
     context.strokeStyle = border;
     context.strokeRect(x + 0.5, actHeight + 0.5, sceneWidth, sceneHeight);
     context.fillStyle = ink;
     context.textAlign = "center";
-    context.fillText(String(scene.number), x + sceneWidth / 2, actHeight + 16);
+    context.fillText(fitCanvasText(context, sceneLabels[index], sceneWidth - 10), x + sceneWidth / 2, actHeight + 16);
     context.fillStyle = muted;
     context.font = "9px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
     context.fillText(fitCanvasText(context, scene.heading, sceneWidth - 10), x + sceneWidth / 2, actHeight + 36);
@@ -1047,7 +1058,10 @@ function renderCharacterAnalytics() {
 
   characters.forEach((character, row) => {
     const y = actHeight + sceneHeight + row * rowHeight;
-    if (row % 2 === 1) { context.fillStyle = surface2; context.fillRect(0, y, width, rowHeight); }
+    if (row % 2 === 1) {
+      context.fillStyle = surface2;
+      context.fillRect(0, y, labelWidth + scenes.length * sceneWidth, rowHeight);
+    }
     context.fillStyle = ink;
     context.textAlign = "left";
     context.fillText(fitCanvasText(context, character.name, labelWidth - 20), 12, y + rowHeight / 2);

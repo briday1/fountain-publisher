@@ -286,7 +286,8 @@ test("Insights nests scenes beneath top-level acts in one outline", async () => 
   assert.match(app, /sections\.push\(\{ level: match\[1\]\.length, title: match\[2\], line: index \+ 1 \}\)/);
   assert.match(app, /filter\(\(section\) => section\.level === 1\)/);
   assert.match(app, /class="outline-act"[\s\S]*class="outline-act-heading"[\s\S]*<ol>\$\{actScenes/);
-  assert.match(app, /scene\.actNumber === index \+ 1/);
+  assert.match(app, /scene\.actNumber === actNumber/);
+  assert.match(app, /outlineSceneRow\(scene, String\(sceneIndex \+ 1\)\)/);
   assert.match(css, /\.scene-list \.outline-act > ol\s*\{[^}]*padding:\s*0 0 4px 12px;/s);
 });
 
@@ -358,6 +359,8 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.doesNotMatch(app, /table\.style\.width/);
   assert.match(app, /maxLines === minLines \? 1 : 0\.25 \+ 0\.75/);
   assert.match(app, /canvasColor\("--syntax-character", "#7c3aed"\)/);
+  assert.match(app, /return String\(sceneInAct\)/);
+  assert.match(app, /fillRect\(0, y, labelWidth \+ scenes\.length \* sceneWidth, rowHeight\)/);
   assert.doesNotMatch(app, /moveTo\(0, y \+ rowHeight \+ 0\.5\)/);
   assert.match(css, /\.analytics-gradient-legend i\s*\{[^}]*var\(--syntax-character\)[^}]*var\(--syntax-character\)/s);
 });
