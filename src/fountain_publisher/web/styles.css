@@ -102,6 +102,9 @@ kbd { border: 0; background: none; color: var(--faint); font: 11px var(--mono); 
 .about-menu > summary { padding-left: 2px; font-size: 13px; letter-spacing: -.01em; }
 .about-popover { width: 240px; padding: 14px; }
 .about-popover p { margin: 5px 0 10px; }
+.about-popover a { color: var(--accent); text-decoration: none; }
+.about-popover a:hover { text-decoration: underline; }
+.about-repo-link { display: block; margin-top: 2px; font-size: 12px; }
 .menu-separator { display: block; border-top: 1px solid var(--border); margin: 6px 3px; }
 .menu-check { color: var(--accent); font-weight: 700; }
 .setting-row select { border: 0; background: transparent; text-align: right; }
@@ -250,7 +253,7 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 .insights-scroll { overflow: auto; flex: 1; padding-bottom: 30px; }
-.metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
+.metric-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
 .metric-grid div { display: flex; flex-direction: column; padding: 13px 15px; background: var(--surface); }
 .metric-grid strong { font-size: 20px; line-height: 1.1; font-weight: 550; }
 .metric-grid span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
@@ -259,7 +262,7 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .insight-section > summary::before { content: "›"; margin-right: 7px; color: var(--muted); transition: transform .12s; }
 .insight-section[open] > summary::before { transform: rotate(90deg); }
 .insight-section > summary small { margin-left: auto; padding: 1px 7px; border-radius: 10px; background: var(--surface-2); color: var(--muted); }
-.scene-list, .location-list { margin: 0; padding: 0 10px 11px; list-style: none; }
+.scene-list { margin: 0; padding: 0 10px 11px; list-style: none; }
 .character-analytics-launch { padding: 10px; border-bottom: 1px solid var(--border); background: var(--panel); }
 .character-analytics-launch button { width: 100%; border: 1px solid var(--border); border-radius: 5px; padding: 7px 10px; background: var(--surface); color: var(--muted); text-align: center; }
 .character-analytics-launch button:hover { color: var(--ink); background: var(--surface-2); }

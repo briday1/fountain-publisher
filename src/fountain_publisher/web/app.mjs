@@ -819,14 +819,14 @@ function currentPosition() {
   return { line: parts.length - 1, column: parts.at(-1).length, start: before.lastIndexOf("\n") + 1 };
 }
 
-function updatePreviewCursor(scroll = false) {
+function updatePreviewCursor(scroll = false, scrollBlock = "nearest") {
   const target = $(`[data-line="${currentPosition().line}"]`, page);
   $$(".script-line.source-current", page).forEach((line) => line.classList.remove("source-current"));
   target?.classList.add("source-current");
-  if (scroll && state.previewMode === "live") target?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  if (scroll && state.previewMode === "live") target?.scrollIntoView({ block: scrollBlock, inline: "nearest" });
 }
 
-function updateCursor({ scrollPreview = false } = {}) {
+function updateCursor({ scrollPreview = false, scrollBlock = "nearest" } = {}) {
   const position = currentPosition();
   $("#cursor-position").textContent = `Ln ${position.line + 1}, Col ${position.column + 1}`;
   const type = classifyLines(source.value)[position.line]?.type || "action";
@@ -840,7 +840,7 @@ function updateCursor({ scrollPreview = false } = {}) {
     : -source.scrollTop;
   $("#current-line").style.height = `${lineHeight}px`;
   $("#current-line").style.transform = `translateY(${lineTop}px)`;
-  updatePreviewCursor(scrollPreview);
+  updatePreviewCursor(scrollPreview, scrollBlock);
 }
 
 function renderInsights(metadata) {
@@ -848,11 +848,8 @@ function renderInsights(metadata) {
   $("#stat-pages").textContent = metadata.pageCount ?? "—";
   $("#stat-scenes").textContent = metadata.scenes.length;
   $("#stat-words").textContent = metadata.wordCount.toLocaleString();
-  $("#stat-runtime").textContent = formatDuration(metadata.estimatedSeconds);
   $("#scene-count").textContent = metadata.scenes.length;
   $("#scene-list").innerHTML = metadata.scenes.length ? metadata.scenes.map((scene) => `<li><span class="scene-num">${escapeHtml(scene.number)}</span><button type="button" data-line="${scene.line}">${escapeHtml(scene.heading)}</button></li>`).join("") : `<li class="empty-list">No scene headings yet.</li>`;
-  $("#location-count").textContent = metadata.locations.length;
-  $("#location-list").innerHTML = metadata.locations.length ? metadata.locations.map((location) => `<li>${escapeHtml(location)}</li>`).join("") : `<li class="empty-list">No locations yet.</li>`;
   const contentWords = metadata.dialogueWords + metadata.actionWords;
   const dialoguePercent = contentWords ? Math.round(metadata.dialogueWords / contentWords * 100) : 0;
   $("#dialogue-bar").style.width = `${dialoguePercent}%`;
@@ -1575,11 +1572,11 @@ function applyZoom() {
 function jumpToLine(oneBased, focus = true) {
   const lines = source.value.split("\n"); let offset = 0; for (let i = 0; i < Math.max(0, oneBased - 1); i += 1) offset += lines[i].length + 1;
   if (focus) source.focus();
-  source.setSelectionRange(offset, offset + (lines[oneBased - 1]?.length || 0)); updateCursor({ scrollPreview: true });
+  source.setSelectionRange(offset, offset + (lines[oneBased - 1]?.length || 0)); updateCursor({ scrollPreview: true, scrollBlock: "center" });
   const lineHeight = parseFloat(getComputedStyle(source).lineHeight) || 20.15;
   const visualRows = lines.slice(0, oneBased - 1).reduce((total, line) => total + sourceVisualRows(line), 0);
   source.scrollTop = Math.max(0, visualRows * lineHeight - source.clientHeight / 2);
-  $("#line-numbers").scrollTop = source.scrollTop; $("#source-highlight").scrollTop = source.scrollTop; updateCursor({ scrollPreview: true });
+  $("#line-numbers").scrollTop = source.scrollTop; $("#source-highlight").scrollTop = source.scrollTop; updateCursor({ scrollPreview: true, scrollBlock: "center" });
 }
 
 function jumpToInsightScene(oneBased) {
@@ -1714,19 +1711,81 @@ function appendToSource(text) {
   sourceChanged(); source.focus();
 }
 
+function parseTitleBlock(text) {
+  const fields = {};
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  let fieldSeen = false;
+  let lastKey = null;
+  for (const raw of lines) {
+    const trimmed = raw.trim();
+    if (!trimmed) { if (fieldSeen) break; continue; }
+    const match = raw.match(/^([A-Za-z][A-Za-z ]+):(.*)/);
+    if (match && TITLE_KEYS.has(match[1].trim().toLowerCase())) {
+      lastKey = match[1].trim().toLowerCase();
+      fields[lastKey] = match[2].trim();
+      fieldSeen = true;
+    } else if (fieldSeen && lastKey && /^\s+/.test(raw)) {
+      fields[lastKey] = (fields[lastKey] ? fields[lastKey] + " " : "") + trimmed;
+    } else {
+      break;
+    }
+  }
+  return fields;
+}
+
+function titleBlockLineCount(text) {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  let fieldSeen = false;
+  let count = 0;
+  for (const raw of lines) {
+    const trimmed = raw.trim();
+    if (!trimmed) { if (fieldSeen) { count += 1; break; } count += 1; continue; }
+    const match = raw.match(/^([A-Za-z][A-Za-z ]+):(.*)/);
+    if ((match && TITLE_KEYS.has(match[1].trim().toLowerCase())) || (fieldSeen && /^\s+/.test(raw))) {
+      fieldSeen = true; count += 1;
+    } else { break; }
+  }
+  return count;
+}
+
 $("#title-page-form").addEventListener("submit", (event) => {
   if (event.submitter?.value !== "default") return;
   event.preventDefault();
   const rows = [];
   const tp = (id, key) => { const v = $(`#${id}`).value.trim(); if (v) rows.push(`${key}: ${v}`); };
   tp("tp-title", "Title"); tp("tp-credit", "Credit"); tp("tp-author", "Author"); tp("tp-date", "Draft date"); tp("tp-contact", "Contact");
-  if (rows.length) insertAtDocumentStart(rows.join("\n") + "\n");
+  if (rows.length) {
+    const newBlock = rows.join("\n") + "\n";
+    if (state.metadata.titleFields.length > 0) {
+      const current = source.value;
+      const removeLines = titleBlockLineCount(current);
+      const remainder = current.replace(/\r\n?/g, "\n").split("\n").slice(removeLines).join("\n");
+      source.value = newBlock + (remainder ? "\n" + remainder : "");
+      sourceChanged(); source.setSelectionRange(0, 0); source.scrollTop = 0; source.focus();
+    } else {
+      insertAtDocumentStart(newBlock);
+    }
+  }
   $("#title-page-dialog").close();
 });
 
 function openTitlePageDialog() {
-  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  $("#tp-title").value = ""; $("#tp-credit").value = "Written by"; $("#tp-author").value = ""; $("#tp-date").value = today; $("#tp-contact").value = "";
+  const hasTitlePage = state.metadata.titleFields.length > 0;
+  const label = hasTitlePage ? "Edit title page" : "Add title page";
+  $("#tp-heading").textContent = label;
+  $("#title-page-dialog").querySelector("button.primary").textContent = label;
+  if (hasTitlePage) {
+    const existing = parseTitleBlock(source.value);
+    const get = (key) => existing[key] ?? "";
+    $("#tp-title").value = get("title");
+    $("#tp-credit").value = get("credit");
+    $("#tp-author").value = get("author") || get("authors");
+    $("#tp-date").value = get("draft date") || get("date");
+    $("#tp-contact").value = get("contact");
+  } else {
+    const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    $("#tp-title").value = ""; $("#tp-credit").value = "Written by"; $("#tp-author").value = ""; $("#tp-date").value = today; $("#tp-contact").value = "";
+  }
   $("#title-page-dialog").showModal(); setTimeout(() => $("#tp-title").focus(), 0);
 }
 $("#insert-title-page").addEventListener("click", openTitlePageDialog);

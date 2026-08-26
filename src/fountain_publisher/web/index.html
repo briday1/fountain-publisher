@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Write, preview, and publish Fountain screenplays." />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:; worker-src 'self' blob:" />
-    <link rel="icon" href="data:," />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23000'/><text x='16' y='23' text-anchor='middle' font-family='Georgia,serif' font-weight='700' font-size='20' fill='%23fff'>F</text></svg>" />
     <title>Fountain Publisher</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -17,7 +17,9 @@
           <strong>FOUNTAIN PUBLISHER</strong>
           <p>A source-first screenplay studio.</p>
           <span class="menu-separator"></span>
-          <small>Compiled with Screenplain</small>
+          <small>Compiled with <a href="https://github.com/vilcans/screenplain" target="_blank" rel="noopener noreferrer">Screenplain</a></small>
+          <span class="menu-separator"></span>
+          <a class="about-repo-link" href="https://github.com/briday1/fountain-publisher" target="_blank" rel="noopener noreferrer">View on GitHub</a>
         </div>
       </details>
       <nav class="global-actions" aria-label="Application menu">
@@ -160,16 +162,11 @@
             <div><strong id="stat-pages">0</strong><span>pages</span></div>
             <div><strong id="stat-scenes">0</strong><span>scenes</span></div>
             <div><strong id="stat-words">0</strong><span>words</span></div>
-            <div><strong id="stat-runtime">0m</strong><span>runtime</span></div>
           </section>
           <div class="character-analytics-launch"><button type="button" data-character-analytics>Character Analytics</button></div>
           <details class="insight-section" open>
             <summary>Scene outline <small id="scene-count">0</small></summary>
             <ol id="scene-list" class="scene-list"></ol>
-          </details>
-          <details class="insight-section">
-            <summary>Locations <small id="location-count">0</small></summary>
-            <ul id="location-list" class="location-list"></ul>
           </details>
           <details class="insight-section">
             <summary>Document balance</summary>
