@@ -221,6 +221,8 @@ const state = {
   previewCompletionLine: null,
   previewMode: "live",
   pdfUrl: null,
+  history: [],
+  historyIndex: -1,
   theme: localStorage.getItem("fountain-publisher.theme") || "system",
 };
 
@@ -337,14 +339,38 @@ function analyzeLocally(text) {
   return { lineCount: lines.length, wordCount, dialogueWords, actionWords, estimatedSeconds: Math.round(wordCount / 180 * 60), characters: characterList, scenes, sections: [], locations: [...locations].sort(), titleFields };
 }
 
+function previewLineHtml(line) {
+  const className = `script-line ${line.type}`;
+  const content = line.display ? escapeHtml(line.display) : "<br>";
+  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(line.prefix)}" contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
+}
+
+function renderPreviewLines(lines) {
+  const output = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    if (lines[i].type === "character") {
+      let next = i + 1;
+      while (next < lines.length && ["dialogue", "parenthetical"].includes(lines[next].type)) next += 1;
+      while (next < lines.length && lines[next].type === "empty") next += 1;
+      if (lines[next]?.type === "character" && lines[next].raw.trim().endsWith("^")) {
+        let rightEnd = next + 1;
+        while (rightEnd < lines.length && ["dialogue", "parenthetical"].includes(lines[rightEnd].type)) rightEnd += 1;
+        const left = lines.slice(i, next).filter((line) => line.type !== "empty").map(previewLineHtml).join("");
+        const right = lines.slice(next, rightEnd).map(previewLineHtml).join("");
+        output.push(`<div class="dual-dialog"><div class="dual-left">${left}</div><div class="dual-right">${right}</div></div>`);
+        i = rightEnd - 1;
+        continue;
+      }
+    }
+    output.push(previewLineHtml(lines[i]));
+  }
+  return output.join("");
+}
+
 function renderPreview({ focusLine = null } = {}) {
   const lines = classifyLines(source.value);
   const scrollTop = $("#preview-scroll").scrollTop;
-  page.innerHTML = lines.map((line) => {
-    const className = `script-line ${line.type}`;
-    const content = line.display ? escapeHtml(line.display) : "<br>";
-    return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(line.prefix)}" contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
-  }).join("");
+  page.innerHTML = renderPreviewLines(lines);
   const meaningful = lines.some((line) => line.raw.trim());
   $("#empty-state").hidden = meaningful;
   page.hidden = state.previewMode !== "live";
@@ -528,7 +554,25 @@ function formatDuration(seconds) {
   return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
 }
 
-function sourceChanged({ fromPreview = false } = {}) {
+function recordHistory() {
+  if (state.history[state.historyIndex] === source.value) return;
+  state.history.splice(state.historyIndex + 1);
+  state.history.push(source.value);
+  state.historyIndex = state.history.length - 1;
+  if (state.history.length > 250) { state.history.shift(); state.historyIndex -= 1; }
+}
+
+function restoreHistory(index) {
+  if (index < 0 || index >= state.history.length || index === state.historyIndex) return;
+  state.historyIndex = index; source.value = state.history[index]; sourceChanged({ record: false });
+  source.focus(); source.setSelectionRange(source.value.length, source.value.length);
+}
+
+function undoDocument() { restoreHistory(state.historyIndex - 1); }
+function redoDocument() { restoreHistory(state.historyIndex + 1); }
+
+function sourceChanged({ fromPreview = false, record = true } = {}) {
+  if (record) recordHistory();
   document.body.classList.toggle("dirty", source.value !== state.savedSource);
   renderEditorChrome();
   if (!fromPreview) renderPreview();
@@ -640,7 +684,7 @@ async function openFile() {
 }
 
 function setDocument(text, filename, saved = false) {
-  source.value = text; state.filename = filename || "Untitled.fountain"; if (saved) state.savedSource = text;
+  source.value = text; state.history = [text]; state.historyIndex = 0; state.filename = filename || "Untitled.fountain"; if (saved) state.savedSource = text;
   $("#filename").textContent = state.filename; document.title = `${state.filename} — Fountain Publisher`; sourceChanged();
 }
 
@@ -919,7 +963,7 @@ $("#page-size").addEventListener("change", () => { scheduleCompile(0); if (state
 $$('[data-preview-mode]').forEach((button) => button.addEventListener("click", () => setPreviewMode(button.dataset.previewMode)));
 $("#toggle-source").addEventListener("click", () => togglePanel("source")); $("#menu-toggle-source").addEventListener("click", () => togglePanel("source"));
 $("#toggle-stats").addEventListener("click", () => togglePanel("stats")); $("#menu-toggle-stats").addEventListener("click", () => togglePanel("stats"));
-$("#undo").addEventListener("click", () => { source.focus(); document.execCommand("undo"); sourceChanged(); }); $("#redo").addEventListener("click", () => { source.focus(); document.execCommand("redo"); sourceChanged(); });
+$("#undo").addEventListener("click", undoDocument); $("#redo").addEventListener("click", redoDocument);
 $("#zoom").addEventListener("change", applyZoom); $("#zoom-out").addEventListener("click", () => { $("#zoom").selectedIndex = Math.max(0, $("#zoom").selectedIndex - 1); applyZoom(); }); $("#zoom-in").addEventListener("click", () => { $("#zoom").selectedIndex = Math.min($("#zoom").options.length - 1, $("#zoom").selectedIndex + 1); applyZoom(); });
 $("#open-docs").addEventListener("click", () => $("#docs-dialog").showModal());
 $("#close-docs").addEventListener("click", () => $("#docs-dialog").close());
@@ -933,6 +977,8 @@ document.addEventListener("pointerdown", (event) => toolbarMenus.forEach((menu) 
 }));
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && toolbarMenus.some((menu) => menu.open)) { closeMenus(); }
+  else if ((source === document.activeElement || page.contains(document.activeElement)) && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redoDocument() : undoDocument(); }
+  else if ((source === document.activeElement || page.contains(document.activeElement)) && event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === "y") { event.preventDefault(); redoDocument(); }
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); saveFile(event.shiftKey); }
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "o") { event.preventDefault(); openFile(); }
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") { event.preventDefault(); newFile(); }

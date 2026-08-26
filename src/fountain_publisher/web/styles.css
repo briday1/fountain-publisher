@@ -224,6 +224,11 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .script-line.dialogue { width: 336px; margin-left: 96px; }
 .script-line.transition { text-align: right; margin: 16px 0; text-transform: uppercase; }
 .script-line.centered { text-align: center; margin: 16px 0; }
+.dual-dialog { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin: 16px 0; }
+.dual-dialog .dual-left, .dual-dialog .dual-right { min-width: 0; }
+.dual-dialog .script-line.character { width: auto; margin: 0 0 0 70px; }
+.dual-dialog .script-line.dialogue { width: auto; margin-left: 18px; }
+.dual-dialog .script-line.parenthetical { width: auto; margin-left: 38px; padding-left: 0; }
 .script-line.section, .script-line.synopsis, .script-line.note, .script-line.boneyard { display: none; }
 .script-line.section.source-current, .script-line.synopsis.source-current, .script-line.note.source-current, .script-line.boneyard.source-current { display: block; margin: 8px 0; padding: 5px 8px; border: 1px dashed color-mix(in srgb, var(--paper-ink) 28%, transparent); color: color-mix(in srgb, var(--paper-ink) 62%, transparent); font-size: 12px; font-style: italic; }
 .script-line.section.source-current::before, .script-line.synopsis.source-current::before, .script-line.note.source-current::before, .script-line.boneyard.source-current::before { content: "EDITOR ONLY  "; font: 700 9px/1 sans-serif; letter-spacing: .08em; opacity: .7; }
@@ -243,7 +248,7 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .metric-grid strong { font-size: 20px; line-height: 1.1; font-weight: 550; }
 .metric-grid span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .insight-section { border-bottom: 1px solid var(--border); }
-.insight-section > summary { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; cursor: pointer; font-weight: 650; list-style: none; }
+.insight-section > summary { display: flex; align-items: center; justify-content: flex-start; padding: 11px 14px; cursor: pointer; font-weight: 650; list-style: none; }
 .insight-section > summary::before { content: "›"; margin-right: 7px; color: var(--muted); transition: transform .12s; }
 .insight-section[open] > summary::before { transform: rotate(90deg); }
 .insight-section > summary small { margin-left: auto; padding: 1px 7px; border-radius: 10px; background: var(--surface-2); color: var(--muted); }

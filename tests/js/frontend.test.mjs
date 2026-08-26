@@ -144,6 +144,12 @@ test("preview status, rotating arrows, and character table stay compact", async 
   assert.match(app, /<table><thead><tr><th>Character<\/th><th>Lines<\/th><th>Duration<\/th>/);
 });
 
+test("document balance heading aligns with other insight labels", async () => {
+  const css = await readFile(cssPath, "utf8");
+  assert.match(css, /\.insight-section > summary\s*\{[^}]*justify-content:\s*flex-start;/s);
+  assert.match(css, /\.insight-section > summary small\s*\{[^}]*margin-left:\s*auto;/s);
+});
+
 test("in-app documentation teaches the editor and Fountain syntax", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="docs-dialog"/);
@@ -169,6 +175,25 @@ test("source word wrap defaults on and preserves logical line numbers", async ()
   assert.match(app, /function sourceVisualRows\(/);
   assert.match(app, /source\.setAttribute\("wrap", enabled \? "soft" : "off"\)/);
   assert.match(css, /body\.source-wrap #source/);
+});
+
+test("shared undo and redo work from source and screenplay focus", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /function undoDocument\(\)/);
+  assert.match(app, /function redoDocument\(\)/);
+  assert.doesNotMatch(app, /execCommand\("undo"\)/);
+  assert.match(app, /page\.contains\(document\.activeElement\)/);
+  assert.match(app, /event\.shiftKey \? redoDocument\(\) : undoDocument\(\)/);
+  assert.match(app, /event\.key\.toLowerCase\(\) === "y"/);
+});
+
+test("dual dialogue renders concurrently in the live screenplay", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(app, /raw\.trim\(\)\.endsWith\("\^"\)/);
+  assert.match(app, /class="dual-dialog"/);
+  assert.match(css, /\.dual-dialog\s*\{[^}]*grid-template-columns:\s*1fr 1fr;/s);
+  assert.match(html, /JANE \^/);
+  assert.match(html, /Windows \/ Linux/);
 });
 
 test("GitHub Pages mode runs Screenplain in Pyodide", async () => {
