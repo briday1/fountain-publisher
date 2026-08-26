@@ -58,7 +58,7 @@
             <span class="menu-separator"></span>
             <strong>FORMAT</strong>
             <button id="menu-insert-transition" type="button">Transition</button>
-            <button id="menu-insert-section" type="button">Section heading</button>
+            <button id="menu-insert-section" type="button">Act heading</button>
             <button id="menu-insert-pagebreak" type="button">Page break</button>
             <button id="menu-insert-centered" type="button">Centered text</button>
           </div>
@@ -162,10 +162,7 @@
             <div><strong id="stat-words">0</strong><span>words</span></div>
             <div><strong id="stat-runtime">0m</strong><span>runtime</span></div>
           </section>
-          <details class="insight-section" open>
-            <summary>Characters <small id="character-count">0</small></summary>
-            <div id="character-list" class="character-list"></div>
-          </details>
+          <div class="character-analytics-launch"><button type="button" data-character-analytics>Character Analytics</button></div>
           <details class="insight-section" open>
             <summary>Scene outline <small id="scene-count">0</small></summary>
             <ol id="scene-list" class="scene-list"></ol>
@@ -202,8 +199,10 @@
         <div id="character-analytics-legend" class="analytics-gradient-legend" aria-label="Dialogue line usage color scale" hidden>
           <span id="character-analytics-min">0 lines</span><i></i><span id="character-analytics-max">0 lines</span>
         </div>
-        <div class="analytics-chart-scroll">
-          <canvas id="character-analytics-chart" role="img"></canvas>
+        <div class="analytics-content-scroll">
+          <div class="analytics-chart-scroll">
+            <canvas id="character-analytics-chart" role="img"></canvas>
+          </div>
           <div id="character-line-table" class="analytics-line-table"></div>
         </div>
         <footer class="analytics-actions">

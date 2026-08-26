@@ -368,17 +368,20 @@ function analyzeLocally(text) {
 
 function previewLineHtml(line, sceneLabel = null) {
   const centered = line.raw.trim().match(/^>\s*(.*?)\s*<$/);
+  const act = line.type === "section" ? line.raw.trim().match(/^#\s+(Act\b.*)$/i) : null;
   const type = centered ? "centered" : line.type;
-  const className = `script-line ${type}`;
-  let display = line.display;
+  const className = `script-line ${type}${act ? " act" : ""}`;
+  let display = act?.[1] || line.display;
+  const prefix = act ? "#" : line.prefix;
   if (centered) display = centered[1];
+  else if (type === "transition" && line.raw.trim().startsWith(">")) display = line.raw.trim().slice(1).trimStart();
   if (sceneLabel !== null) {
     const cleanDisplay = line.display.replace(/^\./, "").replace(/\s+#[^#]+#\s*$/, "");
     display = docSettings.sceneNumbers === "inline" ? `${sceneLabel}. ${cleanDisplay}` : cleanDisplay;
   }
   const content = display ? fountainInlineHtml(display) : "<br>";
   const sceneAttr = sceneLabel !== null ? escapeHtml(sceneLabel) : "";
-  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(line.prefix)}" data-scene-number="${sceneAttr}" contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
+  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(display)}" contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
 }
 
 function computeSceneLabels(lines) {
@@ -420,34 +423,51 @@ function renderPreviewLines(lines) {
   return output.join("");
 }
 
-function renderPreview({ focusLine = null } = {}) {
+function renderPreview({ focusLine = null, focusOffset = null } = {}) {
   const lines = classifyLines(source.value);
-  const scrollTop = $("#preview-scroll").scrollTop;
+  const previewScroll = $("#preview-scroll");
+  const scrollTop = previewScroll.scrollTop;
+  const scrollLeft = previewScroll.scrollLeft;
   page.innerHTML = renderPreviewLines(lines);
   const meaningful = lines.some((line) => line.raw.trim());
   $("#empty-state").hidden = meaningful;
   page.hidden = state.previewMode !== "live";
   if (focusLine !== null) {
     const target = $(`[data-line="${focusLine}"]`, page);
-    target?.focus();
-    if (target) placeCaretAtEnd(target);
-  } else {
-    $("#preview-scroll").scrollTop = scrollTop;
+    target?.focus({ preventScroll: true });
+    if (target) {
+      const offset = focusOffset ?? target.textContent.length;
+      placeCaretAtOffset(target, offset);
+      setSourceCursorFromPreview(target, offset);
+    }
   }
+  previewScroll.scrollTop = scrollTop;
+  previewScroll.scrollLeft = scrollLeft;
+  requestAnimationFrame(() => {
+    previewScroll.scrollTop = scrollTop;
+    previewScroll.scrollLeft = scrollLeft;
+  });
   updatePreviewCursor();
   applyZoom();
 }
 
-function placeCaretAtEnd(element) {
+function placeCaretAtOffset(element, offset) {
+  let remaining = Math.max(0, Math.min(offset, element.textContent.length));
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+  while (node && remaining > node.textContent.length) {
+    remaining -= node.textContent.length;
+    node = walker.nextNode();
+  }
   const range = document.createRange();
-  range.selectNodeContents(element); range.collapse(false);
+  if (node) range.setStart(node, remaining);
+  else { range.selectNodeContents(element); range.collapse(false); }
+  range.collapse(true);
   const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
 }
 
-function syncPreviewLine(element) {
-  const index = Number(element.dataset.line);
-  const lines = source.value.replace(/\r\n?/g, "\n").split("\n");
-  let value = element.textContent.replace(/\n/g, "");
+function previewValueToSource(element, displayValue, originalValue = "") {
+  let value = displayValue.replace(/\n/g, "");
   if (element.dataset.sceneNumber) {
     if (docSettings.sceneNumbers === "inline") {
       const prefix = element.dataset.sceneNumber + ". ";
@@ -456,14 +476,213 @@ function syncPreviewLine(element) {
   }
   if (element.classList.contains("centered")) value = `> ${value} <`;
   else if (element.classList.contains("lyric")) value = `~${value}`;
-  else if (element.classList.contains("character") && lines[index].trim().startsWith("@")) value = `@${value}`;
-  else if (element.classList.contains("transition") && lines[index].trim().startsWith(">")) value = `>${value}`;
+  else if (element.classList.contains("character") && originalValue.trim().startsWith("@")) value = `@${value}`;
+  else if (element.classList.contains("transition") && originalValue.trim().startsWith(">")) value = `>${value}`;
   else if (element.dataset.prefix) value = `${element.dataset.prefix} ${value}`;
+  return value;
+}
+
+function fountainInlineSourceMap(value) {
+  const removed = Array(value.length).fill(false);
+  const closing = Array(value.length).fill(false);
+  const markup = /(\*{3}|\*{2}|\*|_)(?=\S)(.+?\S)\1/g;
+  for (const match of value.matchAll(markup)) {
+    const size = match[1].length;
+    for (let index = match.index; index < match.index + size; index += 1) removed[index] = true;
+    for (let index = match.index + match[0].length - size; index < match.index + match[0].length; index += 1) {
+      removed[index] = true;
+      closing[index] = true;
+    }
+  }
+  const visible = removed.flatMap((hidden, sourceOffset) => hidden ? [] : [sourceOffset]);
+  const startMap = Array.from({ length: visible.length + 1 }, (_, offset) => offset < visible.length ? visible[offset] : (visible.at(-1) ?? -1) + 1);
+  const endMap = Array.from({ length: visible.length + 1 }, (_, offset) => offset ? visible[offset - 1] + 1 : (visible[0] ?? 0));
+  const caretMap = Array.from({ length: visible.length + 1 }, (_, offset) => {
+    let sourceOffset = offset ? visible[offset - 1] + 1 : 0;
+    const nextVisible = offset < visible.length ? visible[offset] : value.length;
+    while (sourceOffset < nextVisible && closing[sourceOffset]) sourceOffset += 1;
+    return sourceOffset;
+  });
+  return { startMap, endMap, caretMap };
+}
+
+function previewSourceBody(element, originalValue) {
+  let start = 0;
+  let end = originalValue.length;
+  const trimmedStart = originalValue.search(/\S|$/);
+  if (element.classList.contains("centered")) {
+    start = originalValue.indexOf(">", trimmedStart) + 1;
+    if (originalValue[start] === " ") start += 1;
+    const close = originalValue.lastIndexOf("<");
+    end = close < start ? end : close;
+    if (originalValue[end - 1] === " ") end -= 1;
+  } else if (element.classList.contains("lyric")) {
+    start = originalValue.indexOf("~", trimmedStart) + 1;
+  } else if (element.classList.contains("character") && originalValue.slice(trimmedStart).startsWith("@")) {
+    start = trimmedStart + 1;
+  } else if (element.classList.contains("transition") && originalValue.slice(trimmedStart).startsWith(">")) {
+    start = trimmedStart + 1;
+    while (originalValue[start] === " ") start += 1;
+  } else if (element.dataset.prefix) {
+    const prefixStart = originalValue.indexOf(element.dataset.prefix, trimmedStart);
+    start = prefixStart < 0 ? 0 : prefixStart + element.dataset.prefix.length;
+    while (originalValue[start] === " ") start += 1;
+  }
+  if (element.classList.contains("scene")) {
+    if (originalValue[start] === ".") start += 1;
+    const sceneNumber = originalValue.slice(start, end).match(/\s+#[^#]+#\s*$/);
+    if (sceneNumber) end = start + sceneNumber.index;
+  }
+  return { start, end, map: fountainInlineSourceMap(originalValue.slice(start, end)) };
+}
+
+function previewSourceOffset(element, originalValue, displayOffset, affinity = "caret") {
+  const body = previewSourceBody(element, originalValue);
+  const scenePrefix = element.dataset.sceneNumber && docSettings.sceneNumbers === "inline"
+    ? `${element.dataset.sceneNumber}. `.length
+    : 0;
+  const offset = Math.max(0, Math.min(displayOffset - scenePrefix, body.map.startMap.length - 1));
+  const map = affinity === "start" ? body.map.startMap : affinity === "end" ? body.map.endMap : body.map.caretMap;
+  return body.start + (map[offset] ?? body.end - body.start);
+}
+
+function activeInlineMarkers(value, sourceOffset) {
+  const markers = [];
+  const markup = /(\*{3}|\*{2}|\*|_)(?=\S)(.+?\S)\1/g;
+  for (const match of value.matchAll(markup)) {
+    const openingEnd = match.index + match[1].length;
+    const closingStart = match.index + match[0].length - match[1].length;
+    if (sourceOffset >= openingEnd && sourceOffset <= closingStart) markers.push(match[1]);
+  }
+  return markers;
+}
+
+function previewTextOffset(element, node, offset) {
+  if (!element.contains(node) && element !== node) return element.textContent.length;
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.setEnd(node, offset);
+  return range.toString().length;
+}
+
+function previewSelection(line = document.activeElement.closest?.(".script-line")) {
+  const selection = getSelection();
+  if (!line || !selection?.rangeCount) return null;
+  const range = selection.getRangeAt(0);
+  const startElement = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+  const endElement = range.endContainer.nodeType === Node.ELEMENT_NODE ? range.endContainer : range.endContainer.parentElement;
+  const startLine = startElement?.closest?.(".script-line") || line;
+  const endLine = endElement?.closest?.(".script-line") || line;
+  return {
+    startLine,
+    endLine,
+    startOffset: previewTextOffset(startLine, range.startContainer, range.startOffset),
+    endOffset: previewTextOffset(endLine, range.endContainer, range.endOffset),
+  };
+}
+
+function sourceOffsetForLine(lines, index, column) {
+  return lines.slice(0, index).reduce((total, value) => total + value.length + 1, 0) + column;
+}
+
+function setSourceCursorFromPreview(element, displayOffset = element.textContent.length) {
+  const lines = source.value.replace(/\r\n?/g, "\n").split("\n");
+  const index = Number(element.dataset.line);
+  const column = previewSourceOffset(element, lines[index] || "", displayOffset);
+  const offset = sourceOffsetForLine(lines, index, column);
+  source.setSelectionRange(offset, offset);
+  updateCursor();
+}
+
+function syncPreviewLine(element) {
+  const index = Number(element.dataset.line);
+  const lines = source.value.replace(/\r\n?/g, "\n").split("\n");
+  const oldDisplay = element.dataset.display ?? element.textContent;
+  const newDisplay = element.textContent.replace(/\n/g, "");
+  let start = 0;
+  while (start < oldDisplay.length && start < newDisplay.length && oldDisplay[start] === newDisplay[start]) start += 1;
+  let oldEnd = oldDisplay.length;
+  let newEnd = newDisplay.length;
+  while (oldEnd > start && newEnd > start && oldDisplay[oldEnd - 1] === newDisplay[newEnd - 1]) { oldEnd -= 1; newEnd -= 1; }
+  const collapsed = start === oldEnd;
+  const rawStart = previewSourceOffset(element, lines[index], start, collapsed ? "caret" : "start");
+  const rawEnd = previewSourceOffset(element, lines[index], oldEnd, collapsed ? "caret" : "end");
+  const value = lines[index].slice(0, rawStart) + newDisplay.slice(start, newEnd) + lines[index].slice(rawEnd);
   lines[index] = value;
+  element.dataset.display = newDisplay;
+  element.innerHTML = fountainInlineHtml(newDisplay) || "<br>";
+  placeCaretAtOffset(element, newEnd);
   source.value = lines.join("\n");
-  const offset = lines.slice(0, index).reduce((total, line) => total + line.length + 1, 0) + value.length;
+  const offset = sourceOffsetForLine(lines, index, rawStart + newEnd - start);
   source.setSelectionRange(offset, offset);
   sourceChanged({ fromPreview: true });
+}
+
+function replacePreviewSelection(edit, text) {
+  const lines = source.value.replace(/\r\n?/g, "\n").split("\n");
+  const startIndex = Number(edit.startLine.dataset.line);
+  const endIndex = Number(edit.endLine.dataset.line);
+  const before = edit.startLine.textContent.slice(0, edit.startOffset);
+  const after = edit.endLine.textContent.slice(edit.endOffset);
+  let insertedText = text.replace(/\r\n?/g, "\n");
+  const displayLines = `${before}${insertedText}${after}`.split("\n");
+  const collapsed = startIndex === endIndex && edit.startOffset === edit.endOffset;
+  const rawStart = previewSourceOffset(edit.startLine, lines[startIndex], edit.startOffset, collapsed ? "caret" : "start");
+  const rawEnd = previewSourceOffset(edit.endLine, lines[endIndex], edit.endOffset, collapsed ? "caret" : "end");
+  if (startIndex === endIndex && insertedText.includes("\n")) {
+    const markers = activeInlineMarkers(lines[startIndex], rawStart);
+    if (markers.length) insertedText = insertedText.replaceAll("\n", `${[...markers].reverse().join("")}\n${markers.join("")}`);
+  }
+  const replacements = `${lines[startIndex].slice(0, rawStart)}${insertedText}${lines[endIndex].slice(rawEnd)}`.split("\n");
+  if (startIndex === endIndex && edit.startLine.classList.contains("centered") && replacements.length > 1) {
+    replacements[0] = `${replacements[0].trimEnd()} <`;
+    replacements[replacements.length - 1] = `> ${replacements.at(-1).trimStart()}`;
+    for (let index = 1; index < replacements.length - 1; index += 1) replacements[index] = `> ${replacements[index]} <`;
+  }
+  lines.splice(startIndex, endIndex - startIndex + 1, ...replacements);
+  source.value = lines.join("\n");
+  const focusLine = startIndex + displayLines.length - 1;
+  const focusOffset = displayLines.length === 1 ? before.length + text.length : text.split(/\r\n?|\n/).at(-1).length;
+  const sourceColumn = replacements.at(-1).length - lines[endIndex].slice(rawEnd).length;
+  const sourceOffset = sourceOffsetForLine(lines, focusLine, Math.max(0, sourceColumn));
+  source.setSelectionRange(sourceOffset, sourceOffset);
+  sourceChanged({ fromPreview: true });
+  if (startIndex === endIndex && displayLines.length === 1) {
+    edit.startLine.innerHTML = fountainInlineHtml(displayLines[0]) || "<br>";
+    edit.startLine.dataset.display = displayLines[0];
+    edit.startLine.focus({ preventScroll: true });
+    placeCaretAtOffset(edit.startLine, focusOffset);
+    setSourceCursorFromPreview(edit.startLine, focusOffset);
+    showPreviewCharacterCompletions(edit.startLine);
+  } else {
+    renderPreview({ focusLine, focusOffset });
+  }
+}
+
+function previewDeleteSelection(edit, direction, byWord = false) {
+  if (edit.startLine !== edit.endLine || edit.startOffset !== edit.endOffset) return replacePreviewSelection(edit, "");
+  const line = edit.startLine;
+  const index = Number(line.dataset.line);
+  const value = line.textContent;
+  if (direction === "backward" && edit.startOffset > 0) {
+    const before = value.slice(0, edit.startOffset);
+    edit.startOffset = byWord ? before.search(/\S+\s*$/) : edit.startOffset - 1;
+  } else if (direction === "forward" && edit.endOffset < value.length) {
+    const after = value.slice(edit.endOffset);
+    const length = byWord ? (after.match(/^\s*\S+/)?.[0].length || 1) : 1;
+    edit.endOffset += length;
+  } else {
+    const adjacent = $(`[data-line="${index + (direction === "backward" ? -1 : 1)}"]`, page);
+    if (!adjacent) return;
+    if (direction === "backward") {
+      edit.startLine = adjacent;
+      edit.startOffset = adjacent.textContent.length;
+    } else {
+      edit.endLine = adjacent;
+      edit.endOffset = 0;
+    }
+  }
+  replacePreviewSelection(edit, "");
 }
 
 function hidePreviewCompletions() {
@@ -526,7 +745,7 @@ function acceptPreviewCharacterCompletion(index = state.previewCompletionIndex) 
   line.textContent = name;
   syncPreviewLine(line);
   hidePreviewCompletions();
-  line.focus(); placeCaretAtEnd(line);
+  line.focus({ preventScroll: true }); placeCaretAtOffset(line, line.textContent.length);
 }
 
 function renderEditorChrome() {
@@ -596,8 +815,6 @@ function renderInsights(metadata) {
   $("#stat-scenes").textContent = metadata.scenes.length;
   $("#stat-words").textContent = metadata.wordCount.toLocaleString();
   $("#stat-runtime").textContent = formatDuration(metadata.estimatedSeconds);
-  $("#character-count").textContent = metadata.characters.length;
-  $("#character-list").innerHTML = metadata.characters.length ? `<div class="table-actions"><button type="button" data-character-analytics>Character Analytics</button></div><ul class="character-name-list">${metadata.characters.map((character) => `<li><button type="button" data-line="${character.lastLine}">${escapeHtml(character.name)}</button></li>`).join("")}</ul>` : `<div class="empty-list">Characters appear as dialogue is written.</div>`;
   $("#scene-count").textContent = metadata.scenes.length;
   $("#scene-list").innerHTML = metadata.scenes.length ? metadata.scenes.map((scene) => `<li><span class="scene-num">${escapeHtml(scene.number)}</span><button type="button" data-line="${scene.line}">${escapeHtml(scene.heading)}</button></li>`).join("") : `<li class="empty-list">No scene headings yet.</li>`;
   $("#location-count").textContent = metadata.locations.length;
@@ -732,7 +949,6 @@ function renderCharacterAnalytics() {
   }
   canvas.setAttribute("aria-label", `Character dialogue timeline with ${characters.length} characters across ${scenes.length} scenes; usage ranges from ${minLines} to ${maxLines} dialogue lines`);
   const table = $("#character-line-table");
-  table.style.width = `${width}px`;
   table.innerHTML = characters.length ? `<table><thead><tr><th>Character</th><th>Lines</th><th>Duration</th></tr></thead><tbody>${characters.map((character) => `<tr><td>${escapeHtml(character.name)}</td><td>${character.lines}</td><td>${formatDuration(character.seconds)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty-list">Character line counts appear as dialogue is written.</div>`;
 }
 
@@ -776,8 +992,11 @@ function recordHistory() {
 
 function restoreHistory(index) {
   if (index < 0 || index >= state.history.length || index === state.historyIndex) return;
-  state.historyIndex = index; source.value = state.history[index]; sourceChanged({ record: false });
-  source.focus(); source.setSelectionRange(source.value.length, source.value.length);
+  const previewLine = page.contains(document.activeElement) ? Number(document.activeElement.dataset.line) : null;
+  const sourcePosition = source.selectionStart;
+  state.historyIndex = index; source.value = state.history[index]; sourceChanged({ fromPreview: previewLine !== null, record: false });
+  if (previewLine !== null) renderPreview({ focusLine: Math.min(previewLine, source.value.split("\n").length - 1) });
+  else { source.focus(); source.setSelectionRange(Math.min(sourcePosition, source.value.length), Math.min(sourcePosition, source.value.length)); }
 }
 
 function undoDocument() { restoreHistory(state.historyIndex - 1); }
@@ -1334,7 +1553,31 @@ source.addEventListener("keydown", (event) => {
   else if (event.key === "Enter") hideCompletions();
 });
 
+page.addEventListener("beforeinput", (event) => {
+  const line = event.target.closest(".script-line"); if (!line) return;
+  const edit = previewSelection(line); if (!edit) return;
+  const insertionTypes = new Set(["insertText", "insertReplacementText", "insertFromPaste", "insertFromDrop", "insertParagraph", "insertLineBreak"]);
+  const deletionTypes = new Set(["deleteContentBackward", "deleteContentForward", "deleteWordBackward", "deleteWordForward", "deleteSoftLineBackward", "deleteSoftLineForward", "deleteByCut", "deleteByDrag"]);
+  if (!insertionTypes.has(event.inputType) && !deletionTypes.has(event.inputType)) return;
+  event.preventDefault();
+  hidePreviewCompletions();
+  if (deletionTypes.has(event.inputType)) {
+    const forward = event.inputType.includes("Forward");
+    previewDeleteSelection(edit, forward ? "forward" : "backward", event.inputType.includes("Word"));
+  } else {
+    const text = event.inputType === "insertParagraph" || event.inputType === "insertLineBreak"
+      ? "\n"
+      : event.dataTransfer?.getData("text/plain") || event.data || "";
+    replacePreviewSelection(edit, text);
+  }
+});
 page.addEventListener("input", (event) => { const line = event.target.closest(".script-line"); if (line) { syncPreviewLine(line); showPreviewCharacterCompletions(line); } });
+page.addEventListener("paste", (event) => {
+  const line = event.target.closest(".script-line"); if (!line) return;
+  const edit = previewSelection(line); if (!edit) return;
+  event.preventDefault();
+  replacePreviewSelection(edit, event.clipboardData?.getData("text/plain") || "");
+});
 page.addEventListener("keydown", (event) => {
   const line = event.target.closest(".script-line"); if (!line) return;
   if (!$("#preview-completion-menu").hidden) {
@@ -1342,20 +1585,17 @@ page.addEventListener("keydown", (event) => {
     if (event.key === "Tab") { event.preventDefault(); acceptPreviewCharacterCompletion(); return; }
     if (event.key === "Escape") { event.preventDefault(); hidePreviewCompletions(); return; }
   }
-  if (event.key === "Enter") {
-    event.preventDefault(); syncPreviewLine(line); const index = Number(line.dataset.line); const lines = source.value.split("\n"); lines.splice(index + 1, 0, ""); source.value = lines.join("\n"); sourceChanged(); renderPreview({ focusLine: index + 1 });
-  } else if (event.key === "Backspace" && !line.textContent && Number(line.dataset.line) > 0) {
-    event.preventDefault(); const index = Number(line.dataset.line); const lines = source.value.split("\n"); lines.splice(index, 1); source.value = lines.join("\n"); sourceChanged(); renderPreview({ focusLine: index - 1 });
-  }
 });
-page.addEventListener("focusin", (event) => { const line = event.target.closest(".script-line"); if (line) jumpToLine(Number(line.dataset.line) + 1, false); });
+page.addEventListener("focusin", (event) => { const line = event.target.closest(".script-line"); if (line) setSourceCursorFromPreview(line); });
+page.addEventListener("click", (event) => { const line = event.target.closest(".script-line"); if (line) setSourceCursorFromPreview(line, previewSelection(line)?.startOffset); });
+page.addEventListener("keyup", (event) => {
+  if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
+  const line = event.target.closest(".script-line"); if (line) setSourceCursorFromPreview(line, previewSelection(line)?.startOffset);
+});
 page.addEventListener("focusout", () => setTimeout(() => { if (!$("#preview-completion-menu").matches(":hover")) hidePreviewCompletions(); }, 0));
 $("#preview-completion-menu").addEventListener("mousedown", (event) => { const item = event.target.closest(".completion-item"); if (item) { event.preventDefault(); acceptPreviewCharacterCompletion(Number(item.dataset.index)); } });
 $("#completion-menu").addEventListener("mousedown", (event) => { const item = event.target.closest(".completion-item"); if (item) { event.preventDefault(); acceptCompletion(Number(item.dataset.index)); } });
-$("#character-list").addEventListener("click", async (event) => {
-  if (event.target.closest("[data-character-analytics]")) { openCharacterAnalytics(); return; }
-  const button = event.target.closest("button[data-line]"); if (button) jumpToLine(Number(button.dataset.line));
-});
+$("[data-character-analytics]").addEventListener("click", openCharacterAnalytics);
 $("#close-character-analytics").addEventListener("click", () => $("#character-analytics-dialog").close());
 $("#copy-character-lines").addEventListener("click", copyCharacterLineUsage);
 $("#save-character-analytics").addEventListener("click", saveCharacterAnalyticsPng);
@@ -1428,7 +1668,7 @@ $("#menu-insert-scene").addEventListener("click", () => { appendToSource("INT. L
 $("#menu-insert-dialogue").addEventListener("click", () => { appendToSource("CHARACTER\nDialogue here.\n\n"); });
 $("#menu-insert-direction").addEventListener("click", () => { appendToSource("Action description.\n\n"); });
 $("#menu-insert-transition").addEventListener("click", () => { appendToSource("CUT TO:\n\n"); });
-$("#menu-insert-section").addEventListener("click", () => { appendToSource("# Section Heading\n\n"); });
+$("#menu-insert-section").addEventListener("click", () => { appendToSource("# Act 1\n\n"); });
 $("#menu-insert-pagebreak").addEventListener("click", () => { appendToSource("===\n\n"); });
 $("#menu-insert-centered").addEventListener("click", () => { appendToSource("> Centered text <\n\n"); });
 
