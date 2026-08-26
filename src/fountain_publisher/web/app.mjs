@@ -875,6 +875,21 @@ def _fp_prepare_screenplay(source, placement="margin", format_type="sequential")
         del screenplay.paragraphs[0]
     return _fp_number_scenes(screenplay, placement, format_type)
 
+def _fp_patch_scene_numbers_left_only():
+    try:
+        from reportlab.lib.units import inch as _inch
+        def _left_only_draw(self):
+            self.slug_paragraph.drawOn(self.canv, 0, 0)
+            canvas = self.canv
+            canvas.saveState()
+            canvas.setFont(self.settings.font_settings.family_name, self.settings.font_size)
+            canvas.drawString(-0.75 * _inch, 0, self.scene_number)
+            canvas.restoreState()
+        pdf.SlugWithSceneNumbers.draw = _left_only_draw
+    except Exception:
+        pass
+_fp_patch_scene_numbers_left_only()
+
 def _fp_compile(source, kind, page_size, scene_numbers="margin", scene_number_format="sequential"):
     screenplay = _fp_prepare_screenplay(source, scene_numbers, scene_number_format)
     font_family, regular_font, bold_font, italic_font, bold_italic_font = _fp_register_pdf_fonts()
@@ -1118,14 +1133,6 @@ function appendToSource(text) {
   sourceChanged(); source.focus();
 }
 
-$("#insert-title-page").addEventListener("click", () => {
-  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  $("#tp-title").value = ""; $("#tp-credit").value = "Written by"; $("#tp-author").value = ""; $("#tp-date").value = today; $("#tp-contact").value = "";
-  $("#title-page-dialog").showModal(); setTimeout(() => $("#tp-title").focus(), 0);
-});
-$("#insert-scene").addEventListener("click", () => { appendToSource("INT. LOCATION - DAY\n\n"); });
-$("#insert-dialogue").addEventListener("click", () => { appendToSource("CHARACTER\nDialogue here.\n\n"); });
-$("#insert-direction").addEventListener("click", () => { appendToSource("Action description.\n\n"); });
 $("#title-page-form").addEventListener("submit", (event) => {
   if (event.submitter?.value !== "default") return;
   event.preventDefault();
@@ -1136,13 +1143,43 @@ $("#title-page-form").addEventListener("submit", (event) => {
   $("#title-page-dialog").close();
 });
 
+function openTitlePageDialog() {
+  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  $("#tp-title").value = ""; $("#tp-credit").value = "Written by"; $("#tp-author").value = ""; $("#tp-date").value = today; $("#tp-contact").value = "";
+  $("#title-page-dialog").showModal(); setTimeout(() => $("#tp-title").focus(), 0);
+}
+$("#insert-title-page").addEventListener("click", openTitlePageDialog);
+$("#insert-scene").addEventListener("click", () => { appendToSource("INT. LOCATION - DAY\n\n"); });
+$("#insert-dialogue").addEventListener("click", () => { appendToSource("CHARACTER\nDialogue here.\n\n"); });
+$("#insert-direction").addEventListener("click", () => { appendToSource("Action description.\n\n"); });
+$("#insert-pagebreak").addEventListener("click", () => { appendToSource("===\n\n"); });
+$("#menu-insert-title-page").addEventListener("click", openTitlePageDialog);
+$("#menu-insert-scene").addEventListener("click", () => { appendToSource("INT. LOCATION - DAY\n\n"); });
+$("#menu-insert-dialogue").addEventListener("click", () => { appendToSource("CHARACTER\nDialogue here.\n\n"); });
+$("#menu-insert-direction").addEventListener("click", () => { appendToSource("Action description.\n\n"); });
+$("#menu-insert-transition").addEventListener("click", () => { appendToSource("CUT TO:\n\n"); });
+$("#menu-insert-section").addEventListener("click", () => { appendToSource("# Section Heading\n\n"); });
+$("#menu-insert-pagebreak").addEventListener("click", () => { appendToSource("===\n\n"); });
+$("#menu-insert-centered").addEventListener("click", () => { appendToSource("> Centered text <\n\n"); });
+
 function applySceneNumSettings() {
   document.body.classList.remove("scene-nums-margin", "scene-nums-inline", "scene-nums-off");
   document.body.classList.add(`scene-nums-${docSettings.sceneNumbers}`);
   renderPreview(); scheduleCompile(0); if (state.previewMode === "pdf") refreshPdf();
 }
-$("#scene-num-placement").addEventListener("change", (event) => { setDocSetting("sceneNumbers", event.target.value); applySceneNumSettings(); });
-$("#scene-num-format").addEventListener("change", (event) => { setDocSetting("sceneNumberFormat", event.target.value); applySceneNumSettings(); });
+$("#menu-scene-numbers").addEventListener("click", () => {
+  $("#scene-num-placement").value = docSettings.sceneNumbers;
+  $("#scene-num-format").value = docSettings.sceneNumberFormat;
+  $("#scene-num-dialog").showModal();
+});
+$("#scene-num-form").addEventListener("submit", (event) => {
+  if (event.submitter?.value !== "default") return;
+  event.preventDefault();
+  setDocSetting("sceneNumbers", $("#scene-num-placement").value);
+  setDocSetting("sceneNumberFormat", $("#scene-num-format").value);
+  applySceneNumSettings();
+  $("#scene-num-dialog").close();
+});
 
 toolbarMenus.forEach((menu) => menu.addEventListener("click", (event) => {
   if (event.target.closest("button")) menu.open = false;
@@ -1168,7 +1205,6 @@ async function initialize() {
   document.documentElement.dataset.os = isMac ? "mac" : "win";
   const wordWrap = localStorage.getItem("fountain-publisher.word-wrap") !== "false";
   $("#word-wrap").checked = wordWrap; document.body.classList.toggle("source-wrap", wordWrap); source.setAttribute("wrap", wordWrap ? "soft" : "off");
-  $("#scene-num-placement").value = docSettings.sceneNumbers; $("#scene-num-format").value = docSettings.sceneNumberFormat;
   document.body.classList.add(`scene-nums-${docSettings.sceneNumbers}`);
   const sourceWidth = Number(localStorage.getItem("fountain-publisher.--source-w")); const statsWidth = Number(localStorage.getItem("fountain-publisher.--stats-w"));
   if (sourceWidth) document.documentElement.style.setProperty("--source-w", `${sourceWidth}px`); if (statsWidth) document.documentElement.style.setProperty("--stats-w", `${statsWidth}px`);

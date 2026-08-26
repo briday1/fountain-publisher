@@ -297,6 +297,13 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 #title-page-form > label { display: flex; flex-direction: column; gap: 5px; margin: 13px 0; font-weight: 600; }
 #title-page-form input { height: 35px; border: 1px solid var(--border); background: var(--surface); border-radius: 5px; padding: 0 8px; color: var(--ink); }
 
+#scene-num-dialog { width: min(380px, calc(100vw - 30px)); border: 1px solid var(--border); border-radius: 9px; padding: 0; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+#scene-num-dialog::backdrop { background: rgb(0 0 0 / 40%); backdrop-filter: blur(2px); }
+#scene-num-form { padding: 20px; }
+#scene-num-form > p { color: var(--muted); }
+#scene-num-form > label { display: flex; flex-direction: column; gap: 5px; margin: 13px 0; font-weight: 600; }
+#scene-num-form select { height: 35px; border: 1px solid var(--border); background: var(--surface); border-radius: 5px; padding: 0 8px; color: var(--ink); }
+
 #docs-dialog { width: min(920px, calc(100vw - 32px)); height: min(760px, calc(100vh - 32px)); max-width: none; max-height: none; padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 #docs-dialog::backdrop { background: rgb(0 0 0 / 42%); backdrop-filter: blur(2px); }
 .docs-shell { height: 100%; display: flex; flex-direction: column; }

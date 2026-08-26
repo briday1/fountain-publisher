@@ -73,6 +73,25 @@ def _screenplain() -> tuple[Any, Any, Any, Any]:
     return parse, html, pdf, fdx
 
 
+def _patch_scene_numbers_left_only() -> None:
+    """Override SlugWithSceneNumbers to render scene numbers on the left margin only."""
+    try:
+        from reportlab.lib.units import inch
+        from screenplain.export import pdf as sp_pdf
+
+        def _left_only_draw(self: Any) -> None:
+            self.slug_paragraph.drawOn(self.canv, 0, 0)
+            canvas = self.canv
+            canvas.saveState()
+            canvas.setFont(self.settings.font_settings.family_name, self.settings.font_size)
+            canvas.drawString(-0.75 * inch, 0, self.scene_number)
+            canvas.restoreState()
+
+        sp_pdf.SlugWithSceneNumbers.draw = _left_only_draw  # type: ignore[method-assign]
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def parse_screenplay(source: str) -> Any:
     parse, _, _, _ = _screenplain()
     screenplay = parse(io.StringIO(source))
@@ -137,6 +156,7 @@ def render_pdf(source: str, options: CompileOptions | None = None) -> bytes:
     screenplay = number_screenplay_scenes(parse_screenplay(source), options)
     _, _, pdf, _ = _screenplain()
     options = options or CompileOptions()
+    _patch_scene_numbers_left_only()
     font_family, regular_font, bold_font, italic_font, bold_italic_font = _register_pdf_font_family()
     try:
         from reportlab.lib.pagesizes import A4, letter

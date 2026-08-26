@@ -48,6 +48,22 @@
           </div>
         </details>
         <details class="toolbar-menu">
+          <summary>Document</summary>
+          <div class="toolbar-popover">
+            <strong>INSERT</strong>
+            <button id="menu-insert-title-page" type="button">Title page…</button>
+            <button id="menu-insert-scene" type="button">Scene heading</button>
+            <button id="menu-insert-dialogue" type="button">Dialogue</button>
+            <button id="menu-insert-direction" type="button">Direction</button>
+            <span class="menu-separator"></span>
+            <strong>FORMAT</strong>
+            <button id="menu-insert-transition" type="button">Transition</button>
+            <button id="menu-insert-section" type="button">Section heading</button>
+            <button id="menu-insert-pagebreak" type="button">Page break</button>
+            <button id="menu-insert-centered" type="button">Centered text</button>
+          </div>
+        </details>
+        <details class="toolbar-menu">
           <summary>Settings</summary>
           <div class="toolbar-popover">
             <strong>APPEARANCE</strong>
@@ -58,9 +74,8 @@
             <label class="setting-row" title="Underline misspellings and right-click them for replacement suggestions"><span>Spellcheck</span><input id="spellcheck" type="checkbox" role="switch" checked /></label>
             <label class="setting-row" title="Wrap long source lines without changing Fountain line numbers"><span>Source word wrap</span><input id="word-wrap" type="checkbox" role="switch" checked /></label>
             <span class="menu-separator"></span>
-            <strong>SCENE NUMBERS</strong>
-            <label class="setting-row"><span>Placement</span><select id="scene-num-placement"><option value="margin">Margin</option><option value="inline">Inline</option><option value="off">Off</option></select></label>
-            <label class="setting-row"><span>Format</span><select id="scene-num-format"><option value="sequential">1, 2, 3…</option><option value="act">A1S1, A1S2…</option></select></label>
+            <strong>DOCUMENT</strong>
+            <button id="menu-scene-numbers" type="button">Scene numbers…</button>
           </div>
         </details>
         <details class="toolbar-menu">
@@ -117,7 +132,7 @@
         </header>
         <div id="preview-scroll" class="preview-scroll">
           <article id="screenplay-page" class="screenplay-page" aria-label="Editable published screenplay"></article>
-          <div id="empty-state" class="empty-state" hidden><strong>Blank page.</strong><div class="empty-actions"><button type="button" id="insert-title-page">Add title page</button><button type="button" id="insert-scene">Add scene</button><button type="button" id="insert-dialogue">Add dialogue</button><button type="button" id="insert-direction">Add direction</button></div><span>Or just start typing — Fountain formats as you write.</span></div>
+          <div id="empty-state" class="empty-state" hidden><strong>Blank page.</strong><div class="empty-actions"><button type="button" id="insert-title-page">Add title page</button><button type="button" id="insert-scene">Add scene</button><button type="button" id="insert-dialogue">Add dialogue</button><button type="button" id="insert-direction">Add direction</button><button type="button" id="insert-pagebreak">Add page break</button></div><span>Or just start typing — Fountain formats as you write.</span></div>
           <div id="pdf-view" class="pdf-view" hidden>
             <div id="pdf-placeholder"><span class="spinner"></span><strong>Loading PDF preview.</strong><span>This will take longer the first time.</span></div>
             <iframe id="pdf-frame" title="Compiled PDF preview"></iframe>
@@ -198,6 +213,16 @@
         <label>Draft date<input id="tp-date" type="text" autocomplete="off" /></label>
         <label>Contact<input id="tp-contact" type="text" placeholder="Optional" autocomplete="off" /></label>
         <div class="dialog-actions"><button value="cancel">Cancel</button><button class="primary" value="default">Add title page</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="scene-num-dialog" aria-labelledby="sn-heading">
+      <form method="dialog" id="scene-num-form">
+        <div class="dialog-heading"><small>DOCUMENT</small><h2 id="sn-heading">Scene Numbers</h2></div>
+        <p>Configure scene number display in preview and exported PDF.</p>
+        <label>Placement<select id="scene-num-placement"><option value="margin">Left margin</option><option value="inline">Inline</option><option value="off">Off</option></select></label>
+        <label>Format<select id="scene-num-format"><option value="sequential">1, 2, 3…</option><option value="act">A1S1, A1S2…</option></select></label>
+        <div class="dialog-actions"><button value="cancel">Cancel</button><button class="primary" value="default">Apply</button></div>
       </form>
     </dialog>
 
