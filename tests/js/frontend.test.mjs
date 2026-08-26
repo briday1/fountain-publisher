@@ -120,6 +120,8 @@ test("the long sample screenplay is opt-in with demo=1", async () => {
   assert.ok(sample.split(/\s+/).length > 450, "demo should remain substantial");
   assert.doesNotMatch(sample, /FADE IN:|FADE OUT\.|CUT TO:/);
   assert.match(sample, />\*\*END\*\*</);
+  assert.match(app, /function fountainInlineHtml[\s\S]*<strong>\$1<\/strong>/);
+  assert.match(app, /const content = display \? fountainInlineHtml\(display\)/);
 });
 
 test("the active non-printing line remains visible as editor context", async () => {

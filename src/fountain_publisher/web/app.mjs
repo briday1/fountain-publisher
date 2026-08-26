@@ -230,6 +230,14 @@ function escapeHtml(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
+function fountainInlineHtml(value) {
+  return escapeHtml(value)
+    .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/_(.+?)_/g, "<u>$1</u>");
+}
+
 function isScene(text) {
   return /^(?:\.|(?:INT|EXT|EST|INT\.?\/EXT\.?|I\/E)[ .])/i.test(text);
 }
@@ -338,7 +346,7 @@ function analyzeLocally(text) {
 function previewLineHtml(line, sceneNumber = null) {
   const className = `script-line ${line.type}`;
   const display = sceneNumber === null ? line.display : `${sceneNumber}. ${line.display.replace(/\s+#[^#]+#\s*$/, "")}`;
-  const content = display ? escapeHtml(display) : "<br>";
+  const content = display ? fountainInlineHtml(display) : "<br>";
   return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(line.prefix)}" data-scene-number="${sceneNumber ?? ""}" contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
 }
 
@@ -757,9 +765,15 @@ def _fp_compile(source, kind, page_size):
         settings = pdf.Settings(page_size=A4 if page_size == "a4" else letter, strong_slugs=False)
         settings.slug_style.fontName = "Courier-Bold"
         settings.title_style.fontSize = settings.font_size
-        settings.title_style.leading = settings.line_height
+        title_leading = settings.line_height * 2
         for style_name in ("title_style", "centered_style", "default_style", "contact_style"):
-            getattr(settings, style_name).fontName = "Courier"
+            style = getattr(settings, style_name)
+            style.fontName = "Courier"
+            style.fontSize = settings.font_size
+            style.leading = title_leading
+        settings.title_style.spaceAfter = -settings.line_height
+        settings.default_style.spaceAfter = -settings.line_height
+        settings.contact_style.spaceAfter = -settings.line_height
         pdf.to_pdf(screenplay, output, settings=settings)
         return output.getvalue()
     if kind == "fdx":

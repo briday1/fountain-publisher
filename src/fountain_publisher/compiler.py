@@ -83,7 +83,10 @@ def render_pdf(source: str, options: CompileOptions | None = None) -> bytes:
     # restrained screenplay typography instead of turning the title into a poster.
     if hasattr(settings, "title_style"):
         settings.title_style.fontSize = settings.font_size
-        settings.title_style.leading = settings.line_height
+    # Use the screenplay face and size with a consistent blank line between
+    # title-page rows. Negative after-space cancels Screenplain's extra spacer
+    # before Credit, Contact, and Copyright so every interval stays identical.
+    title_leading = settings.line_height * 2
     # Screenplain renders credit/author/source with centered_style and the lower
     # title-page fields with default/contact styles, not title_style. Pin every
     # title-page style to the regular face so none inherit Courier-Bold.
@@ -91,6 +94,11 @@ def render_pdf(source: str, options: CompileOptions | None = None) -> bytes:
         style = getattr(settings, style_name, None)
         if style is not None:
             style.fontName = "Courier"
+            style.fontSize = settings.font_size
+            style.leading = title_leading
+    settings.title_style.spaceAfter = -settings.line_height
+    settings.default_style.spaceAfter = -settings.line_height
+    settings.contact_style.spaceAfter = -settings.line_height
     output = io.BytesIO()
     pdf.to_pdf(screenplay, output, settings=settings)
     return output.getvalue()
