@@ -121,9 +121,17 @@ test("completion is Tab-only and preview suggestions are caret-positioned", asyn
 
 test("preview edits keep the source cursor on the edited line", async () => {
   const app = await readFile(appPath, "utf8");
-  assert.match(app, /function setSourceCursorFromPreview[\s\S]*source\.setSelectionRange\(offset, offset\)/);
+  assert.match(app, /function setSourceCursorFromPreview[\s\S]*source\.setSelectionRange\(offset, offset\);[\s\S]*scrollSourceTarget\(index\)/);
   assert.match(app, /page\.addEventListener\("focusin"[\s\S]*setSourceCursorFromPreview\(line\)/);
   assert.doesNotMatch(app, /page\.addEventListener\("focusin"[^\n]*jumpToLine/);
+});
+
+test("source and preview navigation scroll in both directions", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /function scrollSourceTarget\([\s\S]*firstRect\.top - highlight\.getBoundingClientRect\(\)\.top \+ highlight\.scrollTop/);
+  assert.match(app, /source\.addEventListener\("select"[\s\S]*updateCursor\(\{ scrollPreview: true \}\)/);
+  assert.match(app, /function updatePreviewCursor[\s\S]*scrollPreviewTarget\(target, scrollBlock\)/);
+  assert.match(app, /panel === "source"[\s\S]*scrollSourceTarget\(currentPosition\(\)\.line, "center"\)/);
 });
 
 test("preview edits are source-backed and preserve the viewport", async () => {
@@ -466,7 +474,7 @@ test("line numbers are correct before the source panel is interacted with", asyn
   assert.match(app, /function renderLineNumbers[\s\S]*?sourceLine\?\.getClientRects\(\)\[0\]/);
   assert.doesNotMatch(app, /sourceWrapColumns|fontSize \* 0\.61/);
   // setMobileTab must re-render editor chrome when switching to source tab
-  assert.match(app, /function setMobileTab[\s\S]*?if \(panel === "source"\) renderEditorChrome\(\);/);
+  assert.match(app, /function setMobileTab[\s\S]*?if \(panel === "source"\) \{ renderEditorChrome\(\); scrollSourceTarget\(currentPosition\(\)\.line, "center"\); \}/);
 });
 
 test("browser Screenplain compile handles missing style attributes defensively", async () => {

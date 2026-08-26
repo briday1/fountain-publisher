@@ -642,6 +642,7 @@ function setSourceCursorFromPreview(element, displayOffset = element.textContent
   const column = previewSourceOffset(element, lines[index] || "", displayOffset);
   const offset = sourceOffsetForLine(lines, index, column);
   source.setSelectionRange(offset, offset);
+  scrollSourceTarget(index);
   updateCursor();
 }
 
@@ -871,6 +872,27 @@ function scrollPreviewTarget(target, block = "nearest") {
   else if (targetRect.right > scrollRect.right) left += targetRect.right - scrollRect.right;
   previewScroll.scrollTop = Math.max(0, top);
   previewScroll.scrollLeft = boundedScrollLeft(previewScroll, left);
+}
+
+function scrollSourceTarget(index, block = "nearest") {
+  if (!source.clientHeight) return;
+  const highlight = $("#source-highlight");
+  const target = $(`[data-source-line="${index}"]`, highlight);
+  const firstRect = target?.getClientRects()[0];
+  if (!firstRect) return;
+  const computed = getComputedStyle(source);
+  const paddingTop = parseFloat(computed.paddingTop) || 0;
+  const paddingBottom = parseFloat(computed.paddingBottom) || 0;
+  const lineHeight = parseFloat(computed.lineHeight) || 20.15;
+  const top = firstRect.top - highlight.getBoundingClientRect().top + highlight.scrollTop;
+  const bottom = top + lineHeight;
+  let next = source.scrollTop;
+  if (block === "center") next = top - (source.clientHeight - lineHeight) / 2;
+  else if (top < source.scrollTop + paddingTop) next = top - paddingTop;
+  else if (bottom > source.scrollTop + source.clientHeight - paddingBottom) next = bottom - source.clientHeight + paddingBottom;
+  source.scrollTop = Math.max(0, next);
+  syncSourceOverlay();
+  $("#line-numbers").scrollTop = source.scrollTop;
 }
 
 function updatePreviewCursor(scroll = false, scrollBlock = "nearest") {
@@ -1657,7 +1679,7 @@ source.addEventListener("input", (event) => {
 });
 source.addEventListener("scroll", () => { $("#line-numbers").scrollTop = source.scrollTop; syncSourceOverlay(); updateCursor(); scheduleWorkspaceCache(); });
 source.addEventListener("click", () => { updateCursor({ scrollPreview: true }); hideCompletions(); scheduleWorkspaceCache(); });
-source.addEventListener("select", scheduleWorkspaceCache);
+source.addEventListener("select", () => { updateCursor({ scrollPreview: true }); scheduleWorkspaceCache(); });
 source.addEventListener("keyup", (event) => { if (!["Enter", "Tab", "Escape"].includes(event.key)) updateCursor({ scrollPreview: true }); scheduleWorkspaceCache(); });
 source.addEventListener("keydown", (event) => {
   if (!$("#completion-menu").hidden) {
@@ -1886,7 +1908,7 @@ function setMobileTab(panel) {
   $$(".mobile-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.mobilePanel === panel));
   localStorage.setItem("fountain-publisher.mobile-tab", panel);
   if (panel === "preview" && state.previewMode === "pdf") refreshPdf();
-  if (panel === "source") renderEditorChrome();
+  if (panel === "source") { renderEditorChrome(); scrollSourceTarget(currentPosition().line, "center"); }
   if (panel !== "stats" && state.insightLine !== null) requestAnimationFrame(() => jumpToLine(state.insightLine, false));
 }
 
