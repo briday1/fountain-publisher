@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import quote, urlsplit
 
 from . import __version__
-from .compiler import CompileOptions, analyze_source, render_fdx, render_html, render_pdf
+from .compiler import CompileOptions, analyze_source, count_pdf_pages, render_fdx, render_html, render_pdf
 
 STATIC_ROOT = Path(__file__).resolve().with_name("web")
 MAX_REQUEST_BYTES = 8 * 1024 * 1024
@@ -52,6 +52,7 @@ class FountainRequestHandler(SimpleHTTPRequestHandler):
             if path == "/api/export/fdx":
                 return self._send_bytes(render_fdx(source), "application/xml; charset=utf-8")
             payload = analyze_source(source)
+            payload["pageCount"] = count_pdf_pages(render_pdf(source, options))
             # The live editor only needs statistics. Rendering and returning a second,
             # full copy of the screenplay on every keystroke wastes substantial memory.
             if body.get("includeHtml") is True:

@@ -145,8 +145,16 @@ test("scene outline clicks synchronize source and live preview", async () => {
 test("live preview automatically prefixes scene headings", async () => {
   const app = await readFile(appPath, "utf8");
   assert.match(app, /`\$\{sceneNumber\}\. \$\{line\.display/);
+  assert.match(app, /line\.display\.replace\(\/\^\\\.\//);
   assert.match(app, /if \(lines\[i\]\.type === "scene"\) sceneNumber \+= 1/);
   assert.match(app, /paragraph\.line = plain\(f"\{number\}\. "\) \+ paragraph\.line/);
+});
+
+test("page totals come from the compiled Screenplain PDF", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /metadata\.pageCount \?\?/);
+  assert.match(app, /function compileStaticPageCount/);
+  assert.ok(app.includes('/Type\\s*\\/Page\\b'));
 });
 
 test("preview status, rotating arrows, and character table stay compact", async () => {
@@ -220,5 +228,5 @@ test("GitHub Pages mode runs Screenplain in Pyodide", async () => {
   assert.match(app, /function getBrowserScreenplain\(/);
   assert.match(app, /screenplain-0\.12\.0-py3-none-any\.whl/);
   assert.match(app, /pdf\.to_pdf\(screenplay, output, settings=settings\)/);
-  assert.match(app, /STATIC_HOST[\s\S]*Browser preview/);
+  assert.match(app, /STATIC_HOST \? compileStaticPageCount\(revision\) : compile\(revision\)/);
 });

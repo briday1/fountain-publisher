@@ -40,7 +40,9 @@ class ServerTests(unittest.TestCase):
             return json.load(response)
 
     def test_live_compile_does_not_duplicate_document_as_html(self):
-        self.assertNotIn("html", self.compile())
+        payload = self.compile()
+        self.assertNotIn("html", payload)
+        self.assertEqual(1, payload["pageCount"])
 
     def test_html_can_be_requested_for_export(self):
         self.assertIn("html", self.compile(includeHtml=True))

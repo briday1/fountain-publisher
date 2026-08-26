@@ -352,7 +352,7 @@ function analyzeLocally(text) {
 
 function previewLineHtml(line, sceneNumber = null) {
   const className = `script-line ${line.type}`;
-  const display = sceneNumber === null ? line.display : `${sceneNumber}. ${line.display.replace(/\s+#[^#]+#\s*$/, "")}`;
+  const display = sceneNumber === null ? line.display : `${sceneNumber}. ${line.display.replace(/^\./, "").replace(/\s+#[^#]+#\s*$/, "")}`;
   const content = display ? fountainInlineHtml(display) : "<br>";
   return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(line.prefix)}" data-scene-number="${sceneNumber ?? ""}" contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
 }
@@ -544,7 +544,7 @@ function updateCursor({ scrollPreview = false } = {}) {
 
 function renderInsights(metadata) {
   state.metadata = metadata;
-  const pages = Math.max(metadata.wordCount ? 1 : 0, Math.ceil(metadata.lineCount / 55));
+  const pages = metadata.pageCount ?? Math.max(metadata.wordCount ? 1 : 0, Math.ceil(metadata.lineCount / 55));
   $("#stat-pages").textContent = pages;
   $("#stat-scenes").textContent = metadata.scenes.length;
   $("#stat-words").textContent = metadata.wordCount.toLocaleString();
@@ -601,8 +601,24 @@ function scheduleCompile(delay = 350) {
   const revision = ++state.compileRevision;
   $("#compile-status").textContent = "Editing…";
   $("#compile-status").classList.remove("error");
-  if (STATIC_HOST) { $("#compile-status").textContent = "Browser preview"; return; }
-  state.compileTimer = setTimeout(() => compile(revision), delay);
+  state.compileTimer = setTimeout(() => STATIC_HOST ? compileStaticPageCount(revision) : compile(revision), STATIC_HOST ? Math.max(delay, 700) : delay);
+}
+
+async function compileStaticPageCount(revision) {
+  $("#compile-status").textContent = "Compiling…";
+  try {
+    const blob = await compileWithBrowserScreenplain("pdf", $("#page-size").value);
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const text = new TextDecoder("latin1").decode(bytes);
+    const pageCount = (text.match(/\/Type\s*\/Page\b/g) || []).length;
+    if (revision !== state.compileRevision) return;
+    $("#stat-pages").textContent = pageCount;
+    $("#compile-status").textContent = "Compiled";
+  } catch (error) {
+    if (revision !== state.compileRevision) return;
+    $("#compile-status").textContent = "Compile error";
+    $("#compile-status").classList.add("error");
+  }
 }
 
 async function compile(revision) {

@@ -104,6 +104,11 @@ def render_pdf(source: str, options: CompileOptions | None = None) -> bytes:
     return output.getvalue()
 
 
+def count_pdf_pages(payload: bytes) -> int:
+    """Count ReportLab page dictionaries without adding another PDF dependency."""
+    return len(re.findall(rb"/Type\s*/Page\b", payload))
+
+
 def render_fdx(source: str) -> bytes:
     screenplay = number_screenplay_scenes(parse_screenplay(source))
     _, _, _, fdx = _screenplain()

@@ -4,7 +4,7 @@ from unittest import mock
 from types import SimpleNamespace
 from importlib.metadata import metadata
 
-from fountain_publisher.compiler import CompileOptions, analyze_source, render_fdx, render_html, render_pdf
+from fountain_publisher.compiler import CompileOptions, analyze_source, count_pdf_pages, render_fdx, render_html, render_pdf
 
 
 SOURCE = """Title: Signals
@@ -52,6 +52,16 @@ class ScreenplainIntegrationTests(unittest.TestCase):
         html = render_html("EXT. PARK - DAY\n\nAction.\n\nINT. HOME - NIGHT\n")
         self.assertIn("1. EXT. PARK - DAY", html)
         self.assertIn("2. INT. HOME - NIGHT", html)
+
+    def test_dot_forced_int_is_a_numbered_scene(self):
+        source = ".INT. BASEMENT - NIGHT\n\nA light flickers.\n"
+        self.assertEqual("INT. BASEMENT - NIGHT", analyze_source(source)["scenes"][0]["heading"])
+        html = render_html(source)
+        self.assertIn("1. INT. BASEMENT - NIGHT", html)
+        self.assertNotIn(".INT. BASEMENT", html)
+
+    def test_reportlab_pdf_pages_are_counted(self):
+        self.assertEqual(2, count_pdf_pages(b"/Type /Pages /Type /Page /Type\n/Page\n"))
 
     def test_fdx_is_final_draft_xml(self):
         fdx = render_fdx(SOURCE)
