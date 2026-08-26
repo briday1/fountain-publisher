@@ -363,7 +363,8 @@ function analyzeLocally(text) {
     sceneLineMap: undefined,
   })).sort((a, b) => b.words - a.words || a.name.localeCompare(b.name));
   const wordCount = dialogueWords + actionWords;
-  return { lineCount: lines.length, wordCount, dialogueWords, actionWords, estimatedSeconds: Math.round(wordCount / 180 * 60), characters: characterList, scenes, sections: [], locations: [...locations].sort(), titleFields, pageCount: state.metadata?.pageCount ?? null };
+  const pageCount = state.metadata?.pageCount ?? null;
+  return { lineCount: lines.length, wordCount, dialogueWords, actionWords, estimatedSeconds: pageCount == null ? 0 : pageCount * 60, characters: characterList, scenes, sections: [], locations: [...locations].sort(), titleFields, pageCount };
 }
 
 function previewLineHtml(line, sceneLabel = null) {
@@ -1069,10 +1070,12 @@ async function compileStaticPageCount(revision) {
   $("#compile-status").textContent = "Compiling…";
   try {
     const blob = await compileWithBrowserScreenplain("pdf", $("#page-size").value);
-    const pageCount = await countPdfBlobPages(blob, Boolean(state.metadata.titleFields.length));
+    const pageCount = await countPdfBlobPages(blob);
     if (revision !== state.compileRevision) return;
     state.metadata.pageCount = pageCount;
+    state.metadata.estimatedSeconds = pageCount * 60;
     $("#stat-pages").textContent = pageCount;
+    $("#stat-runtime").textContent = formatDuration(state.metadata.estimatedSeconds);
     $("#compile-status").textContent = "Compiled";
   } catch (error) {
     if (revision !== state.compileRevision) return;
@@ -1093,7 +1096,8 @@ async function compile(revision) {
     }
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Compilation failed");
-    if (result.pageCount == null) result.pageCount = await countPdfBlobPages(await requestBinary("/api/render/pdf"), Boolean(result.titleFields.length));
+    if (result.pageCount == null) result.pageCount = await countPdfBlobPages(await requestBinary("/api/render/pdf"));
+    result.estimatedSeconds = result.pageCount * 60;
     if (revision !== state.compileRevision) return;
     renderInsights(result);
     $("#compile-status").textContent = "Compiled";
@@ -1106,11 +1110,10 @@ async function compile(revision) {
   }
 }
 
-async function countPdfBlobPages(blob, excludeTitlePage = false) {
+async function countPdfBlobPages(blob) {
   const bytes = new Uint8Array(await blob.arrayBuffer());
   const text = new TextDecoder("latin1").decode(bytes);
-  const physicalPages = (text.match(/\/Type\s*\/Page\b/g) || []).length;
-  return Math.max(0, physicalPages - (excludeTitlePage ? 1 : 0));
+  return (text.match(/\/Type\s*\/Page\b/g) || []).length;
 }
 
 function completionCandidates() {
@@ -1266,6 +1269,16 @@ function normalizedFilename(extension) {
 
 async function download(blob, filename) {
   const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = filename; document.body.appendChild(anchor); anchor.click(); document.body.removeChild(anchor); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function shareOrDownload(blob, filename) {
+  const file = new File([blob], filename, { type: blob.type });
+  const shareData = { files: [file], title: filename };
+  if (matchMedia("(max-width: 640px)").matches && navigator.share && navigator.canShare?.(shareData)) {
+    await navigator.share(shareData);
+    return;
+  }
+  await download(blob, filename);
 }
 
 let screenplainPromise;
@@ -1499,7 +1512,7 @@ async function exportDocument(format) {
     const blob = format === "pdf"
       ? await requestBinary("/api/render/pdf", $("#export-page-size").value)
       : await requestBinary("/api/export/fdx");
-    await download(blob, normalizedFilename(format)); $("#export-dialog").close(); toast(`Exported ${format.toUpperCase()}`);
+    await shareOrDownload(blob, normalizedFilename(format)); $("#export-dialog").close(); toast(`Exported ${format.toUpperCase()}`);
   } catch (error) { if (error.name !== "AbortError") toast(error.message); }
   finally { $("#confirm-export").disabled = false; }
 }

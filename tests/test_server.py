@@ -53,9 +53,14 @@ class ServerTests(unittest.TestCase):
         self.assertNotIn("html", payload)
         self.assertEqual(1, payload["pageCount"])
 
-    def test_page_count_excludes_title_page(self):
+    def test_page_count_includes_title_page(self):
         payload = self.compile(source="Title: Test\nAuthor: Writer\n\nINT. ROOM - DAY\n\nAction.\n")
-        self.assertEqual(1, payload["pageCount"])
+        self.assertEqual(2, payload["pageCount"])
+        self.assertEqual(120, payload["estimatedSeconds"])
+
+    def test_runtime_is_one_minute_per_page(self):
+        payload = self.compile()
+        self.assertEqual(payload["pageCount"] * 60, payload["estimatedSeconds"])
 
     def test_desktop_pagination_computes_non_empty_pages(self):
         payload = self.compile(

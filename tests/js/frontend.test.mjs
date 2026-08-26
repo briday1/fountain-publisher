@@ -234,7 +234,7 @@ test("page totals come from the compiled Screenplain PDF", async () => {
   assert.match(app, /function compileStaticPageCount/);
   assert.match(app, /result\.pageCount == null[\s\S]*\/api\/render\/pdf/);
   assert.match(app, /function countPdfBlobPages/);
-  assert.match(app, /physicalPages - \(excludeTitlePage \? 1 : 0\)/);
+  assert.match(app, /estimatedSeconds = result\.pageCount \* 60/);
   assert.match(app, /_fp_prepare_screenplay[\s\S]*isinstance\(screenplay\.paragraphs\[0\], PageBreak\)/);
   assert.ok(app.includes('/Type\\s*\\/Page\\b'));
 });
@@ -419,12 +419,13 @@ test("browser Screenplain compile handles missing style attributes defensively",
   assert.match(app, /getattr\(_font_settings,\s*"family_name",\s*"Courier"\)/);
 });
 
-test("mobile PDF export downloads directly without opening the share sheet", async () => {
+test("mobile exports use the share sheet with download fallback", async () => {
   const app = await readFile(appPath, "utf8");
   assert.match(app, /async function download\(/);
   assert.match(app, /anchor\.download = filename/);
-  assert.doesNotMatch(app, /navigator\.share/);
-  assert.match(app, /await download\(blob,/);
+  assert.match(app, /navigator\.canShare\?\.\(shareData\)/);
+  assert.match(app, /await navigator\.share\(shareData\)/);
+  assert.match(app, /await shareOrDownload\(blob,/);
 });
 
 test("compiler failures expose actionable desktop and browser errors", async () => {
