@@ -720,7 +720,8 @@ async function getBrowserScreenplain() {
     const { loadPyodide } = await import(new URL("pyodide.mjs", runtimeBase).href);
     const pyodide = await loadPyodide({ indexURL: runtimeBase.href });
     await pyodide.loadPackage("micropip");
-    pyodide.globals.set("_fp_reportlab_wheel", new URL("vendor/reportlab-3.6.13-py3-none-any.whl", import.meta.url).href);
+    pyodide.globals.set("_fp_charset_wheel", new URL("vendor/charset_normalizer-3.4.7-py3-none-any.whl", import.meta.url).href);
+    pyodide.globals.set("_fp_reportlab_wheel", new URL("vendor/reportlab-5.0.1-py3-none-any.whl", import.meta.url).href);
     pyodide.globals.set("_fp_pillow_wheel", new URL("vendor/pillow-12.2.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl", import.meta.url).href);
     pyodide.globals.set("_fp_screenplain_wheel", new URL("vendor/screenplain-0.12.0-py3-none-any.whl", import.meta.url).href);
     pyodide.globals.set("_fp_six_wheel", new URL("vendor/six-1.17.0-py2.py3-none-any.whl", import.meta.url).href);
@@ -728,6 +729,7 @@ async function getBrowserScreenplain() {
 import micropip
 await micropip.install(_fp_six_wheel, deps=False)
 await micropip.install(_fp_pillow_wheel, deps=False)
+await micropip.install(_fp_charset_wheel, deps=False)
 await micropip.install(_fp_reportlab_wheel, deps=False)
 await micropip.install(_fp_screenplain_wheel, deps=False)
 `);

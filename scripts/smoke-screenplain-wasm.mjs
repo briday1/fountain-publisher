@@ -6,7 +6,8 @@ await pyodide.loadPackage("micropip");
 const wheels = [
   "six-1.17.0-py2.py3-none-any.whl",
   "pillow-12.2.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl",
-  "reportlab-3.6.13-py3-none-any.whl",
+  "charset_normalizer-3.4.7-py3-none-any.whl",
+  "reportlab-5.0.1-py3-none-any.whl",
   "screenplain-0.12.0-py3-none-any.whl",
 ];
 for (const wheel of wheels) pyodide.FS.writeFile(`/${wheel}`, await readFile(`src/fountain_publisher/web/vendor/${wheel}`));

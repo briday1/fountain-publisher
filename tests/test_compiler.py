@@ -2,6 +2,7 @@ import io
 import unittest
 from unittest import mock
 from types import SimpleNamespace
+from importlib.metadata import metadata
 
 from fountain_publisher.compiler import CompileOptions, analyze_source, render_fdx, render_html, render_pdf
 
@@ -37,6 +38,11 @@ class AnalyzeSourceTests(unittest.TestCase):
 
 
 class ScreenplainIntegrationTests(unittest.TestCase):
+    def test_runtime_versions_are_pinned_for_browser_parity(self):
+        requirements = metadata("fountain-publisher").get_all("Requires-Dist") or []
+        self.assertIn("screenplain==0.12.0", requirements)
+        self.assertIn("reportlab==5.0.1", requirements)
+
     def test_html_uses_screenplain_formatter(self):
         html = render_html(SOURCE)
         self.assertIn('class="dialog"', html)
