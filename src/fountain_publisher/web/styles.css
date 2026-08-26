@@ -199,7 +199,7 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .editor-footer > span:last-child { white-space: nowrap; }
 
 .preview-panel { min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; position: relative; background: var(--bg); }
-.preview-toolbar { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 12px 6px 15px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.preview-toolbar { flex: 0 0 auto; min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 12px 6px 15px; border-bottom: 1px solid var(--border); background: var(--panel); }
 .preview-heading { display: flex; align-items: center; gap: 16px; }
 .view-switcher { display: flex; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); }
 .view-switcher button { border: 0; border-radius: 4px; padding: 5px 12px; background: transparent; color: var(--muted); }

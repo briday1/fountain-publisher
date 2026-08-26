@@ -825,11 +825,26 @@ function currentPosition() {
   return { line: parts.length - 1, column: parts.at(-1).length, start: before.lastIndexOf("\n") + 1 };
 }
 
+function scrollPreviewTarget(target, block = "nearest") {
+  const previewScroll = $("#preview-scroll");
+  const targetRect = target.getBoundingClientRect();
+  const scrollRect = previewScroll.getBoundingClientRect();
+  let top = previewScroll.scrollTop;
+  let left = previewScroll.scrollLeft;
+  if (block === "center") top += targetRect.top - scrollRect.top - (previewScroll.clientHeight - targetRect.height) / 2;
+  else if (targetRect.top < scrollRect.top) top += targetRect.top - scrollRect.top;
+  else if (targetRect.bottom > scrollRect.bottom) top += targetRect.bottom - scrollRect.bottom;
+  if (targetRect.left < scrollRect.left) left += targetRect.left - scrollRect.left;
+  else if (targetRect.right > scrollRect.right) left += targetRect.right - scrollRect.right;
+  previewScroll.scrollTop = Math.max(0, top);
+  previewScroll.scrollLeft = boundedScrollLeft(previewScroll, left);
+}
+
 function updatePreviewCursor(scroll = false, scrollBlock = "nearest") {
   const target = $(`[data-line="${currentPosition().line}"]`, page);
   $$(".script-line.source-current", page).forEach((line) => line.classList.remove("source-current"));
   target?.classList.add("source-current");
-  if (scroll && state.previewMode === "live") target?.scrollIntoView({ block: scrollBlock, inline: "nearest" });
+  if (scroll && state.previewMode === "live" && target) scrollPreviewTarget(target, scrollBlock);
 }
 
 function updateCursor({ scrollPreview = false, scrollBlock = "nearest" } = {}) {
