@@ -149,8 +149,8 @@ test("preview edits are source-backed and preserve the viewport", async () => {
   assert.match(app, /element\.classList\.contains\("scene"\)/);
   assert.match(app, /target\?\.focus\(\{ preventScroll: true \}\)[\s\S]*scrollTop = scrollTop/);
   assert.match(app, /requestAnimationFrame\(\(\) => \{[\s\S]*previewScroll\.scrollTop = scrollTop/);
-  assert.match(app, /const insertAbove = collapsed && edit\.startOffset === 0 && insertedText === "\\n"/);
-  assert.match(app, /const focusLine = insertAbove \? startIndex/);
+  assert.doesNotMatch(app, /const insertAbove =/);
+  assert.match(app, /const focusLine = startIndex \+ displayLines\.length - 1/);
   assert.match(app, /function previewCaretIsOnFirstVisualRow\(line\)/);
   assert.match(app, /event\.key === "ArrowUp" && line\.classList\.contains\("scene"\) && previewCaretIsOnFirstVisualRow\(line\)/);
 });

@@ -683,9 +683,8 @@ function replacePreviewSelection(edit, text) {
   let insertedText = text.replace(/\r\n?/g, "\n");
   const displayLines = `${before}${insertedText}${after}`.split("\n");
   const collapsed = startIndex === endIndex && edit.startOffset === edit.endOffset;
-  const insertAbove = collapsed && edit.startOffset === 0 && insertedText === "\n";
-  const rawStart = insertAbove ? 0 : previewSourceOffset(edit.startLine, lines[startIndex], edit.startOffset, collapsed ? "caret" : "start");
-  const rawEnd = insertAbove ? 0 : previewSourceOffset(edit.endLine, lines[endIndex], edit.endOffset, collapsed ? "caret" : "end");
+  const rawStart = previewSourceOffset(edit.startLine, lines[startIndex], edit.startOffset, collapsed ? "caret" : "start");
+  const rawEnd = previewSourceOffset(edit.endLine, lines[endIndex], edit.endOffset, collapsed ? "caret" : "end");
   const trailingSource = lines[endIndex].slice(rawEnd);
   if (startIndex === endIndex && insertedText.includes("\n")) {
     const markers = activeInlineMarkers(lines[startIndex], rawStart);
@@ -699,8 +698,8 @@ function replacePreviewSelection(edit, text) {
   }
   lines.splice(startIndex, endIndex - startIndex + 1, ...replacements);
   source.value = lines.join("\n");
-  const focusLine = insertAbove ? startIndex : startIndex + displayLines.length - 1;
-  const focusOffset = insertAbove ? 0 : displayLines.length === 1 ? before.length + text.length : text.split(/\r\n?|\n/).at(-1).length;
+  const focusLine = startIndex + displayLines.length - 1;
+  const focusOffset = displayLines.length === 1 ? before.length + text.length : text.split(/\r\n?|\n/).at(-1).length;
   const sourceColumn = replacements.at(-1).length - trailingSource.length;
   const sourceOffset = sourceOffsetForLine(lines, focusLine, Math.max(0, sourceColumn));
   source.setSelectionRange(sourceOffset, sourceOffset);
