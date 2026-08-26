@@ -225,7 +225,6 @@ const state = {
   previewMode: "live",
   pdfUrl: null,
   insightLine: null,
-  selectedCharacters: new Set(),
   history: [],
   historyIndex: -1,
   theme: localStorage.getItem("fountain-publisher.theme") || "system",
@@ -271,7 +270,6 @@ function classifyLines(text) {
   let titleFieldSeen = false;
   let titleContinuation = false;
   let dialogue = false;
-  let activeCharacter = "";
   let boneyard = false;
   for (let i = 0; i < lines.length; i += 1) {
     const raw = lines[i];
@@ -281,7 +279,7 @@ function classifyLines(text) {
     let prefix = "";
     if (trimmed.includes("/*")) boneyard = true;
     if (boneyard) type = "boneyard";
-    else if (!trimmed) { type = "empty"; dialogue = false; activeCharacter = ""; if (titleFieldSeen) titlePage = false; titleContinuation = false; }
+    else if (!trimmed) { type = "empty"; dialogue = false; if (titleFieldSeen) titlePage = false; titleContinuation = false; }
     else if (titlePage && /^[A-Za-z][A-Za-z ]+:/.test(raw) && TITLE_KEYS.has(raw.slice(0, raw.indexOf(":" )).trim().toLowerCase())) {
       const separator = raw.indexOf(":");
       prefix = raw.slice(0, separator + 1);
@@ -302,15 +300,14 @@ function classifyLines(text) {
       else if (/^~/.test(trimmed)) { type = "lyric"; display = raw.replace(/^\s*~/, ""); }
       else if (/^={3,}$/.test(trimmed)) type = "page-break";
       else if (isScene(trimmed)) { type = "scene"; dialogue = false; }
-      else if (isCharacterCue(lines, i)) { type = "character"; display = trimmed.replace(/^@/, "").replace(/\^$/, ""); dialogue = true; activeCharacter = cleanCharacter(display); }
+      else if (isCharacterCue(lines, i)) { type = "character"; display = trimmed.replace(/^@/, "").replace(/\^$/, ""); dialogue = true; }
       else if (dialogue && /^\(.*\)$/.test(trimmed)) type = "parenthetical";
       else if (dialogue) type = "dialogue";
       else if ((/^>.*<$/.test(trimmed))) { type = "centered"; display = trimmed.slice(1, -1).trim(); }
       else if (/^>/.test(trimmed) || (/^[A-Z0-9 .'-]+TO:$/.test(trimmed))) type = "transition";
       else if (trimmed.startsWith("!")) { type = "action"; display = raw.replace(/^\s*!/, ""); }
     }
-    const character = ["character", "dialogue", "parenthetical"].includes(type) ? activeCharacter : "";
-    result.push({ raw, display, prefix, type, index: i, character });
+    result.push({ raw, display, prefix, type, index: i });
     if (trimmed.includes("*/")) boneyard = false;
   }
   return result;
@@ -370,8 +367,7 @@ function analyzeLocally(text) {
 }
 
 function previewLineHtml(line, sceneLabel = null) {
-  const highlight = characterHighlight(line.character);
-  const className = `script-line ${line.type}${highlight ? " character-highlight" : ""}`;
+  const className = `script-line ${line.type}`;
   let display = line.display;
   if (sceneLabel !== null) {
     const cleanDisplay = line.display.replace(/^\./, "").replace(/\s+#[^#]+#\s*$/, "");
@@ -379,8 +375,7 @@ function previewLineHtml(line, sceneLabel = null) {
   }
   const content = display ? fountainInlineHtml(display) : "<br>";
   const sceneAttr = sceneLabel !== null ? escapeHtml(sceneLabel) : "";
-  const highlightStyle = highlight ? ` style="--character-highlight:${highlight}"` : "";
-  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(line.prefix)}" data-scene-number="${sceneAttr}"${highlightStyle} contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
+  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(line.prefix)}" data-scene-number="${sceneAttr}" contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
 }
 
 function computeSceneLabels(lines) {
@@ -554,22 +549,11 @@ function fountainSyntaxHtml(value) {
   return escapeHtml(value).replace(/(\[\[|\]\]|\/\*|\*\/|\*{1,3}|_(?=\S)|(?<=\S)_|^~)/g, '<span class="fountain-markup">$1</span>');
 }
 
-const CHARACTER_HIGHLIGHT_COLORS = ["#f59e0b", "#10b981", "#3b82f6", "#ec4899", "#8b5cf6", "#ef4444"];
-
-function characterHighlight(name) {
-  if (!name || !state.selectedCharacters.has(name)) return "";
-  let hash = 0;
-  for (const character of name) hash = ((hash << 5) - hash + character.codePointAt(0)) | 0;
-  return CHARACTER_HIGHLIGHT_COLORS[Math.abs(hash) % CHARACTER_HIGHLIGHT_COLORS.length];
-}
-
 function renderSourceSyntax() {
   const classes = { scene: "scene", character: "character", dialogue: "dialogue", parenthetical: "parenthetical", transition: "transition", section: "section", synopsis: "synopsis", note: "note", boneyard: "boneyard", lyric: "lyric", "title-value": "title", "title-value title": "title" };
   $("#source-highlight").innerHTML = classifyLines(source.value).map((line) => {
     const name = classes[line.type];
     const value = fountainSyntaxHtml(line.raw) || " ";
-    const highlight = characterHighlight(line.character);
-    if (highlight) return `<span class="${name ? `syntax-${name} ` : ""}character-highlight" style="--character-highlight:${highlight}">${value}</span>`;
     return name ? `<span class="syntax-${name}">${value}</span>` : value;
   }).join("\n");
 }
@@ -600,17 +584,12 @@ function updateCursor({ scrollPreview = false } = {}) {
 
 function renderInsights(metadata) {
   state.metadata = metadata;
-  const characterNames = new Set(metadata.characters.map((character) => character.name));
-  state.selectedCharacters.forEach((name) => { if (!characterNames.has(name)) state.selectedCharacters.delete(name); });
   $("#stat-pages").textContent = metadata.pageCount ?? "—";
   $("#stat-scenes").textContent = metadata.scenes.length;
   $("#stat-words").textContent = metadata.wordCount.toLocaleString();
   $("#stat-runtime").textContent = formatDuration(metadata.estimatedSeconds);
   $("#character-count").textContent = metadata.characters.length;
-  $("#character-list").innerHTML = metadata.characters.length ? `<div class="table-actions"><button type="button" data-character-analytics>Character Analytics</button><button type="button" data-clear-character-highlights${state.selectedCharacters.size ? "" : " disabled"}>Clear highlights</button></div><ul class="character-select-list">${metadata.characters.map((character) => {
-    const color = characterHighlight(character.name) || CHARACTER_HIGHLIGHT_COLORS[0];
-    return `<li><label><input type="checkbox" data-character="${escapeHtml(character.name)}"${state.selectedCharacters.has(character.name) ? " checked" : ""}><span class="character-swatch" style="--character-highlight:${color}"></span><span>${escapeHtml(character.name)}</span></label></li>`;
-  }).join("")}</ul>` : `<div class="empty-list">Characters appear as dialogue is written.</div>`;
+  $("#character-list").innerHTML = metadata.characters.length ? `<div class="table-actions"><button type="button" data-character-analytics>Character Analytics</button></div><ul class="character-name-list">${metadata.characters.map((character) => `<li><button type="button" data-line="${character.lastLine}">${escapeHtml(character.name)}</button></li>`).join("")}</ul>` : `<div class="empty-list">Characters appear as dialogue is written.</div>`;
   $("#scene-count").textContent = metadata.scenes.length;
   $("#scene-list").innerHTML = metadata.scenes.length ? metadata.scenes.map((scene) => `<li><span class="scene-num">${escapeHtml(scene.number)}</span><button type="button" data-line="${scene.line}">${escapeHtml(scene.heading)}</button></li>`).join("") : `<li class="empty-list">No scene headings yet.</li>`;
   $("#location-count").textContent = metadata.locations.length;
@@ -1319,17 +1298,7 @@ $("#preview-completion-menu").addEventListener("mousedown", (event) => { const i
 $("#completion-menu").addEventListener("mousedown", (event) => { const item = event.target.closest(".completion-item"); if (item) { event.preventDefault(); acceptCompletion(Number(item.dataset.index)); } });
 $("#character-list").addEventListener("click", async (event) => {
   if (event.target.closest("[data-character-analytics]")) { openCharacterAnalytics(); return; }
-  if (event.target.closest("[data-clear-character-highlights]")) {
-    state.selectedCharacters.clear();
-    renderInsights(state.metadata); renderEditorChrome(); renderPreview();
-  }
-});
-$("#character-list").addEventListener("change", (event) => {
-  const checkbox = event.target.closest("input[data-character]");
-  if (!checkbox) return;
-  if (checkbox.checked) state.selectedCharacters.add(checkbox.dataset.character);
-  else state.selectedCharacters.delete(checkbox.dataset.character);
-  renderInsights(state.metadata); renderEditorChrome(); renderPreview();
+  const button = event.target.closest("button[data-line]"); if (button) jumpToLine(Number(button.dataset.line));
 });
 $("#close-character-analytics").addEventListener("click", () => $("#character-analytics-dialog").close());
 $("#copy-character-lines").addEventListener("click", copyCharacterLineUsage);
