@@ -353,8 +353,8 @@ function renderPreviewLines(lines) {
       if (lines[next]?.type === "character" && lines[next].raw.trim().endsWith("^")) {
         let rightEnd = next + 1;
         while (rightEnd < lines.length && ["dialogue", "parenthetical"].includes(lines[rightEnd].type)) rightEnd += 1;
-        const left = lines.slice(i, next).filter((line) => line.type !== "empty").map(previewLineHtml).join("");
-        const right = lines.slice(next, rightEnd).map(previewLineHtml).join("");
+        const left = lines.slice(i, next).filter((line) => line.type !== "empty").map((line) => previewLineHtml(line)).join("");
+        const right = lines.slice(next, rightEnd).map((line) => previewLineHtml(line)).join("");
         output.push(`<div class="dual-dialog"><div class="dual-left">${left}</div><div class="dual-right">${right}</div></div>`);
         i = rightEnd - 1;
         continue;

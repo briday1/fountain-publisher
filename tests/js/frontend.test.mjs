@@ -200,6 +200,7 @@ test("dual dialogue renders concurrently in the live screenplay", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(app, /raw\.trim\(\)\.endsWith\("\^"\)/);
   assert.match(app, /class="dual-dialog"/);
+  assert.doesNotMatch(app, /\.map\(previewLineHtml\)/);
   assert.match(css, /\.dual-dialog\s*\{[^}]*grid-template-columns:\s*1fr 1fr;/s);
   assert.match(html, /JANE \^/);
   assert.match(html, /Windows \/ Linux/);
