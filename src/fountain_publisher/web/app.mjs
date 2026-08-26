@@ -196,12 +196,7 @@ A promise.
 >**END**<
 `;
 
-const BLANK_TEMPLATE = `Title:
-Credit: Written by
-Author:
-Draft date:
-
-`;
+const BLANK_TEMPLATE = ``;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
