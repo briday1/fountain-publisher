@@ -70,6 +70,7 @@ test("source and preview share syntax, cursor, and character completion behavior
   assert.match(html, /id="preview-completion-menu"/);
   assert.match(app, /function renderSourceSyntax\(/);
   assert.match(app, /showPreviewCharacterCompletions\(line\)/);
+  assert.match(app, /const explicitCharacter = text\.startsWith\("@"\)/);
   assert.match(app, /\.classList\.add\("source-current"\)/);
   assert.match(css, /\.syntax-character/);
   assert.match(css, /\.script-line\.source-current/);
@@ -90,12 +91,16 @@ test("preview edits keep the source cursor on the edited line", async () => {
 });
 
 test("source completions wait for typing on a new line and support explicit character lookup", async () => {
-  const app = await readFile(appPath, "utf8");
+  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(app, /event\.key === "Enter"\) hideCompletions\(\)/);
   assert.match(app, /event\.inputType === "insertText"\) showCompletions\(\)/);
   assert.match(app, /if \(!allowBlank && !currentText\) return hideCompletions\(\)/);
   assert.match(app, /const explicitCharacter = trimmed\.startsWith\("@"\)/);
-  assert.match(app, /explicitCharacter \? trimmed\.slice\(1\) : trimmed/);
+  assert.match(app, /state\.metadata\.characters\.some\(\(character\) => character\.name\.startsWith\(characterFragment\)\)/);
+  assert.match(app, /function positionSourceCompletion\(\)/);
+  assert.match(app, /marker\.getBoundingClientRect\(\)/);
+  assert.match(app, /current\.match\(\/@\?\[A-Za-z0-9\._'-\]\*\$\/\)/);
+  assert.match(css, /#completion-menu\s*\{[^}]*position:\s*fixed;/s);
 });
 
 test("spellcheck exposes native replacement suggestions", async () => {

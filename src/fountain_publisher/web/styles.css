@@ -185,6 +185,7 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 #source, .line-numbers { position: relative; z-index: 1; }
 #source { z-index: 2; }
 .completion-menu { position: absolute; z-index: 10; left: 55px; bottom: 12px; min-width: 240px; max-width: calc(100% - 70px); max-height: 245px; overflow: auto; padding: 5px; border: 1px solid var(--border); background: var(--surface); border-radius: 6px; box-shadow: var(--shadow); }
+#completion-menu { position: fixed; right: auto; bottom: auto; width: min(310px, calc(100% - 16px)); }
 .completion-item { width: 100%; display: grid; grid-template-columns: 22px 1fr auto; gap: 7px; align-items: center; border: 0; border-radius: 4px; padding: 6px 8px; background: transparent; text-align: left; }
 .completion-item.selected { background: var(--accent-soft); }
 .completion-icon { color: var(--accent); font: 700 11px var(--mono); }

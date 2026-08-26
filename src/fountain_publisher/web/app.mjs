@@ -473,8 +473,10 @@ function hidePreviewCompletions() {
 }
 
 function showPreviewCharacterCompletions(element) {
-  const fragment = element.textContent.trim().toUpperCase();
-  if (!/^[A-Z][A-Z0-9 ._'-]*$/.test(fragment)) return hidePreviewCompletions();
+  const text = element.textContent.trim().toUpperCase();
+  const explicitCharacter = text.startsWith("@");
+  const fragment = explicitCharacter ? text.slice(1) : text;
+  if ((!explicitCharacter && !/^[A-Z][A-Z0-9 ._'-]*$/.test(fragment)) || (explicitCharacter && !/^[A-Z0-9 ._'-]*$/.test(fragment))) return hidePreviewCompletions();
   state.previewCompletionItems = state.metadata.characters.map((character) => character.name)
     .filter((name, itemIndex, names) => name.startsWith(fragment) && name !== fragment && names.indexOf(name) === itemIndex);
   state.previewCompletionIndex = 0;
@@ -868,6 +870,10 @@ function completionCandidates() {
   const previousBlank = line === 0 || !lines[line - 1].trim();
   const items = [];
   const add = (value, detail, icon = "ƒ") => items.push({ value, detail, icon });
+  const characterFragment = (explicitCharacter ? trimmed.slice(1) : trimmed.split(/\s+/).at(-1)).toUpperCase();
+  if (explicitCharacter || (characterFragment && state.metadata.characters.some((character) => character.name.startsWith(characterFragment)))) {
+    state.metadata.characters.forEach((character) => add(character.name, `${character.lines} dialogue lines`, "@"));
+  }
   if (line < 12 && !source.value.slice(0, start).includes("\n\n") && (!trimmed || /^[A-Za-z ]*$/.test(trimmed))) {
     ["Title: ", "Credit: ", "Author: ", "Source: ", "Draft date: ", "Contact: ", "Copyright: ", "Notes: "].filter((key) => !state.metadata.titleFields.some((used) => `${used}:`.toLowerCase() === key.trim().toLowerCase())).forEach((key) => add(key, "Title page", "T"));
   }
@@ -876,7 +882,6 @@ function completionCandidates() {
   } else if (isScene(trimmed) || /^(?:INT|EXT|EST|I\/E)/i.test(trimmed)) {
     state.metadata.locations.forEach((value) => add(value, "Existing location", "⌂"));
   } else if (previousBlank) {
-    state.metadata.characters.forEach((character) => add(character.name, `${character.lines} dialogue lines`, "@"));
     if (!explicitCharacter) {
       ["INT. ", "EXT. ", "INT./EXT. ", "I/E. "].forEach((value) => add(value, "Scene heading", "#"));
       ["FADE IN:", ">CUT TO:", ">FADE OUT."].forEach((value) => add(value, "Transition", "→"));
@@ -899,10 +904,50 @@ function renderCompletionMenu() {
   const menu = $("#completion-menu");
   menu.hidden = false;
   menu.innerHTML = state.completionItems.map((item, index) => `<button class="completion-item ${index === state.completionIndex ? "selected" : ""}" type="button" role="option" aria-selected="${index === state.completionIndex}" data-index="${index}"><span class="completion-icon">${escapeHtml(item.icon)}</span><span>${escapeHtml(item.value)}</span><small>${escapeHtml(item.detail)}</small></button>`).join("");
+  positionSourceCompletion();
   $(".completion-item.selected", menu)?.scrollIntoView({ block: "nearest" });
 }
 
 function hideCompletions() { $("#completion-menu").hidden = true; state.completionItems = []; }
+
+function positionSourceCompletion() {
+  const menu = $("#completion-menu");
+  const sourceRect = source.getBoundingClientRect();
+  const panelRect = $("#source-panel").getBoundingClientRect();
+  const computed = getComputedStyle(source);
+  const mirror = document.createElement("div");
+  const wrapped = document.body.classList.contains("source-wrap");
+  Object.assign(mirror.style, {
+    position: "fixed",
+    visibility: "hidden",
+    pointerEvents: "none",
+    boxSizing: computed.boxSizing,
+    left: `${sourceRect.left - (wrapped ? 0 : source.scrollLeft)}px`,
+    top: `${sourceRect.top - source.scrollTop}px`,
+    width: `${wrapped ? sourceRect.width : Math.max(source.scrollWidth, sourceRect.width)}px`,
+    padding: computed.padding,
+    border: computed.border,
+    font: computed.font,
+    letterSpacing: computed.letterSpacing,
+    lineHeight: computed.lineHeight,
+    whiteSpace: wrapped ? "pre-wrap" : "pre",
+    overflowWrap: wrapped ? "anywhere" : "normal",
+    tabSize: computed.tabSize,
+  });
+  mirror.append(document.createTextNode(source.value.slice(0, source.selectionStart)));
+  const marker = document.createElement("span");
+  marker.textContent = "\u200b";
+  mirror.append(marker);
+  document.body.append(mirror);
+  const caret = marker.getBoundingClientRect();
+  mirror.remove();
+  const width = Math.min(310, panelRect.width - 16);
+  const left = Math.max(panelRect.left + 8, Math.min(panelRect.right - width - 8, caret.left));
+  const menuHeight = Math.min(menu.scrollHeight, 245);
+  const below = caret.bottom + 5;
+  const top = below + menuHeight <= panelRect.bottom - 8 ? below : Math.max(panelRect.top + 8, caret.top - menuHeight - 5);
+  menu.style.left = `${left}px`; menu.style.top = `${top}px`; menu.style.right = "auto"; menu.style.bottom = "auto";
+}
 
 function acceptCompletion(index = state.completionIndex) {
   const item = state.completionItems[index]; if (!item) return;
@@ -910,7 +955,10 @@ function acceptCompletion(index = state.completionIndex) {
   const before = source.value.slice(0, source.selectionStart);
   const current = before.slice(position.start);
   let replaceStart = position.start;
-  if (/\s-\s/.test(current)) replaceStart = position.start + current.lastIndexOf("-") + 2;
+  if (item.icon === "@") {
+    const token = current.match(/@?[A-Za-z0-9._'-]*$/)?.[0] || "";
+    replaceStart = source.selectionStart - token.length;
+  } else if (/\s-\s/.test(current)) replaceStart = position.start + current.lastIndexOf("-") + 2;
   else if (current.trim()) replaceStart = position.start + current.search(/\S/);
   const suffix = item.icon === "@" ? "\n" : "";
   source.setRangeText(item.value + suffix, replaceStart, source.selectionStart, "end");
