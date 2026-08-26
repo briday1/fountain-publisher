@@ -25,10 +25,11 @@ test("hidden preview layers cannot be displayed by component styles", async () =
   assert.match(css, /\[hidden\]\s*\{\s*display:\s*none\s*!important;/);
 });
 
-test("live compilation cancels stale requests and omits rendered HTML", async () => {
-  const app = await readFile(appPath, "utf8");
+test("live compilation cancels stale requests and HTML export is absent", async () => {
+  const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
   assert.match(app, /compileController\?\.abort\(\)/);
-  assert.match(app, /includeHtml:\s*true/);
+  assert.doesNotMatch(html, /export-html|HTML document/);
+  assert.doesNotMatch(app, /includeHtml:\s*true|compileWithBrowserScreenplain\("html"/);
 });
 
 test("workspace regions keep their grid columns when sidebars collapse", async () => {

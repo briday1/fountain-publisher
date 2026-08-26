@@ -32,7 +32,6 @@
             <span class="menu-separator"></span>
             <strong>PUBLISH</strong>
             <button id="export-pdf" type="button">Export PDF…</button>
-            <button id="export-html" type="button">Export HTML…</button>
             <button id="export-fdx" type="button">Export Final Draft…</button>
           </div>
         </details>
@@ -162,7 +161,7 @@
       <form method="dialog" id="export-form">
         <div class="dialog-heading"><small>PUBLISH</small><h2>Export screenplay</h2></div>
         <p>Compile the current Fountain source with Screenplain.</p>
-        <label>Format<select id="export-format"><option value="pdf">PDF screenplay</option><option value="html">HTML document</option><option value="fdx">Final Draft FDX</option></select></label>
+        <label>Format<select id="export-format"><option value="pdf">PDF screenplay</option><option value="fdx">Final Draft FDX</option></select></label>
         <label id="dialog-page-size">Paper size<select id="export-page-size"><option value="letter">US Letter</option><option value="a4">A4</option></select></label>
         <div class="dialog-actions"><button value="cancel">Cancel</button><button class="primary" id="confirm-export" value="default">Export</button></div>
       </form>

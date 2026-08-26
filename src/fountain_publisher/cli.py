@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 
 from . import __version__
-from .compiler import CompileOptions, render_fdx, render_html, render_pdf
+from .compiler import CompileOptions, render_fdx, render_pdf
 from .server import serve
 
 
@@ -17,7 +17,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("input", nargs="?", type=Path, help="Fountain file to open or compile.")
     parser.add_argument("-o", "--output", type=Path, help="Output path. Providing it enables headless compilation.")
-    parser.add_argument("--format", choices=("pdf", "html", "fdx"), default="pdf", help="Headless output format (default: pdf).")
+    parser.add_argument("--format", choices=("pdf", "fdx"), default="pdf", help="Headless output format (default: pdf).")
     parser.add_argument("--page-size", choices=("letter", "a4"), default="letter", help="PDF paper size (default: letter).")
     parser.add_argument("--host", default="127.0.0.1", help="Interface to bind (default: 127.0.0.1).")
     parser.add_argument("--port", default=4173, type=int, help="Port to bind; use 0 for any available port.")
@@ -31,10 +31,8 @@ def _compile(input_path: Path, output: Path, output_format: str, page_size: str)
     source = input_path.read_text(encoding="utf-8-sig")
     if output_format == "pdf":
         data = render_pdf(source, CompileOptions(page_size=page_size))
-    elif output_format == "fdx":
-        data = render_fdx(source)
     else:
-        data = render_html(source).encode("utf-8")
+        data = render_fdx(source)
     output.write_bytes(data)
 
 

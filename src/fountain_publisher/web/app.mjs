@@ -772,7 +772,7 @@ await micropip.install(_fp_screenplain_wheel, deps=False)
     pyodide.runPython(`
 import io
 from reportlab.lib.pagesizes import A4, letter
-from screenplain.export import fdx, html, pdf
+from screenplain.export import fdx, pdf
 from screenplain.parsers.fountain import parse
 from screenplain.richstring import plain
 from screenplain.types import Slug
@@ -827,9 +827,7 @@ def _fp_compile(source, kind, page_size):
             text = io.StringIO()
             fdx.to_fdx(screenplay, text)
             return text.getvalue().encode("utf-8")
-    output = io.StringIO()
-    html.convert(screenplay, output, bare=True)
-    return output.getvalue().encode("utf-8")
+    raise ValueError(f"Unsupported export kind: {kind}")
 `);
     $("#compile-status").textContent = "Screenplain ready";
     return pyodide;
@@ -845,7 +843,7 @@ async function compileWithBrowserScreenplain(kind, selectedPageSize) {
   const value = pyodide.runPython("_fp_compile(_fp_source, _fp_kind, _fp_page_size)");
   const bytes = value instanceof Uint8Array ? value : value.toJs();
   value.destroy?.();
-  const types = { pdf: "application/pdf", fdx: "application/xml;charset=utf-8", html: "text/html;charset=utf-8" };
+  const types = { pdf: "application/pdf", fdx: "application/xml;charset=utf-8" };
   return new Blob([bytes], { type: types[kind] });
 }
 
@@ -860,20 +858,9 @@ async function requestBinary(path, selectedPageSize = $("#page-size").value) {
 async function exportDocument(format) {
   $("#confirm-export").disabled = true;
   try {
-    let blob;
-    if (format === "pdf") blob = await requestBinary("/api/render/pdf", $("#export-page-size").value);
-    else if (format === "fdx") blob = await requestBinary("/api/export/fdx");
-    else if (STATIC_HOST) {
-      const body = await compileWithBrowserScreenplain("html", $("#page-size").value);
-      const rendered = await body.text();
-      const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(state.filename)}</title><style>body{background:#ddd;margin:0;padding:40px;font:12pt Courier,monospace}.screenplay{box-sizing:border-box;width:8.5in;min-height:11in;margin:auto;padding:1in 1in 1in 1.5in;background:white}.dialog{margin-left:1in;width:3.5in}.character{margin-left:1.5in;margin-bottom:0}.parenthetical{margin-left:.5in}.transition{text-align:right}</style></head><body><main class="screenplay">${rendered}</main></body></html>`;
-      blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    } else {
-      const response = await fetch("/api/compile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: source.value, includeHtml: true }) });
-      const result = await response.json(); if (!response.ok) throw new Error(result.error || "Export failed");
-      const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(state.filename)}</title><style>body{background:#ddd;margin:0;padding:40px;font:12pt Courier,monospace}.screenplay{box-sizing:border-box;width:8.5in;min-height:11in;margin:auto;padding:1in 1in 1in 1.5in;background:white}.dialog{margin-left:1in;width:3.5in}.character{margin-left:1.5in;margin-bottom:0}.parenthetical{margin-left:.5in}.transition{text-align:right}h6{font-size:12pt;margin:2em 0 1em}.action{margin:1em 0}.dual{display:flex}.dual>.left,.dual>.right{width:50%}</style></head><body><main class="screenplay">${result.html}</main></body></html>`;
-      blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    }
+    const blob = format === "pdf"
+      ? await requestBinary("/api/render/pdf", $("#export-page-size").value)
+      : await requestBinary("/api/export/fdx");
     download(blob, normalizedFilename(format)); $("#export-dialog").close(); toast(`Exported ${format.toUpperCase()}`);
   } catch (error) { toast(error.message); }
   finally { $("#confirm-export").disabled = false; }
@@ -999,7 +986,7 @@ $("#scene-list").addEventListener("click", (event) => { const button = event.tar
 
 $("#new-file").addEventListener("click", newFile); $("#open-file").addEventListener("click", openFile); $("#save-file").addEventListener("click", () => saveFile(false)); $("#save-file-as").addEventListener("click", () => saveFile(true));
 $("#file-input").addEventListener("change", async (event) => { const file = event.target.files?.[0]; if (file) { state.handle = null; setDocument(await file.text(), file.name, true); } event.target.value = ""; });
-$("#export-pdf").addEventListener("click", () => openExport("pdf")); $("#export-html").addEventListener("click", () => openExport("html")); $("#export-fdx").addEventListener("click", () => openExport("fdx"));
+$("#export-pdf").addEventListener("click", () => openExport("pdf")); $("#export-fdx").addEventListener("click", () => openExport("fdx"));
 $("#export-format").addEventListener("change", (event) => { $("#dialog-page-size").hidden = event.target.value !== "pdf"; });
 $("#export-form").addEventListener("submit", (event) => { if (event.submitter?.value !== "default") return; event.preventDefault(); exportDocument($("#export-format").value); });
 $("#theme").addEventListener("click", cycleTheme); $("#spellcheck").addEventListener("change", () => {

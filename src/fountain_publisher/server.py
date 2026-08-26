@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import quote, urlsplit
 
 from . import __version__
-from .compiler import CompileOptions, analyze_source, count_pdf_pages, render_fdx, render_html, render_pdf
+from .compiler import CompileOptions, analyze_source, count_pdf_pages, render_fdx, render_pdf
 
 STATIC_ROOT = Path(__file__).resolve().with_name("web")
 MAX_REQUEST_BYTES = 8 * 1024 * 1024
@@ -54,10 +54,6 @@ class FountainRequestHandler(SimpleHTTPRequestHandler):
             payload = analyze_source(source)
             physical_pages = count_pdf_pages(render_pdf(source, options))
             payload["pageCount"] = max(0, physical_pages - (1 if payload["titleFields"] else 0))
-            # The live editor only needs statistics. Rendering and returning a second,
-            # full copy of the screenplay on every keystroke wastes substantial memory.
-            if body.get("includeHtml") is True:
-                payload["html"] = render_html(source)
             return self._send_json(payload)
         except (ValueError, RuntimeError, UnicodeError) as error:
             self._send_json({"error": str(error)}, status=400)

@@ -33,7 +33,6 @@ Providing `--output` enables headless compilation:
 
 ```shell
 fountain-publisher screenplay.fountain --output screenplay.pdf
-fountain-publisher screenplay.fountain --format html --output screenplay.html
 fountain-publisher screenplay.fountain --format fdx --output screenplay.fdx
 fountain-publisher screenplay.fountain --page-size a4 --output screenplay.pdf
 ```
