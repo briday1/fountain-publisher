@@ -15,7 +15,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test-compile:
+    uses: ./.github/workflows/test-compile.yml
+
   deploy:
+    needs: [test-compile]
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
