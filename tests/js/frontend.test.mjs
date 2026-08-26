@@ -344,13 +344,17 @@ test("source word wrap defaults on and preserves logical line numbers", async ()
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="word-wrap"[^>]*checked/);
   assert.match(app, /source\.setAttribute\("wrap", enabled \? "soft" : "off"\)/);
-  assert.match(app, /getClientRects\(\)\.length/);
-  assert.match(app, /class="line-number" style="--source-rows:/);
+  assert.match(app, /const firstRect = sourceLine\?\.getClientRects\(\)\[0\]/);
+  assert.match(app, /firstRect\.top - highlightRect\.top \+ highlight\.scrollTop/);
+  assert.match(app, /class="line-number" style="top:/);
+  assert.match(app, /gutter\.scrollTop = source\.scrollTop/);
   assert.match(app, /const newline = index < lines\.length - 1 \? "\\n" : "";/);
   assert.match(app, />\$\{value\}\$\{newline\}<\/span>`;\s*\}\)\.join\(""\)/);
   assert.match(app, /variable === "--source-w"\) renderEditorChrome\(\)/);
   assert.match(css, /body\.source-wrap #source/);
-  assert.match(css, /\.line-number\s*\{[^}]*height:\s*calc\(var\(--source-rows\) \* 1\.55em\)/s);
+  assert.match(css, /\.line-number\s*\{[^}]*position:\s*absolute;[^}]*right:\s*9px;/s);
+  assert.match(css, /\.line-number-spacer\s*\{[^}]*visibility:\s*hidden;/s);
+  assert.doesNotMatch(app, /function sourceVisualRows|function sourceWrapColumns/);
 });
 
 test("shared undo and redo work from source and screenplay focus", async () => {
@@ -457,9 +461,10 @@ test("mobile Insights layout has responsive wrapping rules", async () => {
 
 test("line numbers are correct before the source panel is interacted with", async () => {
   const app = await readFile(appPath, "utf8");
-  // sourceWrapColumns must bail out (return Infinity) when clientWidth is 0
-  // so line numbers don't go sparse on hidden panels (mobile or any init state)
-  assert.match(app, /function sourceWrapColumns[\s\S]*?if \(!source\.clientWidth\) return Infinity;/);
+  // Numbers come from rendered line positions, so hidden panels cannot create
+  // bogus character-count estimates before their real width is available.
+  assert.match(app, /function renderLineNumbers[\s\S]*?sourceLine\?\.getClientRects\(\)\[0\]/);
+  assert.doesNotMatch(app, /sourceWrapColumns|fontSize \* 0\.61/);
   // setMobileTab must re-render editor chrome when switching to source tab
   assert.match(app, /function setMobileTab[\s\S]*?if \(panel === "source"\) renderEditorChrome\(\);/);
 });

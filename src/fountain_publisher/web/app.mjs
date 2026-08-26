@@ -808,24 +808,19 @@ function renderEditorChrome() {
   updateCursor();
 }
 
-function sourceWrapColumns() {
-  if (!document.body.classList.contains("source-wrap")) return Infinity;
-  if (!source.clientWidth) return Infinity;
-  const width = Math.max(1, source.clientWidth - 32);
-  const fontSize = parseFloat(getComputedStyle(source).fontSize) || 13;
-  return Math.max(1, Math.floor(width / (fontSize * 0.61)));
-}
-
-function sourceVisualRows(line, columns = sourceWrapColumns()) {
-  if (!Number.isFinite(columns)) return 1;
-  return Math.max(1, Math.ceil(line.replaceAll("\t", "    ").length / columns));
-}
-
 function renderLineNumbers() {
-  $("#line-numbers").innerHTML = source.value.split("\n").map((line, index) => {
-    const renderedRows = $(`[data-source-line="${index}"]`, $("#source-highlight"))?.getClientRects().length;
-    return `<span class="line-number" style="--source-rows:${renderedRows || 1}">${index + 1}</span>`;
+  const gutter = $("#line-numbers");
+  const highlight = $("#source-highlight");
+  const highlightRect = highlight.getBoundingClientRect();
+  const numbers = source.value.split("\n").map((line, index) => {
+    const sourceLine = $(`[data-source-line="${index}"]`, highlight);
+    const firstRect = sourceLine?.getClientRects()[0];
+    const top = firstRect ? firstRect.top - highlightRect.top + highlight.scrollTop : 0;
+    return `<span class="line-number" style="top:${Math.max(0, top)}px">${index + 1}</span>`;
   }).join("");
+  const scrollHeight = Math.max(source.scrollHeight, highlight.scrollHeight);
+  gutter.innerHTML = `${numbers}<span class="line-number-spacer" style="height:${scrollHeight}px"></span>`;
+  gutter.scrollTop = source.scrollTop;
 }
 
 function fountainSyntaxHtml(value) {
@@ -1635,9 +1630,11 @@ function jumpToLine(oneBased, focus = true) {
   const lines = source.value.split("\n"); let offset = 0; for (let i = 0; i < Math.max(0, oneBased - 1); i += 1) offset += lines[i].length + 1;
   if (focus) source.focus();
   source.setSelectionRange(offset, offset + (lines[oneBased - 1]?.length || 0)); updateCursor({ scrollPreview: true, scrollBlock: "center" });
-  const lineHeight = parseFloat(getComputedStyle(source).lineHeight) || 20.15;
-  const visualRows = lines.slice(0, oneBased - 1).reduce((total, line) => total + sourceVisualRows(line), 0);
-  source.scrollTop = Math.max(0, visualRows * lineHeight - source.clientHeight / 2);
+  const highlight = $("#source-highlight");
+  const sourceLine = $(`[data-source-line="${Math.max(0, oneBased - 1)}"]`, highlight);
+  const firstRect = sourceLine?.getClientRects()[0];
+  const lineTop = firstRect ? firstRect.top - highlight.getBoundingClientRect().top + highlight.scrollTop : 0;
+  source.scrollTop = Math.max(0, lineTop - source.clientHeight / 2);
   $("#line-numbers").scrollTop = source.scrollTop; $("#source-highlight").scrollTop = source.scrollTop; updateCursor({ scrollPreview: true, scrollBlock: "center" });
 }
 

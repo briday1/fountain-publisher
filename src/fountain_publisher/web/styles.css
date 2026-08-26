@@ -178,7 +178,8 @@ body.source-collapsed.stats-collapsed #workspace { grid-template-columns: 0 22px
 
 .editor-shell { flex: 1; min-height: 0; position: relative; display: grid; grid-template-columns: 43px 1fr; overflow: hidden; background: var(--source-bg); }
 .line-numbers { grid-column: 1; overflow: hidden; padding: 14px 9px 90px 0; text-align: right; color: var(--source-muted); background: var(--source-gutter-bg); border-right: 1px solid var(--border); font: 13px/1.55 var(--mono); user-select: none; }
-.line-number { display: block; height: calc(var(--source-rows) * 1.55em); }
+.line-number { position: absolute; right: 9px; display: block; height: 1.55em; line-height: 1.55; }
+.line-number-spacer { display: block; width: 1px; visibility: hidden; pointer-events: none; }
 #source { grid-column: 2; grid-row: 1; width: 100%; height: 100%; resize: none; border: 0; outline: 0; padding: 14px 16px 90px; margin: 0; background: transparent; white-space: pre; overflow: auto; tab-size: 4; font: 13px/1.55 var(--mono); caret-color: var(--syntax-scene); }
 .source-highlight { grid-column: 2; grid-row: 1; width: 100%; height: 100%; overflow: hidden; padding: 14px 16px 90px; margin: 0; white-space: pre; tab-size: 4; color: var(--source-ink); font: 13px/1.55 var(--mono); pointer-events: none; }
 body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-wrap; overflow-wrap: anywhere; }
