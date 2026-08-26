@@ -328,3 +328,36 @@ test("browser Screenplain compile handles missing style attributes defensively",
   // handle_pageBegin uses getattr for font_settings
   assert.match(app, /getattr\(_font_settings,\s*"family_name",\s*"Courier"\)/);
 });
+
+test("mobile PDF export uses navigator.share when files can be shared", async () => {
+  const app = await readFile(appPath, "utf8");
+  // download must be async
+  assert.match(app, /async function download\(/);
+  // must check canShare and call share with a File
+  assert.match(app, /navigator\.canShare/);
+  assert.match(app, /navigator\.share\(\s*\{[^}]*files/s);
+  // must await download in exportDocument so AbortError from share dismissal is handled
+  assert.match(app, /await download\(blob,/);
+});
+
+test("mobile page count is preserved across source edits", async () => {
+  const app = await readFile(appPath, "utf8");
+  // analyzeLocally must carry the current pageCount from state so it survives re-renders
+  assert.match(app, /pageCount:\s*state\.metadata\?\.pageCount \?\? null/);
+});
+
+test("mobile toolbar compresses the about menu and fixes popover visibility", async () => {
+  const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
+  // HTML: about-menu text wrapped in a class so it can be hidden on mobile
+  assert.match(html, /class="about-label"/);
+  // HTML: toolbar menus have individual classes
+  assert.match(html, /class="toolbar-menu file-menu"/);
+  assert.match(html, /class="toolbar-menu view-menu"/);
+  assert.match(html, /class="toolbar-menu help-menu"/);
+  // CSS: view-menu and help-menu are hidden on mobile
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.view-menu,\s*\.help-menu\s*\{\s*display:\s*none;/s);
+  // CSS: popovers use position:fixed on mobile so they are always in-viewport
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.toolbar-popover\s*\{[^}]*position:\s*fixed;/s);
+  // CSS: about label is hidden on mobile
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.about-label\s*\{\s*display:\s*none;/s);
+});
