@@ -259,14 +259,10 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .insight-section > summary::before { content: "›"; margin-right: 7px; color: var(--muted); transition: transform .12s; }
 .insight-section[open] > summary::before { transform: rotate(90deg); }
 .insight-section > summary small { margin-left: auto; padding: 1px 7px; border-radius: 10px; background: var(--surface-2); color: var(--muted); }
-.character-list, .scene-list, .location-list { margin: 0; padding: 0 10px 11px; list-style: none; }
-.character-list { user-select: text; }
-.table-actions { display: flex; justify-content: center; padding: 3px 5px 5px; }
-.table-actions button { width: 100%; border: 1px solid var(--border); border-radius: 4px; padding: 5px 7px; background: var(--surface); color: var(--muted); font-size: 9px; text-align: center; user-select: none; }
-.table-actions button:hover { color: var(--ink); background: var(--surface-2); }
-.character-name-list { margin: 0; padding: 0 5px; list-style: none; }
-.character-name-list li { padding: 7px 2px; border-top: 1px solid var(--border); }
-.character-name-list button { border: 0; background: transparent; padding: 0; font-size: 10px; font-weight: 700; text-align: left; user-select: text; }
+.scene-list, .location-list { margin: 0; padding: 0 10px 11px; list-style: none; }
+.character-analytics-launch { padding: 10px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.character-analytics-launch button { width: 100%; border: 1px solid var(--border); border-radius: 5px; padding: 7px 10px; background: var(--surface); color: var(--muted); text-align: center; }
+.character-analytics-launch button:hover { color: var(--ink); background: var(--surface-2); }
 .scene-list { counter-reset: scene; }
 .scene-list li { display: grid; grid-template-columns: 29px 1fr; padding: 7px 5px; border-top: 1px solid var(--border); }
 .scene-list li.empty-list { display: block; }
@@ -438,9 +434,6 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
   /* Insights: stack metric grid to a single column on narrow screens */
   .metric-grid { grid-template-columns: 1fr 1fr; }
   .insights-scroll { padding-bottom: 16px; }
-
-  /* Insights: allow character table to scroll horizontally if needed */
-  .character-list { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
   /* Insights: scene list wraps text and avoids column overflow */
   .scene-list button { white-space: normal; word-break: break-word; }
