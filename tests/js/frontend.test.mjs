@@ -176,7 +176,7 @@ test("page totals come from the compiled Screenplain PDF", async () => {
   assert.ok(app.includes('/Type\\s*\\/Page\\b'));
 });
 
-test("preview toolbar, rotating arrows, and character table stay compact", async () => {
+test("preview toolbar, rotating arrows, and character list stay compact", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.doesNotMatch(html, /id="page-estimate"/);
   assert.doesNotMatch(html, /id="preview-percent"/);
@@ -184,7 +184,7 @@ test("preview toolbar, rotating arrows, and character table stay compact", async
   assert.doesNotMatch(app, /function updatePreviewStatus\(/);
   assert.match(css, /source-collapsed \.source-toggle span\s*\{\s*transform:\s*rotate\(180deg\)/);
   assert.match(css, /stats-collapsed \.stats-toggle span\s*\{\s*transform:\s*rotate\(180deg\)/);
-  assert.match(app, /<table><thead><tr><th>Character<\/th><th>Lines<\/th><th>Duration<\/th>/);
+  assert.match(app, /class="character-select-list"/);
 });
 
 test("document balance heading aligns with other insight labels", async () => {
@@ -218,7 +218,19 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.match(app, /\["Character", "Act", "Scene", "Scene Heading", "Dialogue Lines"\]/);
   assert.match(app, /\.toBlob\(resolve,\s*"image\/png"\)/);
   assert.match(css, /\.analytics-chart-scroll\s*\{[^}]*overflow:\s*auto;/s);
-  assert.match(css, /\.character-list table\s*\{[^}]*user-select:\s*text;/s);
+  assert.match(html, /id="character-line-table"/);
+  assert.match(app, /maxLines === minLines \? 1 : 0\.25 \+ 0\.75/);
+  assert.match(css, /\.analytics-gradient-legend i\s*\{[^}]*linear-gradient/s);
+});
+
+test("characters can highlight their source and preview lines until cleared", async () => {
+  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(app, /selectedCharacters:\s*new Set\(\)/);
+  assert.match(app, /data-clear-character-highlights/);
+  assert.match(app, /data-character="\$\{escapeHtml\(character\.name\)\}"/);
+  assert.match(app, /script-line \$\{line\.type\}\$\{highlight \? " character-highlight"/);
+  assert.match(css, /\.source-highlight \.character-highlight/);
+  assert.match(css, /\.script-line\.character-highlight/);
 });
 
 test("source word wrap defaults on and preserves logical line numbers", async () => {

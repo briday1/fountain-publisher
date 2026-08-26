@@ -225,6 +225,7 @@ const state = {
   previewMode: "live",
   pdfUrl: null,
   insightLine: null,
+  selectedCharacters: new Set(),
   history: [],
   historyIndex: -1,
   theme: localStorage.getItem("fountain-publisher.theme") || "system",
@@ -270,6 +271,7 @@ function classifyLines(text) {
   let titleFieldSeen = false;
   let titleContinuation = false;
   let dialogue = false;
+  let activeCharacter = "";
   let boneyard = false;
   for (let i = 0; i < lines.length; i += 1) {
     const raw = lines[i];
@@ -279,7 +281,7 @@ function classifyLines(text) {
     let prefix = "";
     if (trimmed.includes("/*")) boneyard = true;
     if (boneyard) type = "boneyard";
-    else if (!trimmed) { type = "empty"; dialogue = false; if (titleFieldSeen) titlePage = false; titleContinuation = false; }
+    else if (!trimmed) { type = "empty"; dialogue = false; activeCharacter = ""; if (titleFieldSeen) titlePage = false; titleContinuation = false; }
     else if (titlePage && /^[A-Za-z][A-Za-z ]+:/.test(raw) && TITLE_KEYS.has(raw.slice(0, raw.indexOf(":" )).trim().toLowerCase())) {
       const separator = raw.indexOf(":");
       prefix = raw.slice(0, separator + 1);
@@ -300,14 +302,15 @@ function classifyLines(text) {
       else if (/^~/.test(trimmed)) { type = "lyric"; display = raw.replace(/^\s*~/, ""); }
       else if (/^={3,}$/.test(trimmed)) type = "page-break";
       else if (isScene(trimmed)) { type = "scene"; dialogue = false; }
-      else if (isCharacterCue(lines, i)) { type = "character"; display = trimmed.replace(/^@/, "").replace(/\^$/, ""); dialogue = true; }
+      else if (isCharacterCue(lines, i)) { type = "character"; display = trimmed.replace(/^@/, "").replace(/\^$/, ""); dialogue = true; activeCharacter = cleanCharacter(display); }
       else if (dialogue && /^\(.*\)$/.test(trimmed)) type = "parenthetical";
       else if (dialogue) type = "dialogue";
       else if ((/^>.*<$/.test(trimmed))) { type = "centered"; display = trimmed.slice(1, -1).trim(); }
       else if (/^>/.test(trimmed) || (/^[A-Z0-9 .'-]+TO:$/.test(trimmed))) type = "transition";
       else if (trimmed.startsWith("!")) { type = "action"; display = raw.replace(/^\s*!/, ""); }
     }
-    result.push({ raw, display, prefix, type, index: i });
+    const character = ["character", "dialogue", "parenthetical"].includes(type) ? activeCharacter : "";
+    result.push({ raw, display, prefix, type, index: i, character });
     if (trimmed.includes("*/")) boneyard = false;
   }
   return result;
@@ -367,7 +370,8 @@ function analyzeLocally(text) {
 }
 
 function previewLineHtml(line, sceneLabel = null) {
-  const className = `script-line ${line.type}`;
+  const highlight = characterHighlight(line.character);
+  const className = `script-line ${line.type}${highlight ? " character-highlight" : ""}`;
   let display = line.display;
   if (sceneLabel !== null) {
     const cleanDisplay = line.display.replace(/^\./, "").replace(/\s+#[^#]+#\s*$/, "");
@@ -375,7 +379,8 @@ function previewLineHtml(line, sceneLabel = null) {
   }
   const content = display ? fountainInlineHtml(display) : "<br>";
   const sceneAttr = sceneLabel !== null ? escapeHtml(sceneLabel) : "";
-  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(line.prefix)}" data-scene-number="${sceneAttr}" contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
+  const highlightStyle = highlight ? ` style="--character-highlight:${highlight}"` : "";
+  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(line.prefix)}" data-scene-number="${sceneAttr}"${highlightStyle} contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
 }
 
 function computeSceneLabels(lines) {
@@ -549,11 +554,22 @@ function fountainSyntaxHtml(value) {
   return escapeHtml(value).replace(/(\[\[|\]\]|\/\*|\*\/|\*{1,3}|_(?=\S)|(?<=\S)_|^~)/g, '<span class="fountain-markup">$1</span>');
 }
 
+const CHARACTER_HIGHLIGHT_COLORS = ["#f59e0b", "#10b981", "#3b82f6", "#ec4899", "#8b5cf6", "#ef4444"];
+
+function characterHighlight(name) {
+  if (!name || !state.selectedCharacters.has(name)) return "";
+  let hash = 0;
+  for (const character of name) hash = ((hash << 5) - hash + character.codePointAt(0)) | 0;
+  return CHARACTER_HIGHLIGHT_COLORS[Math.abs(hash) % CHARACTER_HIGHLIGHT_COLORS.length];
+}
+
 function renderSourceSyntax() {
   const classes = { scene: "scene", character: "character", dialogue: "dialogue", parenthetical: "parenthetical", transition: "transition", section: "section", synopsis: "synopsis", note: "note", boneyard: "boneyard", lyric: "lyric", "title-value": "title", "title-value title": "title" };
   $("#source-highlight").innerHTML = classifyLines(source.value).map((line) => {
     const name = classes[line.type];
     const value = fountainSyntaxHtml(line.raw) || " ";
+    const highlight = characterHighlight(line.character);
+    if (highlight) return `<span class="${name ? `syntax-${name} ` : ""}character-highlight" style="--character-highlight:${highlight}">${value}</span>`;
     return name ? `<span class="syntax-${name}">${value}</span>` : value;
   }).join("\n");
 }
@@ -584,12 +600,17 @@ function updateCursor({ scrollPreview = false } = {}) {
 
 function renderInsights(metadata) {
   state.metadata = metadata;
+  const characterNames = new Set(metadata.characters.map((character) => character.name));
+  state.selectedCharacters.forEach((name) => { if (!characterNames.has(name)) state.selectedCharacters.delete(name); });
   $("#stat-pages").textContent = metadata.pageCount ?? "—";
   $("#stat-scenes").textContent = metadata.scenes.length;
   $("#stat-words").textContent = metadata.wordCount.toLocaleString();
   $("#stat-runtime").textContent = formatDuration(metadata.estimatedSeconds);
   $("#character-count").textContent = metadata.characters.length;
-  $("#character-list").innerHTML = metadata.characters.length ? `<div class="table-actions"><button type="button" data-character-analytics>Character Analytics</button></div><table><thead><tr><th>Character</th><th>Lines</th><th>Duration</th></tr></thead><tbody>${metadata.characters.map((character) => `<tr><td><button type="button" data-line="${character.lastLine}">${escapeHtml(character.name)}</button></td><td>${character.lines}</td><td>${formatDuration(character.seconds)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty-list">Character statistics appear as dialogue is written.</div>`;
+  $("#character-list").innerHTML = metadata.characters.length ? `<div class="table-actions"><button type="button" data-character-analytics>Character Analytics</button><button type="button" data-clear-character-highlights${state.selectedCharacters.size ? "" : " disabled"}>Clear highlights</button></div><ul class="character-select-list">${metadata.characters.map((character) => {
+    const color = characterHighlight(character.name) || CHARACTER_HIGHLIGHT_COLORS[0];
+    return `<li><label><input type="checkbox" data-character="${escapeHtml(character.name)}"${state.selectedCharacters.has(character.name) ? " checked" : ""}><span class="character-swatch" style="--character-highlight:${color}"></span><span>${escapeHtml(character.name)}</span></label></li>`;
+  }).join("")}</ul>` : `<div class="empty-list">Characters appear as dialogue is written.</div>`;
   $("#scene-count").textContent = metadata.scenes.length;
   $("#scene-list").innerHTML = metadata.scenes.length ? metadata.scenes.map((scene) => `<li><span class="scene-num">${escapeHtml(scene.number)}</span><button type="button" data-line="${scene.line}">${escapeHtml(scene.heading)}</button></li>`).join("") : `<li class="empty-list">No scene headings yet.</li>`;
   $("#location-count").textContent = metadata.locations.length;
@@ -645,6 +666,13 @@ function renderCharacterAnalytics() {
   const muted = canvasColor("--muted", "#6b7280");
   const border = canvasColor("--border", "#d7d9dd");
   const accent = canvasColor("--accent", "#4c6fff");
+  const lineCounts = characters.flatMap((character) => (character.sceneLines || []).map((item) => item.lines)).filter((lines) => lines > 0);
+  const minLines = lineCounts.length ? Math.min(...lineCounts) : 0;
+  const maxLines = lineCounts.length ? Math.max(...lineCounts) : 0;
+  const legend = $("#character-analytics-legend");
+  legend.hidden = !lineCounts.length;
+  $("#character-analytics-min").textContent = `${minLines} ${minLines === 1 ? "line" : "lines"}`;
+  $("#character-analytics-max").textContent = `${maxLines} ${maxLines === 1 ? "line" : "lines"}`;
   context.fillStyle = surface;
   context.fillRect(0, 0, width, height);
   context.strokeStyle = border;
@@ -699,9 +727,13 @@ function renderCharacterAnalytics() {
       const lineCount = usage.get(index + 1) || 0;
       if (!lineCount) return;
       const x = labelWidth + index * sceneWidth + 4;
+      const intensity = maxLines === minLines ? 1 : 0.25 + 0.75 * ((lineCount - minLines) / (maxLines - minLines));
+      context.save();
+      context.globalAlpha = intensity;
       context.fillStyle = accent;
       context.fillRect(x, y + 7, sceneWidth - 8, rowHeight - 14);
-      context.fillStyle = "#fff";
+      context.restore();
+      context.fillStyle = intensity >= 0.6 ? "#fff" : ink;
       context.textAlign = "center";
       context.fillText(String(lineCount), x + (sceneWidth - 8) / 2, y + rowHeight / 2);
     });
@@ -711,7 +743,10 @@ function renderCharacterAnalytics() {
     context.textAlign = "center";
     context.fillText("Add scene headings to build the timeline.", width / 2, actHeight + sceneHeight + rowHeight / 2);
   }
-  canvas.setAttribute("aria-label", `Character dialogue timeline with ${characters.length} characters across ${scenes.length} scenes`);
+  canvas.setAttribute("aria-label", `Character dialogue timeline with ${characters.length} characters across ${scenes.length} scenes; usage ranges from ${minLines} to ${maxLines} dialogue lines`);
+  const table = $("#character-line-table");
+  table.style.width = `${width}px`;
+  table.innerHTML = characters.length ? `<table><thead><tr><th>Character</th><th>Lines</th><th>Duration</th></tr></thead><tbody>${characters.map((character) => `<tr><td>${escapeHtml(character.name)}</td><td>${character.lines}</td><td>${formatDuration(character.seconds)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty-list">Character line counts appear as dialogue is written.</div>`;
 }
 
 function characterLineUsageCsv() {
@@ -1281,7 +1316,17 @@ $("#preview-completion-menu").addEventListener("mousedown", (event) => { const i
 $("#completion-menu").addEventListener("mousedown", (event) => { const item = event.target.closest(".completion-item"); if (item) { event.preventDefault(); acceptCompletion(Number(item.dataset.index)); } });
 $("#character-list").addEventListener("click", async (event) => {
   if (event.target.closest("[data-character-analytics]")) { openCharacterAnalytics(); return; }
-  const button = event.target.closest("button[data-line]"); if (button) jumpToLine(Number(button.dataset.line));
+  if (event.target.closest("[data-clear-character-highlights]")) {
+    state.selectedCharacters.clear();
+    renderInsights(state.metadata); renderEditorChrome(); renderPreview();
+  }
+});
+$("#character-list").addEventListener("change", (event) => {
+  const checkbox = event.target.closest("input[data-character]");
+  if (!checkbox) return;
+  if (checkbox.checked) state.selectedCharacters.add(checkbox.dataset.character);
+  else state.selectedCharacters.delete(checkbox.dataset.character);
+  renderInsights(state.metadata); renderEditorChrome(); renderPreview();
 });
 $("#close-character-analytics").addEventListener("click", () => $("#character-analytics-dialog").close());
 $("#copy-character-lines").addEventListener("click", copyCharacterLineUsage);
