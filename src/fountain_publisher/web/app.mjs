@@ -544,8 +544,7 @@ function updateCursor({ scrollPreview = false } = {}) {
 
 function renderInsights(metadata) {
   state.metadata = metadata;
-  const pages = metadata.pageCount ?? Math.max(metadata.wordCount ? 1 : 0, Math.ceil(metadata.lineCount / 55));
-  $("#stat-pages").textContent = pages;
+  $("#stat-pages").textContent = metadata.pageCount ?? "—";
   $("#stat-scenes").textContent = metadata.scenes.length;
   $("#stat-words").textContent = metadata.wordCount.toLocaleString();
   $("#stat-runtime").textContent = formatDuration(metadata.estimatedSeconds);
@@ -560,7 +559,6 @@ function renderInsights(metadata) {
   $("#dialogue-bar").style.width = `${dialoguePercent}%`;
   $("#dialogue-percent").textContent = `${dialoguePercent}%`;
   $("#action-percent").textContent = `${100 - dialoguePercent}%`;
-  updatePreviewStatus();
 }
 
 function formatDuration(seconds) {
@@ -608,8 +606,9 @@ async function compileStaticPageCount(revision) {
   $("#compile-status").textContent = "Compiling…";
   try {
     const blob = await compileWithBrowserScreenplain("pdf", $("#page-size").value);
-    const pageCount = await countPdfBlobPages(blob);
+    const pageCount = await countPdfBlobPages(blob, Boolean(state.metadata.titleFields.length));
     if (revision !== state.compileRevision) return;
+    state.metadata.pageCount = pageCount;
     $("#stat-pages").textContent = pageCount;
     $("#compile-status").textContent = "Compiled";
   } catch (error) {
@@ -627,7 +626,7 @@ async function compile(revision) {
     const response = await fetch("/api/compile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: source.value, pageSize: $("#page-size").value }), signal: controller.signal });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Compilation failed");
-    if (result.pageCount == null) result.pageCount = await countPdfBlobPages(await requestBinary("/api/render/pdf"));
+    if (result.pageCount == null) result.pageCount = await countPdfBlobPages(await requestBinary("/api/render/pdf"), Boolean(result.titleFields.length));
     if (revision !== state.compileRevision) return;
     renderInsights(result);
     $("#compile-status").textContent = "Compiled";
@@ -641,10 +640,11 @@ async function compile(revision) {
   }
 }
 
-async function countPdfBlobPages(blob) {
+async function countPdfBlobPages(blob, excludeTitlePage = false) {
   const bytes = new Uint8Array(await blob.arrayBuffer());
   const text = new TextDecoder("latin1").decode(bytes);
-  return (text.match(/\/Type\s*\/Page\b/g) || []).length;
+  const physicalPages = (text.match(/\/Type\s*\/Page\b/g) || []).length;
+  return Math.max(0, physicalPages - (excludeTitlePage ? 1 : 0));
 }
 
 function completionCandidates() {
@@ -786,8 +786,15 @@ def _fp_number_scenes(screenplay):
             paragraph.scene_number = None
     return screenplay
 
+def _fp_prepare_screenplay(source):
+    from screenplain.types import PageBreak
+    screenplay = parse(io.StringIO(source))
+    if screenplay.title_page and screenplay.paragraphs and isinstance(screenplay.paragraphs[0], PageBreak):
+        del screenplay.paragraphs[0]
+    return _fp_number_scenes(screenplay)
+
 def _fp_compile(source, kind, page_size):
-    screenplay = _fp_number_scenes(parse(io.StringIO(source)))
+    screenplay = _fp_prepare_screenplay(source)
     if kind == "pdf":
         output = io.BytesIO()
         settings = pdf.Settings(page_size=A4 if page_size == "a4" else letter, strong_slugs=False)
@@ -802,7 +809,14 @@ def _fp_compile(source, kind, page_size):
         settings.title_style.spaceAfter = -settings.line_height
         settings.default_style.spaceAfter = -settings.line_height
         settings.contact_style.spaceAfter = -settings.line_height
-        pdf.to_pdf(screenplay, output, settings=settings)
+        class NumberedDocTemplate(pdf.DocTemplate):
+            def handle_pageBegin(self):
+                self.canv.setFont(self.settings.font_settings.family_name, self.settings.font_size, leading=self.settings.line_height)
+                page = self.page if self.has_title_page else self.page + 1
+                if page >= 1:
+                    self.canv.drawRightString(self.settings.left_margin + self.settings.frame_width, self.settings.page_height - 42, f"{page}.")
+                self._handle_pageBegin()
+        pdf.to_pdf(screenplay, output, template_constructor=NumberedDocTemplate, settings=settings)
         return output.getvalue()
     if kind == "fdx":
         output = io.BytesIO()
@@ -918,15 +932,6 @@ function installResizer(element, variable, side, min, max) {
 function applyZoom() {
   const scale = Number($("#zoom").value) / 100;
   page.style.transform = `scale(${scale})`; page.style.marginBottom = `${1056 * (scale - 1)}px`; page.style.marginRight = `${816 * (scale - 1)}px`;
-  updatePreviewStatus();
-}
-
-function updatePreviewStatus() {
-  const percent = Number($("#zoom").value);
-  const total = Math.max(1, Math.ceil((state.metadata.lineCount || 1) / 55));
-  const pageHeight = 1056 * percent / 100;
-  const current = state.previewMode === "pdf" ? 1 : Math.min(total, Math.max(1, Math.floor($("#preview-scroll").scrollTop / pageHeight) + 1));
-  $("#page-estimate").textContent = `${current}/${total}`;
 }
 
 function jumpToLine(oneBased, focus = true) {
@@ -948,7 +953,6 @@ function closeMenus(except = null) { toolbarMenus.forEach((menu) => { if (menu !
 
 source.addEventListener("input", () => sourceChanged());
 source.addEventListener("scroll", () => { $("#line-numbers").scrollTop = source.scrollTop; $("#source-highlight").scrollTop = source.scrollTop; updateCursor(); });
-$("#preview-scroll").addEventListener("scroll", updatePreviewStatus);
 source.addEventListener("click", () => { updateCursor({ scrollPreview: true }); hideCompletions(); });
 source.addEventListener("keyup", (event) => { if (!["Enter", "Tab", "Escape"].includes(event.key)) updateCursor({ scrollPreview: true }); });
 source.addEventListener("keydown", (event) => {

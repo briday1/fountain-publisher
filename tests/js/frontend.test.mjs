@@ -152,20 +152,21 @@ test("live preview automatically prefixes scene headings", async () => {
 
 test("page totals come from the compiled Screenplain PDF", async () => {
   const app = await readFile(appPath, "utf8");
-  assert.match(app, /metadata\.pageCount \?\?/);
+  assert.match(app, /metadata\.pageCount \?\? "—"/);
   assert.match(app, /function compileStaticPageCount/);
   assert.match(app, /result\.pageCount == null[\s\S]*\/api\/render\/pdf/);
   assert.match(app, /function countPdfBlobPages/);
+  assert.match(app, /physicalPages - \(excludeTitlePage \? 1 : 0\)/);
+  assert.match(app, /_fp_prepare_screenplay[\s\S]*isinstance\(screenplay\.paragraphs\[0\], PageBreak\)/);
   assert.ok(app.includes('/Type\\s*\\/Page\\b'));
 });
 
-test("preview status, rotating arrows, and character table stay compact", async () => {
+test("preview toolbar, rotating arrows, and character table stay compact", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
-  assert.match(html, /id="page-estimate">1\/1/);
+  assert.doesNotMatch(html, /id="page-estimate"/);
   assert.doesNotMatch(html, /id="preview-percent"/);
   assert.doesNotMatch(css, /\.preview-status/);
-  assert.match(app, /function updatePreviewStatus\(/);
-  assert.match(app, /page-estimate"\)\.textContent = `\$\{current\}\/\$\{total\}`/);
+  assert.doesNotMatch(app, /function updatePreviewStatus\(/);
   assert.match(css, /source-collapsed \.source-toggle span\s*\{\s*transform:\s*rotate\(180deg\)/);
   assert.match(css, /stats-collapsed \.stats-toggle span\s*\{\s*transform:\s*rotate\(180deg\)/);
   assert.match(app, /<table><thead><tr><th>Character<\/th><th>Lines<\/th><th>Duration<\/th>/);
@@ -229,6 +230,6 @@ test("GitHub Pages mode runs Screenplain in Pyodide", async () => {
   assert.match(app, /STATIC_HOST = location\.hostname\.endsWith\("\.github\.io"\)/);
   assert.match(app, /function getBrowserScreenplain\(/);
   assert.match(app, /screenplain-0\.12\.0-py3-none-any\.whl/);
-  assert.match(app, /pdf\.to_pdf\(screenplay, output, settings=settings\)/);
+  assert.match(app, /pdf\.to_pdf\(screenplay, output, template_constructor=NumberedDocTemplate, settings=settings\)/);
   assert.match(app, /STATIC_HOST \? compileStaticPageCount\(revision\) : compile\(revision\)/);
 });

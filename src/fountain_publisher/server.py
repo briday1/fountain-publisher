@@ -52,7 +52,8 @@ class FountainRequestHandler(SimpleHTTPRequestHandler):
             if path == "/api/export/fdx":
                 return self._send_bytes(render_fdx(source), "application/xml; charset=utf-8")
             payload = analyze_source(source)
-            payload["pageCount"] = count_pdf_pages(render_pdf(source, options))
+            physical_pages = count_pdf_pages(render_pdf(source, options))
+            payload["pageCount"] = max(0, physical_pages - (1 if payload["titleFields"] else 0))
             # The live editor only needs statistics. Rendering and returning a second,
             # full copy of the screenplay on every keystroke wastes substantial memory.
             if body.get("includeHtml") is True:

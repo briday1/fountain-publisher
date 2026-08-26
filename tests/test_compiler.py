@@ -63,6 +63,10 @@ class ScreenplainIntegrationTests(unittest.TestCase):
     def test_reportlab_pdf_pages_are_counted(self):
         self.assertEqual(2, count_pdf_pages(b"/Type /Pages /Type /Page /Type\n/Page\n"))
 
+    def test_title_page_consumes_one_sheet_without_a_redundant_blank(self):
+        source = "Title: Test\nCredit: Written by\nAuthor: Writer\n\n===\n\nINT. ROOM - DAY\n\nAction.\n"
+        self.assertEqual(2, count_pdf_pages(render_pdf(source)))
+
     def test_fdx_is_final_draft_xml(self):
         fdx = render_fdx(SOURCE)
         self.assertTrue(fdx.startswith(b"<?xml"))
@@ -80,12 +84,13 @@ class ScreenplainIntegrationTests(unittest.TestCase):
             line_height=12,
         )
         fake_pdf.Settings.return_value = settings
-        fake_pdf.to_pdf.side_effect = lambda screenplay, output, settings: output.write(b"%PDF-test")
+        fake_pdf.to_pdf.side_effect = lambda screenplay, output, settings, **kwargs: output.write(b"%PDF-test")
         with mock.patch("fountain_publisher.compiler._screenplain", return_value=(None, None, fake_pdf, None)), \
              mock.patch("fountain_publisher.compiler.parse_screenplay", return_value=object()):
             result = render_pdf(SOURCE, CompileOptions(page_size="a4"))
         self.assertEqual(b"%PDF-test", result)
         fake_pdf.to_pdf.assert_called_once()
+        self.assertIn("template_constructor", fake_pdf.to_pdf.call_args.kwargs)
         self.assertEqual(12, settings.title_style.fontSize)
         self.assertEqual(24, settings.title_style.leading)
         self.assertEqual(24, settings.centered_style.leading)

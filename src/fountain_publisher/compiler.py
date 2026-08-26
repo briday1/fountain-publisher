@@ -36,7 +36,14 @@ def _screenplain() -> tuple[Any, Any, Any, Any]:
 
 def parse_screenplay(source: str) -> Any:
     parse, _, _, _ = _screenplain()
-    return parse(io.StringIO(source))
+    screenplay = parse(io.StringIO(source))
+    try:
+        from screenplain.types import PageBreak
+        if screenplay.title_page and screenplay.paragraphs and isinstance(screenplay.paragraphs[0], PageBreak):
+            del screenplay.paragraphs[0]
+    except ImportError:  # pragma: no cover
+        pass
+    return screenplay
 
 
 def number_screenplay_scenes(screenplay: Any) -> Any:
@@ -100,7 +107,24 @@ def render_pdf(source: str, options: CompileOptions | None = None) -> bytes:
     settings.default_style.spaceAfter = -settings.line_height
     settings.contact_style.spaceAfter = -settings.line_height
     output = io.BytesIO()
-    pdf.to_pdf(screenplay, output, settings=settings)
+    class NumberedDocTemplate(pdf.DocTemplate):
+        def handle_pageBegin(self) -> None:  # noqa: N802 - ReportLab callback name
+            font_settings = getattr(self.settings, "font_settings", None)
+            self.canv.setFont(
+                getattr(font_settings, "family_name", "Courier"),
+                self.settings.font_size,
+                leading=self.settings.line_height,
+            )
+            page = self.page if self.has_title_page else self.page + 1
+            if page >= 1:
+                self.canv.drawRightString(
+                    self.settings.left_margin + self.settings.frame_width,
+                    self.settings.page_height - 42,
+                    f"{page}.",
+                )
+            self._handle_pageBegin()
+
+    pdf.to_pdf(screenplay, output, template_constructor=NumberedDocTemplate, settings=settings)
     return output.getvalue()
 
 

@@ -47,6 +47,10 @@ class ServerTests(unittest.TestCase):
     def test_html_can_be_requested_for_export(self):
         self.assertIn("html", self.compile(includeHtml=True))
 
+    def test_page_count_excludes_title_page(self):
+        payload = self.compile(source="Title: Test\nAuthor: Writer\n\nINT. ROOM - DAY\n\nAction.\n")
+        self.assertEqual(1, payload["pageCount"])
+
 
 if __name__ == "__main__":
     unittest.main()
