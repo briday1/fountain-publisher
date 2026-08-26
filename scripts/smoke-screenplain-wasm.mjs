@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { loadPyodide } from "pyodide";
 
 const pyodide = await loadPyodide();
-await pyodide.loadPackage("micropip");
+await pyodide.loadPackage(new URL("../src/fountain_publisher/web/vendor/micropip-0.11.1-py3-none-any.whl", import.meta.url).href);
 const wheels = [
   "six-1.17.0-py2.py3-none-any.whl",
   "pillow-12.2.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl",

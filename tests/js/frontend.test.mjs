@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
+import { mobileShareFile } from "../../src/fountain_publisher/web/browser-capabilities.mjs";
 
 const appPath = new URL("../../src/fountain_publisher/web/app.mjs", import.meta.url);
 const htmlPath = new URL("../../src/fountain_publisher/web/index.html", import.meta.url);
@@ -330,14 +331,58 @@ test("browser Screenplain compile handles missing style attributes defensively",
 });
 
 test("mobile PDF export uses navigator.share when files can be shared", async () => {
-  const app = await readFile(appPath, "utf8");
+  const [app, capabilities] = await Promise.all([
+    readFile(appPath, "utf8"),
+    readFile(new URL("../../src/fountain_publisher/web/browser-capabilities.mjs", import.meta.url), "utf8"),
+  ]);
   // download must be async
   assert.match(app, /async function download\(/);
   // must check canShare and call share with a File
-  assert.match(app, /navigator\.canShare/);
+  assert.match(capabilities, /navigatorObject\?\.canShare/);
+  assert.match(capabilities, /navigatorObject\.canShare\(\{ files: \[file\] \}\)/);
   assert.match(app, /navigator\.share\(\s*\{[^}]*files/s);
   // must await download in exportDocument so AbortError from share dismissal is handled
   assert.match(app, /await download\(blob,/);
+});
+
+test("desktop downloads never enter the mobile sharing path", () => {
+  let capabilityChecked = false;
+  const result = mobileShareFile(new Blob(["pdf"], { type: "application/pdf" }), "test.pdf", {
+    mobileLayout: false,
+    navigatorObject: {
+      canShare() { capabilityChecked = true; return true; },
+      share() {},
+    },
+    FileConstructor: class {},
+  });
+  assert.equal(result, null);
+  assert.equal(capabilityChecked, false);
+});
+
+test("absent or failing mobile capabilities fall back safely", () => {
+  const blob = new Blob(["pdf"], { type: "application/pdf" });
+  assert.equal(mobileShareFile(blob, "test.pdf", {
+    mobileLayout: true,
+    navigatorObject: {},
+    FileConstructor: class {},
+  }), null);
+  assert.equal(mobileShareFile(blob, "test.pdf", {
+    mobileLayout: true,
+    navigatorObject: {
+      canShare() { throw new Error("unsupported"); },
+      share() {},
+    },
+    FileConstructor: class {
+      constructor() {}
+    },
+  }), null);
+});
+
+test("compiler failures expose actionable desktop and browser errors", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /Desktop compiler unavailable:.*Restart Fountain Publisher/);
+  assert.match(app, /Browser PDF compiler failed:.*Reload the page/);
+  assert.match(app, /Desktop compiler returned an invalid PDF response/);
 });
 
 test("mobile page count is preserved across source edits", async () => {

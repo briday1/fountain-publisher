@@ -1,3 +1,5 @@
+import { mobileShareFile } from "./browser-capabilities.mjs";
+
 const SAMPLE = `Title: The Last Light
 Credit: Written by
 Author: Avery Stone
@@ -626,6 +628,18 @@ function scheduleCompile(delay = 350) {
   state.compileTimer = setTimeout(() => STATIC_HOST ? compileStaticPageCount(revision) : compile(revision), STATIC_HOST ? Math.max(delay, 700) : delay);
 }
 
+function showCompileError(error, browserCompiler = STATIC_HOST) {
+  const detail = error instanceof Error ? error.message : String(error || "Unknown compiler error");
+  const message = browserCompiler
+    ? `Browser PDF compiler failed: ${detail}. Reload the page and try again.`
+    : detail.toLowerCase().includes("fetch")
+      ? `Desktop compiler unavailable: ${detail}. Restart Fountain Publisher and reload the page.`
+      : `Compilation failed: ${detail}`;
+  $("#compile-status").textContent = message;
+  $("#compile-status").title = message;
+  $("#compile-status").classList.add("error");
+}
+
 async function compileStaticPageCount(revision) {
   $("#compile-status").textContent = "Compiling…";
   try {
@@ -637,8 +651,7 @@ async function compileStaticPageCount(revision) {
     $("#compile-status").textContent = "Compiled";
   } catch (error) {
     if (revision !== state.compileRevision) return;
-    $("#compile-status").textContent = "Compile error";
-    $("#compile-status").classList.add("error");
+    showCompileError(error, true);
   }
 }
 
@@ -657,8 +670,7 @@ async function compile(revision) {
   } catch (error) {
     if (error.name === "AbortError") return;
     if (revision !== state.compileRevision) return;
-    $("#compile-status").textContent = error.message.includes("fetch") ? "Server unavailable" : "Compile error";
-    $("#compile-status").classList.add("error");
+    showCompileError(error, false);
   } finally {
     if (state.compileController === controller) state.compileController = null;
   }
@@ -769,11 +781,17 @@ function normalizedFilename(extension) {
 }
 
 async function download(blob, filename) {
-  if (navigator.canShare) {
-    const file = new File([blob], filename, { type: blob.type });
-    if (navigator.canShare({ files: [file] })) {
+  const file = mobileShareFile(blob, filename, {
+    mobileLayout: matchMedia("(max-width: 640px)").matches,
+    navigatorObject: navigator,
+    FileConstructor: globalThis.File,
+  });
+  if (file) {
+    try {
       await navigator.share({ files: [file], title: filename });
       return;
+    } catch (error) {
+      if (error.name === "AbortError") throw error;
     }
   }
   const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = filename; document.body.appendChild(anchor); anchor.click(); document.body.removeChild(anchor); setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -948,7 +966,10 @@ def _fp_compile(source, kind, page_size, scene_numbers="margin", scene_number_fo
 `);
     $("#compile-status").textContent = "Screenplain ready";
     return pyodide;
-  })().catch((error) => { screenplainPromise = null; throw error; });
+  })().catch((error) => {
+    screenplainPromise = null;
+    throw new Error(`Unable to initialize the bundled Screenplain PDF compiler: ${error.message}`, { cause: error });
+  });
   return screenplainPromise;
 }
 
@@ -971,6 +992,7 @@ async function requestBinary(path, selectedPageSize = $("#page-size").value) {
   if (STATIC_HOST && path === "/api/export/fdx") return compileWithBrowserScreenplain("fdx", selectedPageSize);
   const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: source.value, pageSize: selectedPageSize, sceneNumbers: docSettings.sceneNumbers, sceneNumberFormat: docSettings.sceneNumberFormat }) });
   if (!response.ok) { const value = await response.json().catch(() => ({})); throw new Error(value.error || "Export failed"); }
+  if (path === "/api/render/pdf" && !response.headers.get("Content-Type")?.includes("application/pdf")) throw new Error("Desktop compiler returned an invalid PDF response");
   return response.blob();
 }
 
