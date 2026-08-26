@@ -513,6 +513,7 @@ function renderEditorChrome() {
 
 function sourceWrapColumns() {
   if (!document.body.classList.contains("source-wrap")) return Infinity;
+  if (!source.clientWidth) return Infinity;
   const width = Math.max(1, source.clientWidth - 32);
   const fontSize = parseFloat(getComputedStyle(source).fontSize) || 13;
   return Math.max(1, Math.floor(width / (fontSize * 0.61)));
@@ -1190,6 +1191,7 @@ function setMobileTab(panel) {
   $$(".mobile-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.mobilePanel === panel));
   localStorage.setItem("fountain-publisher.mobile-tab", panel);
   if (panel === "preview" && state.previewMode === "pdf") refreshPdf();
+  if (panel === "source") renderEditorChrome();
 }
 
 $$(".mobile-tab").forEach((tab) => tab.addEventListener("click", () => setMobileTab(tab.dataset.mobilePanel)));
