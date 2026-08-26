@@ -2,9 +2,9 @@
 
 A source-first Fountain screenplay studio with a Pugflow-style application shell: collapsible and resizable panels, persistent light/dark themes, native file handling, contextual completion, a directly editable published screenplay, exact PDF preview, and production statistics.
 
-Screenplain is the canonical compiler. The browser's live page stays fast and line-aware while Screenplain compiles the same source to HTML, PDF, and Final Draft FDX.
+The browser app compiles Fountain to HTML, PDF, and Final Draft FDX entirely in JavaScript, so the complete studio works on static hosting. The optional Python app and CLI provide a Screenplain-backed compilation path for local workflows.
 
-The GitHub Pages demo supports editing, live preview, file downloads, insights, themes, and documentation. Exact PDF preview plus PDF/FDX export require the local Python application because GitHub Pages is static hosting.
+The GitHub Pages demo is the complete browser application, including editing, live and PDF preview, file handling, insights, themes, documentation, and PDF/HTML/FDX export. The optional local Python application and CLI use Screenplain as their compiler.
 
 ## Install and run
 

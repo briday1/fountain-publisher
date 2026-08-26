@@ -162,10 +162,11 @@ test("character table supports selection and clipboard export", async () => {
   assert.match(css, /\.character-list table\s*\{[^}]*user-select:\s*text;/s);
 });
 
-test("GitHub Pages mode stays functional without a Python server", async () => {
+test("GitHub Pages mode includes browser PDF and FDX publishing", async () => {
   const app = await readFile(appPath, "utf8");
   assert.match(app, /STATIC_HOST = location\.hostname\.endsWith\("\.github\.io"\)/);
-  assert.match(app, /PDF export requires the local app|format\.toUpperCase\(\).*requires the local app/s);
-  assert.match(app, /Exact PDF preview requires the local app/);
+  assert.match(app, /function renderClientPdf\(/);
+  assert.match(app, /function renderClientFdx\(/);
+  assert.match(app, /pdf\.output\("blob"\)/);
   assert.match(app, /STATIC_HOST[\s\S]*Browser preview/);
 });

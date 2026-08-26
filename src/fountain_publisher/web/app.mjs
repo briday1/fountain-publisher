@@ -1,3 +1,5 @@
+import { jsPDF } from "jspdf";
+
 const SAMPLE = `Title: The Last Light
 Credit: Written by
 Author: Avery Stone
@@ -651,8 +653,58 @@ function download(blob, filename) {
   const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = filename; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-async function requestBinary(path) {
-  const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: source.value, pageSize: $("#export-page-size").value }) });
+function xmlEscape(value) {
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
+}
+
+function renderClientFdx() {
+  const types = { scene: "Scene Heading", action: "Action", character: "Character", dialogue: "Dialogue", parenthetical: "Parenthetical", transition: "Transition", centered: "Action", lyric: "Lyrics" };
+  const paragraphs = classifyLines(source.value).filter((line) => types[line.type] && line.display.trim()).map((line) => `<Paragraph Type="${types[line.type]}"><Text>${xmlEscape(line.display)}</Text></Paragraph>`).join("");
+  return new Blob([`<?xml version="1.0" encoding="UTF-8" standalone="no"?><FinalDraft DocumentType="Script" Template="No" Version="1"><Content>${paragraphs}</Content></FinalDraft>`], { type: "application/xml;charset=utf-8" });
+}
+
+function renderClientPdf(selectedPageSize = $("#page-size").value) {
+  const pageSize = selectedPageSize === "a4" ? "a4" : "letter";
+  const pdf = new jsPDF({ unit: "pt", format: pageSize, compress: true });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const left = 108; const right = 72; const top = 72; const bottom = 72; const leading = 12;
+  const lines = classifyLines(source.value);
+  const title = Object.fromEntries(lines.filter((line) => line.prefix).map((line) => [line.prefix.slice(0, -1).toLowerCase(), line.display]));
+  const hasTitle = Boolean(title.title || title.author || title.authors || title.credit);
+  let y = top;
+  const newPage = () => { pdf.addPage(); y = top; };
+  const ensure = (height = leading) => { if (y + height > pageHeight - bottom) newPage(); };
+  const write = (text, x, width, { align = "left", bold = false, before = 0, after = 0, size = 12 } = {}) => {
+    y += before; pdf.setFont("courier", bold ? "bold" : "normal"); pdf.setFontSize(size);
+    const wrapped = pdf.splitTextToSize(text || " ", width); ensure(wrapped.length * leading);
+    pdf.text(wrapped, x, y, { align }); y += wrapped.length * leading + after;
+  };
+  if (hasTitle) {
+    y = pageHeight / 3;
+    if (title.title) write(title.title, pageWidth / 2, pageWidth - 216, { align: "center", size: 10, after: 12 });
+    if (title.credit) write(title.credit, pageWidth / 2, pageWidth - 216, { align: "center" });
+    if (title.author || title.authors) write(title.author || title.authors, pageWidth / 2, pageWidth - 216, { align: "center" });
+    const lower = [title["draft date"], title.contact, title.copyright].filter(Boolean);
+    if (lower.length) { y = pageHeight - bottom - lower.length * leading; lower.forEach((value) => write(value, left, pageWidth - left - right)); }
+    pdf.addPage(); y = top;
+  }
+  lines.filter((line) => !line.prefix && !["empty", "title-value", "title-value title", "section", "synopsis", "note", "boneyard", "page-break"].includes(line.type)).forEach((line) => {
+    if (line.type === "scene") write(line.display, left, pageWidth - left - right, { bold: true, before: leading, after: leading });
+    else if (line.type === "character") write(line.display, left + 137, 250, { before: leading });
+    else if (line.type === "dialogue") write(line.display, left + 65, 252);
+    else if (line.type === "parenthetical") write(line.display, left + 94, 216);
+    else if (line.type === "transition") write(line.display, pageWidth - right, 300, { align: "right", before: leading, after: leading });
+    else if (line.type === "centered") write(line.display, pageWidth / 2, pageWidth - left - right, { align: "center", before: leading });
+    else write(line.display, left, pageWidth - left - right, { before: line.type === "action" ? leading : 0 });
+  });
+  return pdf.output("blob");
+}
+
+async function requestBinary(path, selectedPageSize = $("#page-size").value) {
+  if (STATIC_HOST && path === "/api/render/pdf") return renderClientPdf(selectedPageSize);
+  if (STATIC_HOST && path === "/api/export/fdx") return renderClientFdx();
+  const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: source.value, pageSize: selectedPageSize }) });
   if (!response.ok) { const value = await response.json().catch(() => ({})); throw new Error(value.error || "Export failed"); }
   return response.blob();
 }
@@ -660,9 +712,8 @@ async function requestBinary(path) {
 async function exportDocument(format) {
   $("#confirm-export").disabled = true;
   try {
-    if (STATIC_HOST && format !== "html") throw new Error(`${format.toUpperCase()} export requires the local app`);
     let blob;
-    if (format === "pdf") blob = await requestBinary("/api/render/pdf");
+    if (format === "pdf") blob = await requestBinary("/api/render/pdf", $("#export-page-size").value);
     else if (format === "fdx") blob = await requestBinary("/api/export/fdx");
     else if (STATIC_HOST) {
       const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(state.filename)}</title><link rel="stylesheet" href="styles.css"></head><body><main class="screenplay-page">${page.innerHTML}</main></body></html>`;
@@ -683,7 +734,6 @@ function openExport(format) {
 }
 
 async function setPreviewMode(mode) {
-  if (STATIC_HOST && mode === "pdf") { toast("Exact PDF preview requires the local app"); mode = "live"; }
   state.previewMode = mode; localStorage.setItem("fountain-publisher.preview", mode);
   $$('[data-preview-mode]').forEach((button) => { button.classList.toggle("active", button.dataset.previewMode === mode); const check = $(".menu-check", button); if (check) check.textContent = button.dataset.previewMode === mode ? "✓" : ""; });
   page.hidden = mode !== "live"; $("#empty-state").hidden = mode !== "live" || Boolean(source.value.trim()); $("#pdf-view").hidden = mode !== "pdf";
