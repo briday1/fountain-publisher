@@ -57,7 +57,8 @@ class FountainRequestHandler(SimpleHTTPRequestHandler):
                 return self._send_bytes(render_fdx(source, options), "application/xml; charset=utf-8")
             payload = analyze_source(source)
             physical_pages = count_pdf_pages(render_pdf(source, options))
-            payload["pageCount"] = max(0, physical_pages - (1 if payload["titleFields"] else 0))
+            payload["pageCount"] = physical_pages
+            payload["estimatedSeconds"] = physical_pages * 60
             return self._send_json(payload)
         except Exception as error:
             self._send_json({"error": str(error)}, status=400)
