@@ -406,4 +406,20 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
   /* Make PDF iframe fully fill the mobile preview panel */
   .preview-scroll.pdf-mode { padding: 0; overflow: hidden; }
   .pdf-view { height: 100%; }
+
+  /* Hide the Preview/PDF view-switcher — mobile uses the tab bar instead */
+  .view-switcher { display: none; }
+
+  /* Insights: stack metric grid to a single column on narrow screens */
+  .metric-grid { grid-template-columns: 1fr 1fr; }
+  .insights-scroll { padding-bottom: 16px; }
+
+  /* Insights: allow character table to scroll horizontally if needed */
+  .character-list { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Insights: scene list wraps text and avoids column overflow */
+  .scene-list button { white-space: normal; word-break: break-word; }
+
+  /* Insights: location list wraps long names */
+  .location-list li { word-break: break-word; }
 }
