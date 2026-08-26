@@ -49,5 +49,35 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(1, payload["pageCount"])
 
 
+    def test_unexpected_exception_returns_json_error_not_html(self):
+        """Any exception from the compiler must produce a JSON 400, not an HTML 500."""
+        import json
+        from unittest import mock
+
+        with mock.patch(
+            "fountain_publisher.server.analyze_source",
+            side_effect=AttributeError("unexpected internal error"),
+        ):
+            request = Request(
+                f"{self.base_url}/api/compile",
+                data=json.dumps({"source": "INT. ROOM - DAY\n"}).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                with urlopen(request) as response:
+                    payload = json.load(response)
+                self.fail("Expected HTTPError but got 200")
+            except Exception as exc:  # noqa: BLE001
+                import urllib.error
+
+                if isinstance(exc, urllib.error.HTTPError):
+                    self.assertEqual(400, exc.code)
+                    body = json.loads(exc.read().decode("utf-8"))
+                    self.assertIn("error", body)
+                else:
+                    raise
+
+
 if __name__ == "__main__":
     unittest.main()

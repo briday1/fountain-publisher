@@ -347,7 +347,7 @@ function analyzeLocally(text) {
   });
   const characterList = [...characters.values()].map((entry) => ({ ...entry, seconds: Math.round(entry.words / 130 * 60), scenes: entry.sceneSet.size, sceneSet: undefined })).sort((a, b) => b.words - a.words || a.name.localeCompare(b.name));
   const wordCount = dialogueWords + actionWords;
-  return { lineCount: lines.length, wordCount, dialogueWords, actionWords, estimatedSeconds: Math.round(wordCount / 180 * 60), characters: characterList, scenes, sections: [], locations: [...locations].sort(), titleFields };
+  return { lineCount: lines.length, wordCount, dialogueWords, actionWords, estimatedSeconds: Math.round(wordCount / 180 * 60), characters: characterList, scenes, sections: [], locations: [...locations].sort(), titleFields, pageCount: state.metadata?.pageCount ?? null };
 }
 
 function previewLineHtml(line, sceneLabel = null) {
@@ -757,7 +757,7 @@ async function saveFile(saveAs = false) {
       const writable = await state.handle.createWritable(); await writable.write(source.value); await writable.close();
       const file = await state.handle.getFile(); state.filename = file.name;
     } else {
-      download(new Blob([source.value], { type: "text/plain;charset=utf-8" }), normalizedFilename("fountain"));
+      await download(new Blob([source.value], { type: "text/plain;charset=utf-8" }), normalizedFilename("fountain"));
     }
     state.savedSource = source.value; setDocument(source.value, state.filename, true); toast(`Saved ${state.filename}`);
   } catch (error) { if (error.name !== "AbortError") toast(error.message); }
@@ -768,8 +768,15 @@ function normalizedFilename(extension) {
   return `${base}.${extension}`;
 }
 
-function download(blob, filename) {
-  const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = filename; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+async function download(blob, filename) {
+  if (navigator.canShare) {
+    const file = new File([blob], filename, { type: blob.type });
+    if (navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: filename });
+      return;
+    }
+  }
+  const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = filename; document.body.appendChild(anchor); anchor.click(); document.body.removeChild(anchor); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 let screenplainPromise;
@@ -973,8 +980,8 @@ async function exportDocument(format) {
     const blob = format === "pdf"
       ? await requestBinary("/api/render/pdf", $("#export-page-size").value)
       : await requestBinary("/api/export/fdx");
-    download(blob, normalizedFilename(format)); $("#export-dialog").close(); toast(`Exported ${format.toUpperCase()}`);
-  } catch (error) { toast(error.message); }
+    await download(blob, normalizedFilename(format)); $("#export-dialog").close(); toast(`Exported ${format.toUpperCase()}`);
+  } catch (error) { if (error.name !== "AbortError") toast(error.message); }
   finally { $("#confirm-export").disabled = false; }
 }
 

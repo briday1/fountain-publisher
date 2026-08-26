@@ -422,4 +422,29 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 
   /* Insights: location list wraps long names */
   .location-list li { word-break: break-word; }
+
+  /* Toolbar: reduce spacing and hide verbose/redundant items */
+  .app-toolbar { gap: 2px; padding: 0 6px; }
+  .global-actions { gap: 0; }
+  /* Collapse about-menu to just the "F" icon */
+  .about-menu { padding-right: 4px; margin-right: 0; }
+  .about-menu > summary { padding: 0 6px; }
+  .about-label { display: none; }
+  /* Hide View and Help menus — panel tabs and docs dialog cover these on mobile */
+  .view-menu, .help-menu { display: none; }
+  /* Hide undo/redo icon buttons and the divider to save space */
+  .toolbar-divider, #undo, #redo { display: none; }
+  /* Fix popovers: pin to the top of the screen so they're always fully visible
+     regardless of which menu triggered them or how far right it sits */
+  .toolbar-popover {
+    position: fixed;
+    top: var(--toolbar-h);
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: 55vh;
+    overflow-y: auto;
+    /* Reset the absolute left:0 anchor so fixed kicks in cleanly */
+    transform: none;
+  }
 }

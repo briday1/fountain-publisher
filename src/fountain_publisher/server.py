@@ -59,7 +59,7 @@ class FountainRequestHandler(SimpleHTTPRequestHandler):
             physical_pages = count_pdf_pages(render_pdf(source, options))
             payload["pageCount"] = max(0, physical_pages - (1 if payload["titleFields"] else 0))
             return self._send_json(payload)
-        except (ValueError, RuntimeError, UnicodeError) as error:
+        except Exception as error:
             self._send_json({"error": str(error)}, status=400)
 
     def _read_json(self) -> dict:
