@@ -79,7 +79,7 @@ test("toolbar menus use Pugflow-style popup interaction", async () => {
 
 test("app info uses one understated GitHub link", async () => {
   const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
-  assert.match(html, /Compiled with <strong>Screenplain<\/strong>/);
+  assert.doesNotMatch(html, /Compiled with <strong>Screenplain<\/strong>/);
   assert.doesNotMatch(html, /href="https:\/\/github\.com\/vilcans\/screenplain"/);
   assert.match(html, />View on GitHub<\/a>/);
   assert.match(css, /\.about-popover a\s*\{[^}]*color:\s*var\(--ink\);[^}]*font-weight:\s*700;/s);
