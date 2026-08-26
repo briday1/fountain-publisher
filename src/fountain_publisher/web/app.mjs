@@ -692,6 +692,7 @@ function completionCandidates() {
   const lines = source.value.split("\n");
   const text = lines[line].slice(0, source.selectionStart - start);
   const trimmed = text.trim();
+  const explicitCharacter = trimmed.startsWith("@");
   const previousBlank = line === 0 || !lines[line - 1].trim();
   const items = [];
   const add = (value, detail, icon = "ƒ") => items.push({ value, detail, icon });
@@ -704,10 +705,12 @@ function completionCandidates() {
     state.metadata.locations.forEach((value) => add(value, "Existing location", "⌂"));
   } else if (previousBlank) {
     state.metadata.characters.forEach((character) => add(character.name, `${character.lines} dialogue lines`, "@"));
-    ["INT. ", "EXT. ", "INT./EXT. ", "I/E. "].forEach((value) => add(value, "Scene heading", "#"));
-    ["FADE IN:", ">CUT TO:", ">FADE OUT."].forEach((value) => add(value, "Transition", "→"));
+    if (!explicitCharacter) {
+      ["INT. ", "EXT. ", "INT./EXT. ", "I/E. "].forEach((value) => add(value, "Scene heading", "#"));
+      ["FADE IN:", ">CUT TO:", ">FADE OUT."].forEach((value) => add(value, "Transition", "→"));
+    }
   }
-  const fragment = trimmed.split(/(?:\s-\s|\s+)/).at(-1).toUpperCase();
+  const fragment = (explicitCharacter ? trimmed.slice(1) : trimmed).split(/(?:\s-\s|\s+)/).at(-1).toUpperCase();
   return items.filter((item, index) => items.findIndex((other) => other.value === item.value) === index && (!fragment || item.value.toUpperCase().startsWith(fragment) || item.detail === "Existing location"));
 }
 
@@ -1099,7 +1102,11 @@ source.addEventListener("keydown", (event) => {
   }
   if ((event.ctrlKey || event.metaKey) && event.code === "Space") { event.preventDefault(); showCompletions(); }
   else if (event.key === "Tab") { event.preventDefault(); source.setRangeText("    ", source.selectionStart, source.selectionEnd, "end"); sourceChanged(); }
-  else if (["Enter", " ", "-"].includes(event.key)) setTimeout(showCompletions, 0);
+  else if (event.key === "Enter") hideCompletions();
+  else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    const { start } = currentPosition();
+    if (!/\s/.test(event.key) || source.value.slice(start, source.selectionStart).trim()) setTimeout(showCompletions, 0);
+  }
 });
 
 page.addEventListener("input", (event) => { const line = event.target.closest(".script-line"); if (line) { syncPreviewLine(line); showPreviewCharacterCompletions(line); } });
