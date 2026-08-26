@@ -334,6 +334,7 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 :root[data-os="mac"] .shortcut-win { display: none; }
 :root[data-os="win"] .shortcut-mac { display: none; }
 
+/* Tablet — hide stats panel and resizer but keep two-panel grid */
 @media (max-width: 900px) {
   :root { --source-w: 300px; }
   #workspace { grid-template-columns: var(--source-w) 20px 3px minmax(280px, 1fr) 0 0 0; }
@@ -344,4 +345,65 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
   .docs-layout > nav { display: none; }
   .docs-content { padding-inline: 20px; }
   .docs-example { grid-template-columns: 1fr; }
+}
+
+/* Mobile tab bar — hidden on non-mobile */
+.mobile-panel-tabs { display: none; }
+
+/* Mobile — single-panel tab layout */
+@media (max-width: 640px) {
+  :root { --mobile-tabs-h: 44px; }
+
+  .mobile-panel-tabs {
+    display: flex; height: var(--mobile-tabs-h);
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    position: relative; z-index: 20;
+  }
+  .mobile-tab {
+    flex: 1; border: 0; border-right: 1px solid var(--border); border-radius: 0;
+    background: transparent; color: var(--muted);
+    font-size: 12px; font-weight: 650; letter-spacing: .01em;
+    padding: 0; cursor: pointer; transition: background .1s, color .1s;
+  }
+  .mobile-tab:last-child { border-right: 0; }
+  .mobile-tab.active { color: var(--accent); background: var(--accent-soft); }
+  .mobile-tab:not(.active):hover { background: var(--surface-2); color: var(--ink); }
+
+  #workspace {
+    height: calc(100vh - var(--toolbar-h) - var(--mobile-tabs-h));
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  /* Collapsed-sidebar classes must not fight mobile tab visibility */
+  body.source-collapsed #workspace,
+  body.stats-collapsed #workspace,
+  body.source-collapsed.stats-collapsed #workspace {
+    grid-template-columns: 1fr;
+  }
+
+  /* Place all panels on the same grid cell */
+  #source-panel { grid-column: 1; }
+  .preview-panel { grid-column: 1; }
+  #stats-panel { grid-column: 1; }
+
+  /* Hide resizers and sidebar toggles — tabs replace them */
+  #source-resizer, #stats-resizer,
+  .source-toggle, .stats-toggle { display: none !important; }
+
+  /* Show only the active panel */
+  body[data-mobile-tab="source"] #source-panel { display: flex; }
+  body[data-mobile-tab="source"] .preview-panel,
+  body[data-mobile-tab="source"] #stats-panel { display: none !important; }
+
+  body[data-mobile-tab="preview"] .preview-panel { display: flex; }
+  body[data-mobile-tab="preview"] #source-panel,
+  body[data-mobile-tab="preview"] #stats-panel { display: none !important; }
+
+  body[data-mobile-tab="stats"] #stats-panel { display: flex !important; }
+  body[data-mobile-tab="stats"] #source-panel,
+  body[data-mobile-tab="stats"] .preview-panel { display: none !important; }
+
+  /* Make PDF iframe fully fill the mobile preview panel */
+  .preview-scroll.pdf-mode { padding: 0; overflow: hidden; }
+  .pdf-view { height: 100%; }
 }

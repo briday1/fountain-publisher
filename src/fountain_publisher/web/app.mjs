@@ -453,9 +453,7 @@ function hidePreviewCompletions() {
 
 function showPreviewCharacterCompletions(element) {
   const fragment = element.textContent.trim().toUpperCase();
-  const index = Number(element.dataset.line);
-  const previousBlank = index === 0 || !source.value.split("\n")[index - 1]?.trim();
-  if (!previousBlank || !/^[A-Z][A-Z0-9 ._'-]*$/.test(fragment)) return hidePreviewCompletions();
+  if (!/^[A-Z][A-Z0-9 ._'-]*$/.test(fragment)) return hidePreviewCompletions();
   state.previewCompletionItems = state.metadata.characters.map((character) => character.name)
     .filter((name, itemIndex, names) => name.startsWith(fragment) && name !== fragment && names.indexOf(name) === itemIndex);
   state.previewCompletionIndex = 0;
@@ -903,20 +901,26 @@ def _fp_compile(source, kind, page_size, scene_numbers="margin", scene_number_fo
             font_settings.bold = bold_font
             font_settings.italic = italic_font
             font_settings.bold_italic = bold_italic_font
-        settings.slug_style.fontName = bold_font
+        if hasattr(settings, "slug_style"):
+            settings.slug_style.fontName = bold_font
         settings.title_style.fontSize = settings.font_size
         title_leading = settings.line_height * 2
         for style_name in ("title_style", "centered_style", "default_style", "contact_style"):
-            style = getattr(settings, style_name)
-            style.fontName = regular_font
-            style.fontSize = settings.font_size
-            style.leading = title_leading
-        settings.title_style.spaceAfter = -settings.line_height
-        settings.default_style.spaceAfter = -settings.line_height
-        settings.contact_style.spaceAfter = -settings.line_height
+            style = getattr(settings, style_name, None)
+            if style is not None:
+                style.fontName = regular_font
+                style.fontSize = settings.font_size
+                style.leading = title_leading
+        if hasattr(settings, "title_style"):
+            settings.title_style.spaceAfter = -settings.line_height
+        if hasattr(settings, "default_style"):
+            settings.default_style.spaceAfter = -settings.line_height
+        if hasattr(settings, "contact_style"):
+            settings.contact_style.spaceAfter = -settings.line_height
         class NumberedDocTemplate(pdf.DocTemplate):
             def handle_pageBegin(self):
-                self.canv.setFont(self.settings.font_settings.family_name, self.settings.font_size, leading=self.settings.line_height)
+                _font_settings = getattr(self.settings, "font_settings", None)
+                self.canv.setFont(getattr(_font_settings, "family_name", "Courier"), self.settings.font_size, leading=self.settings.line_height)
                 page = self.page if self.has_title_page else self.page + 1
                 if page >= 1:
                     self.canv.drawRightString(self.settings.left_margin + self.settings.frame_width, self.settings.page_height - 42, f"{page}.")
@@ -1181,6 +1185,15 @@ $("#scene-num-form").addEventListener("submit", (event) => {
   $("#scene-num-dialog").close();
 });
 
+function setMobileTab(panel) {
+  document.body.dataset.mobileTab = panel;
+  $$(".mobile-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.mobilePanel === panel));
+  localStorage.setItem("fountain-publisher.mobile-tab", panel);
+  if (panel === "preview" && state.previewMode === "pdf") refreshPdf();
+}
+
+$$(".mobile-tab").forEach((tab) => tab.addEventListener("click", () => setMobileTab(tab.dataset.mobilePanel)));
+
 toolbarMenus.forEach((menu) => menu.addEventListener("click", (event) => {
   if (event.target.closest("button")) menu.open = false;
   else if (event.target.closest("summary")) closeMenus(menu);
@@ -1217,6 +1230,7 @@ async function initialize() {
     try { const response = await fetch("/api/project"); const project = await response.json(); text = project.source; name = project.filename; } catch { /* keep selected blank/demo document */ }
   }
   setDocument(text, name, true);
+  setMobileTab(localStorage.getItem("fountain-publisher.mobile-tab") || "source");
   await setPreviewMode(localStorage.getItem("fountain-publisher.preview") || "live");
 }
 

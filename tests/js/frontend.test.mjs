@@ -257,3 +257,42 @@ test("scene numbers default to margin, support act format, and apply to PDF", as
   assert.match(html, /id="scene-num-placement"/);
   assert.match(html, /id="scene-num-format"/);
 });
+
+test("mobile shows one panel at a time via tab bar", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  // Tab bar exists in HTML
+  assert.match(html, /class="mobile-panel-tabs"/);
+  assert.match(html, /data-mobile-panel="source"/);
+  assert.match(html, /data-mobile-panel="preview"/);
+  assert.match(html, /data-mobile-panel="stats"/);
+  // Mobile media query hides non-active panels
+  assert.match(css, /\.mobile-panel-tabs\s*\{\s*display:\s*none;/);
+  assert.match(css, /max-width:\s*640px/);
+  assert.match(css, /body\[data-mobile-tab="source"\] #source-panel\s*\{\s*display:\s*flex;/);
+  assert.match(css, /body\[data-mobile-tab="preview"\] \.preview-panel\s*\{\s*display:\s*flex;/);
+  assert.match(css, /body\[data-mobile-tab="stats"\] #stats-panel\s*\{\s*display:\s*flex/);
+  // JS function exists and persists choice
+  assert.match(app, /function setMobileTab\(/);
+  assert.match(app, /localStorage\.setItem\("fountain-publisher\.mobile-tab"/);
+  assert.match(app, /dataset\.mobileTab = panel/);
+});
+
+test("character completions appear in preview regardless of line position", async () => {
+  const app = await readFile(appPath, "utf8");
+  // previousBlank restriction must be absent from the showPreviewCharacterCompletions function body
+  const fnMatch = app.match(/function showPreviewCharacterCompletions\([^)]*\)\s*\{[^}]*\}/);
+  assert.ok(fnMatch, "showPreviewCharacterCompletions function should exist");
+  assert.doesNotMatch(fnMatch[0], /previousBlank/);
+  // The function still filters by uppercase pattern
+  assert.match(fnMatch[0], /\/\^\[A-Z\]/);
+});
+
+test("browser Screenplain compile handles missing style attributes defensively", async () => {
+  const app = await readFile(appPath, "utf8");
+  // slug_style access must be guarded
+  assert.match(app, /hasattr\(settings,\s*"slug_style"\)/);
+  // style loop uses getattr with None default
+  assert.match(app, /getattr\(settings,\s*style_name,\s*None\)/);
+  // handle_pageBegin uses getattr for font_settings
+  assert.match(app, /getattr\(_font_settings,\s*"family_name",\s*"Courier"\)/);
+});
