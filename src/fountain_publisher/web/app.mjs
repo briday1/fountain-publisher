@@ -1152,6 +1152,7 @@ $("#insert-title-page").addEventListener("click", openTitlePageDialog);
 $("#insert-scene").addEventListener("click", () => { appendToSource("INT. LOCATION - DAY\n\n"); });
 $("#insert-dialogue").addEventListener("click", () => { appendToSource("CHARACTER\nDialogue here.\n\n"); });
 $("#insert-direction").addEventListener("click", () => { appendToSource("Action description.\n\n"); });
+$("#insert-pagebreak").addEventListener("click", () => { appendToSource("===\n\n"); });
 $("#menu-insert-title-page").addEventListener("click", openTitlePageDialog);
 $("#menu-insert-scene").addEventListener("click", () => { appendToSource("INT. LOCATION - DAY\n\n"); });
 $("#menu-insert-dialogue").addEventListener("click", () => { appendToSource("CHARACTER\nDialogue here.\n\n"); });
