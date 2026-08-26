@@ -154,6 +154,8 @@ test("page totals come from the compiled Screenplain PDF", async () => {
   const app = await readFile(appPath, "utf8");
   assert.match(app, /metadata\.pageCount \?\?/);
   assert.match(app, /function compileStaticPageCount/);
+  assert.match(app, /result\.pageCount == null[\s\S]*\/api\/render\/pdf/);
+  assert.match(app, /function countPdfBlobPages/);
   assert.ok(app.includes('/Type\\s*\\/Page\\b'));
 });
 

@@ -608,9 +608,7 @@ async function compileStaticPageCount(revision) {
   $("#compile-status").textContent = "Compiling…";
   try {
     const blob = await compileWithBrowserScreenplain("pdf", $("#page-size").value);
-    const bytes = new Uint8Array(await blob.arrayBuffer());
-    const text = new TextDecoder("latin1").decode(bytes);
-    const pageCount = (text.match(/\/Type\s*\/Page\b/g) || []).length;
+    const pageCount = await countPdfBlobPages(blob);
     if (revision !== state.compileRevision) return;
     $("#stat-pages").textContent = pageCount;
     $("#compile-status").textContent = "Compiled";
@@ -629,6 +627,7 @@ async function compile(revision) {
     const response = await fetch("/api/compile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: source.value, pageSize: $("#page-size").value }), signal: controller.signal });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Compilation failed");
+    if (result.pageCount == null) result.pageCount = await countPdfBlobPages(await requestBinary("/api/render/pdf"));
     if (revision !== state.compileRevision) return;
     renderInsights(result);
     $("#compile-status").textContent = "Compiled";
@@ -640,6 +639,12 @@ async function compile(revision) {
   } finally {
     if (state.compileController === controller) state.compileController = null;
   }
+}
+
+async function countPdfBlobPages(blob) {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const text = new TextDecoder("latin1").decode(bytes);
+  return (text.match(/\/Type\s*\/Page\b/g) || []).length;
 }
 
 function completionCandidates() {
