@@ -732,7 +732,6 @@ function renderCharacterAnalytics() {
   }
   canvas.setAttribute("aria-label", `Character dialogue timeline with ${characters.length} characters across ${scenes.length} scenes; usage ranges from ${minLines} to ${maxLines} dialogue lines`);
   const table = $("#character-line-table");
-  table.style.width = `${width}px`;
   table.innerHTML = characters.length ? `<table><thead><tr><th>Character</th><th>Lines</th><th>Duration</th></tr></thead><tbody>${characters.map((character) => `<tr><td>${escapeHtml(character.name)}</td><td>${character.lines}</td><td>${formatDuration(character.seconds)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty-list">Character line counts appear as dialogue is written.</div>`;
 }
 

@@ -230,6 +230,7 @@ test("in-app documentation teaches the editor and Fountain syntax", async () => 
 test("character analytics supports a scrollable timeline, PNG save, and CSV copy", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(app, /data-character-analytics>Character Analytics/);
+  assert.match(css, /\.table-actions button\s*\{[^}]*width:\s*100%;[^}]*text-align:\s*center;/s);
   assert.match(html, /id="character-analytics-chart"/);
   assert.match(html, /id="copy-character-lines"[^>]*>Copy line usage CSV/);
   assert.match(app, /navigator\.clipboard\.writeText\(characterLineUsageCsv\(\)\)/);
@@ -238,6 +239,8 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.match(app, /\.toBlob\(resolve,\s*"image\/png"\)/);
   assert.match(css, /\.analytics-chart-scroll\s*\{[^}]*overflow:\s*auto;/s);
   assert.match(html, /id="character-line-table"/);
+  assert.match(html, /class="analytics-chart-scroll">\s*<canvas[^>]+><\/canvas>\s*<\/div>\s*<div id="character-line-table"/s);
+  assert.doesNotMatch(app, /table\.style\.width/);
   assert.match(app, /maxLines === minLines \? 1 : 0\.25 \+ 0\.75/);
   assert.match(css, /\.analytics-gradient-legend i\s*\{[^}]*linear-gradient/s);
 });
