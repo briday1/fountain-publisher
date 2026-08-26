@@ -1,0 +1,50 @@
+name: Test Pyodide Compilation
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_call:
+
+jobs:
+  test-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies and build
+        run: npm ci && npm run build:web
+
+      - name: Validate Pyodide compile guards
+        run: |
+          node -e "
+          const fs = require('fs');
+          const bundle = fs.readFileSync('./dist/web/app.mjs', 'utf8');
+
+          const checks = [
+            { pattern: 'hasattr.*slug_style',                    name: 'hasattr guard for slug_style' },
+            { pattern: 'getattr.*family_name.*Courier',          name: 'getattr with Courier default for family_name' },
+            { pattern: 'getattr.*font_settings.*None',           name: 'getattr with null check for font_settings' },
+            { pattern: 'hasattr.*spaceAfter',                    name: 'hasattr guards for spaceAfter assignments' },
+          ];
+
+          let ok = true;
+          for (const c of checks) {
+            if (new RegExp(c.pattern, 's').test(bundle)) {
+              console.log('✅ Found: ' + c.name);
+            } else {
+              console.error('❌ Missing: ' + c.name);
+              ok = false;
+            }
+          }
+
+          process.exit(ok ? 0 : 1);
+          "
