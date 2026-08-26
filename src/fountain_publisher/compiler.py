@@ -66,8 +66,8 @@ def render_pdf(source: str, options: CompileOptions | None = None) -> bytes:
     # Screenplain's default doubles title text to 24pt. Keep title pages in
     # restrained screenplay typography instead of turning the title into a poster.
     if hasattr(settings, "title_style"):
-        settings.title_style.fontSize = 10
-        settings.title_style.leading = 12
+        settings.title_style.fontSize = settings.font_size
+        settings.title_style.leading = settings.line_height
     # Screenplain renders credit/author/source with centered_style and the lower
     # title-page fields with default/contact styles, not title_style. Pin every
     # title-page style to the regular face so none inherit Courier-Bold.

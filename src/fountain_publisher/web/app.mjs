@@ -745,8 +745,8 @@ def _fp_compile(source, kind, page_size):
         output = io.BytesIO()
         settings = pdf.Settings(page_size=A4 if page_size == "a4" else letter, strong_slugs=False)
         settings.slug_style.fontName = "Courier-Bold"
-        settings.title_style.fontSize = 10
-        settings.title_style.leading = 12
+        settings.title_style.fontSize = settings.font_size
+        settings.title_style.leading = settings.line_height
         for style_name in ("title_style", "centered_style", "default_style", "contact_style"):
             getattr(settings, style_name).fontName = "Courier"
         pdf.to_pdf(screenplay, output, settings=settings)

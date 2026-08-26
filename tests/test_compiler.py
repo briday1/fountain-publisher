@@ -71,7 +71,7 @@ class ScreenplainIntegrationTests(unittest.TestCase):
             result = render_pdf(SOURCE, CompileOptions(page_size="a4"))
         self.assertEqual(b"%PDF-test", result)
         fake_pdf.to_pdf.assert_called_once()
-        self.assertEqual(10, settings.title_style.fontSize)
+        self.assertEqual(12, settings.title_style.fontSize)
         self.assertEqual(12, settings.title_style.leading)
         self.assertEqual("Courier", settings.title_style.fontName)
         self.assertEqual("Courier", settings.centered_style.fontName)
