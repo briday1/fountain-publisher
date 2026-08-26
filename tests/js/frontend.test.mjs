@@ -128,7 +128,7 @@ test("top-level act headings are supported in the live editor", async () => {
   assert.match(app, /match\(\/\^#\\s\+\(Act\\b\.\*\)\$\/i\)/);
   assert.match(app, /appendToSource\("# Act 1\\n\\n"\)/);
   assert.match(css, /\.script-line\.section\.act[^}]*display:\s*block;/);
-  assert.match(app, /function _fp_format_pdf_act_headings\(screenplay\)/);
+  assert.match(app, /def _fp_format_pdf_act_headings\(screenplay\)/);
   assert.match(app, /Action\(\[bold\(str\(paragraph\.text\)\.upper\(\)\)\], centered=True\)/);
 });
 

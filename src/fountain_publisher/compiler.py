@@ -152,13 +152,16 @@ def format_pdf_act_headings(screenplay: Any) -> Any:
         from screenplain.types import Action, Section
     except ImportError:  # pragma: no cover
         return screenplay
+    paragraphs = getattr(screenplay, "paragraphs", None)
+    if paragraphs is None:
+        return screenplay
     screenplay.paragraphs = [
         Action([bold(str(paragraph.text).upper())], centered=True)
         if isinstance(paragraph, Section)
         and getattr(paragraph, "level", 0) == 1
         and re.match(r"^Act\b", str(paragraph.text), re.IGNORECASE)
         else paragraph
-        for paragraph in getattr(screenplay, "paragraphs", ())
+        for paragraph in paragraphs
     ]
     return screenplay
 
