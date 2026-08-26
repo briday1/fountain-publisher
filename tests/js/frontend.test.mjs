@@ -132,6 +132,13 @@ test("scene outline clicks synchronize source and live preview", async () => {
   assert.match(app, /#scene-list[\s\S]*jumpToLine\(Number\(button\.dataset\.line\)\)/);
 });
 
+test("live preview automatically prefixes scene headings", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /`\$\{sceneNumber\}\. \$\{line\.display/);
+  assert.match(app, /if \(lines\[i\]\.type === "scene"\) sceneNumber \+= 1/);
+  assert.match(app, /paragraph\.line = plain\(f"\{number\}\. "\) \+ paragraph\.line/);
+});
+
 test("preview status, rotating arrows, and character table stay compact", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="page-estimate">1\/1/);

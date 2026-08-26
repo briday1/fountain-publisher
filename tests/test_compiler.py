@@ -46,7 +46,12 @@ class ScreenplainIntegrationTests(unittest.TestCase):
     def test_html_uses_screenplain_formatter(self):
         html = render_html(SOURCE)
         self.assertIn('class="dialog"', html)
-        self.assertIn("INT. LAB - NIGHT", html)
+        self.assertIn("1. INT. LAB - NIGHT", html)
+
+    def test_scene_numbers_are_generated_without_source_markers(self):
+        html = render_html("EXT. PARK - DAY\n\nAction.\n\nINT. HOME - NIGHT\n")
+        self.assertIn("1. EXT. PARK - DAY", html)
+        self.assertIn("2. INT. HOME - NIGHT", html)
 
     def test_fdx_is_final_draft_xml(self):
         fdx = render_fdx(SOURCE)

@@ -339,14 +339,16 @@ function analyzeLocally(text) {
   return { lineCount: lines.length, wordCount, dialogueWords, actionWords, estimatedSeconds: Math.round(wordCount / 180 * 60), characters: characterList, scenes, sections: [], locations: [...locations].sort(), titleFields };
 }
 
-function previewLineHtml(line) {
+function previewLineHtml(line, sceneNumber = null) {
   const className = `script-line ${line.type}`;
-  const content = line.display ? escapeHtml(line.display) : "<br>";
-  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(line.prefix)}" contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
+  const display = sceneNumber === null ? line.display : `${sceneNumber}. ${line.display.replace(/\s+#[^#]+#\s*$/, "")}`;
+  const content = display ? escapeHtml(display) : "<br>";
+  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(line.prefix)}" data-scene-number="${sceneNumber ?? ""}" contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
 }
 
 function renderPreviewLines(lines) {
   const output = [];
+  let sceneNumber = 0;
   for (let i = 0; i < lines.length; i += 1) {
     if (lines[i].type === "character") {
       let next = i + 1;
@@ -362,7 +364,8 @@ function renderPreviewLines(lines) {
         continue;
       }
     }
-    output.push(previewLineHtml(lines[i]));
+    if (lines[i].type === "scene") sceneNumber += 1;
+    output.push(previewLineHtml(lines[i], lines[i].type === "scene" ? sceneNumber : null));
   }
   return output.join("");
 }
@@ -395,6 +398,7 @@ function syncPreviewLine(element) {
   const index = Number(element.dataset.line);
   const lines = source.value.replace(/\r\n?/g, "\n").split("\n");
   let value = element.textContent.replace(/\n/g, "");
+  if (element.dataset.sceneNumber) value = value.replace(/^\s*\d+\.\s*/, "");
   if (element.classList.contains("centered")) value = `> ${value} <`;
   else if (element.classList.contains("lyric")) value = `~${value}`;
   else if (element.classList.contains("character") && lines[index].trim().startsWith("@")) value = `@${value}`;
@@ -738,9 +742,20 @@ import io
 from reportlab.lib.pagesizes import A4, letter
 from screenplain.export import fdx, html, pdf
 from screenplain.parsers.fountain import parse
+from screenplain.richstring import plain
+from screenplain.types import Slug
+
+def _fp_number_scenes(screenplay):
+    number = 0
+    for paragraph in screenplay.paragraphs:
+        if isinstance(paragraph, Slug):
+            number += 1
+            paragraph.line = plain(f"{number}. ") + paragraph.line
+            paragraph.scene_number = None
+    return screenplay
 
 def _fp_compile(source, kind, page_size):
-    screenplay = parse(io.StringIO(source))
+    screenplay = _fp_number_scenes(parse(io.StringIO(source)))
     if kind == "pdf":
         output = io.BytesIO()
         settings = pdf.Settings(page_size=A4 if page_size == "a4" else letter, strong_slugs=False)

@@ -39,8 +39,24 @@ def parse_screenplay(source: str) -> Any:
     return parse(io.StringIO(source))
 
 
+def number_screenplay_scenes(screenplay: Any) -> Any:
+    """Prefix scene headings in render order without changing Fountain source."""
+    try:
+        from screenplain.richstring import plain
+        from screenplain.types import Slug
+    except ImportError:  # pragma: no cover
+        return screenplay
+    number = 0
+    for paragraph in getattr(screenplay, "paragraphs", ()):
+        if isinstance(paragraph, Slug):
+            number += 1
+            paragraph.line = plain(f"{number}. ") + paragraph.line
+            paragraph.scene_number = None
+    return screenplay
+
+
 def render_html(source: str) -> str:
-    screenplay = parse_screenplay(source)
+    screenplay = number_screenplay_scenes(parse_screenplay(source))
     _, html, _, _ = _screenplain()
     output = io.StringIO()
     html.convert(screenplay, output, bare=True)
@@ -48,7 +64,7 @@ def render_html(source: str) -> str:
 
 
 def render_pdf(source: str, options: CompileOptions | None = None) -> bytes:
-    screenplay = parse_screenplay(source)
+    screenplay = number_screenplay_scenes(parse_screenplay(source))
     _, _, pdf, _ = _screenplain()
     options = options or CompileOptions()
     try:
@@ -81,7 +97,7 @@ def render_pdf(source: str, options: CompileOptions | None = None) -> bytes:
 
 
 def render_fdx(source: str) -> bytes:
-    screenplay = parse_screenplay(source)
+    screenplay = number_screenplay_scenes(parse_screenplay(source))
     _, _, _, fdx = _screenplain()
     output = io.BytesIO()
     try:
