@@ -234,6 +234,7 @@ const state = {
   cacheEnabled: false,
   cacheTimer: 0,
   noteEditor: null,
+  previewContextLine: null,
 };
 
 function emptyMetadata() {
@@ -1861,6 +1862,104 @@ function openAnnotationEditor(line = null, insertAfter = null) {
   setTimeout(() => $("#annotation-text").focus(), 0);
 }
 
+function hidePreviewContextMenu() {
+  const menu = $("#preview-context-menu");
+  menu.hidden = true;
+  state.previewContextLine = null;
+}
+
+function previewLineForNode(node) {
+  return node?.nodeType === Node.ELEMENT_NODE ? node.closest?.(".script-line") : node?.parentElement?.closest(".script-line");
+}
+
+function previewSelectionInPage() {
+  const selection = getSelection();
+  if (!selection?.rangeCount) return null;
+  const range = selection.getRangeAt(0);
+  return page.contains(range.commonAncestorContainer) ? selection : null;
+}
+
+function placePreviewCaretFromPoint(line, clientX, clientY) {
+  const displayOffsetFor = (node, offset) => {
+    const displayRange = document.createRange();
+    displayRange.selectNodeContents(line);
+    displayRange.setEnd(node, offset);
+    return displayRange.toString().length;
+  };
+  const position = document.caretPositionFromPoint?.(clientX, clientY);
+  if (position && line.contains(position.offsetNode)) {
+    const selection = getSelection();
+    const range = document.createRange();
+    range.setStart(position.offsetNode, position.offset);
+    range.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    line.focus({ preventScroll: true });
+    setSourceCursorFromPreview(line, displayOffsetFor(position.offsetNode, position.offset));
+    return;
+  }
+  const range = document.caretRangeFromPoint?.(clientX, clientY);
+  if (range && line.contains(range.startContainer)) {
+    const selection = getSelection();
+    range.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    line.focus({ preventScroll: true });
+    setSourceCursorFromPreview(line, displayOffsetFor(range.startContainer, range.startOffset));
+    return;
+  }
+  line.focus({ preventScroll: true });
+  placeCaretAtOffset(line, line.textContent.length);
+  setSourceCursorFromPreview(line);
+}
+
+function showPreviewContextMenu(line, clientX, clientY) {
+  const menu = $("#preview-context-menu");
+  state.previewContextLine = Number(line.dataset.line);
+  menu.hidden = false;
+  menu.style.left = "0px";
+  menu.style.top = "0px";
+  const { width, height } = menu.getBoundingClientRect();
+  menu.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, clientX))}px`;
+  menu.style.top = `${Math.max(8, Math.min(window.innerHeight - height - 8, clientY))}px`;
+}
+
+async function runPreviewClipboardAction(action, lineNumber) {
+  const line = Number.isInteger(lineNumber) ? $(`[data-line="${lineNumber}"]`, page) : null;
+  if (action === "copy") {
+    const selection = previewSelectionInPage();
+    const text = selection?.toString() || "";
+    if (!text) return "Select text to copy";
+    try { if (document.execCommand("copy")) return ""; } catch { /* fall through */ }
+    try { await navigator.clipboard.writeText(text); return ""; } catch { return "Clipboard access was denied"; }
+  }
+  if (action === "cut") {
+    const selection = previewSelectionInPage();
+    const text = selection?.toString() || "";
+    if (!text) return "Select text to cut";
+    try { if (document.execCommand("cut")) return ""; } catch { /* fall through */ }
+    const edit = previewSelection(previewLineForNode(selection?.focusNode) || line);
+    if (!edit) return "Select text to cut";
+    try {
+      await navigator.clipboard.writeText(text);
+      replacePreviewSelection(edit, "");
+      return "";
+    } catch { return "Clipboard access was denied"; }
+  }
+  if (action === "paste") {
+    const edit = previewSelection(line || previewLineForNode(previewSelectionInPage()?.focusNode));
+    if (!edit) return "Click where you want to paste";
+    try {
+      replacePreviewSelection(edit, await navigator.clipboard.readText());
+      return "";
+    } catch {
+      try { return document.execCommand("paste") ? "" : "Clipboard access was denied"; }
+      catch { return "Clipboard access was denied"; }
+    }
+  }
+  return "Clipboard access was denied";
+}
+
 function openCharacterNoteEditor(name) {
   const note = state.metadata.characterNotes?.[name];
   state.noteEditor = { kind: "character", name, line: note?.line ?? null };
@@ -1971,11 +2070,25 @@ page.addEventListener("contextmenu", (event) => {
   const line = event.target.closest(".script-line");
   if (!line || event.target.closest(".annotation-orb")) return;
   event.preventDefault();
-  openAnnotationEditor(null, Number(line.dataset.line));
+  hidePreviewCompletions();
+  const selection = previewSelectionInPage();
+  if (!selection || selection.isCollapsed) placePreviewCaretFromPoint(line, event.clientX, event.clientY);
+  showPreviewContextMenu(line, event.clientX, event.clientY);
 });
 page.addEventListener("click", (event) => {
+  hidePreviewContextMenu();
   const orb = event.target.closest(".annotation-orb");
   if (orb) { event.preventDefault(); openAnnotationEditor(Number(orb.dataset.annotationLine)); }
+});
+$("#preview-context-menu").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-preview-menu-action]");
+  if (!button) return;
+  const { previewContextLine } = state;
+  const action = button.dataset.previewMenuAction;
+  hidePreviewContextMenu();
+  if (action === "annotation") return openAnnotationEditor(null, previewContextLine);
+  const message = await runPreviewClipboardAction(action, previewContextLine);
+  if (message) toast(message);
 });
 $("#preview-completion-menu").addEventListener("mousedown", (event) => { const item = event.target.closest(".completion-item"); if (item) { event.preventDefault(); acceptPreviewCharacterCompletion(Number(item.dataset.index)); } });
 $("#completion-menu").addEventListener("mousedown", (event) => { const item = event.target.closest(".completion-item"); if (item) { event.preventDefault(); acceptCompletion(Number(item.dataset.index)); } });
@@ -2203,7 +2316,7 @@ function setMobileTab(panel) {
 }
 
 $$(".mobile-tab").forEach((tab) => tab.addEventListener("click", () => setMobileTab(tab.dataset.mobilePanel)));
-$("#preview-scroll").addEventListener("scroll", scheduleWorkspaceCache);
+$("#preview-scroll").addEventListener("scroll", () => { hidePreviewContextMenu(); scheduleWorkspaceCache(); });
 
 toolbarMenus.forEach((menu) => menu.addEventListener("click", (event) => {
   if (event.target.closest("button")) menu.open = false;
@@ -2212,8 +2325,13 @@ toolbarMenus.forEach((menu) => menu.addEventListener("click", (event) => {
 document.addEventListener("pointerdown", (event) => toolbarMenus.forEach((menu) => {
   if (menu.open && !menu.contains(event.target)) menu.open = false;
 }));
+document.addEventListener("pointerdown", (event) => {
+  const menu = $("#preview-context-menu");
+  if (!menu.hidden && !menu.contains(event.target)) hidePreviewContextMenu();
+});
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && toolbarMenus.some((menu) => menu.open)) { closeMenus(); }
+  if (event.key === "Escape" && !$("#preview-context-menu").hidden) hidePreviewContextMenu();
+  else if (event.key === "Escape" && toolbarMenus.some((menu) => menu.open)) { closeMenus(); }
   else if ((source === document.activeElement || page.contains(document.activeElement)) && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redoDocument() : undoDocument(); }
   else if ((source === document.activeElement || page.contains(document.activeElement)) && event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === "y") { event.preventDefault(); redoDocument(); }
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); saveFile(event.shiftKey); }
@@ -2242,6 +2360,7 @@ window.addEventListener("scroll", scheduleMobileViewportUpdate);
 document.addEventListener("focusin", scheduleMobileViewportUpdate);
 window.addEventListener("resize", () => {
   scheduleMobileViewportUpdate();
+  hidePreviewContextMenu();
   renderEditorChrome();
   if (isMobilePreview() && state.previewMode === "pdf") void setPreviewMode("live");
   applyZoom();

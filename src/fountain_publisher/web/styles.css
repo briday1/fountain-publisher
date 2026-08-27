@@ -224,6 +224,9 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .completion-icon { color: var(--accent); font: 700 11px var(--mono); }
 .completion-item small { color: var(--muted); }
 .preview-completion-menu { position: fixed; left: 8px; top: 8px; right: auto; bottom: auto; width: min(310px, calc(100% - 16px)); }
+.preview-context-menu { position: fixed; z-index: 12; min-width: 180px; padding: 5px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); box-shadow: var(--shadow); }
+.preview-context-menu button { width: 100%; min-height: 32px; display: flex; align-items: center; border: 0; border-radius: 4px; padding: 7px 8px; background: transparent; text-align: left; font-size: 11px; }
+.preview-context-menu button:hover, .preview-context-menu button:focus-visible { background: var(--accent-soft); outline: none; }
 .editor-footer { min-height: 31px; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 5px 10px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
 .editor-footer > span:last-child { white-space: nowrap; }
 
