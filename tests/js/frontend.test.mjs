@@ -621,6 +621,9 @@ test("mobile toolbar compresses the about menu and fixes popover visibility", as
   assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.toolbar-popover\s*\{[^}]*position:\s*fixed;/s);
   // CSS: about label is hidden on mobile
   assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.about-label\s*\{\s*display:\s*none;/s);
+  // Undo and redo remain available on mobile
+  assert.match(html, /id="undo"[\s\S]*id="redo"/);
+  assert.doesNotMatch(css, /#undo,\s*#redo\s*\{\s*display:\s*none;/);
 });
 
 test("mobile top bars stay pinned during focus, zoom, and viewport scrolling", async () => {

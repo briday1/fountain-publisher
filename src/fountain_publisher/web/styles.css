@@ -552,8 +552,8 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
   .about-label { display: none; }
   /* Hide View and Help menus — panel tabs and docs dialog cover these on mobile */
   .view-menu, .help-menu { display: none; }
-  /* Hide undo/redo icon buttons and the divider to save space */
-  .toolbar-divider, #undo, #redo { display: none; }
+  /* Hide the divider to save space */
+  .toolbar-divider { display: none; }
   /* Fix popovers: pin to the top of the screen so they're always fully visible
      regardless of which menu triggered them or how far right it sits */
   .toolbar-popover {
