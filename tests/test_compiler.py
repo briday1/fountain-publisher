@@ -103,6 +103,14 @@ class ScreenplainIntegrationTests(unittest.TestCase):
         self.assertIn("<strong>END</strong>", html)
         self.assertNotIn("&gt;", html)
 
+    def test_trailing_notes_do_not_break_compact_centered_bold_text(self):
+        for note in ("[[comment]]", "[[FP-GENERAL:Production%20note]]"):
+            with self.subTest(note=note):
+                html = render_html(f">**END**<\n\n{note}\n")
+                self.assertIn('class="action centered"', html)
+                self.assertIn("<strong>END</strong>", html)
+                self.assertNotIn("&gt;", html)
+
     def test_runtime_versions_are_pinned_for_browser_parity(self):
         requirements = metadata("fountain-publisher").get_all("Requires-Dist") or []
         self.assertIn("screenplain==0.12.0", requirements)

@@ -238,7 +238,7 @@ test("blank documents retain a page and title inference is constrained", async (
 test("compact centered bold markup renders without literal angle markers", async () => {
   const app = await readFile(appPath, "utf8");
   assert.match(app, /line\.raw\.trim\(\)\.match\(\/\^>\\s\*\(\.\*\?\)\\s\*</);
-  assert.match(app, /source = re\.sub\(r"\(\?m\)\^\(\\\\s\*\)>\(\\\\S/);
+  assert.match(app, /source = re\.sub\(r"\(\?m\)\^\(\[\^\\\\S\\\\r\\\\n\]\*\)>\(\\\\S/);
 });
 
 test("the long sample screenplay is opt-in with demo=1", async () => {

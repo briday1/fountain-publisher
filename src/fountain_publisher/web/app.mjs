@@ -1569,7 +1569,7 @@ def _fp_number_scenes(screenplay, placement="margin", format_type="sequential"):
 
 def _fp_prepare_screenplay(source, placement="margin", format_type="sequential"):
     from screenplain.types import PageBreak
-    source = re.sub(r"(?m)^(\\s*)>(\\S(?:.*\\S)?)<\\s*$", r"\\1> \\2 <", source)
+    source = re.sub(r"(?m)^([^\\S\\r\\n]*)>(\\S(?:.*\\S)?)<[^\\S\\r\\n]*$", r"\\1> \\2 <", source)
     screenplay = parse(io.StringIO(source))
     if screenplay.title_page and screenplay.paragraphs and isinstance(screenplay.paragraphs[0], PageBreak):
         del screenplay.paragraphs[0]

@@ -96,7 +96,11 @@ def _patch_scene_numbers_left_only() -> None:
 
 def parse_screenplay(source: str) -> Any:
     parse, _, _, _ = _screenplain()
-    source = re.sub(r"(?m)^(\s*)>(\S(?:.*\S)?)<\s*$", r"\1> \2 <", source)
+    source = re.sub(
+        r"(?m)^([^\S\r\n]*)>(\S(?:.*\S)?)<[^\S\r\n]*$",
+        r"\1> \2 <",
+        source,
+    )
     screenplay = parse(io.StringIO(source))
     try:
         from screenplain.types import PageBreak
