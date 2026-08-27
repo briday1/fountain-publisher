@@ -308,7 +308,13 @@ function annotationText(raw) {
 function parseManagedNotes(lines) {
   const generalNotes = [];
   const characterNotes = {};
+  let boneyard = false;
   lines.forEach((raw, line) => {
+    if (raw.includes("/*")) boneyard = true;
+    if (boneyard) {
+      if (raw.includes("*/")) boneyard = false;
+      return;
+    }
     const note = managedNote(raw);
     if (note?.kind === "general") generalNotes.push({ line, text: note.text });
     else if (note?.kind === "character") characterNotes[note.name] = { line, text: note.text };
@@ -462,6 +468,7 @@ function previewLineHtml(line, sceneLabel = null) {
     const text = annotationText(line.raw);
     return `<div class="script-line note annotation-line" data-line="${line.index}"><button class="annotation-orb" type="button" data-annotation-line="${line.index}" title="${escapeHtml(text)}" aria-label="Edit annotation: ${escapeHtml(text)}"></button></div>`;
   }
+  if (type === "note" && note) return `<div class="script-line note managed-note" data-line="${line.index}"></div>`;
   return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(display)}" contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
 }
 
@@ -486,11 +493,11 @@ function renderPreviewLines(lines) {
   for (let i = 0; i < lines.length; i += 1) {
     if (lines[i].type === "character") {
       let next = i + 1;
-      while (next < lines.length && ["dialogue", "parenthetical"].includes(lines[next].type)) next += 1;
+      while (next < lines.length && ["dialogue", "parenthetical", "note"].includes(lines[next].type)) next += 1;
       while (next < lines.length && lines[next].type === "empty") next += 1;
       if (lines[next]?.type === "character" && lines[next].raw.trim().endsWith("^")) {
         let rightEnd = next + 1;
-        while (rightEnd < lines.length && ["dialogue", "parenthetical"].includes(lines[rightEnd].type)) rightEnd += 1;
+        while (rightEnd < lines.length && ["dialogue", "parenthetical", "note"].includes(lines[rightEnd].type)) rightEnd += 1;
         const left = lines.slice(i, next).filter((line) => line.type !== "empty").map((line) => previewLineHtml(line)).join("");
         const right = lines.slice(next, rightEnd).map((line) => previewLineHtml(line)).join("");
         output.push(`<div class="dual-dialog"><div class="dual-left">${left}</div><div class="dual-right">${right}</div></div>`);
@@ -745,6 +752,9 @@ function replacePreviewSelection(edit, text) {
   const rawStart = previewSourceOffset(edit.startLine, lines[startIndex], edit.startOffset, collapsed ? "caret" : "start");
   const rawEnd = previewSourceOffset(edit.endLine, lines[endIndex], edit.endOffset, collapsed ? "caret" : "end");
   const trailingSource = lines[endIndex].slice(rawEnd);
+  const preservedNotes = startIndex === endIndex
+    ? []
+    : lines.slice(startIndex + 1, endIndex).filter((value) => /^\s*\[\[.*\]\]\s*$/.test(value));
   if (startIndex === endIndex && insertedText.includes("\n")) {
     const markers = activeInlineMarkers(lines[startIndex], rawStart);
     if (markers.length) insertedText = insertedText.replaceAll("\n", `${[...markers].reverse().join("")}\n${markers.join("")}`);
@@ -755,7 +765,7 @@ function replacePreviewSelection(edit, text) {
     replacements[replacements.length - 1] = `> ${replacements.at(-1).trimStart()}`;
     for (let index = 1; index < replacements.length - 1; index += 1) replacements[index] = `> ${replacements[index]} <`;
   }
-  lines.splice(startIndex, endIndex - startIndex + 1, ...replacements);
+  lines.splice(startIndex, endIndex - startIndex + 1, ...replacements, ...preservedNotes);
   source.value = lines.join("\n");
   const focusLine = startIndex + displayLines.length - 1;
   const focusOffset = displayLines.length === 1 ? before.length + text.length : text.split(/\r\n?|\n/).at(-1).length;
@@ -788,7 +798,9 @@ function previewDeleteSelection(edit, direction, byWord = false) {
     const length = byWord ? (after.match(/^\s*\S+/)?.[0].length || 1) : 1;
     edit.endOffset += length;
   } else {
-    const adjacent = $(`[data-line="${index + (direction === "backward" ? -1 : 1)}"]`, page);
+    const candidates = $$(".script-line[contenteditable]", page);
+    const current = candidates.indexOf(line);
+    const adjacent = candidates[current + (direction === "backward" ? -1 : 1)];
     if (!adjacent) return;
     if (direction === "backward") {
       edit.startLine = adjacent;

@@ -79,6 +79,10 @@ Third line.
         )
         self.assertEqual(analyze_source(SOURCE)["wordCount"], result["wordCount"])
 
+    def test_managed_note_markers_inside_boneyards_are_ignored(self):
+        result = analyze_source("/*\n[[FP-GENERAL:Not%20a%20managed%20note]]\n*/\n")
+        self.assertEqual([], result["generalNotes"])
+
     def test_top_level_act_headings_are_prepared_for_pdf(self):
         from screenplain.types import Action, Section
 

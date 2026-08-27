@@ -145,7 +145,7 @@ test("source and preview navigation scroll in both directions", async () => {
 test("preview edits are source-backed and preserve the viewport", async () => {
   const app = await readFile(appPath, "utf8");
   assert.match(app, /page\.addEventListener\("beforeinput"[\s\S]*event\.preventDefault\(\);[\s\S]*replacePreviewSelection\(edit/);
-  assert.match(app, /function replacePreviewSelection[\s\S]*lines\.splice\(startIndex, endIndex - startIndex \+ 1, \.\.\.replacements\)/);
+  assert.match(app, /function replacePreviewSelection[\s\S]*lines\.splice\(startIndex, endIndex - startIndex \+ 1, \.\.\.replacements, \.\.\.preservedNotes\)/);
   assert.match(app, /function previewDeleteSelection/);
   assert.match(app, /page\.addEventListener\("paste"/);
   assert.match(app, /insertFromPaste/);
@@ -384,6 +384,9 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(app, /data-annotation-line/);
   assert.match(app, /managedCharacterSource/);
   assert.match(app, /managedGeneralSource/);
+  assert.match(app, /const preservedNotes = startIndex === endIndex/);
+  assert.match(app, /const candidates = \$\$\("\.script-line\[contenteditable\]"/);
+  assert.match(app, /\["dialogue", "parenthetical", "note"\]\.includes/);
   assert.match(css, /\.annotation-orb\s*\{/);
   assert.match(css, /\.general-notes\s*\{/);
 });
