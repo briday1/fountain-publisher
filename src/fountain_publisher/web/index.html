@@ -151,6 +151,12 @@
           </div>
         </div>
         <div id="preview-completion-menu" class="completion-menu preview-completion-menu" role="listbox" aria-label="Character suggestions" hidden></div>
+        <div id="preview-context-menu" class="preview-context-menu" role="menu" aria-label="Preview actions" hidden>
+          <button type="button" data-preview-menu-action="annotation" role="menuitem">Add annotation</button>
+          <button type="button" data-preview-menu-action="copy" role="menuitem">Copy</button>
+          <button type="button" data-preview-menu-action="cut" role="menuitem">Cut</button>
+          <button type="button" data-preview-menu-action="paste" role="menuitem">Paste</button>
+        </div>
         <div id="toast" class="toast" role="status" aria-live="polite"></div>
       </section>
 
@@ -226,8 +232,8 @@
     <dialog id="annotation-dialog" aria-labelledby="annotation-heading">
       <form method="dialog" id="annotation-form" class="note-form">
         <div class="dialog-heading"><small>SCREENPLAY</small><h2 id="annotation-heading">Annotation</h2></div>
-        <label>Note<textarea id="annotation-text" rows="6" required></textarea></label>
-        <div class="dialog-actions"><button id="delete-annotation" class="danger" type="button">Delete</button><span></span><button value="cancel">Cancel</button><button class="primary" value="default">Save</button></div>
+        <label>Note<textarea id="annotation-text" rows="6"></textarea></label>
+        <div class="dialog-actions"><button id="delete-annotation" class="danger" type="button">Delete</button><span></span><button value="cancel" formnovalidate>Cancel</button><button class="primary" value="default">Save</button></div>
       </form>
     </dialog>
 
