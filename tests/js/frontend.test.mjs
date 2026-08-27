@@ -415,10 +415,9 @@ test("insight colors coordinate with the source palette", async () => {
   const css = await readFile(cssPath, "utf8");
   assert.match(css, /\.balance > div\s*\{[^}]*background:\s*var\(--syntax-scene\);/s);
   assert.match(css, /\.balance > div span\s*\{[^}]*background:\s*var\(--syntax-character\);/s);
-  assert.match(css, /\.metric-grid div:nth-child\(1\)\s*\{\s*color:\s*var\(--metric-pages-ink\);\s*\}/s);
-  assert.match(css, /\.metric-grid div:nth-child\(2\)\s*\{\s*color:\s*var\(--metric-scenes-ink\);\s*\}/s);
-  assert.match(css, /\.metric-grid div:nth-child\(3\)\s*\{\s*color:\s*var\(--metric-words-ink\);\s*\}/s);
-  assert.doesNotMatch(css, /\.metric-grid div:nth-child\(\d\)\s*\{[^}]*background:/s);
+  assert.match(css, /\.metric-grid div:nth-child\(1\)\s*\{\s*color:\s*var\(--metric-pages-ink\);\s*background:\s*var\(--metric-pages-bg\);\s*\}/s);
+  assert.match(css, /\.metric-grid div:nth-child\(2\)\s*\{\s*color:\s*var\(--metric-scenes-ink\);\s*background:\s*var\(--metric-scenes-bg\);\s*\}/s);
+  assert.match(css, /\.metric-grid div:nth-child\(3\)\s*\{\s*color:\s*var\(--metric-words-ink\);\s*background:\s*var\(--metric-words-bg\);\s*\}/s);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.metric-grid\s*\{\s*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);/s);
 });
 
