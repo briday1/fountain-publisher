@@ -30,6 +30,10 @@ export function normalizePath(path) {
   return String(path || "").trim().replace(/^\/+|\/+$/g, "").replace(/\/{2,}/g, "/");
 }
 
+function encodePath(path) {
+  return normalizePath(path).split("/").map(encodeURIComponent).join("/");
+}
+
 export function branchName(path, now = Date.now()) {
   const stem = normalizePath(path).split("/").pop()?.replace(/\.[^.]+$/, "") || "screenplay";
   const safe = stem.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "screenplay";
@@ -88,7 +92,7 @@ export class GitHubClient {
   }
 
   async contents(owner, repo, path = "", branch = "") {
-    const clean = normalizePath(path);
+    const clean = encodePath(path);
     const suffix = branch ? `?ref=${encodeURIComponent(branch)}` : "";
     return (await this.request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${clean}${suffix}`)).payload;
   }
@@ -110,7 +114,7 @@ export class GitHubClient {
     if (!clean) throw new Error("A repository path is required");
     const body = { branch, message, content: encodeContent(text) };
     if (sha) body.sha = sha;
-    return (await this.request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${clean}`, {
+    return (await this.request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodePath(clean)}`, {
       method: "PUT",
       body: JSON.stringify(body),
     })).payload;

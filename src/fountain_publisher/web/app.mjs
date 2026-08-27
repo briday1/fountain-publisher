@@ -244,6 +244,7 @@ const state = {
   previewContextText: "",
   githubClient: null,
   github: null,
+  githubPending: null,
   githubMode: "open",
 };
 
@@ -1595,12 +1596,17 @@ async function openGitHubDialog(mode = "open") {
 
     async function commitGitHub({ owner, repo, branch, path, sha, message }) {
       const result = await state.githubClient.save({ owner, repo, branch, path, sha, text: source.value, message });
+      adoptGitHubSave({ owner, repo, branch, path }, result);
+      return result;
+    }
+
+    function adoptGitHubSave({ owner, repo, branch, path }, result) {
       state.github = { owner, repo, branch, path, sha: result.content.sha, htmlUrl: result.content.html_url };
+      state.githubPending = null;
       state.filename = path.split("/").pop();
       state.savedSource = source.value;
       setDocument(source.value, state.filename, true);
       persistWorkspaceNow();
-      return result;
     }
 
     async function saveGitHub() {
@@ -1618,6 +1624,7 @@ async function openGitHubDialog(mode = "open") {
         githubResult("Commit created.", result.commit.html_url);
       } catch (error) {
         if (error instanceof GitHubError && (error.isConflict || error.isProtectedBranch)) {
+          state.githubPending = { ...state.github, message };
           $("#github-conflict-heading").textContent = error.isProtectedBranch ? "This branch is protected" : "The file changed on GitHub";
           $("#github-conflict-branch").value = branchName(state.github.path);
           $("#github-conflict-dialog").showModal();
@@ -1642,7 +1649,7 @@ async function openGitHubDialog(mode = "open") {
         result = await commitGitHub({ owner, repo, branch, path, sha, message });
       } catch (error) {
         if (!(error instanceof GitHubError) || (!error.isConflict && !error.isProtectedBranch)) throw error;
-        state.github = { owner, repo, branch, path, sha };
+        state.githubPending = { owner, repo, branch, path, sha, message };
         $("#github-dialog").close();
         $("#github-conflict-heading").textContent = error.isProtectedBranch ? "This branch is protected" : "The file changed on GitHub";
         $("#github-conflict-branch").value = branchName(path);
@@ -1657,17 +1664,35 @@ async function openGitHubDialog(mode = "open") {
     async function saveGitHubBranch() {
       const target = $("#github-conflict-branch").value.trim();
       if (!target) return;
-      const current = state.github;
+      const current = state.githubPending || state.github;
+      if (!current) return;
       try {
         toast("Creating GitHub branch…");
-        await state.githubClient.createBranch(current.owner, current.repo, current.branch, target);
-        let latestSha;
-        try { latestSha = (await state.githubClient.file(current.owner, current.repo, current.path, target)).sha; }
-        catch (error) { if (error.status !== 404) throw error; }
-        const result = await commitGitHub({ ...current, branch: target, sha: latestSha, message: `Update ${current.path}` });
+        let fallback = current.fallback;
+        if (!fallback || fallback.branch !== target) {
+          await state.githubClient.createBranch(current.owner, current.repo, current.branch, target);
+          fallback = { branch: target };
+          state.githubPending = { ...current, fallback };
+        }
+        let result = fallback.result;
+        if (!result) {
+          let latestSha;
+          try { latestSha = (await state.githubClient.file(current.owner, current.repo, current.path, target)).sha; }
+          catch (error) { if (error.status !== 404) throw error; }
+          result = await state.githubClient.save({
+            ...current,
+            branch: target,
+            sha: latestSha,
+            text: source.value,
+            message: current.message || `Update ${current.path}`,
+          });
+          fallback = { branch: target, result };
+          state.githubPending = { ...current, fallback };
+        }
         const pull = await state.githubClient.createPullRequest(current.owner, current.repo, {
           title: `Update ${current.path}`, body: "Created by Fountain Publisher.", head: target, base: current.branch,
         });
+        adoptGitHubSave({ ...current, branch: target }, result);
         $("#github-conflict-dialog").close();
         githubResult("Pull request created.", pull.html_url || result.commit.html_url);
         toast("Saved on a new branch");
@@ -1675,10 +1700,12 @@ async function openGitHubDialog(mode = "open") {
     }
 
     async function reloadGitHubFile() {
-      const current = state.github;
+      const current = state.githubPending || state.github;
+      if (!current) return;
       try {
         const file = await state.githubClient.file(current.owner, current.repo, current.path, current.branch);
         state.github = { ...current, sha: file.sha, htmlUrl: file.htmlUrl };
+        state.githubPending = null;
         setDocument(file.text, current.path.split("/").pop(), true);
         $("#github-conflict-dialog").close();
         toast("Reloaded latest GitHub version");
@@ -2438,7 +2465,7 @@ $("#github-conflict-form").addEventListener("submit", (event) => {
   event.preventDefault();
   if (event.submitter?.value === "reload") reloadGitHubFile();
   else if (event.submitter?.value === "branch") saveGitHubBranch();
-  else $("#github-conflict-dialog").close();
+  else { state.githubPending = null; $("#github-conflict-dialog").close(); }
 });
 $("#export-pdf").addEventListener("click", () => openExport("pdf")); $("#export-fdx").addEventListener("click", () => openExport("fdx"));
 $("#export-format").addEventListener("change", (event) => { $("#dialog-page-size").hidden = event.target.value !== "pdf"; });

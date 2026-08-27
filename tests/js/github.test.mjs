@@ -28,6 +28,16 @@ test("paths and generated branch names are safe", () => {
   assert.equal(branchName("drafts/My Film.fountain", 42), "fountain-publisher/my-film-42");
 });
 
+test("repository paths are encoded per segment", async () => {
+  let requestedUrl;
+  const client = new GitHubClient("token", { fetchImpl: async (url) => {
+    requestedUrl = url;
+    return response({ type: "file", content: encodeContent("FADE IN:"), sha: "sha" });
+  } });
+  await client.file("octo", "script", "drafts/Act #1?.fountain", "main");
+  assert.match(requestedUrl, /contents\/drafts\/Act%20%231%3F\.fountain\?ref=main$/);
+});
+
 test("token session uses only the supplied session storage and supports forgetting", () => {
   const values = new Map();
   const storage = {
