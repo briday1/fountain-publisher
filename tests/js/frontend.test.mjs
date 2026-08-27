@@ -67,6 +67,7 @@ test("live and PDF previews have bounded scrolling containers", async () => {
   assert.match(css, /\.preview-scroll\.pdf-mode\s*\{[^}]*overflow:\s*hidden;/s);
   assert.match(css, /#pdf-frame\s*\{[^}]*height:\s*100%;/s);
   assert.match(app, /classList\.toggle\("pdf-mode",\s*mode\s*===\s*"pdf"\)/);
+  assert.match(app, /\$\("#preview-page-stage"\)\.hidden = mode !== "live"/);
 });
 
 test("toolbar menus use Pugflow-style popup interaction", async () => {
@@ -129,7 +130,7 @@ test("preview cursor synchronization does not add an active-line highlight", asy
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(app, /function currentPosition\(\)[\s\S]*source\.selectionDirection !== "backward"[\s\S]*source\.selectionEnd/);
   assert.match(app, /function setSourceSelectionFromPreview\(edit\)[\s\S]*source\.setSelectionRange\(start, end, edit\.direction\)/);
-  assert.match(app, /page\.addEventListener\("click"[\s\S]*setSourceSelectionFromPreview\(edit\)/);
+  assert.match(app, /page\.addEventListener\("pointerup"[\s\S]*previewLineForNode\(getSelection\(\)\?\.focusNode\)[\s\S]*setSourceSelectionFromPreview\(edit\)/);
   assert.match(app, /page\.addEventListener\("keyup"[\s\S]*setSourceSelectionFromPreview\(edit\)/);
   assert.doesNotMatch(css, /\.script-line\.source-current:not\(:focus\)/);
 });
@@ -410,9 +411,11 @@ test("insight colors coordinate with the source palette", async () => {
   const css = await readFile(cssPath, "utf8");
   assert.match(css, /\.balance > div\s*\{[^}]*background:\s*var\(--syntax-scene\);/s);
   assert.match(css, /\.balance > div span\s*\{[^}]*background:\s*var\(--syntax-character\);/s);
-  assert.match(css, /\.metric-grid div:nth-child\(1\)\s*\{[^}]*var\(--metric-pages-bg\)[^}]*var\(--metric-pages-ink\)/s);
-  assert.match(css, /\.metric-grid div:nth-child\(2\)\s*\{[^}]*var\(--metric-scenes-bg\)[^}]*var\(--metric-scenes-ink\)/s);
-  assert.match(css, /\.metric-grid div:nth-child\(3\)\s*\{[^}]*var\(--metric-words-bg\)[^}]*var\(--metric-words-ink\)/s);
+  assert.match(css, /\.metric-grid div:nth-child\(1\)\s*\{\s*color:\s*var\(--metric-pages-ink\);\s*\}/s);
+  assert.match(css, /\.metric-grid div:nth-child\(2\)\s*\{\s*color:\s*var\(--metric-scenes-ink\);\s*\}/s);
+  assert.match(css, /\.metric-grid div:nth-child\(3\)\s*\{\s*color:\s*var\(--metric-words-ink\);\s*\}/s);
+  assert.doesNotMatch(css, /\.metric-grid div:nth-child\(\d\)\s*\{[^}]*background:/s);
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.metric-grid\s*\{\s*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);/s);
 });
 
 test("source word wrap defaults on and preserves logical line numbers", async () => {
