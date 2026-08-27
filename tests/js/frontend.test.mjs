@@ -486,6 +486,8 @@ test("preview zoom offers fit and computes it from the available viewport", asyn
   const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
   assert.match(html, /id="zoom"[\s\S]*<option value="fit">Fit<\/option>/);
   assert.match(app, /availableWidth \/ 816,\s*availableHeight \/ 1056/);
+  assert.match(app, /if \(\$\("#zoom"\)\.value === "fit"\) requestAnimationFrame\(applyZoom\);/);
+  assert.match(app, /if \(zoom\.value === "fit"\)\s*\{\s*zoom\.value = "100";/);
   assert.match(app, /\["fit",\s*"70",\s*"85",\s*"100",\s*"115",\s*"130"\]/);
 });
 

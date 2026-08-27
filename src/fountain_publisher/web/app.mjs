@@ -1672,11 +1672,12 @@ function togglePanel(panel, force) {
   document.body.classList.toggle(`${panel}-collapsed`, collapsed); localStorage.setItem(`fountain-publisher.${panel}-collapsed`, String(collapsed));
   $(`#toggle-${panel}`).setAttribute("aria-expanded", String(!collapsed));
   $(`#menu-toggle-${panel}`).textContent = `${collapsed ? "Show" : "Hide"} ${panel === "stats" ? "Insights" : "Source"}`;
+  if ($("#zoom").value === "fit") requestAnimationFrame(applyZoom);
 }
 
 function installResizer(element, variable, side, min, max) {
   let startX = 0; let startWidth = 0;
-  const apply = (width) => { const next = Math.max(min, Math.min(max, width)); document.documentElement.style.setProperty(variable, `${next}px`); localStorage.setItem(`fountain-publisher.${variable}`, String(next)); element.setAttribute("aria-valuenow", String(Math.round(next))); if (variable === "--source-w") renderEditorChrome(); };
+  const apply = (width) => { const next = Math.max(min, Math.min(max, width)); document.documentElement.style.setProperty(variable, `${next}px`); localStorage.setItem(`fountain-publisher.${variable}`, String(next)); element.setAttribute("aria-valuenow", String(Math.round(next))); if (variable === "--source-w") renderEditorChrome(); if ($("#zoom").value === "fit") requestAnimationFrame(applyZoom); };
   element.addEventListener("pointerdown", (event) => { startX = event.clientX; startWidth = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(variable)); element.setPointerCapture(event.pointerId); });
   element.addEventListener("pointermove", (event) => { if (!element.hasPointerCapture(event.pointerId)) return; apply(startWidth + (event.clientX - startX) * side); });
   element.addEventListener("dblclick", () => apply(variable === "--source-w" ? 370 : 310));
@@ -1708,7 +1709,12 @@ function applyZoom() {
 function stepZoom(direction) {
   const values = ["70", "85", "100", "115", "130"];
   const zoom = $("#zoom");
-  const index = zoom.value === "fit" ? 2 : values.indexOf(zoom.value);
+  if (zoom.value === "fit") {
+    zoom.value = "100";
+    applyZoom();
+    return;
+  }
+  const index = values.indexOf(zoom.value);
   zoom.value = values[Math.max(0, Math.min(values.length - 1, index + direction))];
   applyZoom();
 }
