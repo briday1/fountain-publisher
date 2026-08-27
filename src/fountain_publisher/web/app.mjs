@@ -235,6 +235,8 @@ const state = {
   cacheTimer: 0,
   noteEditor: null,
   previewContextLine: null,
+  previewContextEdit: null,
+  previewContextText: "",
 };
 
 function emptyMetadata() {
@@ -1866,6 +1868,8 @@ function hidePreviewContextMenu() {
   const menu = $("#preview-context-menu");
   menu.hidden = true;
   state.previewContextLine = null;
+  state.previewContextEdit = null;
+  state.previewContextText = "";
 }
 
 function previewLineForNode(node) {
@@ -1915,39 +1919,54 @@ function placePreviewCaretFromPoint(line, clientX, clientY) {
 
 function showPreviewContextMenu(line, clientX, clientY) {
   const menu = $("#preview-context-menu");
+  const selection = previewSelectionInPage();
   state.previewContextLine = Number(line.dataset.line);
+  state.previewContextEdit = previewSelection(previewLineForNode(selection?.focusNode) || line);
+  state.previewContextText = selection?.toString() || "";
   menu.hidden = false;
   menu.style.left = "0px";
   menu.style.top = "0px";
   const { width, height } = menu.getBoundingClientRect();
   menu.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, clientX))}px`;
-  menu.style.top = `${Math.max(8, Math.min(window.innerHeight - height - 8, clientY))}px`;
+  let top = clientY;
+  if (isMobilePreview() && state.previewContextText && selection.rangeCount) {
+    const selectionRect = selection.getRangeAt(0).getBoundingClientRect();
+    const below = selectionRect.bottom + 12;
+    const above = selectionRect.top - height - 12;
+    top = below + height <= window.innerHeight - 8 ? below : above;
+  }
+  menu.style.top = `${Math.max(8, Math.min(window.innerHeight - height - 8, top))}px`;
 }
 
-async function runPreviewClipboardAction(action, lineNumber) {
+async function runPreviewClipboardAction(action, lineNumber, context = {}) {
   const line = Number.isInteger(lineNumber) ? $(`[data-line="${lineNumber}"]`, page) : null;
   if (action === "copy") {
     const selection = previewSelectionInPage();
-    const text = selection?.toString() || "";
+    const text = context.text || selection?.toString() || "";
     if (!text) return "Select text to copy";
     try { if (document.execCommand("copy")) return ""; } catch { /* fall through */ }
     try { await navigator.clipboard.writeText(text); return ""; } catch { return "Clipboard access was denied"; }
   }
   if (action === "cut") {
     const selection = previewSelectionInPage();
-    const text = selection?.toString() || "";
+    const text = context.text || selection?.toString() || "";
     if (!text) return "Select text to cut";
-    try { if (document.execCommand("cut")) return ""; } catch { /* fall through */ }
-    const edit = previewSelection(previewLineForNode(selection?.focusNode) || line);
+    const edit = context.edit || previewSelection(previewLineForNode(selection?.focusNode) || line);
     if (!edit) return "Select text to cut";
     try {
       await navigator.clipboard.writeText(text);
       replacePreviewSelection(edit, "");
       return "";
-    } catch { return "Clipboard access was denied"; }
+    } catch {
+      try {
+        if (!document.execCommand("copy")) return "Clipboard access was denied";
+        replacePreviewSelection(edit, "");
+        return "";
+      } catch { return "Clipboard access was denied"; }
+    }
   }
   if (action === "paste") {
-    const edit = previewSelection(line || previewLineForNode(previewSelectionInPage()?.focusNode));
+    const edit = context.edit || previewSelection(line || previewLineForNode(previewSelectionInPage()?.focusNode));
     if (!edit) return "Click where you want to paste";
     try {
       replacePreviewSelection(edit, await navigator.clipboard.readText());
@@ -2083,11 +2102,11 @@ page.addEventListener("click", (event) => {
 $("#preview-context-menu").addEventListener("click", async (event) => {
   const button = event.target.closest("[data-preview-menu-action]");
   if (!button) return;
-  const { previewContextLine } = state;
+  const { previewContextLine, previewContextEdit: edit, previewContextText: text } = state;
   const action = button.dataset.previewMenuAction;
   hidePreviewContextMenu();
   if (action === "annotation") return openAnnotationEditor(null, previewContextLine);
-  const message = await runPreviewClipboardAction(action, previewContextLine);
+  const message = await runPreviewClipboardAction(action, previewContextLine, { edit, text });
   if (message) toast(message);
 });
 $("#preview-completion-menu").addEventListener("mousedown", (event) => { const item = event.target.closest(".completion-item"); if (item) { event.preventDefault(); acceptPreviewCharacterCompletion(Number(item.dataset.index)); } });
