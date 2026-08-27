@@ -201,6 +201,7 @@ const BLANK_TEMPLATE = ``;
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const TITLE_KEYS = new Set(["title", "credit", "author", "authors", "source", "draft date", "date", "contact", "copyright", "notes"]);
+const MANAGED_NOTE_RE = /^\[\[FP-(GENERAL|CHARACTER):(.+)\]\]$/;
 const source = $("#source");
 const page = $("#screenplay-page");
 const WORKSPACE_CACHE_KEY = "fountain-publisher.workspace.v1";
@@ -231,10 +232,11 @@ const state = {
   theme: localStorage.getItem("fountain-publisher.theme") || "system",
   cacheEnabled: false,
   cacheTimer: 0,
+  noteEditor: null,
 };
 
 function emptyMetadata() {
-  return { lineCount: 1, wordCount: 0, dialogueWords: 0, actionWords: 0, estimatedSeconds: 0, characters: [], scenes: [], sections: [], locations: [], titleFields: [] };
+  return { lineCount: 1, wordCount: 0, dialogueWords: 0, actionWords: 0, estimatedSeconds: 0, characters: [], scenes: [], sections: [], locations: [], titleFields: [], generalNotes: [], characterNotes: {} };
 }
 
 function readWorkspaceCache() {
@@ -280,6 +282,38 @@ function fountainInlineHtml(value) {
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
     .replace(/_(.+?)_/g, "<u>$1</u>");
+}
+
+function decodeNotePart(value) {
+  try { return decodeURIComponent(value); } catch { return value; }
+}
+
+function managedNote(line) {
+  const match = line.trim().match(MANAGED_NOTE_RE);
+  if (!match) return null;
+  if (match[1] === "GENERAL") return { kind: "general", text: decodeNotePart(match[2]) };
+  const separator = match[2].indexOf(":");
+  if (separator < 0) return null;
+  return {
+    kind: "character",
+    name: decodeNotePart(match[2].slice(0, separator)),
+    text: decodeNotePart(match[2].slice(separator + 1)),
+  };
+}
+
+function annotationText(raw) {
+  return raw.trim().replace(/^\[\[/, "").replace(/\]\]$/, "");
+}
+
+function parseManagedNotes(lines) {
+  const generalNotes = [];
+  const characterNotes = {};
+  lines.forEach((raw, line) => {
+    const note = managedNote(raw);
+    if (note?.kind === "general") generalNotes.push({ line, text: note.text });
+    else if (note?.kind === "character") characterNotes[note.name] = { line, text: note.text };
+  });
+  return { generalNotes, characterNotes };
 }
 
 function isScene(text) {
@@ -352,6 +386,7 @@ function classifyLines(text) {
 function analyzeLocally(text) {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
   const typed = classifyLines(text);
+  const notes = parseManagedNotes(lines);
   const characters = new Map();
   const scenes = [];
   const sections = [];
@@ -404,7 +439,7 @@ function analyzeLocally(text) {
   })).sort((a, b) => b.words - a.words || a.name.localeCompare(b.name));
   const wordCount = dialogueWords + actionWords;
   const pageCount = state.metadata?.pageCount ?? null;
-  return { lineCount: lines.length, wordCount, dialogueWords, actionWords, estimatedSeconds: pageCount == null ? 0 : pageCount * 60, characters: characterList, scenes, sections, locations: [...locations].sort(), titleFields, pageCount };
+  return { lineCount: lines.length, wordCount, dialogueWords, actionWords, estimatedSeconds: pageCount == null ? 0 : pageCount * 60, characters: characterList, scenes, sections, locations: [...locations].sort(), titleFields, pageCount, ...notes };
 }
 
 function previewLineHtml(line, sceneLabel = null) {
@@ -420,8 +455,13 @@ function previewLineHtml(line, sceneLabel = null) {
     const cleanDisplay = line.display.replace(/^\./, "").replace(/\s+#[^#]+#\s*$/, "");
     display = docSettings.sceneNumbers === "inline" ? `${sceneLabel}. ${cleanDisplay}` : cleanDisplay;
   }
+  const note = type === "note" ? managedNote(line.raw) : null;
   const content = display ? fountainInlineHtml(display) : "<br>";
   const sceneAttr = sceneLabel !== null ? escapeHtml(sceneLabel) : "";
+  if (type === "note" && !note) {
+    const text = annotationText(line.raw);
+    return `<div class="script-line note annotation-line" data-line="${line.index}"><button class="annotation-orb" type="button" data-annotation-line="${line.index}" title="${escapeHtml(text)}" aria-label="Edit annotation: ${escapeHtml(text)}"></button></div>`;
+  }
   return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(display)}" contenteditable="plaintext-only" spellcheck="${$("#spellcheck").checked}">${content}</div>`;
 }
 
@@ -950,13 +990,35 @@ function renderInsights(metadata) {
   $("#stat-scenes").textContent = metadata.scenes.length;
   $("#stat-words").textContent = metadata.wordCount.toLocaleString();
   $("#scene-count").textContent = metadata.scenes.length;
+  $("#character-count").textContent = metadata.characters.length;
   $("#scene-list").innerHTML = renderOutline(metadata);
+  renderCharacterTable();
+  renderGeneralNotes();
   const contentWords = metadata.dialogueWords + metadata.actionWords;
   const dialoguePercent = contentWords ? Math.round(metadata.dialogueWords / contentWords * 100) : 0;
   $("#dialogue-bar").style.width = `${dialoguePercent}%`;
   $("#dialogue-percent").textContent = `${dialoguePercent}%`;
   $("#action-percent").textContent = `${100 - dialoguePercent}%`;
   if ($("#character-analytics-dialog").open) renderCharacterAnalytics();
+}
+
+function renderCharacterTable() {
+  const characters = state.metadata.characters || [];
+  const notes = state.metadata.characterNotes || {};
+  $("#character-line-table").innerHTML = characters.length
+    ? `<table><thead><tr><th>Character</th><th>Lines</th><th>Duration</th></tr></thead><tbody>${characters.map((character) => {
+      const hasNote = Boolean(notes[character.name]?.text);
+      return `<tr><td><button type="button" data-character-note="${escapeHtml(character.name)}">${escapeHtml(character.name)}${hasNote ? `<span class="note-indicator" aria-label="Has notes">●</span>` : ""}</button></td><td>${character.lines}</td><td>${formatDuration(character.seconds)}</td></tr>`;
+    }).join("")}</tbody></table>`
+    : `<div class="empty-list">Characters appear as dialogue is written.</div>`;
+}
+
+function renderGeneralNotes() {
+  const notes = state.metadata.generalNotes || [];
+  $("#general-note-count").textContent = notes.length;
+  $("#general-notes").innerHTML = notes.length
+    ? notes.map((note) => `<button type="button" data-general-note-line="${note.line}"><span>${escapeHtml(note.text)}</span><small>Edit</small></button>`).join("")
+    : `<div class="empty-list">No general notes yet.</div>`;
 }
 
 function outlineSceneRow(scene, label = scene.number) {
@@ -1108,8 +1170,6 @@ function renderCharacterAnalytics() {
     context.fillText("Add scene headings to build the timeline.", width / 2, actHeight + sceneHeight + rowHeight / 2);
   }
   canvas.setAttribute("aria-label", `Character dialogue timeline with ${characters.length} characters across ${scenes.length} scenes; usage ranges from ${minLines} to ${maxLines} dialogue lines`);
-  const table = $("#character-line-table");
-  table.innerHTML = characters.length ? `<table><thead><tr><th>Character</th><th>Lines</th><th>Duration</th></tr></thead><tbody>${characters.map((character) => `<tr><td>${escapeHtml(character.name)}</td><td>${character.lines}</td><td>${formatDuration(character.seconds)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty-list">Character line counts appear as dialogue is written.</div>`;
 }
 
 function characterLineUsageCsv() {
@@ -1756,6 +1816,68 @@ function jumpToInsightScene(oneBased) {
 let toastTimer;
 function toast(message) { const element = $("#toast"); element.textContent = message; element.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => element.classList.remove("show"), 2200); }
 
+function sourceLines() {
+  return source.value.replace(/\r\n?/g, "\n").split("\n");
+}
+
+function setSourceLines(lines) {
+  source.value = lines.join("\n").replace(/\n{3,}$/g, "\n\n");
+  sourceChanged();
+}
+
+function appendManagedNote(value) {
+  const lines = sourceLines();
+  while (lines.length && !lines.at(-1).trim()) lines.pop();
+  if (lines.length) lines.push("");
+  lines.push(value);
+  setSourceLines(lines);
+}
+
+function managedGeneralSource(text) {
+  return `[[FP-GENERAL:${encodeURIComponent(text)}]]`;
+}
+
+function managedCharacterSource(name, text) {
+  return `[[FP-CHARACTER:${encodeURIComponent(name)}:${encodeURIComponent(text)}]]`;
+}
+
+function openAnnotationEditor(line = null, insertAfter = null) {
+  const existing = line === null ? "" : annotationText(sourceLines()[line] || "");
+  state.noteEditor = { kind: "annotation", line, insertAfter };
+  $("#annotation-heading").textContent = line === null ? "Add annotation" : "Edit annotation";
+  $("#annotation-text").value = existing;
+  $("#delete-annotation").hidden = line === null;
+  $("#annotation-dialog").showModal();
+  setTimeout(() => $("#annotation-text").focus(), 0);
+}
+
+function openCharacterNoteEditor(name) {
+  const note = state.metadata.characterNotes?.[name];
+  state.noteEditor = { kind: "character", name, line: note?.line ?? null };
+  $("#character-note-heading").textContent = `${name} notes`;
+  $("#character-note-text").value = note?.text || "";
+  $("#delete-character-note").hidden = !note;
+  $("#character-note-dialog").showModal();
+  setTimeout(() => $("#character-note-text").focus(), 0);
+}
+
+function openGeneralNoteEditor(line = null) {
+  const note = (state.metadata.generalNotes || []).find((item) => item.line === line);
+  state.noteEditor = { kind: "general", line: note?.line ?? null };
+  $("#general-note-heading").textContent = note ? "Edit general note" : "Add general note";
+  $("#general-note-text").value = note?.text || "";
+  $("#delete-general-note").hidden = !note;
+  $("#general-note-dialog").showModal();
+  setTimeout(() => $("#general-note-text").focus(), 0);
+}
+
+function deleteNoteLine(line) {
+  if (line === null || line === undefined) return;
+  const lines = sourceLines();
+  lines.splice(line, 1);
+  setSourceLines(lines);
+}
+
 const toolbarMenus = $$(".toolbar-menu");
 
 function closeMenus(except = null) { toolbarMenus.forEach((menu) => { if (menu !== except) menu.open = false; }); }
@@ -1835,6 +1957,16 @@ page.addEventListener("keyup", (event) => {
   const line = event.target.closest(".script-line"); const edit = previewSelection(line); if (edit) setSourceSelectionFromPreview(edit);
 });
 page.addEventListener("focusout", () => setTimeout(() => { if (!$("#preview-completion-menu").matches(":hover")) hidePreviewCompletions(); }, 0));
+page.addEventListener("contextmenu", (event) => {
+  const line = event.target.closest(".script-line");
+  if (!line || event.target.closest(".annotation-orb")) return;
+  event.preventDefault();
+  openAnnotationEditor(null, Number(line.dataset.line));
+});
+page.addEventListener("click", (event) => {
+  const orb = event.target.closest(".annotation-orb");
+  if (orb) { event.preventDefault(); openAnnotationEditor(Number(orb.dataset.annotationLine)); }
+});
 $("#preview-completion-menu").addEventListener("mousedown", (event) => { const item = event.target.closest(".completion-item"); if (item) { event.preventDefault(); acceptPreviewCharacterCompletion(Number(item.dataset.index)); } });
 $("#completion-menu").addEventListener("mousedown", (event) => { const item = event.target.closest(".completion-item"); if (item) { event.preventDefault(); acceptCompletion(Number(item.dataset.index)); } });
 $("[data-character-analytics]").addEventListener("click", openCharacterAnalytics);
@@ -1842,6 +1974,61 @@ $("#close-character-analytics").addEventListener("click", () => $("#character-an
 $("#copy-character-lines").addEventListener("click", copyCharacterLineUsage);
 $("#save-character-analytics").addEventListener("click", saveCharacterAnalyticsPng);
 $("#scene-list").addEventListener("click", (event) => { const button = event.target.closest("button[data-line]"); if (button) jumpToInsightScene(Number(button.dataset.line)); });
+$("#character-line-table").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-character-note]");
+  if (button) openCharacterNoteEditor(button.dataset.characterNote);
+});
+$("#general-notes").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-general-note-line]");
+  if (button) openGeneralNoteEditor(Number(button.dataset.generalNoteLine));
+});
+$("#add-general-note").addEventListener("click", () => openGeneralNoteEditor());
+
+$("#annotation-form").addEventListener("submit", (event) => {
+  if (event.submitter?.value !== "default") return;
+  event.preventDefault();
+  const text = $("#annotation-text").value.trim().replace(/\s*\n+\s*/g, " ").replaceAll("]]", "] ]");
+  if (!text) return;
+  const lines = sourceLines();
+  if (state.noteEditor.line === null) lines.splice(state.noteEditor.insertAfter + 1, 0, `[[${text}]]`);
+  else lines[state.noteEditor.line] = `[[${text}]]`;
+  setSourceLines(lines);
+  $("#annotation-dialog").close();
+});
+$("#delete-annotation").addEventListener("click", () => {
+  deleteNoteLine(state.noteEditor?.line);
+  $("#annotation-dialog").close();
+});
+
+$("#character-note-form").addEventListener("submit", (event) => {
+  if (event.submitter?.value !== "default") return;
+  event.preventDefault();
+  const text = $("#character-note-text").value.trim();
+  if (!text) { deleteNoteLine(state.noteEditor.line); $("#character-note-dialog").close(); return; }
+  const value = managedCharacterSource(state.noteEditor.name, text);
+  if (state.noteEditor.line === null) appendManagedNote(value);
+  else { const lines = sourceLines(); lines[state.noteEditor.line] = value; setSourceLines(lines); }
+  $("#character-note-dialog").close();
+});
+$("#delete-character-note").addEventListener("click", () => {
+  deleteNoteLine(state.noteEditor?.line);
+  $("#character-note-dialog").close();
+});
+
+$("#general-note-form").addEventListener("submit", (event) => {
+  if (event.submitter?.value !== "default") return;
+  event.preventDefault();
+  const text = $("#general-note-text").value.trim();
+  if (!text) return;
+  const value = managedGeneralSource(text);
+  if (state.noteEditor.line === null) appendManagedNote(value);
+  else { const lines = sourceLines(); lines[state.noteEditor.line] = value; setSourceLines(lines); }
+  $("#general-note-dialog").close();
+});
+$("#delete-general-note").addEventListener("click", () => {
+  deleteNoteLine(state.noteEditor?.line);
+  $("#general-note-dialog").close();
+});
 
 $("#new-file").addEventListener("click", newFile); $("#open-file").addEventListener("click", openFile); $("#save-file").addEventListener("click", () => saveFile(false)); $("#save-file-as").addEventListener("click", () => saveFile(true));
 $("#file-input").addEventListener("change", async (event) => { const file = event.target.files?.[0]; if (file) { state.handle = null; setDocument(await file.text(), file.name, true); } event.target.value = ""; });

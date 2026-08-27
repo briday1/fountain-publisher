@@ -352,10 +352,9 @@ test("in-app documentation teaches the editor and Fountain syntax", async () => 
 
 test("character analytics supports a scrollable timeline, PNG save, and CSV copy", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
-  assert.match(html, /class="character-analytics-launch"><button[^>]*data-character-analytics>Character Analytics/);
-  assert.match(css, /\.character-analytics-launch button\s*\{[^}]*width:\s*100%;[^}]*text-align:\s*center;/s);
-  assert.doesNotMatch(html, /id="character-list"|id="character-count"/);
-  assert.doesNotMatch(app, /character-name-list/);
+  assert.match(html, /summary>Characters <small id="character-count">/);
+  assert.match(html, /class="character-analytics-button"[^>]*data-character-analytics>Character Analytics/);
+  assert.match(css, /\.character-analytics-button, \.character-csv-button\s*\{[^}]*width:\s*100%;[^}]*text-align:\s*center;/s);
   assert.match(html, /id="character-analytics-chart"/);
   assert.match(html, /id="copy-character-lines"[^>]*>Copy line usage CSV/);
   assert.match(app, /navigator\.clipboard\.writeText\(characterLineUsageCsv\(\)\)/);
@@ -364,7 +363,7 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.match(app, /\.toBlob\(resolve,\s*"image\/png"\)/);
   assert.match(css, /\.analytics-chart-scroll\s*\{[^}]*overflow:\s*auto;/s);
   assert.match(html, /id="character-line-table"/);
-  assert.match(html, /class="analytics-chart-scroll">\s*<canvas[^>]+><\/canvas>\s*<\/div>\s*<div id="character-line-table"/s);
+  assert.match(html, /id="character-line-table" class="character-line-table"/);
   assert.doesNotMatch(app, /table\.style\.width/);
   assert.match(app, /maxLines === minLines \? 1 : 0\.25 \+ 0\.75/);
   assert.match(app, /canvasColor\("--syntax-character", "#7c3aed"\)/);
@@ -372,6 +371,21 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.match(app, /fillRect\(0, y, labelWidth \+ scenes\.length \* sceneWidth, rowHeight\)/);
   assert.doesNotMatch(app, /moveTo\(0, y \+ rowHeight \+ 0\.5\)/);
   assert.match(css, /\.analytics-gradient-legend i\s*\{[^}]*var\(--syntax-character\)[^}]*var\(--syntax-character\)/s);
+});
+
+test("source-backed annotations and notes expose preview and sidebar CRUD", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(html, /id="annotation-dialog"/);
+  assert.match(html, /id="character-note-dialog"/);
+  assert.match(html, /id="general-note-dialog"/);
+  assert.match(html, /summary>General notes/);
+  assert.match(app, /MANAGED_NOTE_RE/);
+  assert.match(app, /page\.addEventListener\("contextmenu"/);
+  assert.match(app, /data-annotation-line/);
+  assert.match(app, /managedCharacterSource/);
+  assert.match(app, /managedGeneralSource/);
+  assert.match(css, /\.annotation-orb\s*\{/);
+  assert.match(css, /\.general-notes\s*\{/);
 });
 
 test("insight colors coordinate with the source palette", async () => {

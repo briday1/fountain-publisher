@@ -66,6 +66,19 @@ Third line.
         self.assertEqual([1, 2], [scene["actNumber"] for scene in result["scenes"]])
         self.assertEqual([{"scene": 1, "lines": 2}, {"scene": 2, "lines": 1}], result["characters"][0]["sceneLines"])
 
+    def test_managed_notes_are_decoded_without_affecting_statistics(self):
+        source = SOURCE + (
+            "\n[[FP-GENERAL:Check%20the%20third%20act.]]"
+            "\n[[FP-CHARACTER:MAYA:Her%20goal%20changes%0Aafter%20the%20reveal.]]\n"
+        )
+        result = analyze_source(source)
+        self.assertEqual([{"line": 13, "text": "Check the third act."}], result["generalNotes"])
+        self.assertEqual(
+            {"line": 14, "text": "Her goal changes\nafter the reveal."},
+            result["characterNotes"]["MAYA"],
+        )
+        self.assertEqual(analyze_source(SOURCE)["wordCount"], result["wordCount"])
+
     def test_top_level_act_headings_are_prepared_for_pdf(self):
         from screenplain.types import Action, Section
 
