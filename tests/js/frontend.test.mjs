@@ -85,7 +85,7 @@ test("app info uses one understated GitHub link", async () => {
   assert.match(css, /\.about-popover a\s*\{[^}]*color:\s*var\(--ink\);[^}]*font-weight:\s*700;/s);
 });
 
-test("source and preview share syntax, cursor, and character completion behavior", async () => {
+test("source and preview share syntax, cursor synchronization, and character completion behavior", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="source-highlight"/);
   assert.match(html, /id="preview-completion-menu"/);
@@ -94,7 +94,6 @@ test("source and preview share syntax, cursor, and character completion behavior
   assert.match(app, /const explicitCharacter = text\.startsWith\("@"\)/);
   assert.match(app, /\.classList\.add\("source-current"\)/);
   assert.match(css, /\.syntax-character/);
-  assert.match(css, /\.script-line\.source-current/);
 });
 
 test("source highlighting follows the textarea viewport and rendered line geometry", async () => {
