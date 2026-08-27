@@ -247,7 +247,6 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .script-line { min-height: 16px; margin: 0; white-space: pre-wrap; outline: none; position: relative; }
 .script-line:focus { outline: none; }
 .script-line.lyric { margin-left: 96px; font-style: italic; }
-.script-line.source-current:not(:focus) { background: color-mix(in srgb, #e3bf3d 18%, transparent); box-shadow: -3px 0 #e3bf3d; }
 .script-line.empty { height: 16px; }
 .script-line.title-key { display: none; }
 .script-line.title-value { text-align: center; margin: 16px 0; }
