@@ -127,7 +127,9 @@ test("preview edits keep the source cursor on the edited line", async () => {
 });
 
 test("preview cursor synchronization does not add an active-line highlight", async () => {
-  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(html, /id="screenplay-page"[^>]*contenteditable="plaintext-only"/);
+  assert.doesNotMatch(app, /class="\$\{className\}"[^>]*contenteditable/);
   assert.match(app, /function currentPosition\(\)[\s\S]*source\.selectionDirection !== "backward"[\s\S]*source\.selectionEnd/);
   assert.match(app, /function setSourceSelectionFromPreview\(edit\)[\s\S]*source\.setSelectionRange\(start, end, edit\.direction\)/);
   assert.match(app, /page\.addEventListener\("pointerup"[\s\S]*previewLineForNode\(getSelection\(\)\?\.focusNode\)[\s\S]*setSourceSelectionFromPreview\(edit\)/);
@@ -359,9 +361,9 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.match(html, /id="character-analytics-chart"/);
   assert.match(html, /id="copy-character-lines"[^>]*>Copy line usage CSV/);
   assert.match(app, /navigator\.clipboard\.writeText\(characterLineUsageCsv\(\)\)/);
-  assert.match(app, /row\.map\(csvCell\)\.join\(","\)/);
-  assert.match(app, /\["Character", "Dialogue Lines"\]/);
-  assert.match(app, /rows\.push\(\[character\.name, character\.lines\]\)/);
+  assert.match(app, /characters\.map\(\(character\) => `\$\{character\.name\}, \$\{character\.lines\}`\)/);
+  assert.doesNotMatch(app, /\["Character", "Dialogue Lines"\]/);
+  assert.doesNotMatch(app, /function characterLineUsageCsv\(\)[\s\S]*csvCell/);
   assert.doesNotMatch(app, /<th>Duration<\/th>/);
   assert.doesNotMatch(app, /function formatDuration\(/);
   assert.match(app, /\.toBlob\(resolve,\s*"image\/png"\)/);
@@ -400,7 +402,7 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(app, /managedCharacterSource/);
   assert.match(app, /managedGeneralSource/);
   assert.match(app, /const preservedNotes = startIndex === endIndex/);
-  assert.match(app, /const candidates = \$\$\("\.script-line\[contenteditable\]"/);
+  assert.match(app, /const candidates = \$\$\("\.script-line\[data-display\]"/);
   assert.match(app, /\["dialogue", "parenthetical", "note"\]\.includes/);
   assert.match(css, /\.annotation-orb\s*\{/);
   assert.match(css, /\.preview-context-menu\s*\{/);
