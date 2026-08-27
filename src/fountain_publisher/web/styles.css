@@ -237,9 +237,12 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .preview-actions > span { margin-right: 8px; font-size: 11px; }
 .preview-actions button, .preview-actions select { height: 27px; border: 1px solid var(--border); background: var(--surface); }
 .preview-actions button { width: 28px; }
+.preview-actions .zoom-fit { width: auto; padding: 0 8px; }
+.preview-actions .zoom-fit[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .preview-actions select { width: 66px; }
-.preview-scroll { flex: 1 1 0; min-height: 0; overflow: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 34px max(20px, calc((100% - 816px) / 2)); }
+.preview-scroll { flex: 1 1 0; min-height: 0; overflow: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 34px 20px; }
 .preview-scroll.pdf-mode { padding: 0; overflow: hidden; }
+.preview-page-stage { width: 816px; min-height: 1056px; margin: 0 auto; }
 .screenplay-page {
   width: 816px; min-height: 1056px; padding: 96px 96px 100px 144px; transform-origin: top left;
   background: var(--paper); color: var(--paper-ink); box-shadow: var(--shadow); font: 16px/1 var(--screenplay);
@@ -502,6 +505,7 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
   /* Mobile preview reflows to the viewport instead of scaling a fixed paper sheet */
   .view-switcher { display: none; }
   .preview-scroll { padding: 0; overflow-x: hidden; scrollbar-gutter: auto; }
+  .preview-page-stage { width: 100% !important; min-height: 100% !important; }
   .screenplay-page {
     width: 100%; min-height: 100%; margin: 0; padding: 48px max(20px, 6vw) 72px;
     transform: none; box-shadow: none; font-size: calc(16px * var(--mobile-preview-zoom, 1));
