@@ -85,7 +85,7 @@ test("app info uses one understated GitHub link", async () => {
   assert.match(css, /\.about-popover a\s*\{[^}]*color:\s*var\(--ink\);[^}]*font-weight:\s*700;/s);
 });
 
-test("source and preview share syntax, cursor, and character completion behavior", async () => {
+test("source and preview share syntax, cursor synchronization, and character completion behavior", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="source-highlight"/);
   assert.match(html, /id="preview-completion-menu"/);
@@ -94,7 +94,6 @@ test("source and preview share syntax, cursor, and character completion behavior
   assert.match(app, /const explicitCharacter = text\.startsWith\("@"\)/);
   assert.match(app, /\.classList\.add\("source-current"\)/);
   assert.match(css, /\.syntax-character/);
-  assert.match(css, /\.script-line\.source-current/);
 });
 
 test("source highlighting follows the textarea viewport and rendered line geometry", async () => {
@@ -126,12 +125,13 @@ test("preview edits keep the source cursor on the edited line", async () => {
   assert.doesNotMatch(app, /page\.addEventListener\("focusin"[^\n]*jumpToLine/);
 });
 
-test("preview highlight follows the active caret and text selection", async () => {
-  const app = await readFile(appPath, "utf8");
+test("preview cursor synchronization does not add an active-line highlight", async () => {
+  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(app, /function currentPosition\(\)[\s\S]*source\.selectionDirection !== "backward"[\s\S]*source\.selectionEnd/);
   assert.match(app, /function setSourceSelectionFromPreview\(edit\)[\s\S]*source\.setSelectionRange\(start, end, edit\.direction\)/);
   assert.match(app, /page\.addEventListener\("click"[\s\S]*setSourceSelectionFromPreview\(edit\)/);
   assert.match(app, /page\.addEventListener\("keyup"[\s\S]*setSourceSelectionFromPreview\(edit\)/);
+  assert.doesNotMatch(css, /\.script-line\.source-current:not\(:focus\)/);
 });
 
 test("source and preview navigation scroll in both directions", async () => {
