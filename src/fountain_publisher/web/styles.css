@@ -463,9 +463,24 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
   body[data-mobile-tab="stats"] #source-panel,
   body[data-mobile-tab="stats"] .preview-panel { display: none !important; }
 
-  /* Make PDF iframe fully fill the mobile preview panel */
-  .preview-scroll.pdf-mode { padding: 0; overflow: hidden; }
-  .pdf-view { height: 100%; }
+  /* Mobile preview reflows to the viewport instead of scaling a fixed paper sheet */
+  .view-switcher { display: none; }
+  .preview-scroll { padding: 0; overflow-x: hidden; scrollbar-gutter: auto; }
+  .screenplay-page {
+    width: 100%; min-height: 100%; margin: 0; padding: 48px max(20px, 6vw) 72px;
+    transform: none; box-shadow: none; font-size: calc(16px * var(--mobile-preview-zoom, 1));
+  }
+  .script-line { overflow-wrap: anywhere; }
+  .script-line.lyric { margin-left: 15%; }
+  .script-line.character { width: 48%; margin-left: 34%; }
+  .script-line.parenthetical { width: 62%; margin-left: 23%; padding-left: 3%; }
+  .script-line.dialogue { width: 72%; margin-left: 14%; }
+  .script-line.section.act, .script-line.section.act.source-current { font-size: calc(18px * var(--mobile-preview-zoom, 1)); }
+  .dual-dialog { gap: 5%; }
+  .dual-dialog .script-line.character { margin-left: 20%; }
+  .dual-dialog .script-line.dialogue { margin-left: 0; }
+  .dual-dialog .script-line.parenthetical { margin-left: 8%; }
+  .script-line.page-break { margin-inline: 0; }
 
   /* Insights: stack metric grid to a single column on narrow screens */
   .metric-grid { grid-template-columns: 1fr 1fr; }

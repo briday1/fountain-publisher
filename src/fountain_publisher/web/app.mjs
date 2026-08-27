@@ -1631,7 +1631,12 @@ function openExport(format) {
   $("#export-format").value = format; $("#export-page-size").value = $("#page-size").value; $("#dialog-page-size").hidden = format !== "pdf"; $("#export-dialog").showModal();
 }
 
+function isMobilePreview() {
+  return matchMedia("(max-width: 640px)").matches;
+}
+
 async function setPreviewMode(mode) {
+  if (isMobilePreview()) mode = "live";
   state.previewMode = mode; localStorage.setItem("fountain-publisher.preview", mode);
   $$('[data-preview-mode]').forEach((button) => { button.classList.toggle("active", button.dataset.previewMode === mode); const check = $(".menu-check", button); if (check) check.textContent = button.dataset.previewMode === mode ? "✓" : ""; });
   page.hidden = mode !== "live"; $("#empty-state").hidden = mode !== "live" || Boolean(source.value.trim()); $("#pdf-view").hidden = mode !== "pdf";
@@ -1667,11 +1672,12 @@ function togglePanel(panel, force) {
   document.body.classList.toggle(`${panel}-collapsed`, collapsed); localStorage.setItem(`fountain-publisher.${panel}-collapsed`, String(collapsed));
   $(`#toggle-${panel}`).setAttribute("aria-expanded", String(!collapsed));
   $(`#menu-toggle-${panel}`).textContent = `${collapsed ? "Show" : "Hide"} ${panel === "stats" ? "Insights" : "Source"}`;
+  if ($("#zoom").value === "fit") requestAnimationFrame(applyZoom);
 }
 
 function installResizer(element, variable, side, min, max) {
   let startX = 0; let startWidth = 0;
-  const apply = (width) => { const next = Math.max(min, Math.min(max, width)); document.documentElement.style.setProperty(variable, `${next}px`); localStorage.setItem(`fountain-publisher.${variable}`, String(next)); element.setAttribute("aria-valuenow", String(Math.round(next))); if (variable === "--source-w") renderEditorChrome(); };
+  const apply = (width) => { const next = Math.max(min, Math.min(max, width)); document.documentElement.style.setProperty(variable, `${next}px`); localStorage.setItem(`fountain-publisher.${variable}`, String(next)); element.setAttribute("aria-valuenow", String(Math.round(next))); if (variable === "--source-w") renderEditorChrome(); if ($("#zoom").value === "fit") requestAnimationFrame(applyZoom); };
   element.addEventListener("pointerdown", (event) => { startX = event.clientX; startWidth = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(variable)); element.setPointerCapture(event.pointerId); });
   element.addEventListener("pointermove", (event) => { if (!element.hasPointerCapture(event.pointerId)) return; apply(startWidth + (event.clientX - startX) * side); });
   element.addEventListener("dblclick", () => apply(variable === "--source-w" ? 370 : 310));
@@ -1679,9 +1685,38 @@ function installResizer(element, variable, side, min, max) {
 }
 
 function applyZoom() {
-  const scale = Number($("#zoom").value) / 100;
+  const zoom = $("#zoom").value;
+  if (isMobilePreview()) {
+    const scale = zoom === "fit" ? 1 : Number(zoom) / 100;
+    page.style.transform = "none"; page.style.marginBottom = "0"; page.style.marginRight = "0";
+    page.style.setProperty("--mobile-preview-zoom", scale);
+    scheduleWorkspaceCache();
+    return;
+  }
+  page.style.removeProperty("--mobile-preview-zoom");
+  let scale = Number(zoom) / 100;
+  if (zoom === "fit") {
+    const preview = $("#preview-scroll");
+    const style = getComputedStyle(preview);
+    const availableWidth = preview.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    const availableHeight = preview.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+    scale = Math.max(.25, Math.min(availableWidth / 816, availableHeight / 1056));
+  }
   page.style.transform = `scale(${scale})`; page.style.marginBottom = `${1056 * (scale - 1)}px`; page.style.marginRight = `${816 * (scale - 1)}px`;
   scheduleWorkspaceCache();
+}
+
+function stepZoom(direction) {
+  const values = ["70", "85", "100", "115", "130"];
+  const zoom = $("#zoom");
+  if (zoom.value === "fit") {
+    zoom.value = "100";
+    applyZoom();
+    return;
+  }
+  const index = values.indexOf(zoom.value);
+  zoom.value = values[Math.max(0, Math.min(values.length - 1, index + direction))];
+  applyZoom();
 }
 
 function jumpToLine(oneBased, focus = true) {
@@ -1817,7 +1852,7 @@ $$('[data-preview-mode]').forEach((button) => button.addEventListener("click", (
 $("#toggle-source").addEventListener("click", () => togglePanel("source")); $("#menu-toggle-source").addEventListener("click", () => togglePanel("source"));
 $("#toggle-stats").addEventListener("click", () => togglePanel("stats")); $("#menu-toggle-stats").addEventListener("click", () => togglePanel("stats"));
 $("#undo").addEventListener("click", undoDocument); $("#redo").addEventListener("click", redoDocument);
-$("#zoom").addEventListener("change", applyZoom); $("#zoom-out").addEventListener("click", () => { $("#zoom").selectedIndex = Math.max(0, $("#zoom").selectedIndex - 1); applyZoom(); }); $("#zoom-in").addEventListener("click", () => { $("#zoom").selectedIndex = Math.min($("#zoom").options.length - 1, $("#zoom").selectedIndex + 1); applyZoom(); });
+$("#zoom").addEventListener("change", applyZoom); $("#zoom-out").addEventListener("click", () => stepZoom(-1)); $("#zoom-in").addEventListener("click", () => stepZoom(1));
 $("#open-docs").addEventListener("click", () => $("#docs-dialog").showModal());
 $("#close-docs").addEventListener("click", () => $("#docs-dialog").close());
 
@@ -1947,7 +1982,8 @@ function setMobileTab(panel) {
   document.body.dataset.mobileTab = panel;
   $$(".mobile-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.mobilePanel === panel));
   localStorage.setItem("fountain-publisher.mobile-tab", panel);
-  if (panel === "preview" && state.previewMode === "pdf") refreshPdf();
+  if (panel === "preview" && isMobilePreview() && state.previewMode !== "live") void setPreviewMode("live");
+  else if (panel === "preview" && state.previewMode === "pdf") refreshPdf();
   if (panel === "source") { renderEditorChrome(); scrollSourceTarget(currentPosition().line, "center"); }
   if (panel !== "stats" && state.insightLine !== null) requestAnimationFrame(() => jumpToLine(state.insightLine, false));
 }
@@ -1971,7 +2007,11 @@ document.addEventListener("keydown", (event) => {
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") { event.preventDefault(); newFile(); }
 });
 window.addEventListener("beforeunload", persistWorkspaceNow);
-window.addEventListener("resize", renderEditorChrome);
+window.addEventListener("resize", () => {
+  renderEditorChrome();
+  if (isMobilePreview() && state.previewMode === "pdf") void setPreviewMode("live");
+  applyZoom();
+});
 
 async function initialize() {
   setTheme(state.theme);
@@ -1996,7 +2036,7 @@ async function initialize() {
   state.cacheEnabled = params.get("demo") !== "1";
   setDocument(text, name, !restore);
   setMobileTab(localStorage.getItem("fountain-publisher.mobile-tab") || "source");
-  if (restore && ["70", "85", "100", "115", "130"].includes(String(cached.zoom))) $("#zoom").value = String(cached.zoom);
+  if (restore && ["fit", "70", "85", "100", "115", "130"].includes(String(cached.zoom))) $("#zoom").value = String(cached.zoom);
   applyZoom();
   const restoredMode = ["live", "pdf"].includes(cached?.previewMode) ? cached.previewMode : "live";
   await setPreviewMode(restore ? restoredMode : localStorage.getItem("fountain-publisher.preview") || "live");
