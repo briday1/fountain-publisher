@@ -158,7 +158,7 @@ test("preview edits are source-backed and preserve the viewport", async () => {
   assert.match(app, /const caretMap =/);
   assert.match(app, /activeInlineMarkers/);
   assert.match(app, /element\.classList\.contains\("scene"\)/);
-  assert.match(app, /target\?\.focus\(\{ preventScroll: true \}\)[\s\S]*scrollTop = scrollTop/);
+  assert.match(app, /page\.focus\(\{ preventScroll: true \}\)[\s\S]*scrollTop = scrollTop/);
   assert.match(app, /requestAnimationFrame\(\(\) => \{[\s\S]*previewScroll\.scrollTop = scrollTop/);
   assert.doesNotMatch(app, /const insertAbove =/);
   assert.match(app, /const focusLine = startIndex \+ displayLines\.length - 1/);
@@ -214,6 +214,8 @@ test("theme control uses Pugflow-style sun and moon icons", async () => {
   assert.match(html, /class="theme-icon theme-sun"/);
   assert.match(html, /class="theme-icon theme-moon"/);
   assert.match(app, /dataset\.effectiveTheme/);
+  assert.match(css, /:root\s*\{[^}]*color-scheme:\s*light;/s);
+  assert.match(css, /:root\[data-theme="dark"\]\s*\{[^}]*color-scheme:\s*dark;/s);
   assert.match(css, /data-effective-theme="dark"[^}]*\.theme-sun\s*\{\s*display:\s*none;/);
 });
 

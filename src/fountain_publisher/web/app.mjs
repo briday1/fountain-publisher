@@ -781,7 +781,7 @@ function replacePreviewSelection(edit, text) {
   if (startIndex === endIndex && displayLines.length === 1) {
     edit.startLine.innerHTML = fountainInlineHtml(displayLines[0]) || "<br>";
     edit.startLine.dataset.display = displayLines[0];
-    edit.startLine.focus({ preventScroll: true });
+    page.focus({ preventScroll: true });
     placeCaretAtOffset(edit.startLine, focusOffset);
     setSourceCursorFromPreview(edit.startLine, focusOffset);
     showPreviewCharacterCompletions(edit.startLine);
@@ -878,7 +878,7 @@ function acceptPreviewCharacterCompletion(index = state.previewCompletionIndex) 
   line.textContent = name;
   syncPreviewLine(line);
   hidePreviewCompletions();
-  line.focus({ preventScroll: true }); placeCaretAtOffset(line, line.textContent.length);
+  page.focus({ preventScroll: true }); placeCaretAtOffset(line, line.textContent.length);
 }
 
 function renderEditorChrome() {
