@@ -411,6 +411,15 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(css, /\.general-notes\s*\{/);
 });
 
+test("mobile preview clipboard actions preserve selections and avoid covering them", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /previewContextEdit:\s*null/);
+  assert.match(app, /previewContextText:\s*""/);
+  assert.match(app, /runPreviewClipboardAction\(action,\s*previewContextLine,\s*\{\s*edit,\s*text\s*\}\)/);
+  assert.match(app, /await navigator\.clipboard\.writeText\(text\);\s*replacePreviewSelection\(edit,\s*""\)/);
+  assert.match(app, /isMobilePreview\(\) && state\.previewContextText[\s\S]*selectionRect\.bottom \+ 12[\s\S]*selectionRect\.top - height - 12/);
+});
+
 test("insight colors coordinate with the source palette", async () => {
   const css = await readFile(cssPath, "utf8");
   assert.match(css, /\.balance > div\s*\{[^}]*background:\s*var\(--syntax-scene\);/s);
