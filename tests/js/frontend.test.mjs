@@ -67,6 +67,7 @@ test("live and PDF previews have bounded scrolling containers", async () => {
   assert.match(css, /\.preview-scroll\.pdf-mode\s*\{[^}]*overflow:\s*hidden;/s);
   assert.match(css, /#pdf-frame\s*\{[^}]*height:\s*100%;/s);
   assert.match(app, /classList\.toggle\("pdf-mode",\s*mode\s*===\s*"pdf"\)/);
+  assert.match(app, /\$\("#preview-page-stage"\)\.hidden = mode !== "live"/);
 });
 
 test("toolbar menus use Pugflow-style popup interaction", async () => {
@@ -129,7 +130,7 @@ test("preview cursor synchronization does not add an active-line highlight", asy
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(app, /function currentPosition\(\)[\s\S]*source\.selectionDirection !== "backward"[\s\S]*source\.selectionEnd/);
   assert.match(app, /function setSourceSelectionFromPreview\(edit\)[\s\S]*source\.setSelectionRange\(start, end, edit\.direction\)/);
-  assert.match(app, /page\.addEventListener\("click"[\s\S]*setSourceSelectionFromPreview\(edit\)/);
+  assert.match(app, /page\.addEventListener\("pointerup"[\s\S]*previewLineForNode\(getSelection\(\)\?\.focusNode\)[\s\S]*setSourceSelectionFromPreview\(edit\)/);
   assert.match(app, /page\.addEventListener\("keyup"[\s\S]*setSourceSelectionFromPreview\(edit\)/);
   assert.doesNotMatch(css, /\.script-line\.source-current:not\(:focus\)/);
 });

@@ -516,11 +516,13 @@ function renderPreviewLines(lines) {
 function renderPreview({ focusLine = null, focusOffset = null } = {}) {
   const lines = classifyLines(source.value);
   const previewScroll = $("#preview-scroll");
+  const stage = $("#preview-page-stage");
   const scrollTop = previewScroll.scrollTop;
   const scrollLeft = previewScroll.scrollLeft;
   page.innerHTML = renderPreviewLines(lines);
   const meaningful = lines.some((line) => line.raw.trim());
   $("#empty-state").hidden = meaningful;
+  stage.hidden = state.previewMode !== "live";
   page.hidden = state.previewMode !== "live";
   if (focusLine !== null) {
     const target = $(`[data-line="${focusLine}"]`, page);
@@ -1719,7 +1721,7 @@ async function setPreviewMode(mode) {
   if (isMobilePreview()) mode = "live";
   state.previewMode = mode; localStorage.setItem("fountain-publisher.preview", mode);
   $$('[data-preview-mode]').forEach((button) => { button.classList.toggle("active", button.dataset.previewMode === mode); const check = $(".menu-check", button); if (check) check.textContent = button.dataset.previewMode === mode ? "✓" : ""; });
-  page.hidden = mode !== "live"; $("#empty-state").hidden = mode !== "live" || Boolean(source.value.trim()); $("#pdf-view").hidden = mode !== "pdf";
+  $("#preview-page-stage").hidden = mode !== "live"; page.hidden = mode !== "live"; $("#empty-state").hidden = mode !== "live" || Boolean(source.value.trim()); $("#pdf-view").hidden = mode !== "pdf";
   $("#preview-scroll").classList.toggle("pdf-mode", mode === "pdf");
   scheduleWorkspaceCache();
   if (mode === "pdf") await refreshPdf();
@@ -2060,7 +2062,7 @@ page.addEventListener("keydown", (event) => {
   }
 });
 page.addEventListener("focusin", (event) => { const line = event.target.closest(".script-line"); if (line) setSourceCursorFromPreview(line); });
-page.addEventListener("click", (event) => { const line = event.target.closest(".script-line"); const edit = previewSelection(line); if (edit) setSourceSelectionFromPreview(edit); });
+page.addEventListener("pointerup", (event) => { const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); const edit = previewSelection(line); if (edit) setSourceSelectionFromPreview(edit); });
 page.addEventListener("keyup", (event) => {
   if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
   const line = event.target.closest(".script-line"); const edit = previewSelection(line); if (edit) setSourceSelectionFromPreview(edit);
