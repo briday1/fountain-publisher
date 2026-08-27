@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import re
+from urllib.parse import unquote
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +17,7 @@ TITLE_KEYS = {"title", "credit", "author", "authors", "source", "draft date", "d
 SECTION_RE = re.compile(r"^(#{1,6})\s+(.+)$")
 SCENE_NUMBER_RE = re.compile(r"\s+#([^#]+)#\s*$")
 CHARACTER_EXTENSION_RE = re.compile(r"\s*\([^)]*\)\s*$")
+MANAGED_NOTE_RE = re.compile(r"^\[\[FP-(GENERAL|CHARACTER):(.+)\]\]$")
 COURIER_PRIME_FONT_ROOT = Path(__file__).resolve().with_name("web") / "fonts"
 COURIER_PRIME_FONT_FILES = {
     "CourierPrime": "CourierPrime-Regular.ttf",
@@ -283,6 +285,8 @@ def analyze_source(source: str) -> dict[str, Any]:
     in_boneyard = False
     dialogue_words = 0
     action_words = 0
+    general_notes: list[dict[str, Any]] = []
+    character_notes: dict[str, dict[str, Any]] = {}
 
     for index, raw in enumerate(lines):
         line_number = index + 1
@@ -299,6 +303,16 @@ def analyze_source(source: str) -> dict[str, Any]:
                 title_page = False
             continue
         if stripped.startswith("[[") and stripped.endswith("]]" ):
+            managed_note = MANAGED_NOTE_RE.match(stripped)
+            if managed_note and managed_note.group(1) == "GENERAL":
+                general_notes.append({"line": index, "text": unquote(managed_note.group(2))})
+            elif managed_note:
+                encoded_name, separator, encoded_text = managed_note.group(2).partition(":")
+                if separator:
+                    character_notes[unquote(encoded_name)] = {
+                        "line": index,
+                        "text": unquote(encoded_text),
+                    }
             continue
 
         if title_page:
@@ -402,4 +416,6 @@ def analyze_source(source: str) -> dict[str, Any]:
         "sections": sections,
         "locations": sorted(locations),
         "titleFields": title_fields,
+        "generalNotes": general_notes,
+        "characterNotes": character_notes,
     }
