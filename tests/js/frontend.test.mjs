@@ -379,11 +379,22 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
 test("source-backed annotations and notes expose preview and sidebar CRUD", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="annotation-dialog"/);
+  assert.match(html, /id="annotation-text" rows="6"(?![^>]*required)/);
+  assert.match(html, /button value="cancel" formnovalidate>Cancel<\/button>/);
   assert.match(html, /id="character-note-dialog"/);
   assert.match(html, /id="general-note-dialog"/);
   assert.match(html, /summary>General notes/);
+  assert.match(html, /id="preview-context-menu"/);
+  assert.match(html, /data-preview-menu-action="annotation"/);
+  assert.match(html, /data-preview-menu-action="copy"/);
+  assert.match(html, /data-preview-menu-action="cut"/);
+  assert.match(html, /data-preview-menu-action="paste"/);
   assert.match(app, /MANAGED_NOTE_RE/);
   assert.match(app, /page\.addEventListener\("contextmenu"/);
+  assert.match(app, /function showPreviewContextMenu/);
+  assert.match(app, /function runPreviewClipboardAction/);
+  assert.match(app, /document\.execCommand\("copy"\)/);
+  assert.match(app, /navigator\.clipboard\.readText\(\)/);
   assert.match(app, /data-annotation-line/);
   assert.match(app, /managedCharacterSource/);
   assert.match(app, /managedGeneralSource/);
@@ -391,6 +402,7 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(app, /const candidates = \$\$\("\.script-line\[contenteditable\]"/);
   assert.match(app, /\["dialogue", "parenthetical", "note"\]\.includes/);
   assert.match(css, /\.annotation-orb\s*\{/);
+  assert.match(css, /\.preview-context-menu\s*\{/);
   assert.match(css, /\.general-notes\s*\{/);
 });
 
