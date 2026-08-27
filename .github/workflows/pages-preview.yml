@@ -1,0 +1,156 @@
+name: Pages Preview + Production
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build:web
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: dist/web
+
+  deploy_preview:
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+        continue-on-error: true
+
+      - name: Initialize gh-pages if missing
+        run: |
+          if [ ! -d gh-pages/.git ]; then
+            git clone "${{ github.server_url }}/${{ github.repository }}.git" gh-pages
+            cd gh-pages
+            git checkout --orphan gh-pages
+            git rm -rf . || true
+            touch .nojekyll
+            echo "fountain-publisher.com" > CNAME
+            git add .nojekyll CNAME
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Initialize gh-pages"
+            git push origin HEAD:gh-pages
+            cd ..
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: out
+
+      - name: Deploy preview
+        run: |
+          mkdir -p gh-pages/previews/pr-${{ github.event.number }}
+          rm -rf gh-pages/previews/pr-${{ github.event.number }}/*
+          cp -R out/* gh-pages/previews/pr-${{ github.event.number }}/
+          touch gh-pages/.nojekyll
+          if [ ! -f gh-pages/CNAME ]; then
+            echo "fountain-publisher.com" > gh-pages/CNAME
+          fi
+          cd gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git diff --cached --quiet || git commit -m "Preview PR #${{ github.event.number }}"
+          git push origin HEAD:gh-pages
+
+      - name: Comment preview URL
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request.number;
+            const url = `https://fountain-publisher.com/previews/pr-${pr}/`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr,
+              body: `🔍 Preview ready: ${url}`
+            });
+
+  cleanup_preview:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Remove preview
+        run: |
+          rm -rf gh-pages/previews/pr-${{ github.event.number }}
+          cd gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git diff --cached --quiet || git commit -m "Remove preview PR #${{ github.event.number }}"
+          git push origin HEAD:gh-pages
+
+  deploy_production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+        continue-on-error: true
+
+      - name: Initialize gh-pages if missing
+        run: |
+          if [ ! -d gh-pages/.git ]; then
+            git clone "${{ github.server_url }}/${{ github.repository }}.git" gh-pages
+            cd gh-pages
+            git checkout --orphan gh-pages
+            git rm -rf . || true
+            touch .nojekyll
+            echo "fountain-publisher.com" > CNAME
+            git add .nojekyll CNAME
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Initialize gh-pages"
+            git push origin HEAD:gh-pages
+            cd ..
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: out
+
+      - name: Deploy production (preserve previews, CNAME, .nojekyll)
+        run: |
+          find gh-pages -mindepth 1 -maxdepth 1 \
+            ! -name previews ! -name CNAME ! -name .nojekyll \
+            -exec rm -rf {} +
+          cp -R out/* gh-pages/
+          touch gh-pages/.nojekyll
+          echo "fountain-publisher.com" > gh-pages/CNAME
+          cd gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git diff --cached --quiet || git commit -m "Deploy production from main"
+          git push origin HEAD:gh-pages
