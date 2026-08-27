@@ -345,16 +345,25 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .balance b { color: var(--ink); }
 .empty-list { padding: 14px 6px; color: var(--muted); text-align: center; font-size: 11px; }
 
-#export-dialog { width: min(430px, calc(100vw - 30px)); border: 1px solid var(--border); border-radius: 9px; padding: 0; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
-#export-dialog::backdrop { background: rgb(0 0 0 / 40%); backdrop-filter: blur(2px); }
-#export-form { padding: 20px; }
+#export-dialog { width: min(430px, calc(100vw - 30px)); }
+#github-dialog, #github-conflict-dialog { width: min(500px, calc(100vw - 30px)); }
+#export-dialog, #github-dialog, #github-conflict-dialog { border: 1px solid var(--border); border-radius: 9px; padding: 0; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+#export-dialog::backdrop, #github-dialog::backdrop, #github-conflict-dialog::backdrop { background: rgb(0 0 0 / 40%); backdrop-filter: blur(2px); }
+#export-form, #github-form, #github-conflict-form { padding: 20px; }
 .dialog-heading h2 { margin: 2px 0 0; }
-#export-form > p { color: var(--muted); }
-#export-form > label { display: flex; flex-direction: column; gap: 5px; margin: 13px 0; font-weight: 600; }
-#export-form select { height: 35px; border: 1px solid var(--border); background: var(--surface); border-radius: 5px; padding: 0 8px; }
+#export-form > p, #github-form > p, #github-conflict-form > p { color: var(--muted); }
+#export-form > label, #github-auth > label, #github-picker > label, #github-conflict-form > label { display: flex; flex-direction: column; gap: 5px; margin: 13px 0; font-weight: 600; }
+#export-form select, #github-form select, #github-form input, #github-conflict-form input { height: 35px; border: 1px solid var(--border); background: var(--surface); border-radius: 5px; padding: 0 8px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 .dialog-actions button { border: 1px solid var(--border); border-radius: 5px; background: var(--surface); padding: 7px 14px; }
 .dialog-actions .primary { border-color: var(--accent); background: var(--accent); color: white; }
+.github-connect { width: 100%; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-2); padding: 9px; font-weight: 700; }
+.github-disconnect { float: right; border: 0; background: transparent; color: var(--muted); padding: 0; font-size: 11px; }
+#github-auth > p { color: var(--muted); font-size: 11px; }
+.github-progress { min-height: 20px; color: var(--muted); }
+.github-progress.error { color: var(--danger); }
+.github-result { padding: 9px; border-radius: 5px; background: var(--accent-soft); }
+.github-result a { color: var(--accent); font-weight: 700; }
 
 #character-analytics-dialog { width: min(1100px, calc(100vw - 32px)); height: min(760px, calc(100vh - 32px)); max-width: none; max-height: none; padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 #character-analytics-dialog::backdrop { background: rgb(0 0 0 / 42%); backdrop-filter: blur(2px); }

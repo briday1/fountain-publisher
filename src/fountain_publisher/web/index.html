@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Write, preview, and publish Fountain screenplays." />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:; worker-src 'self' blob:" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; connect-src 'self' https://api.github.com; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:; worker-src 'self' blob:" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23000'/><text x='16' y='23' text-anchor='middle' font-family='Georgia,serif' font-weight='700' font-size='20' fill='%23fff'>F</text></svg>" />
     <title>Fountain Publisher</title>
     <link rel="stylesheet" href="styles.css" />
@@ -29,6 +29,11 @@
             <button id="open-file" type="button">Open… <kbd>⌘O</kbd></button>
             <button id="save-file" type="button">Save <kbd>⌘S</kbd></button>
             <button id="save-file-as" type="button">Save As… <kbd>⇧⌘S</kbd></button>
+            <span class="menu-separator"></span>
+            <strong>GITHUB</strong>
+            <button id="github-open" type="button">Open from GitHub…</button>
+            <button id="github-save" type="button">Save to GitHub</button>
+            <button id="github-save-as" type="button">Save to GitHub As…</button>
             <span class="menu-separator"></span>
             <strong>PUBLISH</strong>
             <button id="export-pdf" type="button">Export PDF…</button>
@@ -198,6 +203,38 @@
       </aside>
     </main>
 
+    <dialog id="github-dialog" aria-labelledby="github-heading">
+      <form method="dialog" id="github-form">
+        <div class="dialog-heading"><small>GITHUB</small><h2 id="github-heading">Open from GitHub</h2></div>
+        <p id="github-help">Enter a fine-grained personal access token, then choose a repository, branch, and Fountain file.</p>
+        <div id="github-auth">
+          <label>Fine-grained personal access token<input id="github-token" type="password" autocomplete="off" spellcheck="false" /></label>
+          <p>Stored in session storage only and removed when this tab session ends. It is never added to the document or workspace cache.</p>
+          <button id="github-connect" class="github-connect" type="button">Use token</button>
+        </div>
+        <button id="github-disconnect" class="github-disconnect" type="button" hidden>Forget token</button>
+        <div id="github-picker" hidden>
+          <label>Repository<select id="github-repository" required></select></label>
+          <label>Branch<select id="github-branch" required></select></label>
+          <label id="github-file-label">File<select id="github-file" required></select></label>
+          <label id="github-path-label" hidden>Path<input id="github-path" type="text" placeholder="screenplays/example.fountain" autocomplete="off" /></label>
+          <label id="github-message-label" hidden>Commit message<input id="github-message" type="text" value="Update screenplay" autocomplete="off" /></label>
+        </div>
+        <p id="github-progress" class="github-progress" role="status" aria-live="polite"></p>
+        <p id="github-result" class="github-result" hidden></p>
+        <div class="dialog-actions"><button value="cancel">Cancel</button><button class="primary" id="github-confirm" value="default" hidden>Open</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="github-conflict-dialog" aria-labelledby="github-conflict-heading">
+      <form method="dialog" id="github-conflict-form">
+        <div class="dialog-heading"><small>GITHUB</small><h2 id="github-conflict-heading">The file changed on GitHub</h2></div>
+        <p>Reload the latest version (discarding this draft), or save your draft to a new branch and open a pull request.</p>
+        <label>New branch<input id="github-conflict-branch" type="text" autocomplete="off" /></label>
+        <div class="dialog-actions"><button value="cancel">Cancel</button><button id="github-reload" value="reload">Reload</button><button class="primary" id="github-save-branch" value="branch">Save branch &amp; PR</button></div>
+      </form>
+    </dialog>
+
     <dialog id="export-dialog">
       <form method="dialog" id="export-form">
         <div class="dialog-heading"><small>PUBLISH</small><h2>Export screenplay</h2></div>
@@ -263,7 +300,7 @@
             <section id="docs-fountain"><small>SYNTAX</small><h3>Fountain format</h3><p>Fountain is readable plain text. Most elements are inferred from capitalization, blank lines, and familiar screenplay conventions.</p><div class="docs-example"><code>INT. OBSERVATORY - NIGHT<br><br>A telescope turns beneath the dome.<br><br>MAYA<br>(quietly)<br>There you are.<br><br>CUT TO:</code><dl><div><dt>Scene heading</dt><dd><code>INT.</code>, <code>EXT.</code>, <code>EST.</code>, <code>INT./EXT.</code>, or <code>I/E</code></dd></div><div><dt>Action</dt><dd>Ordinary text separated by blank lines</dd></div><div><dt>Character</dt><dd>An uppercase cue followed by dialogue</dd></div><div><dt>Parenthetical</dt><dd>A line in parentheses inside dialogue</dd></div><div><dt>Transition</dt><dd>An uppercase line ending in <code>TO:</code></dd></div></dl></div></section>
             <section id="docs-structure"><small>ORGANIZE</small><h3>Title page and structure</h3><table><tbody><tr><th>Title page</th><td><code>Title: My Film</code>, <code>Credit: Written by</code>, <code>Author: Name</code>, <code>Draft date:</code>, and <code>Contact:</code> at the start of the file.</td></tr><tr><th>Sections</th><td><code># Act One</code>; add more <code>#</code> characters for deeper levels.</td></tr><tr><th>Synopsis</th><td><code>= A short outline note</code>.</td></tr><tr><th>Scene numbers</th><td><code>INT. LAB - DAY #12#</code>.</td></tr><tr><th>Page break</th><td><code>===</code> on its own line.</td></tr><tr><th>Notes</th><td><code>[[Private production note]]</code>. Notes appear as clickable orbs in Preview; right-click a preview line to add one.</td></tr><tr><th>Character notes</th><td>Open Characters in Insights and select a character. Notes are stored at the end of the Fountain source.</td></tr><tr><th>General notes</th><td>Add, edit, or remove document notes from the General notes section in Insights.</td></tr><tr><th>Boneyard</th><td><code>/* omitted text */</code>.</td></tr></tbody></table></section>
             <section id="docs-formatting"><small>CONTROL</small><h3>Forced elements and formatting</h3><table><tbody><tr><th>Forced scene</th><td><code>.THE ROOFTOP</code></td></tr><tr><th>Forced action</th><td><code>!THIS IS ACTION</code></td></tr><tr><th>Forced character</th><td><code>@McCLANE</code></td></tr><tr><th>Forced transition</th><td><code>&gt; SMASH CUT TO:</code></td></tr><tr><th>Centered</th><td><code>&gt; THE END &lt;</code></td></tr><tr><th>Lyrics</th><td><code>~ Singing in the rain</code></td></tr><tr><th>Dual dialogue</th><td>Add <code>^</code> to the second character cue, for example <code>JANE ^</code>. The two adjacent dialogue blocks render concurrently side-by-side.</td></tr><tr><th>Emphasis</th><td><code>*italic*</code>, <code>**bold**</code>, <code>***bold italic***</code>, <code>_underline_</code></td></tr></tbody></table></section>
-            <section id="docs-publish"><small>OUTPUT</small><h3>Preview and publish</h3><p>Preview mode is optimized for fast editing and source synchronization. PDF mode is the authoritative Screenplain rendering. Choose US Letter or A4 in Settings, then export PDF or Final Draft FDX from File.</p><p>Your current workspace is continuously cached in this browser and restored when you return. This recovery draft is separate from your files: use Save or Save As when you want to write or download a <code>.fountain</code> file.</p><p>Open a local file with File → Open. Save overwrites through the File System Access API when supported; otherwise the browser downloads a safe copy.</p></section>
+            <section id="docs-publish"><small>OUTPUT</small><h3>Preview and publish</h3><p>Preview mode is optimized for fast editing and source synchronization. PDF mode is the authoritative Screenplain rendering. Choose US Letter or A4 in Settings, then export PDF or Final Draft FDX from File.</p><p>Your current workspace is continuously cached in this browser and restored when you return. This recovery draft is separate from your files: use Save or Save As when you want to write or download a <code>.fountain</code> file.</p><p>Open a local file with File → Open. Save overwrites through the File System Access API when supported; otherwise the browser downloads a safe copy.</p><p>File → Open from GitHub accepts a fine-grained personal access token and browses its repositories, branches, and Fountain files directly through GitHub's API. The token is kept only in memory and session storage, never local storage. Save prompts for a commit message and checks the file's blob SHA. If the remote file changed, reload it or save the draft to a new branch and pull request. Save to GitHub As chooses another branch or path; local Save As remains available.</p></section>
             <section id="docs-shortcuts"><small>KEYBOARD</small><h3>Shortcuts</h3><table class="shortcut-table"><thead><tr><th>Action</th><th class="shortcut-mac">macOS</th><th class="shortcut-win">Windows / Linux</th></tr></thead><tbody><tr><th>Undo</th><td class="shortcut-mac"><kbd>⌘ Z</kbd></td><td class="shortcut-win"><kbd>Ctrl Z</kbd></td></tr><tr><th>Redo</th><td class="shortcut-mac"><kbd>⇧ ⌘ Z</kbd></td><td class="shortcut-win"><kbd>Ctrl Shift Z</kbd> or <kbd>Ctrl Y</kbd></td></tr><tr><th>Save</th><td class="shortcut-mac"><kbd>⌘ S</kbd></td><td class="shortcut-win"><kbd>Ctrl S</kbd></td></tr><tr><th>Save as</th><td class="shortcut-mac"><kbd>⇧ ⌘ S</kbd></td><td class="shortcut-win"><kbd>Ctrl Shift S</kbd></td></tr><tr><th>Open</th><td class="shortcut-mac"><kbd>⌘ O</kbd></td><td class="shortcut-win"><kbd>Ctrl O</kbd></td></tr><tr><th>New</th><td class="shortcut-mac"><kbd>⌘ N</kbd></td><td class="shortcut-win"><kbd>Ctrl N</kbd></td></tr><tr><th>Complete</th><td class="shortcut-mac"><kbd>⌘ Space</kbd>, then <kbd>Tab</kbd></td><td class="shortcut-win"><kbd>Ctrl Space</kbd>, then <kbd>Tab</kbd></td></tr><tr><th>Spelling</th><td colspan="2">Right-click a marked word for system suggestions.</td></tr></tbody></table></section>
           </div>
         </div>

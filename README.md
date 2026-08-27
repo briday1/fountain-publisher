@@ -43,6 +43,8 @@ fountain-publisher screenplay.fountain --page-size a4 --output screenplay.pdf
 
 - **File** supports New, Open, Save, Save As, PDF, and Final Draft export.
 - Save overwrites the open file where the browser's File System Access API is available; other browsers download safely.
+- **Open from GitHub** browses repositories, branches, and Fountain files available to a user-supplied fine-grained personal access token. A GitHub-backed document remembers its owner, repository, branch, path, and blob SHA; regular Save creates a commit while Save As remains available for a local copy.
+- **Save to GitHub As** selects a repository/branch and destination path. If a file changed remotely, reload it or preserve the draft on a new branch and open a pull request. Protected branches use the same branch-and-PR fallback.
 - Source and Insights panels collapse, resize with mouse or keyboard, and remember their layout.
 - Theme follows the system until explicitly set to light or dark.
 - Use Ctrl/Command+Space for contextual title-page, character, scene, location, time-of-day, and transition completion.
@@ -73,3 +75,17 @@ src/fountain_publisher/
 ```
 
 The server binds to loopback by default, limits compile request size, serves no arbitrary filesystem paths, and sends restrictive browser security headers.
+
+## Static GitHub integration
+
+The integration is fully static and calls `https://api.github.com` directly from the browser. Choose **File → Open from GitHub**, then paste a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new). Restrict the token to only the repositories you intend to edit and grant:
+
+- **Contents: Read and write** to browse and commit files and create branches.
+- **Pull requests: Read and write** to create the protected-branch fallback pull request.
+- **Metadata: Read-only** (included automatically).
+
+The token is held in memory and `sessionStorage` only. It is never written to `localStorage`, the workspace recovery record, a file, or the repository, and **Forget token** removes it immediately. Session storage lasts for the current tab session, so close the tab to discard it. Treat any token used in a browser as accessible to scripts running on that origin; keep the site free of untrusted scripts and use the narrowest repository access and expiration possible.
+
+GitHub App OAuth is intentionally not offered: a static-only application cannot securely hold a GitHub App client secret or exchange OAuth credentials. Supporting that flow securely would require a trusted backend or serverless auth service, which this application does not use.
+
+The current GitHub file identity (but never its token) is included in local workspace recovery. The Contents API uses the remembered blob SHA for optimistic concurrency; stale saves offer reload or a new branch/pull request, and protected-branch failures offer the branch/pull-request path automatically. The CSP permits network access only to GitHub's REST API.
