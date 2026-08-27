@@ -5,6 +5,8 @@ on:
     types: [opened, synchronize, reopened, closed]
   push:
     branches: [main]
+  repository_dispatch:
+    types: [pages-content-updated]
 
 permissions:
   contents: write
@@ -18,7 +20,7 @@ concurrency:
 
 jobs:
   build:
-    if: github.event.action != 'closed'
+    if: github.event_name != 'repository_dispatch' && github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,9 +42,6 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     needs: build
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}previews/pr-${{ github.event.number }}/
     steps:
       - uses: actions/checkout@v4
         with:
@@ -86,17 +85,15 @@ jobs:
           git diff --cached --quiet || git commit -m "Preview PR #${{ github.event.number }}"
           git push origin HEAD:gh-pages
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Request Pages deployment
+        uses: actions/github-script@v7
         with:
-          path: gh-pages
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          script: |
+            await github.rest.repos.createDispatchEvent({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              event_type: 'pages-content-updated'
+            });
 
       - name: Comment preview URL
         uses: actions/github-script@v7
@@ -114,9 +111,6 @@ jobs:
   cleanup_preview:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -133,13 +127,34 @@ jobs:
           git diff --cached --quiet || git commit -m "Remove preview PR #${{ github.event.number }}"
           git push origin HEAD:gh-pages
 
+      - name: Request Pages deployment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createDispatchEvent({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              event_type: 'pages-content-updated'
+            });
+
+  deploy_existing:
+    if: github.event_name == 'repository_dispatch'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: gh-pages
+          path: .
 
       - name: Deploy to GitHub Pages
         id: deployment
