@@ -1,7 +1,7 @@
 @font-face { font-family: "Courier Prime Local"; src: local("Courier Prime"), local("CourierPrime-Regular"), url("fonts/CourierPrime-Regular.ttf") format("truetype"); }
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --toolbar-h: 43px;
   --visual-viewport-top: 0px;
   --visual-viewport-left: 0px;
