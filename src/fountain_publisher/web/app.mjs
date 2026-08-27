@@ -1019,9 +1019,9 @@ function renderCharacterTable() {
   const characters = state.metadata.characters || [];
   const notes = state.metadata.characterNotes || {};
   $("#character-line-table").innerHTML = characters.length
-    ? `<table><thead><tr><th>Character</th><th>Lines</th><th>Duration</th></tr></thead><tbody>${characters.map((character) => {
+    ? `<table><thead><tr><th>Character</th><th>Lines</th></tr></thead><tbody>${characters.map((character) => {
       const hasNote = Boolean(notes[character.name]?.text);
-      return `<tr><td><button type="button" data-character-note="${escapeHtml(character.name)}">${escapeHtml(character.name)}${hasNote ? `<span class="note-indicator" aria-label="Has notes">●</span>` : ""}</button></td><td>${character.lines}</td><td>${formatDuration(character.seconds)}</td></tr>`;
+      return `<tr><td><button type="button" data-character-note="${escapeHtml(character.name)}">${escapeHtml(character.name)}${hasNote ? `<span class="note-indicator" aria-label="Has notes">●</span>` : ""}</button></td><td>${character.lines}</td></tr>`;
     }).join("")}</tbody></table>`
     : `<div class="empty-list">Characters appear as dialogue is written.</div>`;
 }
@@ -1052,12 +1052,6 @@ function renderOutline(metadata) {
     return `<li class="outline-act"><button class="outline-act-heading" type="button" data-line="${act.line}"><span>${index + 1}</span>${escapeHtml(act.title)}</button><ol>${actScenes || `<li class="empty-list">No scenes in this act.</li>`}</ol></li>`;
   }).join("");
   return beforeActs + grouped;
-}
-
-function formatDuration(seconds) {
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60); const remainder = seconds % 60;
-  return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
 }
 
 function canvasColor(name, fallback) {
@@ -1186,13 +1180,8 @@ function renderCharacterAnalytics() {
 }
 
 function characterLineUsageCsv() {
-  const rows = [["Character", "Act", "Scene", "Scene Heading", "Dialogue Lines"]];
-  state.metadata.characters.forEach((character) => {
-    (character.sceneLines || []).forEach((usage) => {
-      const scene = state.metadata.scenes[usage.scene - 1];
-      if (scene) rows.push([character.name, scene.act || "Screenplay", scene.number, scene.heading, usage.lines]);
-    });
-  });
+  const rows = [["Character", "Dialogue Lines"]];
+  state.metadata.characters.forEach((character) => rows.push([character.name, character.lines]));
   const csvCell = (value) => `"${String(value).replaceAll('"', '""')}"`;
   return rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
 }

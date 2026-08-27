@@ -359,7 +359,10 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.match(html, /id="copy-character-lines"[^>]*>Copy line usage CSV/);
   assert.match(app, /navigator\.clipboard\.writeText\(characterLineUsageCsv\(\)\)/);
   assert.match(app, /row\.map\(csvCell\)\.join\(","\)/);
-  assert.match(app, /\["Character", "Act", "Scene", "Scene Heading", "Dialogue Lines"\]/);
+  assert.match(app, /\["Character", "Dialogue Lines"\]/);
+  assert.match(app, /rows\.push\(\[character\.name, character\.lines\]\)/);
+  assert.doesNotMatch(app, /<th>Duration<\/th>/);
+  assert.doesNotMatch(app, /function formatDuration\(/);
   assert.match(app, /\.toBlob\(resolve,\s*"image\/png"\)/);
   assert.match(css, /\.analytics-chart-scroll\s*\{[^}]*overflow:\s*auto;/s);
   assert.match(html, /id="character-line-table"/);
