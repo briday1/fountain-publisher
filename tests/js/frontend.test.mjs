@@ -477,6 +477,7 @@ test("mobile preview is live-only, reflows horizontally, and retains zoom contro
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.view-switcher\s*\{\s*display:\s*none;/);
   assert.match(css, /\.preview-scroll\s*\{[^}]*overflow-x:\s*hidden;/s);
   assert.match(css, /\.screenplay-page\s*\{[^}]*width:\s*100%;[^}]*font-size:\s*calc\(16px \* var\(--mobile-preview-zoom,\s*1\)\);/s);
+  assert.match(css, /body\.scene-nums-margin \.screenplay-page\s*\{[^}]*padding-left:\s*calc\(54px \* var\(--mobile-preview-zoom,\s*1\)\);/s);
   assert.match(app, /if \(isMobilePreview\(\)\) mode = "live";/);
   assert.match(html, /class="view-switcher"[\s\S]*data-preview-mode="live"[\s\S]*data-preview-mode="pdf"/);
   assert.match(html, /class="preview-actions"[\s\S]*id="zoom-out"[\s\S]*id="zoom"[\s\S]*id="zoom-in"/);

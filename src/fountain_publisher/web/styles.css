@@ -470,6 +470,7 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
     width: 100%; min-height: 100%; margin: 0; padding: 48px max(20px, 6vw) 72px;
     transform: none; box-shadow: none; font-size: calc(16px * var(--mobile-preview-zoom, 1));
   }
+  body.scene-nums-margin .screenplay-page { padding-left: calc(54px * var(--mobile-preview-zoom, 1)); }
   .script-line { overflow-wrap: anywhere; }
   .script-line.lyric { margin-left: 15%; }
   .script-line.character { width: 48%; margin-left: 34%; }
