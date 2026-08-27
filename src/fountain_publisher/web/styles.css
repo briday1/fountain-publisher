@@ -3,6 +3,10 @@
 :root {
   color-scheme: light dark;
   --toolbar-h: 43px;
+  --visual-viewport-top: 0px;
+  --visual-viewport-left: 0px;
+  --visual-viewport-width: 100vw;
+  --visual-viewport-height: 100vh;
   --source-w: 370px;
   --stats-w: 310px;
   --bg: #e8e9eb;
@@ -417,7 +421,11 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
   .mobile-panel-tabs {
     display: flex; height: var(--mobile-tabs-h);
     background: var(--panel); border-bottom: 1px solid var(--border);
-    position: relative; z-index: 20;
+    position: fixed;
+    top: calc(var(--visual-viewport-top) + var(--toolbar-h));
+    left: var(--visual-viewport-left);
+    width: var(--visual-viewport-width);
+    z-index: 20;
   }
   .mobile-tab {
     flex: 1; border: 0; border-right: 1px solid var(--border); border-radius: 0;
@@ -430,7 +438,11 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
   .mobile-tab:not(.active):hover { background: var(--surface-2); color: var(--ink); }
 
   #workspace {
-    height: calc(100vh - var(--toolbar-h) - var(--mobile-tabs-h));
+    position: fixed;
+    top: calc(var(--visual-viewport-top) + var(--toolbar-h) + var(--mobile-tabs-h));
+    left: var(--visual-viewport-left);
+    width: var(--visual-viewport-width);
+    height: calc(var(--visual-viewport-height) - var(--toolbar-h) - var(--mobile-tabs-h));
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 1fr);
   }
@@ -494,7 +506,14 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
   .location-list li { word-break: break-word; }
 
   /* Toolbar: reduce spacing and hide verbose/redundant items */
-  .app-toolbar { gap: 2px; padding: 0 6px; }
+  .app-toolbar {
+    position: fixed;
+    top: var(--visual-viewport-top);
+    left: var(--visual-viewport-left);
+    width: var(--visual-viewport-width);
+    gap: 2px;
+    padding: 0 6px;
+  }
   .global-actions { gap: 0; }
   /* Collapse about-menu to just the "F" icon */
   .about-menu { padding-right: 4px; margin-right: 0; }
@@ -508,10 +527,10 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
      regardless of which menu triggered them or how far right it sits */
   .toolbar-popover {
     position: fixed;
-    top: var(--toolbar-h);
-    left: 8px;
-    right: 8px;
-    width: auto;
+    top: calc(var(--visual-viewport-top) + var(--toolbar-h));
+    left: calc(var(--visual-viewport-left) + 8px);
+    right: auto;
+    width: calc(var(--visual-viewport-width) - 16px);
     max-height: 55vh;
     overflow-y: auto;
     /* Reset the absolute left:0 anchor so fixed kicks in cleanly */
