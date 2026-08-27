@@ -2007,13 +2007,34 @@ document.addEventListener("keydown", (event) => {
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") { event.preventDefault(); newFile(); }
 });
 window.addEventListener("beforeunload", persistWorkspaceNow);
+
+let mobileViewportFrame = 0;
+function updateMobileViewport() {
+  mobileViewportFrame = 0;
+  const viewport = window.visualViewport;
+  const root = document.documentElement;
+  root.style.setProperty("--visual-viewport-top", `${viewport?.offsetTop || 0}px`);
+  root.style.setProperty("--visual-viewport-left", `${viewport?.offsetLeft || 0}px`);
+  root.style.setProperty("--visual-viewport-width", `${viewport?.width || window.innerWidth}px`);
+  root.style.setProperty("--visual-viewport-height", `${viewport?.height || window.innerHeight}px`);
+}
+function scheduleMobileViewportUpdate() {
+  if (!mobileViewportFrame) mobileViewportFrame = requestAnimationFrame(updateMobileViewport);
+}
+
+window.visualViewport?.addEventListener("resize", scheduleMobileViewportUpdate);
+window.visualViewport?.addEventListener("scroll", scheduleMobileViewportUpdate);
+window.addEventListener("scroll", scheduleMobileViewportUpdate);
+document.addEventListener("focusin", scheduleMobileViewportUpdate);
 window.addEventListener("resize", () => {
+  scheduleMobileViewportUpdate();
   renderEditorChrome();
   if (isMobilePreview() && state.previewMode === "pdf") void setPreviewMode("live");
   applyZoom();
 });
 
 async function initialize() {
+  updateMobileViewport();
   setTheme(state.theme);
   const isMac = /Mac/i.test(navigator.platform) || /Mac/i.test(navigator.userAgentData?.platform || "");
   document.documentElement.dataset.os = isMac ? "mac" : "win";

@@ -564,3 +564,14 @@ test("mobile toolbar compresses the about menu and fixes popover visibility", as
   // CSS: about label is hidden on mobile
   assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.about-label\s*\{\s*display:\s*none;/s);
 });
+
+test("mobile top bars stay pinned during focus, zoom, and viewport scrolling", async () => {
+  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.app-toolbar\s*\{[^}]*position:\s*fixed;[^}]*top:\s*var\(--visual-viewport-top\);/s);
+  assert.match(css, /\.mobile-panel-tabs\s*\{[^}]*position:\s*fixed;[^}]*top:\s*calc\(var\(--visual-viewport-top\) \+ var\(--toolbar-h\)\);/s);
+  assert.match(css, /#workspace\s*\{[^}]*position:\s*fixed;[^}]*height:\s*calc\(var\(--visual-viewport-height\) - var\(--toolbar-h\) - var\(--mobile-tabs-h\)\);/s);
+  assert.match(app, /function updateMobileViewport\(\)[\s\S]*visualViewport[\s\S]*--visual-viewport-top[\s\S]*--visual-viewport-height/);
+  assert.match(app, /visualViewport\?\.addEventListener\("resize", scheduleMobileViewportUpdate\)/);
+  assert.match(app, /visualViewport\?\.addEventListener\("scroll", scheduleMobileViewportUpdate\)/);
+  assert.match(app, /document\.addEventListener\("focusin", scheduleMobileViewportUpdate\)/);
+});
