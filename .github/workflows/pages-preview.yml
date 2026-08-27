@@ -114,6 +114,9 @@ jobs:
   cleanup_preview:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -129,6 +132,18 @@ jobs:
           git add .
           git diff --cached --quiet || git commit -m "Remove preview PR #${{ github.event.number }}"
           git push origin HEAD:gh-pages
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: gh-pages
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 
   deploy_production:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
