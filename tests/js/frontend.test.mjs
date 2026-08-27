@@ -505,16 +505,19 @@ test("mobile preview is live-only, reflows horizontally, and retains zoom contro
   assert.match(css, /body\.scene-nums-margin \.screenplay-page\s*\{[^}]*padding-left:\s*calc\(54px \* var\(--mobile-preview-zoom,\s*1\)\);/s);
   assert.match(app, /if \(isMobilePreview\(\)\) mode = "live";/);
   assert.match(html, /class="view-switcher"[\s\S]*data-preview-mode="live"[\s\S]*data-preview-mode="pdf"/);
-  assert.match(html, /class="preview-actions"[\s\S]*id="zoom-out"[\s\S]*id="zoom"[\s\S]*id="zoom-in"/);
+  assert.match(html, /class="preview-actions"[\s\S]*id="zoom-out"[\s\S]*id="zoom"[\s\S]*id="zoom-in"[\s\S]*id="zoom-fit"/);
 });
 
-test("preview zoom offers fit and computes it from the available viewport", async () => {
-  const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
-  assert.match(html, /id="zoom"[\s\S]*<option value="fit">Fit<\/option>/);
-  assert.match(app, /availableWidth \/ 816,\s*availableHeight \/ 1056/);
-  assert.match(app, /if \(\$\("#zoom"\)\.value === "fit"\) requestAnimationFrame\(applyZoom\);/);
-  assert.match(app, /if \(zoom\.value === "fit"\)\s*\{\s*zoom\.value = "100";/);
+test("preview zoom centers the page and offers a dedicated fit-to-width control", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.doesNotMatch(html, /<option value="fit">/);
+  assert.match(html, /id="zoom-in"[\s\S]*id="zoom-fit"[^>]*>Fit<\/button>/);
+  assert.match(app, /scale = Math\.max\(\.25,\s*availableWidth \/ 816\)/);
+  assert.match(app, /preview\.scrollLeft = Math\.max\(0,\s*\(preview\.scrollWidth - preview\.clientWidth\) \/ 2\)/);
+  assert.match(app, /if \(state\.previewZoom === "fit"\) requestAnimationFrame\(applyZoom\);/);
+  assert.match(app, /if \(state\.previewZoom === "fit"\)\s*\{\s*zoom\.value = "100";/);
   assert.match(app, /\["fit",\s*"70",\s*"85",\s*"100",\s*"115",\s*"130"\]/);
+  assert.match(css, /\.preview-page-stage\s*\{[^}]*margin:\s*0 auto;/s);
 });
 
 test("mobile PDF export path remains accessible via toolbar File menu", async () => {
