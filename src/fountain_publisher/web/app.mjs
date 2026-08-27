@@ -619,6 +619,7 @@ function previewSelection(line = document.activeElement.closest?.(".script-line"
     endLine,
     startOffset: previewTextOffset(startLine, range.startContainer, range.startOffset),
     endOffset: previewTextOffset(endLine, range.endContainer, range.endOffset),
+    direction: !range.collapsed && selection.focusNode === range.startContainer && selection.focusOffset === range.startOffset ? "backward" : "forward",
   };
 }
 
@@ -652,6 +653,19 @@ function setSourceCursorFromPreview(element, displayOffset = element.textContent
   const offset = sourceOffsetForLine(lines, index, column);
   source.setSelectionRange(offset, offset);
   scrollSourceTarget(index);
+  updateCursor();
+}
+
+function setSourceSelectionFromPreview(edit) {
+  const lines = source.value.replace(/\r\n?/g, "\n").split("\n");
+  const startIndex = Number(edit.startLine.dataset.line);
+  const endIndex = Number(edit.endLine.dataset.line);
+  const startColumn = previewSourceOffset(edit.startLine, lines[startIndex] || "", edit.startOffset, "start");
+  const endColumn = previewSourceOffset(edit.endLine, lines[endIndex] || "", edit.endOffset, "end");
+  const start = sourceOffsetForLine(lines, startIndex, startColumn);
+  const end = sourceOffsetForLine(lines, endIndex, endColumn);
+  source.setSelectionRange(start, end, edit.direction);
+  scrollSourceTarget(edit.direction === "backward" ? startIndex : endIndex);
   updateCursor();
 }
 
@@ -862,7 +876,10 @@ function syncSourceOverlay() {
 }
 
 function currentPosition() {
-  const before = source.value.slice(0, source.selectionStart);
+  const activeOffset = source.selectionStart !== source.selectionEnd && source.selectionDirection !== "backward"
+    ? source.selectionEnd
+    : source.selectionStart;
+  const before = source.value.slice(0, activeOffset);
   const parts = before.split("\n");
   return { line: parts.length - 1, column: parts.at(-1).length, start: before.lastIndexOf("\n") + 1 };
 }
@@ -1812,10 +1829,10 @@ page.addEventListener("keydown", (event) => {
   }
 });
 page.addEventListener("focusin", (event) => { const line = event.target.closest(".script-line"); if (line) setSourceCursorFromPreview(line); });
-page.addEventListener("click", (event) => { const line = event.target.closest(".script-line"); if (line) setSourceCursorFromPreview(line, previewSelection(line)?.startOffset); });
+page.addEventListener("click", (event) => { const line = event.target.closest(".script-line"); const edit = previewSelection(line); if (edit) setSourceSelectionFromPreview(edit); });
 page.addEventListener("keyup", (event) => {
   if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
-  const line = event.target.closest(".script-line"); if (line) setSourceCursorFromPreview(line, previewSelection(line)?.startOffset);
+  const line = event.target.closest(".script-line"); const edit = previewSelection(line); if (edit) setSourceSelectionFromPreview(edit);
 });
 page.addEventListener("focusout", () => setTimeout(() => { if (!$("#preview-completion-menu").matches(":hover")) hidePreviewCompletions(); }, 0));
 $("#preview-completion-menu").addEventListener("mousedown", (event) => { const item = event.target.closest(".completion-item"); if (item) { event.preventDefault(); acceptPreviewCharacterCompletion(Number(item.dataset.index)); } });

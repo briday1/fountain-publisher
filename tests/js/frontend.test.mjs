@@ -126,6 +126,14 @@ test("preview edits keep the source cursor on the edited line", async () => {
   assert.doesNotMatch(app, /page\.addEventListener\("focusin"[^\n]*jumpToLine/);
 });
 
+test("preview highlight follows the active caret and text selection", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /function currentPosition\(\)[\s\S]*source\.selectionDirection !== "backward"[\s\S]*source\.selectionEnd/);
+  assert.match(app, /function setSourceSelectionFromPreview\(edit\)[\s\S]*source\.setSelectionRange\(start, end, edit\.direction\)/);
+  assert.match(app, /page\.addEventListener\("click"[\s\S]*setSourceSelectionFromPreview\(edit\)/);
+  assert.match(app, /page\.addEventListener\("keyup"[\s\S]*setSourceSelectionFromPreview\(edit\)/);
+});
+
 test("source and preview navigation scroll in both directions", async () => {
   const app = await readFile(appPath, "utf8");
   assert.match(app, /function scrollSourceTarget\([\s\S]*firstRect\.top - highlight\.getBoundingClientRect\(\)\.top \+ highlight\.scrollTop/);
