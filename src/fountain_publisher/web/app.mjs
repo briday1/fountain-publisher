@@ -210,6 +210,8 @@ const WORKSPACE_CACHE_KEY = "fountain-publisher.workspace.v1";
 let githubSessionStorage;
 try { githubSessionStorage = window.sessionStorage; } catch { /* Keep the token in memory if storage is unavailable. */ }
 const githubTokens = new GitHubTokenSession(githubSessionStorage);
+let githubAuthPopup = null;
+let githubAuthTimer = 0;
 let STATIC_HOST = location.hostname.endsWith(".github.io") || new URLSearchParams(location.search).get("static") === "1";
 const docSettings = {
   sceneNumbers: localStorage.getItem("fountain-publisher.scene-numbers") ?? "margin",
@@ -1566,7 +1568,7 @@ async function openGitHubDialog(mode = "open") {
   state.githubMode = mode;
   const dialog = $("#github-dialog");
   $("#github-heading").textContent = mode === "open" ? "Open from GitHub" : "Save to GitHub As";
-  $("#github-help").textContent = "Use a fine-grained personal access token. It is kept only for this browser tab session.";
+  $("#github-help").textContent = "Sign in with GitHub, then choose a repository, branch, and Fountain file.";
   $("#github-auth").hidden = Boolean(githubTokens.get());
   $("#github-disconnect").hidden = !githubTokens.get();
   $("#github-token").value = "";
@@ -1580,6 +1582,46 @@ async function openGitHubDialog(mode = "open") {
   dialog.showModal();
   await loadGitHubRepositories();
 }
+
+function beginGitHubLogin() {
+  clearInterval(githubAuthTimer);
+  githubAuthPopup = window.open(
+    new URL("auth/github/start.php", document.baseURI),
+    "fountain-publisher-github-login",
+    "popup=yes,width=620,height=760,resizable=yes,scrollbars=yes",
+  );
+  if (!githubAuthPopup) {
+    githubProgress("Allow popups for this site, then try again.", true);
+    return;
+  }
+  githubProgress("Complete sign in in the GitHub popup…");
+  githubAuthTimer = window.setInterval(() => {
+    if (!githubAuthPopup?.closed) return;
+    clearInterval(githubAuthTimer);
+    githubAuthTimer = 0;
+    githubAuthPopup = null;
+  }, 500);
+}
+
+window.addEventListener("message", (event) => {
+  if (event.origin !== location.origin || event.source !== githubAuthPopup) return;
+  if (event.data?.type !== "fountain-publisher:github-oauth") return;
+  clearInterval(githubAuthTimer);
+  githubAuthTimer = 0;
+  githubAuthPopup = null;
+  if (event.data.error) {
+    githubProgress(event.data.error, true);
+    return;
+  }
+  try {
+    githubTokens.set(event.data.token);
+    state.githubClient = null;
+    $("#github-token").value = "";
+    loadGitHubRepositories();
+  } catch (error) {
+    githubProgress(error.message, true);
+  }
+});
 
     async function openGitHubFile() {
       const [owner, repo] = $("#github-repository").value.split("/");
@@ -2434,6 +2476,7 @@ $("#file-input").addEventListener("change", async (event) => { const file = even
 $("#github-open").addEventListener("click", () => openGitHubDialog("open"));
 $("#github-save").addEventListener("click", saveGitHub);
 $("#github-save-as").addEventListener("click", () => openGitHubDialog("save-as"));
+$("#github-login").addEventListener("click", beginGitHubLogin);
 $("#github-connect").addEventListener("click", () => {
   try {
     githubTokens.set($("#github-token").value);

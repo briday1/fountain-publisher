@@ -9,6 +9,7 @@ await Promise.all([
   cp("src/fountain_publisher/web/styles.css", `${output}/styles.css`),
   cp("src/fountain_publisher/web/fonts", `${output}/fonts`, { recursive: true }),
   cp("src/fountain_publisher/web/vendor", `${output}/vendor`, { recursive: true }),
+  cp("deploy/godaddy/auth", `${output}/auth`, { recursive: true }),
   cp("node_modules/pyodide", `${output}/pyodide`, { recursive: true }),
 ]);
 await cp("src/fountain_publisher/web/vendor/micropip-0.11.1-py3-none-any.whl", `${output}/pyodide/micropip-0.11.1-py3-none-any.whl`);

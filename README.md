@@ -76,16 +76,34 @@ src/fountain_publisher/
 
 The server binds to loopback by default, limits compile request size, serves no arbitrary filesystem paths, and sends restrictive browser security headers.
 
-## Static GitHub integration
+## GitHub integration on GoDaddy
 
-The integration is fully static and calls `https://api.github.com` directly from the browser. Choose **File → Open from GitHub**, then paste a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new). Restrict the token to only the repositories you intend to edit and grant:
+The editor and GitHub API operations remain browser-based. On GoDaddy Linux hosting, two small PHP endpoints provide the normal **Sign in with GitHub** popup and exchange the temporary OAuth code without exposing the GitHub client secret. The built site includes these endpoints under `auth/github/`.
+
+Create a GitHub OAuth App with:
+
+- **Homepage URL:** `https://fountain-publisher.com`
+- **Authorization callback URL:** `https://fountain-publisher.com/auth/github/callback.php`
+
+Place `fountain-publisher-oauth.php` one directory above GoDaddy's document root (normally alongside `public_html`, not inside it):
+
+```php
+<?php
+return [
+    'client_id' => 'your OAuth app client ID',
+    'client_secret' => 'your OAuth app client secret',
+    'callback_url' => 'https://fountain-publisher.com/auth/github/callback.php',
+];
+```
+
+Never commit or upload that configuration inside the public web root. The PHP hosting account needs the cURL and session extensions, which are normally enabled on GoDaddy Linux shared hosting. Upload the contents of `dist/web` after running `npm run build:web`.
+
+OAuth authorization requests repository access. For finer repository selection, users can expand **Use an access token instead**, paste a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new), restrict it to intended repositories, and grant:
 
 - **Contents: Read and write** to browse and commit files and create branches.
 - **Pull requests: Read and write** to create the protected-branch fallback pull request.
 - **Metadata: Read-only** (included automatically).
 
 The token is held in memory and `sessionStorage` only. It is never written to `localStorage`, the workspace recovery record, a file, or the repository, and **Forget token** removes it immediately. Session storage lasts for the current tab session, so close the tab to discard it. Treat any token used in a browser as accessible to scripts running on that origin; keep the site free of untrusted scripts and use the narrowest repository access and expiration possible.
-
-GitHub App OAuth is intentionally not offered: a static-only application cannot securely hold a GitHub App client secret or exchange OAuth credentials. Supporting that flow securely would require a trusted backend or serverless auth service, which this application does not use.
 
 The current GitHub file identity (but never its token) is included in local workspace recovery. The Contents API uses the remembered blob SHA for optimistic concurrency; stale saves offer reload or a new branch/pull request, and protected-branch failures offer the branch/pull-request path automatically. The CSP permits network access only to GitHub's REST API.

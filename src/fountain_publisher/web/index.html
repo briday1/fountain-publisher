@@ -208,11 +208,15 @@
         <div class="dialog-heading"><small>GITHUB</small><h2 id="github-heading">Open from GitHub</h2></div>
         <p id="github-help">Enter a fine-grained personal access token, then choose a repository, branch, and Fountain file.</p>
         <div id="github-auth">
-          <label>Fine-grained personal access token<input id="github-token" type="password" autocomplete="off" spellcheck="false" /></label>
-          <p>Stored in session storage only and removed when this tab session ends. It is never added to the document or workspace cache.</p>
-          <button id="github-connect" class="github-connect" type="button">Use token</button>
+          <button id="github-login" class="github-connect primary" type="button">Sign in with GitHub</button>
+          <p>GitHub opens in a secure popup. The returned session is kept only in this browser tab.</p>
+          <details class="github-token-fallback">
+            <summary>Use an access token instead</summary>
+            <label>Fine-grained personal access token<input id="github-token" type="password" autocomplete="off" spellcheck="false" /></label>
+            <button id="github-connect" class="github-connect" type="button">Use token</button>
+          </details>
         </div>
-        <button id="github-disconnect" class="github-disconnect" type="button" hidden>Forget token</button>
+        <button id="github-disconnect" class="github-disconnect" type="button" hidden>Sign out</button>
         <div id="github-picker" hidden>
           <label>Repository<select id="github-repository" required></select></label>
           <label>Branch<select id="github-branch" required></select></label>

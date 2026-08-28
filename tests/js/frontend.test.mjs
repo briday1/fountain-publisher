@@ -20,6 +20,14 @@ test("application shell exposes editing, preview, and insights regions", async (
   assert.match(html, /id="export-pdf"/);
 });
 
+test("GitHub integration offers popup login with token fallback", async () => {
+  const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
+  assert.match(html, /id="github-login"[^>]*>Sign in with GitHub/);
+  assert.match(html, /class="github-token-fallback"/);
+  assert.match(app, /window\.open\([\s\S]*auth\/github\/start\.php/);
+  assert.match(app, /event\.origin !== location\.origin \|\| event\.source !== githubAuthPopup/);
+});
+
 test("desktop panel headers share a height and preview controls follow its title", async () => {
   const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /class="preview-heading"[\s\S]*<small>SCREENPLAY<\/small><h2>Preview<\/h2>[\s\S]*class="view-switcher"/);
