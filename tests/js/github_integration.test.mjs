@@ -10,6 +10,7 @@ const appPath = join(root, "src/fountain_publisher/web/app.mjs");
 const workerPath = join(root, "github-worker/src/index.mjs");
 const workerConfigPath = join(root, "github-worker/wrangler.jsonc");
 const migrationPath = join(root, "github-worker/migrations/0001_sessions.sql");
+const hardeningMigrationPath = join(root, "github-worker/migrations/0002_security_hardening.sql");
 
 test("app exposes a credentialed GitHub repository browser", async () => {
   const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
@@ -28,21 +29,33 @@ test("app exposes a credentialed GitHub repository browser", async () => {
   assert.match(app, /sha: body\.sha|JSON\.stringify\(\{ content: source\.value, message:/);
 });
 
-test("Worker keeps GitHub OAuth tokens behind an opaque D1 session", async () => {
+test("Worker encrypts and isolates GitHub sessions with lifecycle controls", async () => {
   await import(pathToFileURL(workerPath));
-  const [worker, config, migration] = await Promise.all([
+  const [worker, config, migration, hardening] = await Promise.all([
     readFile(workerPath, "utf8"),
     readFile(workerConfigPath, "utf8"),
     readFile(migrationPath, "utf8"),
+    readFile(hardeningMigrationPath, "utf8"),
   ]);
   assert.match(config, /api\.fountain-publisher\.com/);
   assert.match(config, /"binding": "DB"/);
   assert.match(config, /GITHUB_CLIENT_SECRET/);
+  assert.match(config, /TOKEN_ENCRYPTION_KEY/);
+  assert.match(config, /"crons"/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS oauth_states/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS sessions/);
   assert.match(worker, /HttpOnly; Secure; SameSite=Lax/);
   assert.match(worker, /origin === env\.APP_ORIGIN/);
-  assert.match(worker, /DELETE FROM oauth_states WHERE state=\? AND expires_at> \? RETURNING state/);
+  assert.match(hardening, /CREATE TABLE IF NOT EXISTS rate_limits/);
+  assert.match(hardening, /DELETE FROM sessions/);
+  assert.match(worker, /AES-GCM/);
+  assert.match(worker, /encryptToken\(token\.access_token, env\)/);
+  assert.match(worker, /decryptToken\(session\.access_token, env\)/);
+  assert.match(worker, /binding_hash=\?/);
+  assert.match(worker, /secureCookie\(OAUTH_COOKIE, binding, 600\)/);
+  assert.match(worker, /async function rateLimited/);
+  assert.match(worker, /async function cleanupExpired/);
+  assert.match(worker, /async scheduled\(_controller, env, context\)/);
   assert.match(worker, /\/user\/installations\?per_page=100/);
   assert.match(worker, /\/repositories\?per_page=100/);
   assert.match(worker, /body: JSON\.stringify\(\{ message: body\.message, content: encodeContent\(body\.content\)/);

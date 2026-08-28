@@ -1,6 +1,7 @@
 const GITHUB_API = "https://api.github.com";
 const API_VERSION = "2022-11-28";
 const SESSION_COOKIE = "fp_github_session";
+const OAUTH_COOKIE = "fp_github_oauth";
 const DAY = 86_400;
 
 function json(data, status = 200, headers = {}) {
@@ -32,8 +33,72 @@ function cookieValue(request, name) {
   return match ? decodeURIComponent(match[1]) : "";
 }
 
+function secureCookie(name, value, maxAge) {
+  return `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
+}
+
 function sessionCookie(value, maxAge = 30 * DAY) {
-  return `${SESSION_COOKIE}=${encodeURIComponent(value)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
+  return secureCookie(SESSION_COOKIE, value, maxAge);
+}
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+  return btoa(binary);
+}
+
+function base64ToBytes(value) {
+  return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
+}
+
+async function tokenKey(env) {
+  const bytes = base64ToBytes(env.TOKEN_ENCRYPTION_KEY || "");
+  if (bytes.length !== 32) throw new Error("TOKEN_ENCRYPTION_KEY must decode to exactly 32 bytes");
+  return crypto.subtle.importKey("raw", bytes, "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+
+async function encryptToken(value, env) {
+  if (!value) return null;
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await tokenKey(env), new TextEncoder().encode(value)));
+  const packed = new Uint8Array(iv.length + encrypted.length);
+  packed.set(iv); packed.set(encrypted, iv.length);
+  return bytesToBase64(packed);
+}
+
+async function decryptToken(value, env) {
+  if (!value) return null;
+  const packed = base64ToBytes(value);
+  const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv: packed.subarray(0, 12) }, await tokenKey(env), packed.subarray(12));
+  return new TextDecoder().decode(decrypted);
+}
+
+async function digest(value) {
+  return bytesToBase64(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))));
+}
+
+async function cleanupExpired(env, now = Math.floor(Date.now() / 1000)) {
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM sessions WHERE expires_at <= ? OR (refresh_expires_at IS NOT NULL AND refresh_expires_at <= ?)").bind(now, now),
+    env.DB.prepare("DELETE FROM oauth_states WHERE expires_at <= ?").bind(now),
+    env.DB.prepare("DELETE FROM rate_limits WHERE reset_at <= ?").bind(now),
+  ]);
+}
+
+async function rateLimited(request, env, scope, limit, windowSeconds) {
+  const identity = scope === "api"
+    ? cookieValue(request, SESSION_COOKIE) || request.headers.get("CF-Connecting-IP") || "unknown"
+    : request.headers.get("CF-Connecting-IP") || "unknown";
+  const key = `${scope}:${await digest(identity)}`;
+  const now = Math.floor(Date.now() / 1000);
+  const row = await env.DB.prepare(`
+    INSERT INTO rate_limits (key, count, reset_at) VALUES (?, 1, ?)
+    ON CONFLICT(key) DO UPDATE SET
+      count = CASE WHEN reset_at <= ? THEN 1 ELSE count + 1 END,
+      reset_at = CASE WHEN reset_at <= ? THEN excluded.reset_at ELSE reset_at END
+    RETURNING count, reset_at
+  `).bind(key, now + windowSeconds, now, now).first();
+  return row.count > limit ? json({ error: "Too many requests. Please try again shortly." }, 429, { "retry-after": String(Math.max(1, row.reset_at - now)) }) : null;
 }
 
 function popupResponse(env, type, message = "") {
@@ -73,8 +138,15 @@ async function getSession(request, env) {
   const id = cookieValue(request, SESSION_COOKIE);
   if (!id) return null;
   const now = Math.floor(Date.now() / 1000);
-  const session = await env.DB.prepare("SELECT * FROM sessions WHERE id = ? AND expires_at > ?").bind(id, now).first();
+  const session = await env.DB.prepare("SELECT * FROM sessions WHERE id = ? AND expires_at > ? AND token_version = 1").bind(id, now).first();
   if (!session) return null;
+  try {
+    session.access_token = await decryptToken(session.access_token, env);
+    session.refresh_token = await decryptToken(session.refresh_token, env);
+  } catch {
+    await env.DB.prepare("DELETE FROM sessions WHERE id=?").bind(id).run();
+    return null;
+  }
   if (session.access_expires_at && session.access_expires_at <= now + 60 && session.refresh_token) {
     const response = await fetch("https://github.com/login/oauth/access_token", {
       method: "POST",
@@ -93,7 +165,7 @@ async function getSession(request, env) {
     session.access_expires_at = token.expires_in ? now + token.expires_in : null;
     session.refresh_expires_at = token.refresh_token_expires_in ? now + token.refresh_token_expires_in : session.refresh_expires_at;
     await env.DB.prepare("UPDATE sessions SET access_token=?, refresh_token=?, access_expires_at=?, refresh_expires_at=? WHERE id=?")
-      .bind(session.access_token, session.refresh_token, session.access_expires_at, session.refresh_expires_at, id).run();
+      .bind(await encryptToken(session.access_token, env), await encryptToken(session.refresh_token, env), session.access_expires_at, session.refresh_expires_at, id).run();
   }
   return session;
 }
@@ -169,21 +241,32 @@ async function handle(request, env) {
   const url = new URL(request.url);
   if (url.pathname === "/health") return json({ ok: true });
   if (url.pathname === "/auth/github/start") {
+    const limited = await rateLimited(request, env, "oauth-start", 10, 600);
+    if (limited) return limited;
     const state = randomToken();
+    const binding = randomToken();
     const now = Math.floor(Date.now() / 1000);
     await env.DB.prepare("DELETE FROM oauth_states WHERE expires_at <= ?").bind(now).run();
-    await env.DB.prepare("INSERT INTO oauth_states (state, expires_at) VALUES (?, ?)").bind(state, now + 600).run();
+    await env.DB.prepare("INSERT INTO oauth_states (state, expires_at, binding_hash) VALUES (?, ?, ?)").bind(state, now + 600, await digest(binding)).run();
     const callback = `${url.origin}/auth/github/callback`;
     const authorize = new URL("https://github.com/login/oauth/authorize");
     authorize.search = new URLSearchParams({ client_id: env.GITHUB_CLIENT_ID, redirect_uri: callback, state }).toString();
-    return Response.redirect(authorize, 302);
+    return new Response(null, { status: 302, headers: { location: authorize.toString(), "set-cookie": secureCookie(OAUTH_COOKIE, binding, 600) } });
   }
   if (url.pathname === "/auth/github/callback") {
+    const limited = await rateLimited(request, env, "oauth-callback", 20, 600);
+    if (limited) return limited;
     const code = url.searchParams.get("code");
     const state = url.searchParams.get("state");
+    const binding = cookieValue(request, OAUTH_COOKIE);
     const now = Math.floor(Date.now() / 1000);
-    const valid = state && await env.DB.prepare("DELETE FROM oauth_states WHERE state=? AND expires_at> ? RETURNING state").bind(state, now).first();
-    if (!code || !valid) return popupResponse(env, "github-error", "GitHub authorization expired. Please try again.");
+    const valid = state && binding && await env.DB.prepare("DELETE FROM oauth_states WHERE state=? AND expires_at> ? AND binding_hash=? RETURNING state")
+      .bind(state, now, await digest(binding)).first();
+    if (!code || !valid) {
+      const response = popupResponse(env, "github-error", "GitHub authorization expired. Please try again.");
+      response.headers.append("set-cookie", secureCookie(OAUTH_COOKIE, "", 0));
+      return response;
+    }
     const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {
       method: "POST",
       headers: { accept: "application/json", "content-type": "application/json" },
@@ -193,10 +276,11 @@ async function handle(request, env) {
     if (!tokenResponse.ok || token.error) return popupResponse(env, "github-error", token.error_description || "GitHub authorization failed.");
     const id = randomToken();
     const expiresAt = now + 30 * DAY;
-    await env.DB.prepare("INSERT INTO sessions (id, access_token, refresh_token, access_expires_at, refresh_expires_at, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-      .bind(id, token.access_token, token.refresh_token || null, token.expires_in ? now + token.expires_in : null, token.refresh_token_expires_in ? now + token.refresh_token_expires_in : null, now, expiresAt).run();
+    await env.DB.prepare("INSERT INTO sessions (id, access_token, refresh_token, access_expires_at, refresh_expires_at, created_at, expires_at, token_version) VALUES (?, ?, ?, ?, ?, ?, ?, 1)")
+      .bind(id, await encryptToken(token.access_token, env), await encryptToken(token.refresh_token, env), token.expires_in ? now + token.expires_in : null, token.refresh_token_expires_in ? now + token.refresh_token_expires_in : null, now, expiresAt).run();
     const response = popupResponse(env, "github-connected");
-    response.headers.set("set-cookie", sessionCookie(id));
+    response.headers.append("set-cookie", sessionCookie(id));
+    response.headers.append("set-cookie", secureCookie(OAUTH_COOKIE, "", 0));
     return response;
   }
   if (url.pathname === "/auth/github/installed") return popupResponse(env, "github-installed");
@@ -205,14 +289,19 @@ async function handle(request, env) {
     if (id) await env.DB.prepare("DELETE FROM sessions WHERE id=?").bind(id).run();
     return json({ connected: false }, 200, { "set-cookie": sessionCookie("", 0) });
   }
-  if (url.pathname.startsWith("/api/")) return apiRequest(request, env, url);
+  if (url.pathname.startsWith("/api/")) {
+    const limited = await rateLimited(request, env, "api", 180, 60);
+    if (limited) return limited;
+    return apiRequest(request, env, url);
+  }
   return json({ error: "Not found" }, 404);
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, context) {
     const cors = corsHeaders(request, env);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+    if (Math.random() < 0.01) context.waitUntil(cleanupExpired(env));
     try {
       const response = await handle(request, env);
       Object.entries(cors).forEach(([key, value]) => response.headers.set(key, value));
@@ -224,5 +313,8 @@ export default {
       }
       return json({ error: "GitHub integration failed" }, 500, cors);
     }
+  },
+  async scheduled(_controller, env, context) {
+    context.waitUntil(cleanupExpired(env));
   },
 };

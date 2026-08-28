@@ -9,6 +9,9 @@
   "vars": {
     "APP_ORIGIN": "https://fountain-publisher.com"
   },
+  "triggers": {
+    "crons": ["17 3 * * *"]
+  },
   "d1_databases": [
     {
       "binding": "DB",
@@ -18,6 +21,6 @@
     }
   ],
   "secrets": {
-    "required": ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "GITHUB_APP_SLUG"]
+    "required": ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "GITHUB_APP_SLUG", "TOKEN_ENCRYPTION_KEY"]
   }
 }

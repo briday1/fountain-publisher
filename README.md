@@ -10,7 +10,7 @@ The live site is the complete browser application, including editing, live and P
 
 ## GitHub integration
 
-Fountain Publisher can connect to a user's GitHub account, browse repositories selected during GitHub App installation, open `.fountain` files, and save changes as ordinary commits. The static editor never receives a GitHub client secret or access token. A small Cloudflare Worker at `api.fountain-publisher.com` owns the OAuth exchange, stores opaque sessions in D1, and calls GitHub's API.
+Fountain Publisher can connect to a user's GitHub account, browse repositories selected during GitHub App installation, open `.fountain` files, and save changes as ordinary commits. The static editor never receives a GitHub client secret or access token. A small Cloudflare Worker at `api.fountain-publisher.com` owns the OAuth exchange, stores encrypted credentials behind opaque sessions in D1, and calls GitHub's API.
 
 ### 1. Create the GitHub App
 
@@ -47,7 +47,10 @@ Add the production secrets interactively. They are stored by Cloudflare and must
 npx wrangler secret put GITHUB_CLIENT_ID
 npx wrangler secret put GITHUB_CLIENT_SECRET
 npx wrangler secret put GITHUB_APP_SLUG
+npx wrangler secret put TOKEN_ENCRYPTION_KEY
 ```
+
+Generate the encryption value locally with `openssl rand -base64 32` and paste that output when Wrangler prompts for `TOKEN_ENCRYPTION_KEY`. Keep it with the other deployment secrets: changing or losing it invalidates existing GitHub sessions.
 
 For local Worker development, copy `.dev.vars.example` to `.dev.vars`, fill in test credentials, and run `npm run db:local` followed by `npm run dev`. `.dev.vars` and Wrangler's local state are ignored by Git.
 
@@ -65,12 +68,16 @@ The existing GitHub Pages workflow remains responsible for the static site. Clou
 
 ### Security and operating notes
 
-- Sessions are opaque, `HttpOnly`, `Secure`, and `SameSite=Lax`; GitHub tokens stay in D1.
-- OAuth state values are single-use and expire after ten minutes.
+- Sessions are opaque, `HttpOnly`, `Secure`, and `SameSite=Lax`; GitHub tokens stay in D1 encrypted with AES-256-GCM.
+- OAuth state values are single-use, expire after ten minutes, and are bound to the browser that initiated authorization.
 - CORS permits credentialed API calls only from `https://fountain-publisher.com`.
+- OAuth and API endpoints have per-client fixed-window rate limits; only a hash of the client address is stored for throttling.
 - Repository access is the intersection of the signed-in user's access, the GitHub App's Contents permission, and the repositories selected during installation.
 - Saving uses GitHub's content SHA for conflict detection. A stale file fails instead of silently replacing a newer commit.
 - Expiring GitHub user tokens are refreshed server-side when GitHub supplies a refresh token.
+- A daily Worker schedule deletes expired sessions, OAuth state, and rate-limit records; requests also trigger occasional cleanup as a fallback.
+
+Migration `0002_security_hardening.sql` removes sessions created before encryption, so users reconnect once after it is deployed. Apply migrations before deploying the updated Worker.
 
 ## Install and run
 

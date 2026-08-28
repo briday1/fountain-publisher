@@ -282,6 +282,15 @@ function scheduleWorkspaceCache() {
   state.cacheTimer = setTimeout(persistWorkspaceNow, 120);
 }
 
+function clearWorkspaceOnExit() {
+  return localStorage.getItem("fountain-publisher.clear-workspace-on-exit") === "true";
+}
+
+function clearWorkspaceCache() {
+  clearTimeout(state.cacheTimer);
+  localStorage.removeItem(WORKSPACE_CACHE_KEY);
+}
+
 function applyPreviewBackground() {
   const storedPattern = localStorage.getItem("fountain-publisher.preview-background") || "dots";
   const pattern = ["blank", "dots"].includes(storedPattern) ? storedPattern : "dots";
@@ -472,7 +481,7 @@ function analyzeLocally(text) {
   return { lineCount: lines.length, wordCount, dialogueWords, actionWords, estimatedSeconds: pageCount == null ? 0 : pageCount * 60, characters: characterList, scenes, sections, locations: [...locations].sort(), titleFields, pageCount, ...notes };
 }
 
-function previewLineHtml(line, sceneLabel = null) {
+function previewLineHtml(line, sceneLabel = null, annotation = null) {
   const centered = line.raw.trim().match(/^>\s*(.*?)\s*<$/);
   const act = line.type === "section" ? line.raw.trim().match(/^#\s+(Act\b.*)$/i) : null;
   const type = centered ? "centered" : line.type;
@@ -488,12 +497,17 @@ function previewLineHtml(line, sceneLabel = null) {
   const note = type === "note" ? managedNote(line.raw) : null;
   const content = display ? fountainInlineHtml(display) : "<br>";
   const sceneAttr = sceneLabel !== null ? escapeHtml(sceneLabel) : "";
-  if (type === "note" && !note) {
-    const text = annotationText(line.raw);
-    return `<div class="script-line note annotation-line" data-line="${line.index}"><button class="annotation-orb" type="button" data-annotation-line="${line.index}" title="${escapeHtml(text)}" aria-label="Edit annotation: ${escapeHtml(text)}"></button></div>`;
-  }
+  if (type === "note" && !note) return "";
   if (type === "note" && note) return `<div class="script-line note managed-note" data-line="${line.index}"></div>`;
-  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(display)}">${content}</div>`;
+  const orb = annotation
+    ? `<button class="annotation-orb" type="button" data-annotation-line="${annotation.index}" title="${escapeHtml(annotation.text)}" aria-label="Edit annotation: ${escapeHtml(annotation.text)}"></button>`
+    : "";
+  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(display)}">${content}${orb}</div>`;
+}
+
+function annotationAfter(lines, index) {
+  const next = lines[index + 1];
+  return next?.type === "note" && !managedNote(next.raw) ? { index: next.index, text: annotationText(next.raw) } : null;
 }
 
 function computeSceneLabels(lines) {
@@ -522,15 +536,17 @@ function renderPreviewLines(lines) {
       if (lines[next]?.type === "character" && lines[next].raw.trim().endsWith("^")) {
         let rightEnd = next + 1;
         while (rightEnd < lines.length && ["dialogue", "parenthetical", "note"].includes(lines[rightEnd].type)) rightEnd += 1;
-        const left = lines.slice(i, next).filter((line) => line.type !== "empty").map((line) => previewLineHtml(line)).join("");
-        const right = lines.slice(next, rightEnd).map((line) => previewLineHtml(line)).join("");
+        const leftLines = lines.slice(i, next).filter((line) => line.type !== "empty");
+        const rightLines = lines.slice(next, rightEnd);
+        const left = leftLines.map((line, index) => previewLineHtml(line, null, annotationAfter(leftLines, index))).join("");
+        const right = rightLines.map((line, index) => previewLineHtml(line, null, annotationAfter(rightLines, index))).join("");
         output.push(`<div class="dual-dialog"><div class="dual-left">${left}</div><div class="dual-right">${right}</div></div>`);
         i = rightEnd - 1;
         continue;
       }
     }
     const label = sceneLabels.get(lines[i].index) ?? null;
-    output.push(previewLineHtml(lines[i], label));
+    output.push(previewLineHtml(lines[i], label, annotationAfter(lines, i)));
   }
   return output.join("");
 }
@@ -1102,8 +1118,8 @@ function renderCharacterAnalytics() {
   const actHeight = 28;
   const sceneHeight = 54;
   const rowHeight = 34;
-  const width = Math.max(720, labelWidth + scenes.length * sceneWidth + 18);
-  const height = actHeight + sceneHeight + Math.max(characters.length, 1) * rowHeight + 18;
+  const width = scenes.length ? labelWidth + scenes.length * sceneWidth : 480;
+  const height = actHeight + sceneHeight + Math.max(characters.length, 1) * rowHeight;
   canvas.width = Math.ceil(width * scale);
   canvas.height = Math.ceil(height * scale);
   canvas.style.width = `${width}px`;
@@ -2332,7 +2348,12 @@ $("#annotation-form").addEventListener("submit", (event) => {
   const text = $("#annotation-text").value.trim().replace(/\s*\n+\s*/g, " ").replaceAll("]]", "] ]");
   if (!text) return;
   const lines = sourceLines();
-  if (state.noteEditor.line === null) lines.splice(state.noteEditor.insertAfter + 1, 0, `[[${text}]]`);
+  if (state.noteEditor.line === null) {
+    const insertAt = state.noteEditor.insertAfter + 1;
+    const nextType = classifyLines(source.value)[insertAt]?.type;
+    lines.splice(insertAt, 0, `[[${text}]]`);
+    if (nextType === "character" && lines[insertAt + 1]?.trim()) lines.splice(insertAt + 1, 0, "");
+  }
   else lines[state.noteEditor.line] = `[[${text}]]`;
   setSourceLines(lines);
   $("#annotation-dialog").close();
@@ -2380,7 +2401,9 @@ $("#close-github-dialog").addEventListener("click", () => $("#github-dialog").cl
 $("#github-install").addEventListener("click", () => { if (state.githubInstallUrl) openGithubPopup(state.githubInstallUrl); });
 $("#github-disconnect").addEventListener("click", async () => {
   try { await githubRequest("/auth/logout", { method: "POST" }); } catch { /* the local disconnected state still applies */ }
-  state.githubConnected = false; state.githubFile = null; updateGithubMenu(); $("#github-dialog").close(); toast("Disconnected from GitHub");
+  state.githubConnected = false; state.githubFile = null;
+  if (clearWorkspaceOnExit()) clearWorkspaceCache();
+  updateGithubMenu(); $("#github-dialog").close(); toast("Disconnected from GitHub");
 });
 $("#github-repository").addEventListener("change", () => loadGithubBranches().catch((error) => toast(error.message)));
 $("#github-branch").addEventListener("change", () => loadGithubFiles("").catch((error) => toast(error.message)));
@@ -2417,6 +2440,12 @@ $("#word-wrap").addEventListener("change", () => {
   source.setAttribute("wrap", enabled ? "soft" : "off");
   renderEditorChrome();
 });
+$("#clear-workspace-on-exit").addEventListener("change", (event) => {
+  localStorage.setItem("fountain-publisher.clear-workspace-on-exit", String(event.target.checked));
+  if (event.target.checked) clearWorkspaceCache();
+  else scheduleWorkspaceCache();
+});
+$("#open-background-dialog").addEventListener("click", () => $("#background-dialog").showModal());
 $("#preview-background").addEventListener("change", (event) => {
   localStorage.setItem("fountain-publisher.preview-background", event.target.value);
   applyPreviewBackground();
@@ -2589,7 +2618,10 @@ document.addEventListener("keydown", (event) => {
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "o") { event.preventDefault(); openFile(); }
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") { event.preventDefault(); newFile(); }
 });
-window.addEventListener("beforeunload", persistWorkspaceNow);
+window.addEventListener("beforeunload", () => {
+  if (clearWorkspaceOnExit()) clearWorkspaceCache();
+  else persistWorkspaceNow();
+});
 
 let mobileViewportFrame = 0;
 function updateMobileViewport() {
@@ -2625,6 +2657,7 @@ async function initialize() {
   document.documentElement.dataset.os = isMac ? "mac" : "win";
   const wordWrap = localStorage.getItem("fountain-publisher.word-wrap") !== "false";
   $("#word-wrap").checked = wordWrap; document.body.classList.toggle("source-wrap", wordWrap); source.setAttribute("wrap", wordWrap ? "soft" : "off");
+  $("#clear-workspace-on-exit").checked = clearWorkspaceOnExit();
   document.body.classList.add(`scene-nums-${docSettings.sceneNumbers}`);
   const sourceWidth = Number(localStorage.getItem("fountain-publisher.--source-w")); const statsWidth = Number(localStorage.getItem("fountain-publisher.--stats-w"));
   if (sourceWidth) document.documentElement.style.setProperty("--source-w", `${sourceWidth}px`); if (statsWidth) document.documentElement.style.setProperty("--stats-w", `${statsWidth}px`);
