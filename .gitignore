@@ -6,3 +6,5 @@ __pycache__/
 build/
 dist/
 node_modules/
+.dev.vars
+github-worker/.wrangler/

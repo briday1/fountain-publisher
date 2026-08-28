@@ -8,6 +8,70 @@ The browser and local Python apps use [Screenplain](https://github.com/vilcans/s
 
 The live site is the complete browser application, including editing, live and PDF preview, file handling, insights, themes, documentation, and PDF/FDX export. The optional local Python application and CLI use the same Screenplain compiler.
 
+## GitHub integration
+
+Fountain Publisher can connect to a user's GitHub account, browse repositories selected during GitHub App installation, open `.fountain` files, and save changes as ordinary commits. The static editor never receives a GitHub client secret or access token. A small Cloudflare Worker at `api.fountain-publisher.com` owns the OAuth exchange, stores opaque sessions in D1, and calls GitHub's API.
+
+### 1. Create the GitHub App
+
+In GitHub **Settings → Developer settings → GitHub Apps**, create an app with:
+
+- Homepage URL: `https://fountain-publisher.com`
+- Callback URL: `https://api.fountain-publisher.com/auth/github/callback`
+- Setup URL: `https://api.fountain-publisher.com/auth/github/installed`
+- Request user authorization during installation: enabled
+- Webhooks: disabled
+- Repository permissions: **Contents — Read and write** (Metadata read access is automatic)
+- Installation target: any account, with users choosing all or selected repositories
+
+Record the app's Client ID and Client secret and use its URL slug as `GITHUB_APP_SLUG`. No private key is required because the Worker uses GitHub App user access tokens rather than installation tokens.
+
+### 2. Create D1 and configure the Worker
+
+```bash
+cd github-worker
+npm install
+npx wrangler login
+npx wrangler d1 create fountain-publisher-github
+```
+
+Copy the returned database ID into `github-worker/wrangler.jsonc`, replacing `REPLACE_WITH_CLOUDFLARE_D1_DATABASE_ID`, then create the tables:
+
+```bash
+npm run db:remote
+```
+
+Add the production secrets interactively. They are stored by Cloudflare and must never be committed:
+
+```bash
+npx wrangler secret put GITHUB_CLIENT_ID
+npx wrangler secret put GITHUB_CLIENT_SECRET
+npx wrangler secret put GITHUB_APP_SLUG
+```
+
+For local Worker development, copy `.dev.vars.example` to `.dev.vars`, fill in test credentials, and run `npm run db:local` followed by `npm run dev`. `.dev.vars` and Wrangler's local state are ignored by Git.
+
+### 3. Deploy
+
+After the `fountain-publisher.com` zone is active in Cloudflare, deploy from `github-worker`:
+
+```bash
+npm run deploy
+```
+
+The `custom_domain` route in `wrangler.jsonc` creates `api.fountain-publisher.com` and its certificate. Do not manually create an `api` DNS record first. Confirm `https://api.fountain-publisher.com/health` returns `{"ok":true}`.
+
+The existing GitHub Pages workflow remains responsible for the static site. Cloudflare's optional Workers and Pages GitHub installation can later automate Worker deployments, but is not required.
+
+### Security and operating notes
+
+- Sessions are opaque, `HttpOnly`, `Secure`, and `SameSite=Lax`; GitHub tokens stay in D1.
+- OAuth state values are single-use and expire after ten minutes.
+- CORS permits credentialed API calls only from `https://fountain-publisher.com`.
+- Repository access is the intersection of the signed-in user's access, the GitHub App's Contents permission, and the repositories selected during installation.
+- Saving uses GitHub's content SHA for conflict detection. A stale file fails instead of silently replacing a newer commit.
+- Expiring GitHub user tokens are refreshed server-side when GitHub supplies a refresh token.
+
 ## Install and run
 
 Use Python 3.9 or newer:

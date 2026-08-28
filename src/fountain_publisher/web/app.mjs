@@ -205,6 +205,7 @@ const MANAGED_NOTE_RE = /^\[\[FP-(GENERAL|CHARACTER):(.+)\]\]$/;
 const source = $("#source");
 const page = $("#screenplay-page");
 const WORKSPACE_CACHE_KEY = "fountain-publisher.workspace.v1";
+const GITHUB_API = "https://api.fountain-publisher.com";
 let STATIC_HOST = location.hostname.endsWith(".github.io") || new URLSearchParams(location.search).get("static") === "1";
 const docSettings = {
   sceneNumbers: localStorage.getItem("fountain-publisher.scene-numbers") ?? "margin",
@@ -237,6 +238,10 @@ const state = {
   previewContextLine: null,
   previewContextEdit: null,
   previewContextText: "",
+  githubConnected: false,
+  githubInstallUrl: "",
+  githubPath: "",
+  githubFile: null,
 };
 
 function emptyMetadata() {
@@ -265,6 +270,7 @@ function persistWorkspaceNow() {
       previewScrollTop: $("#preview-scroll").scrollTop,
       previewMode: state.previewMode,
       zoom: state.previewZoom,
+      githubFile: state.githubFile,
       updatedAt: Date.now(),
     }));
   } catch { /* Editing must continue even if private mode or quota blocks caching. */ }
@@ -1434,8 +1440,9 @@ async function openFile() {
   $("#file-input").click();
 }
 
-function setDocument(text, filename, saved = false) {
+function setDocument(text, filename, saved = false, githubFile = null) {
   source.value = text; state.history = [text]; state.historyIndex = 0; state.filename = filename || "Untitled.fountain"; if (saved) state.savedSource = text;
+  state.githubFile = githubFile;
   $("#filename").textContent = state.filename; document.title = `${state.filename} — Fountain Publisher`; sourceChanged();
 }
 
@@ -1452,6 +1459,159 @@ async function saveFile(saveAs = false) {
     }
     state.savedSource = source.value; setDocument(source.value, state.filename, true); toast(`Saved ${state.filename}`);
   } catch (error) { if (error.name !== "AbortError") toast(error.message); }
+}
+
+async function githubRequest(path, options = {}) {
+  const response = await fetch(`${GITHUB_API}${path}`, { credentials: "include", ...options });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || `GitHub request failed (${response.status})`);
+  return result;
+}
+
+function updateGithubMenu() {
+  $("#github-connect").textContent = state.githubConnected ? "GitHub browser…" : "Connect GitHub…";
+  $("#github-open").disabled = !state.githubConnected;
+  $("#github-save").disabled = !state.githubConnected;
+}
+
+async function refreshGithubSession({ notify = false } = {}) {
+  try {
+    const session = await githubRequest("/api/session");
+    state.githubConnected = true;
+    state.githubInstallUrl = session.installUrl;
+    $("#github-account").textContent = `Connected as ${session.login}`;
+    if (notify) toast(`Connected to GitHub as ${session.login}`);
+  } catch {
+    state.githubConnected = false;
+    state.githubInstallUrl = "";
+    $("#github-account").textContent = "Not connected";
+  }
+  updateGithubMenu();
+  return state.githubConnected;
+}
+
+function openGithubPopup(url) {
+  const popup = window.open(url, "fountain-publisher-github", "popup,width=600,height=760");
+  if (!popup) toast("Allow popups to connect GitHub");
+  return popup;
+}
+
+async function connectGithub() {
+  if (state.githubConnected) return openGithubBrowser();
+  openGithubPopup(`${GITHUB_API}/auth/github/start`);
+}
+
+function selectedGithubRepository() {
+  const option = $("#github-repository").selectedOptions[0];
+  if (!option?.value) return null;
+  const [owner, repo] = option.value.split("/");
+  return { owner, repo, fullName: option.value, defaultBranch: option.dataset.defaultBranch };
+}
+
+function githubContentPath(path = state.githubPath) {
+  const repository = selectedGithubRepository();
+  const branch = $("#github-branch").value;
+  if (!repository) return "";
+  return `/api/contents?${new URLSearchParams({ owner: repository.owner, repo: repository.repo, branch, path })}`;
+}
+
+function renderGithubBreadcrumbs() {
+  const parts = state.githubPath ? state.githubPath.split("/") : [];
+  const items = [`<button type="button" data-github-path="">Root</button>`];
+  parts.forEach((part, index) => {
+    items.push("<span>/</span>", `<button type="button" data-github-path="${escapeHtml(parts.slice(0, index + 1).join("/"))}">${escapeHtml(part)}</button>`);
+  });
+  $("#github-breadcrumbs").innerHTML = items.join("");
+}
+
+async function loadGithubFiles(path = "") {
+  state.githubPath = path;
+  renderGithubBreadcrumbs();
+  const files = $("#github-files");
+  files.innerHTML = `<div class="github-empty">Loading repository…</div>`;
+  try {
+    const result = await githubRequest(githubContentPath(path));
+    const entries = (Array.isArray(result) ? result : [result])
+      .filter((entry) => entry.type === "dir" || /\.(fountain|txt)$/i.test(entry.name))
+      .sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === "dir" ? -1 : 1));
+    files.innerHTML = entries.length ? entries.map((entry) => `<button type="button" role="listitem" data-github-entry="${escapeHtml(entry.path)}" data-github-type="${entry.type}"><span>${entry.type === "dir" ? "▸" : "F"}</span><span>${escapeHtml(entry.name)}</span><small>${entry.type === "dir" ? "Folder" : "Fountain"}</small></button>`).join("") : `<div class="github-empty">No Fountain files in this folder.</div>`;
+  } catch (error) {
+    files.innerHTML = `<div class="github-empty">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+async function loadGithubBranches() {
+  const repository = selectedGithubRepository();
+  if (!repository) return;
+  const result = await githubRequest(`/api/branches?${new URLSearchParams({ owner: repository.owner, repo: repository.repo })}`);
+  $("#github-branch").innerHTML = result.branches.map((branch) => `<option value="${escapeHtml(branch)}"${branch === repository.defaultBranch ? " selected" : ""}>${escapeHtml(branch)}</option>`).join("");
+  await loadGithubFiles("");
+}
+
+async function loadGithubRepositories() {
+  const result = await githubRequest("/api/repositories");
+  state.githubInstallUrl = result.installUrl;
+  $("#github-install").hidden = false;
+  $("#github-repository").innerHTML = result.repositories.map((repo) => `<option value="${escapeHtml(repo.fullName)}" data-default-branch="${escapeHtml(repo.defaultBranch)}">${escapeHtml(repo.fullName)}${repo.private ? " · Private" : ""}</option>`).join("");
+  if (!result.repositories.length) {
+    $("#github-files").innerHTML = `<div class="github-empty">Install Fountain Publisher on at least one repository to browse files.</div>`;
+    $("#github-branch").innerHTML = "";
+    return;
+  }
+  await loadGithubBranches();
+}
+
+async function openGithubBrowser() {
+  if (!state.githubConnected && !(await refreshGithubSession())) return connectGithub();
+  closeMenus();
+  $("#github-filename").value = normalizedFilename("fountain");
+  $("#github-dialog").showModal();
+  try { await loadGithubRepositories(); } catch (error) { toast(error.message); }
+}
+
+function decodeGithubContent(content) {
+  const binary = atob(content.replace(/\s/g, ""));
+  return new TextDecoder().decode(Uint8Array.from(binary, (character) => character.charCodeAt(0)));
+}
+
+async function openGithubFile(path) {
+  if (!(await confirmDiscard())) return;
+  try {
+    const repository = selectedGithubRepository();
+    const branch = $("#github-branch").value;
+    const file = await githubRequest(githubContentPath(path));
+    const remote = { owner: repository.owner, repo: repository.repo, branch, path, sha: file.sha };
+    state.handle = null;
+    setDocument(decodeGithubContent(file.content), file.name, true, remote);
+    $("#github-dialog").close();
+    toast(`Opened ${repository.fullName}/${path}`);
+  } catch (error) { toast(error.message); }
+}
+
+async function saveGithubFile() {
+  const repository = selectedGithubRepository();
+  const branch = $("#github-branch").value;
+  const filename = $("#github-filename").value.trim();
+  const message = $("#github-commit-message").value.trim();
+  if (!repository || !branch || !/^[^/]+\.(fountain|txt)$/i.test(filename)) return toast("Enter a .fountain file name");
+  const path = [state.githubPath, filename].filter(Boolean).join("/");
+  const linked = state.githubFile;
+  const sha = linked && linked.owner === repository.owner && linked.repo === repository.repo && linked.branch === branch && linked.path === path ? linked.sha : undefined;
+  try {
+    const result = await githubRequest(githubContentPath(path), {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: source.value, message: message || `Update ${filename}`, sha }),
+    });
+    state.githubFile = { owner: repository.owner, repo: repository.repo, branch, path, sha: result.sha };
+    state.filename = filename;
+    state.savedSource = source.value;
+    $("#filename").textContent = filename;
+    document.title = `${filename} — Fountain Publisher`;
+    document.body.classList.remove("dirty");
+    $("#github-dialog").close();
+    toast(`Committed ${repository.fullName}/${path}`);
+  } catch (error) { toast(error.message); }
 }
 
 function normalizedFilename(extension) {
@@ -2173,6 +2333,30 @@ $("#delete-general-note").addEventListener("click", () => {
 });
 
 $("#new-file").addEventListener("click", newFile); $("#open-file").addEventListener("click", openFile); $("#save-file").addEventListener("click", () => saveFile(false)); $("#save-file-as").addEventListener("click", () => saveFile(true));
+$("#github-connect").addEventListener("click", connectGithub);
+$("#github-open").addEventListener("click", openGithubBrowser);
+$("#github-save").addEventListener("click", openGithubBrowser);
+$("#close-github-dialog").addEventListener("click", () => $("#github-dialog").close());
+$("#github-install").addEventListener("click", () => { if (state.githubInstallUrl) openGithubPopup(state.githubInstallUrl); });
+$("#github-disconnect").addEventListener("click", async () => {
+  try { await githubRequest("/auth/logout", { method: "POST" }); } catch { /* the local disconnected state still applies */ }
+  state.githubConnected = false; state.githubFile = null; updateGithubMenu(); $("#github-dialog").close(); toast("Disconnected from GitHub");
+});
+$("#github-repository").addEventListener("change", () => loadGithubBranches().catch((error) => toast(error.message)));
+$("#github-branch").addEventListener("change", () => loadGithubFiles("").catch((error) => toast(error.message)));
+$("#github-breadcrumbs").addEventListener("click", (event) => { const button = event.target.closest("[data-github-path]"); if (button) loadGithubFiles(button.dataset.githubPath); });
+$("#github-files").addEventListener("click", (event) => {
+  const entry = event.target.closest("[data-github-entry]");
+  if (!entry) return;
+  if (entry.dataset.githubType === "dir") loadGithubFiles(entry.dataset.githubEntry);
+  else openGithubFile(entry.dataset.githubEntry);
+});
+$("#github-save-here").addEventListener("click", saveGithubFile);
+window.addEventListener("message", async (event) => {
+  if (event.origin !== GITHUB_API || !["github-connected", "github-installed", "github-error"].includes(event.data?.type)) return;
+  if (event.data.type === "github-error") return toast(event.data.message || "GitHub connection failed");
+  if (await refreshGithubSession({ notify: true })) await openGithubBrowser();
+});
 $("#file-input").addEventListener("change", async (event) => { const file = event.target.files?.[0]; if (file) { state.handle = null; setDocument(await file.text(), file.name, true); } event.target.value = ""; });
 $("#export-pdf").addEventListener("click", () => openExport("pdf")); $("#export-fdx").addEventListener("click", () => openExport("fdx"));
 $("#export-format").addEventListener("change", (event) => { $("#dialog-page-size").hidden = event.target.value !== "pdf"; });
@@ -2407,7 +2591,8 @@ async function initialize() {
   const restore = cached && (!params.has("project") || cached.filename === name);
   if (restore) { text = cached.source; name = cached.filename || name; state.savedSource = typeof cached.savedSource === "string" ? cached.savedSource : text; }
   state.cacheEnabled = params.get("demo") !== "1";
-  setDocument(text, name, !restore);
+  setDocument(text, name, !restore, restore ? cached.githubFile || null : null);
+  void refreshGithubSession();
   setMobileTab(localStorage.getItem("fountain-publisher.mobile-tab") || "source");
   if (restore && ["fit", "70", "85", "100", "115", "130"].includes(String(cached.zoom))) {
     state.previewZoom = String(cached.zoom);
