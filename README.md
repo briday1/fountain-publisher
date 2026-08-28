@@ -96,7 +96,13 @@ return [
 ];
 ```
 
-Never commit or upload that configuration inside the public web root. The PHP hosting account needs the cURL and session extensions, which are normally enabled on GoDaddy Linux shared hosting. Upload the contents of `dist/web` after running `npm run build:web`.
+Never commit or upload that configuration inside the public web root. The PHP hosting account needs the cURL and session extensions, which are normally enabled on GoDaddy Linux shared hosting. Build and upload the GoDaddy bundle with:
+
+```shell
+npm run build:godaddy
+```
+
+Upload the contents of `dist/web`. The normal `npm run build:web` intentionally excludes PHP and shows the token flow because it targets static hosts such as GitHub Pages.
 
 OAuth authorization requests repository access. For finer repository selection, users can expand **Use an access token instead**, paste a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new), restrict it to intended repositories, and grant:
 

@@ -208,9 +208,9 @@
         <div class="dialog-heading"><small>GITHUB</small><h2 id="github-heading">Open from GitHub</h2></div>
         <p id="github-help">Enter a fine-grained personal access token, then choose a repository, branch, and Fountain file.</p>
         <div id="github-auth">
-          <button id="github-login" class="github-connect primary" type="button">Sign in with GitHub</button>
+          <button id="github-login" class="github-connect primary" type="button" hidden>Sign in with GitHub</button>
           <p>GitHub opens in a secure popup. The returned session is kept only in this browser tab.</p>
-          <details class="github-token-fallback">
+          <details class="github-token-fallback" open>
             <summary>Use an access token instead</summary>
             <label>Fine-grained personal access token<input id="github-token" type="password" autocomplete="off" spellcheck="false" /></label>
             <button id="github-connect" class="github-connect" type="button">Use token</button>

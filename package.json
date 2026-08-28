@@ -6,6 +6,7 @@
   "scripts": {
     "start": "PYTHONPATH=src python3 -m fountain_publisher",
     "build:web": "node scripts/build-web.mjs",
+    "build:godaddy": "FOUNTAIN_DEPLOY_TARGET=godaddy node scripts/build-web.mjs",
     "test:wasm": "node scripts/smoke-screenplain-wasm.mjs",
     "test": "node --test tests/js/*.test.mjs && PYTHONPATH=src python3 -m unittest discover -s tests -v"
   },

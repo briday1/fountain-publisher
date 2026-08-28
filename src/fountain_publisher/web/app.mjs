@@ -210,6 +210,7 @@ const WORKSPACE_CACHE_KEY = "fountain-publisher.workspace.v1";
 let githubSessionStorage;
 try { githubSessionStorage = window.sessionStorage; } catch { /* Keep the token in memory if storage is unavailable. */ }
 const githubTokens = new GitHubTokenSession(githubSessionStorage);
+const GITHUB_OAUTH_ENABLED = typeof __FOUNTAIN_GITHUB_OAUTH__ !== "undefined" && __FOUNTAIN_GITHUB_OAUTH__;
 let githubAuthPopup = null;
 let githubAuthTimer = 0;
 let STATIC_HOST = location.hostname.endsWith(".github.io") || new URLSearchParams(location.search).get("static") === "1";
@@ -1568,7 +1569,9 @@ async function openGitHubDialog(mode = "open") {
   state.githubMode = mode;
   const dialog = $("#github-dialog");
   $("#github-heading").textContent = mode === "open" ? "Open from GitHub" : "Save to GitHub As";
-  $("#github-help").textContent = "Sign in with GitHub, then choose a repository, branch, and Fountain file.";
+  $("#github-help").textContent = GITHUB_OAUTH_ENABLED
+    ? "Sign in with GitHub, then choose a repository, branch, and Fountain file."
+    : "Enter a fine-grained personal access token, then choose a repository, branch, and Fountain file.";
   $("#github-auth").hidden = Boolean(githubTokens.get());
   $("#github-disconnect").hidden = !githubTokens.get();
   $("#github-token").value = "";
@@ -1584,6 +1587,7 @@ async function openGitHubDialog(mode = "open") {
 }
 
 function beginGitHubLogin() {
+  if (!GITHUB_OAUTH_ENABLED) return;
   clearInterval(githubAuthTimer);
   githubAuthPopup = window.open(
     new URL("auth/github/start.php", document.baseURI),
@@ -2477,6 +2481,8 @@ $("#github-open").addEventListener("click", () => openGitHubDialog("open"));
 $("#github-save").addEventListener("click", saveGitHub);
 $("#github-save-as").addEventListener("click", () => openGitHubDialog("save-as"));
 $("#github-login").addEventListener("click", beginGitHubLogin);
+$("#github-login").hidden = !GITHUB_OAUTH_ENABLED;
+$(".github-token-fallback").open = !GITHUB_OAUTH_ENABLED;
 $("#github-connect").addEventListener("click", () => {
   try {
     githubTokens.set($("#github-token").value);

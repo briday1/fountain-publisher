@@ -24,6 +24,7 @@ test("GitHub integration offers popup login with token fallback", async () => {
   const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
   assert.match(html, /id="github-login"[^>]*>Sign in with GitHub/);
   assert.match(html, /class="github-token-fallback"/);
+  assert.match(app, /__FOUNTAIN_GITHUB_OAUTH__/);
   assert.match(app, /window\.open\([\s\S]*auth\/github\/start\.php/);
   assert.match(app, /event\.origin !== location\.origin \|\| event\.source !== githubAuthPopup/);
 });
