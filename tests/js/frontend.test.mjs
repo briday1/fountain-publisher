@@ -548,6 +548,10 @@ test("preview zoom centers the page and offers a dedicated fit-to-width control"
   assert.match(html, /id="zoom-in"[\s\S]*id="zoom-fit"[^>]*>Fit<\/button>/);
   assert.match(app, /scale = Math\.max\(\.25,\s*availableWidth \/ 816\)/);
   assert.match(app, /preview\.scrollLeft = Math\.max\(0,\s*\(preview\.scrollWidth - preview\.clientWidth\) \/ 2\)/);
+  assert.match(app, /function clampPreviewScroll\(preview = \$\("#preview-scroll"\)\)/);
+  assert.match(app, /const maxTop = Math\.max\(0, preview\.scrollHeight - preview\.clientHeight\)/);
+  assert.match(app, /preview\.scrollTop = Math\.max\(0, Math\.min\(preview\.scrollTop, maxTop\)\)/);
+  assert.match(app, /Math\.max\(1056, page\.scrollHeight\) \* scale/);
   assert.match(app, /if \(state\.previewZoom === "fit"\) requestAnimationFrame\(applyZoom\);/);
   assert.match(app, /if \(state\.previewZoom === "fit"\)\s*\{\s*zoom\.value = "100";/);
   assert.match(app, /\["fit",\s*"70",\s*"85",\s*"100",\s*"115",\s*"130"\]/);

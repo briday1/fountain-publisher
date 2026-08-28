@@ -1926,6 +1926,13 @@ function installResizer(element, variable, side, min, max) {
   element.addEventListener("keydown", (event) => { if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return; event.preventDefault(); const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(variable)); if (event.key === "Home") apply(min); else if (event.key === "End") apply(max); else apply(current + (event.key === "ArrowRight" ? 1 : -1) * side * (event.shiftKey ? 30 : 10)); });
 }
 
+function clampPreviewScroll(preview = $("#preview-scroll")) {
+  const maxTop = Math.max(0, preview.scrollHeight - preview.clientHeight);
+  const maxLeft = Math.max(0, preview.scrollWidth - preview.clientWidth);
+  preview.scrollTop = Math.max(0, Math.min(preview.scrollTop, maxTop));
+  preview.scrollLeft = Math.max(0, Math.min(preview.scrollLeft, maxLeft));
+}
+
 function applyZoom() {
   const zoom = state.previewZoom;
   $("#zoom-fit").setAttribute("aria-pressed", String(zoom === "fit"));
@@ -1935,6 +1942,7 @@ function applyZoom() {
     $("#preview-page-stage").style.removeProperty("width");
     $("#preview-page-stage").style.removeProperty("min-height");
     page.style.setProperty("--mobile-preview-zoom", scale);
+    requestAnimationFrame(() => clampPreviewScroll());
     scheduleWorkspaceCache();
     return;
   }
@@ -1947,10 +1955,13 @@ function applyZoom() {
     scale = Math.max(.25, availableWidth / 816);
   }
   const stage = $("#preview-page-stage");
-  stage.style.width = `${816 * scale}px`; stage.style.minHeight = `${1056 * scale}px`;
+  stage.style.width = `${816 * scale}px`; stage.style.minHeight = `${Math.max(1056, page.scrollHeight) * scale}px`;
   page.style.transform = `scale(${scale})`; page.style.marginBottom = "0"; page.style.marginRight = "0";
   const preview = $("#preview-scroll");
-  requestAnimationFrame(() => { preview.scrollLeft = Math.max(0, (preview.scrollWidth - preview.clientWidth) / 2); });
+  requestAnimationFrame(() => {
+    preview.scrollLeft = Math.max(0, (preview.scrollWidth - preview.clientWidth) / 2);
+    clampPreviewScroll(preview);
+  });
   scheduleWorkspaceCache();
 }
 
