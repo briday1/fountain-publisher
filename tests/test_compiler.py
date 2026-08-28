@@ -84,15 +84,15 @@ Third line.
         self.assertEqual([], result["generalNotes"])
 
     def test_top_level_act_headings_are_prepared_for_pdf(self):
-        from screenplain.types import Action, Section
+        from screenplain.types import Section, Slug
 
         screenplay = format_pdf_act_headings(
             parse_screenplay("# Act One\n\n## Private outline\n\nINT. LAB - NIGHT\n")
         )
-        self.assertIsInstance(screenplay.paragraphs[0], Action)
-        self.assertTrue(screenplay.paragraphs[0].centered)
-        self.assertEqual("ACT ONE", str(screenplay.paragraphs[0].lines[0]))
-        self.assertIn("<strong>ACT ONE</strong>", screenplay.paragraphs[0].lines[0].to_html())
+        self.assertIsInstance(screenplay.paragraphs[0], Slug)
+        self.assertIsNone(screenplay.paragraphs[0].scene_number)
+        self.assertEqual("ACT ONE", str(screenplay.paragraphs[0].line))
+        self.assertIn("<strong>ACT ONE</strong>", screenplay.paragraphs[0].line.to_html())
         self.assertIsInstance(screenplay.paragraphs[1], Section)
 
 

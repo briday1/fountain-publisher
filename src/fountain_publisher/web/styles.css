@@ -245,9 +245,9 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .preview-actions select { width: 66px; }
 .preview-scroll { flex: 1 1 0; min-height: 0; overflow: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 34px 20px; }
 .preview-scroll.pdf-mode { padding: 0; overflow: hidden; }
-.preview-page-stage { width: 816px; min-height: 1056px; margin: 0 auto; }
+.preview-page-stage { position: relative; width: 816px; min-height: 1056px; margin: 0 auto; }
 .screenplay-page {
-  width: 816px; min-height: 1056px; padding: 96px 96px 100px 144px; transform-origin: top left;
+  position: absolute; inset: 0 auto auto 0; width: 816px; min-height: 1056px; padding: 96px 96px 100px 144px; transform-origin: top left;
   background: var(--paper); color: var(--paper-ink); box-shadow: var(--shadow); font: 16px/1 var(--screenplay);
 }
 .screenplay-page:focus { outline: none; }
@@ -283,7 +283,7 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .annotation-orb:hover, .annotation-orb:focus-visible { transform: scale(1.2); box-shadow: 0 0 7px var(--accent), 0 0 18px var(--accent); }
 .script-line.section.source-current, .script-line.synopsis.source-current, .script-line.note.source-current, .script-line.boneyard.source-current { display: block; margin: 8px 0; padding: 5px 8px; border: 1px dashed color-mix(in srgb, var(--paper-ink) 28%, transparent); color: color-mix(in srgb, var(--paper-ink) 62%, transparent); font-size: 12px; font-style: italic; }
 .script-line.section.source-current::before, .script-line.synopsis.source-current::before, .script-line.note.source-current::before, .script-line.boneyard.source-current::before { content: "EDITOR ONLY  "; font: 700 9px/1 sans-serif; letter-spacing: .08em; opacity: .7; }
-.script-line.section.act, .script-line.section.act.source-current { display: block; margin: 32px 0 16px; padding: 0; border: 0; color: var(--paper-ink); font: 700 18px/1 var(--screenplay); font-style: normal; text-align: center; text-transform: uppercase; }
+.script-line.section.act, .script-line.section.act.source-current { display: block; margin: 32px 0 16px; padding: 0; border: 0; color: var(--paper-ink); font: 700 16px/1 var(--screenplay); font-style: normal; text-align: left; text-transform: uppercase; }
 .script-line.section.act.source-current::before { content: none; }
 .script-line.page-break { margin: 32px -96px; border-top: 1px dashed #aaa; color: transparent; }
 .empty-state { position: absolute; inset: 58px 0 0; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); }
@@ -538,7 +538,7 @@ button:disabled { cursor: default; opacity: .45; }
   .preview-scroll { padding: 0; overflow-x: hidden; scrollbar-gutter: auto; }
   .preview-page-stage { width: 100% !important; min-height: 100% !important; }
   .screenplay-page {
-    width: 100%; min-height: 100%; margin: 0; padding: 48px max(20px, 6vw) 72px;
+    position: relative; inset: auto; width: 100%; min-height: 100%; margin: 0; padding: 48px max(20px, 6vw) 72px;
     transform: none; box-shadow: none; font-size: calc(16px * var(--mobile-preview-zoom, 1));
   }
   body.scene-nums-margin .screenplay-page { padding-left: calc(54px * var(--mobile-preview-zoom, 1)); }
@@ -547,7 +547,7 @@ button:disabled { cursor: default; opacity: .45; }
   .script-line.character { width: 48%; margin-left: 34%; }
   .script-line.parenthetical { width: 62%; margin-left: 23%; padding-left: 3%; }
   .script-line.dialogue { width: 72%; margin-left: 14%; }
-  .script-line.section.act, .script-line.section.act.source-current { font-size: calc(18px * var(--mobile-preview-zoom, 1)); }
+  .script-line.section.act, .script-line.section.act.source-current { font-size: calc(16px * var(--mobile-preview-zoom, 1)); }
   .dual-dialog { gap: 5%; }
   .dual-dialog .script-line.character { margin-left: 20%; }
   .dual-dialog .script-line.dialogue { margin-left: 0; }

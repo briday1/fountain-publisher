@@ -1739,7 +1739,7 @@ def _fp_prepare_screenplay(source, placement="margin", format_type="sequential")
 
 def _fp_format_pdf_act_headings(screenplay):
     screenplay.paragraphs = [
-        Action([bold(str(paragraph.text).upper())], centered=True)
+        Slug(bold(str(paragraph.text).upper()), scene_number=None)
         if isinstance(paragraph, Section)
         and getattr(paragraph, "level", 0) == 1
         and re.match(r"^Act\\b", str(paragraph.text), re.IGNORECASE)
@@ -1935,9 +1935,14 @@ function clampPreviewScroll(preview = $("#preview-scroll")) {
 
 function applyZoom() {
   const zoom = state.previewZoom;
+  const zoomControl = $("#zoom");
+  const fitOption = $("#zoom-fit-value");
   $("#zoom-fit").setAttribute("aria-pressed", String(zoom === "fit"));
   if (isMobilePreview()) {
     const scale = zoom === "fit" ? 1 : Number(zoom) / 100;
+    fitOption.hidden = zoom !== "fit";
+    if (zoom === "fit") { fitOption.textContent = "100%"; zoomControl.value = "fit"; }
+    else zoomControl.value = zoom;
     page.style.transform = "none"; page.style.marginBottom = "0"; page.style.marginRight = "0";
     $("#preview-page-stage").style.removeProperty("width");
     $("#preview-page-stage").style.removeProperty("min-height");
@@ -1952,8 +1957,13 @@ function applyZoom() {
     const preview = $("#preview-scroll");
     const style = getComputedStyle(preview);
     const availableWidth = preview.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-    scale = Math.max(.25, availableWidth / 816);
+    scale = Math.max(.25, Math.min(2, availableWidth / 816));
   }
+  fitOption.hidden = zoom !== "fit";
+  if (zoom === "fit") {
+    fitOption.textContent = `${Math.round(scale * 100)}%`;
+    zoomControl.value = "fit";
+  } else zoomControl.value = zoom;
   const stage = $("#preview-page-stage");
   stage.style.width = `${816 * scale}px`; stage.style.minHeight = `${Math.max(1056, page.scrollHeight) * scale}px`;
   page.style.transform = `scale(${scale})`; page.style.marginBottom = "0"; page.style.marginRight = "0";
@@ -1966,11 +1976,16 @@ function applyZoom() {
 }
 
 function stepZoom(direction) {
-  const values = ["70", "85", "100", "115", "130"];
+  const values = ["70", "85", "100", "115", "130", "150", "175", "200"];
   const zoom = $("#zoom");
   if (state.previewZoom === "fit") {
-    zoom.value = "100";
-    state.previewZoom = "100";
+    const fitPercent = Number.parseInt($("#zoom-fit-value").textContent, 10) || 100;
+    const numericValues = values.map(Number);
+    const next = direction > 0
+      ? numericValues.find((value) => value > fitPercent) ?? numericValues.at(-1)
+      : [...numericValues].reverse().find((value) => value < fitPercent) ?? numericValues[0];
+    zoom.value = String(next);
+    state.previewZoom = zoom.value;
     applyZoom();
     return;
   }
@@ -2605,7 +2620,7 @@ async function initialize() {
   setDocument(text, name, !restore, restore ? cached.githubFile || null : null);
   void refreshGithubSession();
   setMobileTab(localStorage.getItem("fountain-publisher.mobile-tab") || "source");
-  if (restore && ["fit", "70", "85", "100", "115", "130"].includes(String(cached.zoom))) {
+  if (restore && ["fit", "70", "85", "100", "115", "130", "150", "175", "200"].includes(String(cached.zoom))) {
     state.previewZoom = String(cached.zoom);
     if (cached.zoom !== "fit") $("#zoom").value = String(cached.zoom);
   }

@@ -176,7 +176,8 @@ test("top-level act headings are supported in the live editor", async () => {
   assert.match(app, /appendToSource\("# Act 1\\n\\n"\)/);
   assert.match(css, /\.script-line\.section\.act[^}]*display:\s*block;/);
   assert.match(app, /def _fp_format_pdf_act_headings\(screenplay\)/);
-  assert.match(app, /Action\(\[bold\(str\(paragraph\.text\)\.upper\(\)\)\], centered=True\)/);
+  assert.match(app, /Slug\(bold\(str\(paragraph\.text\)\.upper\(\)\), scene_number=None\)/);
+  assert.match(css, /\.script-line\.section\.act[^}]*font:\s*700 16px\/1 var\(--screenplay\);[^}]*text-align:\s*left;/s);
 });
 
 test("source completions wait for typing on a new line and support explicit character lookup", async () => {
@@ -542,19 +543,28 @@ test("mobile preview is live-only, reflows horizontally, and retains zoom contro
   assert.match(html, /class="preview-actions"[\s\S]*id="zoom-out"[\s\S]*id="zoom"[\s\S]*id="zoom-in"[\s\S]*id="zoom-fit"/);
 });
 
-test("preview zoom centers the page and offers a dedicated fit-to-width control", async () => {
+test("preview zoom clamps scaled bounds and reports the calculated fit percentage", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
-  assert.doesNotMatch(html, /<option value="fit">/);
+  assert.match(html, /id="zoom-fit-value" value="fit" hidden/);
+  assert.match(html, /<option value="200">200%<\/option>/);
   assert.match(html, /id="zoom-in"[\s\S]*id="zoom-fit"[^>]*>Fit<\/button>/);
-  assert.match(app, /scale = Math\.max\(\.25,\s*availableWidth \/ 816\)/);
+  assert.match(app, /scale = Math\.max\(\.25,\s*Math\.min\(2,\s*availableWidth \/ 816\)\)/);
   assert.match(app, /preview\.scrollLeft = Math\.max\(0,\s*\(preview\.scrollWidth - preview\.clientWidth\) \/ 2\)/);
   assert.match(app, /function clampPreviewScroll\(preview = \$\("#preview-scroll"\)\)/);
   assert.match(app, /const maxTop = Math\.max\(0, preview\.scrollHeight - preview\.clientHeight\)/);
   assert.match(app, /preview\.scrollTop = Math\.max\(0, Math\.min\(preview\.scrollTop, maxTop\)\)/);
   assert.match(app, /Math\.max\(1056, page\.scrollHeight\) \* scale/);
+  assert.match(app, /fitOption\.textContent = `\$\{Math\.round\(scale \* 100\)\}%`/);
+  assert.match(app, /zoomControl\.value = "fit"/);
+  assert.match(app, /"150",\s*"175",\s*"200"/);
+  assert.match(app, /const fitPercent = Number\.parseInt\(\$\("#zoom-fit-value"\)\.textContent, 10\) \|\| 100/);
+  assert.match(app, /value > fitPercent/);
+  assert.match(app, /value < fitPercent/);
+  assert.match(css, /\.preview-page-stage\s*\{[^}]*position:\s*relative;/s);
+  assert.match(css, /\.screenplay-page\s*\{[^}]*position:\s*absolute;/s);
   assert.match(app, /if \(state\.previewZoom === "fit"\) requestAnimationFrame\(applyZoom\);/);
-  assert.match(app, /if \(state\.previewZoom === "fit"\)\s*\{\s*zoom\.value = "100";/);
-  assert.match(app, /\["fit",\s*"70",\s*"85",\s*"100",\s*"115",\s*"130"\]/);
+  assert.doesNotMatch(app, /if \(state\.previewZoom === "fit"\)\s*\{\s*zoom\.value = "100";/);
+  assert.match(app, /\["fit",\s*"70",\s*"85",\s*"100",\s*"115",\s*"130",\s*"150",\s*"175",\s*"200"\]/);
   assert.match(css, /\.preview-page-stage\s*\{[^}]*margin:\s*0 auto;/s);
 });
 
