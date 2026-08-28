@@ -126,7 +126,7 @@ test("preview edits keep the source cursor on the edited line", async () => {
   assert.doesNotMatch(app, /page\.addEventListener\("focusin"[^\n]*jumpToLine/);
 });
 
-test("preview cursor synchronization does not add an active-line highlight", async () => {
+test("preview cursor synchronization highlights the active line", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="screenplay-page"[^>]*contenteditable="plaintext-only"/);
   assert.doesNotMatch(app, /class="\$\{className\}"[^>]*contenteditable/);
@@ -134,7 +134,7 @@ test("preview cursor synchronization does not add an active-line highlight", asy
   assert.match(app, /function setSourceSelectionFromPreview\(edit\)[\s\S]*source\.setSelectionRange\(start, end, edit\.direction\)/);
   assert.match(app, /page\.addEventListener\("pointerup"[\s\S]*previewLineForNode\(getSelection\(\)\?\.focusNode\)[\s\S]*setSourceSelectionFromPreview\(edit\)/);
   assert.match(app, /page\.addEventListener\("keyup"[\s\S]*setSourceSelectionFromPreview\(edit\)/);
-  assert.doesNotMatch(css, /\.script-line\.source-current:not\(:focus\)/);
+  assert.match(css, /\.script-line\.source-current\s*\{[^}]*background:\s*color-mix\([^}]*var\(--syntax-scene\)[^}]*box-shadow:/s);
 });
 
 test("source and preview navigation scroll in both directions", async () => {
@@ -270,6 +270,8 @@ test("the browser continuously restores a separate local recovery workspace", as
   assert.match(app, /window\.addEventListener\("beforeunload", persistWorkspaceNow\)/);
   assert.doesNotMatch(app, /beforeunload[^\n]*preventDefault/);
   assert.match(app, /toast\("Workspace restored"\)/);
+  assert.match(app, /const enableWorkspaceCache = params\.get\("demo"\) !== "1"/);
+  assert.match(app, /source\.setSelectionRange\(start, end\)[\s\S]*state\.cacheEnabled = enableWorkspaceCache/);
   assert.match(html, /continuously cached in this browser/);
   assert.match(html, /recovery draft is separate from your files/);
 });

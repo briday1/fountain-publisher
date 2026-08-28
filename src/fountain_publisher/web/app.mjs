@@ -2590,7 +2590,7 @@ async function initialize() {
   }
   const restore = cached && (!params.has("project") || cached.filename === name);
   if (restore) { text = cached.source; name = cached.filename || name; state.savedSource = typeof cached.savedSource === "string" ? cached.savedSource : text; }
-  state.cacheEnabled = params.get("demo") !== "1";
+  const enableWorkspaceCache = params.get("demo") !== "1";
   setDocument(text, name, !restore, restore ? cached.githubFile || null : null);
   void refreshGithubSession();
   setMobileTab(localStorage.getItem("fountain-publisher.mobile-tab") || "source");
@@ -2608,8 +2608,14 @@ async function initialize() {
     source.scrollTop = Math.max(0, Number(cached.sourceScrollTop) || 0);
     $("#preview-scroll").scrollTop = Math.max(0, Number(cached.previewScrollTop) || 0);
     $("#line-numbers").scrollTop = source.scrollTop; syncSourceOverlay(); updateCursor();
+    state.cacheEnabled = enableWorkspaceCache;
+    scheduleWorkspaceCache();
     toast("Workspace restored");
   });
+  else {
+    state.cacheEnabled = enableWorkspaceCache;
+    scheduleWorkspaceCache();
+  }
 }
 
 initialize();
