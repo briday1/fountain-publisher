@@ -134,7 +134,9 @@ test("preview cursor synchronization highlights the active line", async () => {
   assert.match(app, /function setSourceSelectionFromPreview\(edit\)[\s\S]*source\.setSelectionRange\(start, end, edit\.direction\)/);
   assert.match(app, /page\.addEventListener\("pointerup"[\s\S]*previewLineForNode\(getSelection\(\)\?\.focusNode\)[\s\S]*setSourceSelectionFromPreview\(edit\)/);
   assert.match(app, /page\.addEventListener\("keyup"[\s\S]*setSourceSelectionFromPreview\(edit\)/);
-  assert.match(css, /\.script-line\.source-current\s*\{[^}]*background:\s*color-mix\([^}]*var\(--syntax-scene\)[^}]*box-shadow:/s);
+  assert.match(css, /\.screenplay-page:focus\s*\{\s*outline:\s*none;/);
+  assert.match(css, /\.script-line\.source-current\s*\{[^}]*background:\s*color-mix\([^}]*var\(--syntax-scene\)[^}]*\}/s);
+  assert.doesNotMatch(css, /\.script-line\.source-current\s*\{[^}]*box-shadow:/s);
 });
 
 test("source and preview navigation scroll in both directions", async () => {
