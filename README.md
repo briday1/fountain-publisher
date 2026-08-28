@@ -43,6 +43,8 @@ fountain-publisher screenplay.fountain --page-size a4 --output screenplay.pdf
 
 - **File** supports New, Open, Save, Save As, PDF, and Final Draft export.
 - Save overwrites the open file where the browser's File System Access API is available; other browsers download safely.
+- **Open from GitHub** uses popup OAuth to browse repositories, branches, and Fountain files. A GitHub-backed document remembers its owner, repository, branch, path, and blob SHA; regular Save creates a commit while Save As remains available for a local copy.
+- **Save to GitHub As** selects a repository/branch and destination path. If a file changed remotely, reload it or preserve the draft on a new branch and open a pull request. Protected branches use the same branch-and-PR fallback.
 - Source and Insights panels collapse, resize with mouse or keyboard, and remember their layout.
 - Theme follows the system until explicitly set to light or dark.
 - Use Ctrl/Command+Space for contextual title-page, character, scene, location, time-of-day, and transition completion.
@@ -73,3 +75,35 @@ src/fountain_publisher/
 ```
 
 The server binds to loopback by default, limits compile request size, serves no arbitrary filesystem paths, and sends restrictive browser security headers.
+
+## GitHub integration on GoDaddy
+
+The editor and GitHub API operations remain browser-based. On GoDaddy Linux hosting, two small PHP endpoints provide the normal **Sign in with GitHub** popup and exchange the temporary OAuth code without exposing the GitHub client secret. The built site includes these endpoints under `auth/github/`.
+
+Create a GitHub OAuth App with:
+
+- **Homepage URL:** `https://fountain-publisher.com`
+- **Authorization callback URL:** `https://fountain-publisher.com/auth/github/callback.php`
+
+Place `fountain-publisher-oauth.php` one directory above GoDaddy's document root (normally alongside `public_html`, not inside it):
+
+```php
+<?php
+return [
+    'client_id' => 'your OAuth app client ID',
+    'client_secret' => 'your OAuth app client secret',
+    'callback_url' => 'https://fountain-publisher.com/auth/github/callback.php',
+];
+```
+
+Never commit or upload that configuration inside the public web root. The PHP hosting account needs the cURL and session extensions, which are normally enabled on GoDaddy Linux shared hosting. Build and upload the GoDaddy bundle with:
+
+```shell
+npm run build:godaddy
+```
+
+Upload the contents of `dist/web`. The normal `npm run build:web` intentionally excludes PHP and shows the token flow because it targets static hosts such as GitHub Pages.
+
+OAuth authorization requests repository access so the editor can browse files, commit changes, create branches, and open pull requests. The OAuth access token is held in memory and `sessionStorage` only. It is never written to `localStorage`, the workspace recovery record, a file, or the repository, and **Sign out** removes it immediately.
+
+The current GitHub file identity (but never its token) is included in local workspace recovery. The Contents API uses the remembered blob SHA for optimistic concurrency; stale saves offer reload or a new branch/pull request, and protected-branch failures offer the branch/pull-request path automatically. The CSP permits network access only to GitHub's REST API.

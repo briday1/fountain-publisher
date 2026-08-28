@@ -97,7 +97,7 @@ class FountainRequestHandler(SimpleHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("X-Frame-Options", "SAMEORIGIN")
-        self.send_header("Content-Security-Policy", "default-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:")
+        self.send_header("Content-Security-Policy", "default-src 'self' blob:; connect-src 'self' https://api.github.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:")
         super().end_headers()
 
     def log_message(self, format: str, *args: object) -> None:
