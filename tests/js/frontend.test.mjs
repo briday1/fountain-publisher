@@ -568,11 +568,17 @@ test("preview zoom clamps scaled bounds and reports the calculated fit percentag
   assert.match(css, /\.preview-page-stage\s*\{[^}]*margin:\s*0 auto;/s);
 });
 
-test("preview uses a subtle Pugflow-style dotted canvas without replacing its background color", async () => {
-  const css = await readFile(cssPath, "utf8");
-  assert.match(css, /\.preview-scroll\s*\{[^}]*background-image:\s*radial-gradient\(color-mix\(in srgb, var\(--ink\) 14%, transparent\) 1px, transparent 1px\);/s);
-  assert.match(css, /\.preview-scroll\s*\{[^}]*background-size:\s*16px 16px;/s);
+test("preview background setting supports blank, adjustable dots, and a local Damascus pattern", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(html, /id="preview-background"[\s\S]*value="blank">Blank[\s\S]*value="dots" selected>Dots[\s\S]*value="damascus">Damascus/);
+  assert.match(html, /id="preview-dot-radius" type="range" min="0\.6" max="1\.8" step="0\.1" value="1"/);
+  assert.match(css, /\.preview-scroll\[data-background="dots"\][^}]*radial-gradient[^}]*background-size:\s*16px 16px;/s);
+  assert.match(css, /\.preview-scroll\[data-background="damascus"\][^{]*\{[\s\S]*repeating-radial-gradient[\s\S]*background-size:\s*46px 32px;/);
   assert.doesNotMatch(css, /\.preview-scroll\s*\{[^}]*background-color:/s);
+  assert.match(app, /function applyPreviewBackground\(\)/);
+  assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-background", event\.target\.value\)/);
+  assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-dot-radius", event\.target\.value\)/);
+  assert.match(app, /hidden = pattern !== "dots"/);
 });
 
 test("mobile PDF export path remains accessible via toolbar File menu", async () => {

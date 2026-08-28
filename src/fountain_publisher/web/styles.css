@@ -137,6 +137,9 @@ kbd { border: 0; background: none; color: var(--faint); font: 11px var(--mono); 
 .menu-check { color: var(--accent); font-weight: 700; }
 .setting-row select { border: 0; background: transparent; text-align: right; }
 .setting-row input[role="switch"] { accent-color: var(--accent); }
+.range-setting { display: inline-flex; align-items: center; gap: 5px; }
+.range-setting input { width: 74px; accent-color: var(--accent); }
+.range-setting output { width: 34px; color: var(--muted); text-align: right; font: 10px var(--mono); }
 .theme-setting small { display: inline-flex; align-items: center; gap: 6px; }
 .theme-icon { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .theme-moon { display: none; }
@@ -243,7 +246,15 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .preview-actions .zoom-fit { width: auto; padding: 0 8px; }
 .preview-actions .zoom-fit[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .preview-actions select { width: 66px; }
-.preview-scroll { flex: 1 1 0; min-height: 0; overflow: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 34px 20px; background-image: radial-gradient(color-mix(in srgb, var(--ink) 14%, transparent) 1px, transparent 1px); background-size: 16px 16px; }
+.preview-scroll { --preview-dot-radius: 1px; flex: 1 1 0; min-height: 0; overflow: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 34px 20px; }
+.preview-scroll[data-background="dots"] { background-image: radial-gradient(color-mix(in srgb, var(--ink) 14%, transparent) var(--preview-dot-radius), transparent var(--preview-dot-radius)); background-size: 16px 16px; }
+.preview-scroll[data-background="damascus"] {
+  background-image:
+    repeating-radial-gradient(ellipse at 0 50%, transparent 0 9px, color-mix(in srgb, var(--ink) 9%, transparent) 10px 11px, transparent 12px 20px),
+    repeating-radial-gradient(ellipse at 100% 50%, transparent 0 13px, color-mix(in srgb, var(--ink) 7%, transparent) 14px 15px, transparent 16px 25px);
+  background-position: 0 0, 23px 16px;
+  background-size: 46px 32px;
+}
 .preview-scroll.pdf-mode { padding: 0; overflow: hidden; }
 .preview-page-stage { position: relative; width: 816px; min-height: 1056px; margin: 0 auto; }
 .screenplay-page {

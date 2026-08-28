@@ -282,6 +282,20 @@ function scheduleWorkspaceCache() {
   state.cacheTimer = setTimeout(persistWorkspaceNow, 120);
 }
 
+function applyPreviewBackground() {
+  const storedPattern = localStorage.getItem("fountain-publisher.preview-background") || "dots";
+  const pattern = ["blank", "dots", "damascus"].includes(storedPattern) ? storedPattern : "dots";
+  const storedRadius = Number(localStorage.getItem("fountain-publisher.preview-dot-radius"));
+  const radius = storedRadius >= .6 && storedRadius <= 1.8 ? storedRadius : 1;
+  const preview = $("#preview-scroll");
+  preview.dataset.background = pattern;
+  preview.style.setProperty("--preview-dot-radius", `${radius}px`);
+  $("#preview-background").value = pattern;
+  $("#preview-dot-radius").value = String(radius);
+  $("#preview-dot-radius-value").textContent = `${radius.toFixed(1)}px`;
+  $("#preview-dot-radius-row").hidden = pattern !== "dots";
+}
+
 function escapeHtml(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
@@ -2403,6 +2417,14 @@ $("#word-wrap").addEventListener("change", () => {
   source.setAttribute("wrap", enabled ? "soft" : "off");
   renderEditorChrome();
 });
+$("#preview-background").addEventListener("change", (event) => {
+  localStorage.setItem("fountain-publisher.preview-background", event.target.value);
+  applyPreviewBackground();
+});
+$("#preview-dot-radius").addEventListener("input", (event) => {
+  localStorage.setItem("fountain-publisher.preview-dot-radius", event.target.value);
+  applyPreviewBackground();
+});
 $("#page-size").addEventListener("change", () => { scheduleCompile(0); if (state.previewMode === "pdf") refreshPdf(); });
 $$('[data-preview-mode]').forEach((button) => button.addEventListener("click", () => setPreviewMode(button.dataset.previewMode)));
 $("#toggle-source").addEventListener("click", () => togglePanel("source")); $("#menu-toggle-source").addEventListener("click", () => togglePanel("source"));
@@ -2598,6 +2620,7 @@ window.addEventListener("resize", () => {
 async function initialize() {
   updateMobileViewport();
   setTheme(state.theme);
+  applyPreviewBackground();
   const isMac = /Mac/i.test(navigator.platform) || /Mac/i.test(navigator.userAgentData?.platform || "");
   document.documentElement.dataset.os = isMac ? "mac" : "win";
   const wordWrap = localStorage.getItem("fountain-publisher.word-wrap") !== "false";
