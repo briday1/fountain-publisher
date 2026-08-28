@@ -29,6 +29,10 @@ test("app exposes a credentialed GitHub repository browser", async () => {
   assert.match(app, /githubFile: state\.githubFile/);
   assert.match(app, /restore \? cached\.githubFile \|\| null : null/);
   assert.match(app, /function renderGithubRepositories\(query = ""\)/);
+  assert.match(app, /function renderGithubColumns\(\)/);
+  assert.match(app, /async function loadGithubFolderPath\(path = ""\)/);
+  assert.match(app, /localStorage\.setItem\(GITHUB_BROWSER_KEY/);
+  assert.match(app, /loadGithubBranches\(remembered\?\.repository === \$\("#github-repository"\)\.value \? remembered\.path : ""\)/);
   assert.match(app, /\$\("#github-save-details"\)\.open = !matchMedia\("\(max-width: 640px\)"\)\.matches/);
   assert.match(app, /openGithubFile\(entry\.dataset\.githubEntry, entry\)/);
   assert.match(app, /sha: body\.sha|JSON\.stringify\(\{ content: source\.value, message:/);
@@ -63,6 +67,7 @@ test("Worker encrypts and isolates GitHub sessions with lifecycle controls", asy
   assert.match(worker, /async scheduled\(_controller, env, context\)/);
   assert.match(worker, /\/user\/installations\?per_page=100/);
   assert.match(worker, /\/repositories\?per_page=100/);
+  assert.match(worker, /defaultBranch: repository\.default_branch/);
   assert.match(worker, /body: JSON\.stringify\(\{ message: body\.message, content: encodeContent\(body\.content\)/);
   assert.doesNotMatch(worker, /access_token[^\n]+localStorage/);
 });

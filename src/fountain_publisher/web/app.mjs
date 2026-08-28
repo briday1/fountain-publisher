@@ -205,6 +205,7 @@ const MANAGED_NOTE_RE = /^\[\[FP-(GENERAL|CHARACTER):(.+)\]\]$/;
 const source = $("#source");
 const page = $("#screenplay-page");
 const WORKSPACE_CACHE_KEY = "fountain-publisher.workspace.v1";
+const GITHUB_BROWSER_KEY = "fountain-publisher.github-browser.v1";
 const GITHUB_API = "https://api.fountain-publisher.com";
 let STATIC_HOST = location.hostname.endsWith(".github.io") || new URLSearchParams(location.search).get("static") === "1";
 const docSettings = {
@@ -242,6 +243,8 @@ const state = {
   githubInstallUrl: "",
   githubRepositories: [],
   githubRepositoryTimer: 0,
+  githubColumns: [],
+  githubFilesRevision: 0,
   githubPath: "",
   githubFile: null,
 };
@@ -1542,6 +1545,20 @@ function selectedGithubRepository() {
   return { owner, repo, fullName: option.value, defaultBranch: option.dataset.defaultBranch };
 }
 
+function readGithubBrowserLocation() {
+  try {
+    const location = JSON.parse(localStorage.getItem(GITHUB_BROWSER_KEY) || "null");
+    return typeof location?.repository === "string" && typeof location?.path === "string" ? location : null;
+  } catch { return null; }
+}
+
+function rememberGithubBrowserLocation() {
+  const repository = selectedGithubRepository();
+  try {
+    if (repository) localStorage.setItem(GITHUB_BROWSER_KEY, JSON.stringify({ repository: repository.fullName, path: state.githubPath }));
+  } catch { /* Browsing must continue if private mode blocks local storage. */ }
+}
+
 function renderGithubRepositories(query = "") {
   const select = $("#github-repository");
   const selected = select.value;
@@ -1569,29 +1586,61 @@ function renderGithubBreadcrumbs() {
   $("#github-breadcrumbs").innerHTML = items.join("");
 }
 
+function renderGithubColumns() {
+  $("#github-files").innerHTML = state.githubColumns.map((column, index) => {
+    const selectedPath = state.githubColumns[index + 1]?.path;
+    const entries = column.entries.map((entry) => `<button type="button" role="listitem" data-github-entry="${escapeHtml(entry.path)}" data-github-type="${entry.type}"${entry.path === selectedPath ? ` class="selected" aria-current="true"` : ""}><span aria-hidden="true">${entry.type === "dir" ? "▸" : "F"}</span><span>${escapeHtml(entry.name)}</span><small>${entry.type === "dir" ? "Folder" : "Open"}</small></button>`).join("");
+    return `<div class="github-column" data-github-column="${escapeHtml(column.path)}">${entries || `<div class="github-empty">No Fountain files in this folder.</div>`}</div>`;
+  }).join("");
+  $("#github-files").lastElementChild?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "end" });
+}
+
 async function loadGithubFiles(path = "") {
+  const revision = ++state.githubFilesRevision;
   state.githubPath = path;
   renderGithubBreadcrumbs();
   const files = $("#github-files");
-  files.innerHTML = `<div class="github-empty">Loading repository…</div>`;
+  if (!path) files.innerHTML = `<div class="github-column"><div class="github-empty">Loading repository…</div></div>`;
   try {
     const result = await githubRequest(githubContentPath(path));
+    if (revision !== state.githubFilesRevision) return;
     const entries = (Array.isArray(result) ? result : [result])
       .filter((entry) => entry.type === "dir" || /\.(fountain|txt)$/i.test(entry.name))
       .sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === "dir" ? -1 : 1));
-    files.innerHTML = entries.length ? entries.map((entry) => `<button type="button" role="listitem" data-github-entry="${escapeHtml(entry.path)}" data-github-type="${entry.type}"><span aria-hidden="true">${entry.type === "dir" ? "▸" : "F"}</span><span>${escapeHtml(entry.name)}</span><small>${entry.type === "dir" ? "Folder" : "Open"}</small></button>`).join("") : `<div class="github-empty">No Fountain files in this folder.</div>`;
+    const parentPath = path.split("/").slice(0, -1).join("/");
+    const parentIndex = path ? state.githubColumns.findIndex((column) => column.path === parentPath) : -1;
+    state.githubColumns = path && parentIndex >= 0
+      ? [...state.githubColumns.slice(0, parentIndex + 1), { path, entries }]
+      : [{ path, entries }];
+    rememberGithubBrowserLocation();
+    renderGithubColumns();
+    return true;
   } catch (error) {
-    files.innerHTML = `<div class="github-empty">${escapeHtml(error.message)}</div>`;
+    if (revision === state.githubFilesRevision) files.innerHTML = `<div class="github-column"><div class="github-empty">${escapeHtml(error.message)}</div></div>`;
+    return false;
   }
 }
 
-async function loadGithubBranches() {
+async function loadGithubFolderPath(path = "") {
+  if (!(await loadGithubFiles(""))) return;
+  let revision = state.githubFilesRevision;
+  if (!path) return;
+  const parts = path.split("/");
+  for (let index = 0; index < parts.length; index += 1) {
+    if (revision !== state.githubFilesRevision || !(await loadGithubFiles(parts.slice(0, index + 1).join("/")))) return;
+    revision = state.githubFilesRevision;
+  }
+}
+
+async function loadGithubBranches(path = "") {
   const repository = selectedGithubRepository();
   if (!repository) return;
   const result = await githubRequest(`/api/branches?${new URLSearchParams({ owner: repository.owner, repo: repository.repo })}`);
   if (selectedGithubRepository()?.fullName !== repository.fullName) return;
-  $("#github-branch").innerHTML = result.branches.map((branch) => `<option value="${escapeHtml(branch)}"${branch === repository.defaultBranch ? " selected" : ""}>${escapeHtml(branch)}</option>`).join("");
-  await loadGithubFiles("");
+  const defaultBranch = result.defaultBranch || repository.defaultBranch;
+  $("#github-branch").innerHTML = result.branches.map((branch) => `<option value="${escapeHtml(branch)}"${branch === defaultBranch ? " selected" : ""}>${escapeHtml(branch)}</option>`).join("");
+  state.githubColumns = [];
+  await loadGithubFolderPath(path);
 }
 
 async function loadGithubRepositories() {
@@ -1602,11 +1651,13 @@ async function loadGithubRepositories() {
   $("#github-repository-search").value = "";
   renderGithubRepositories();
   if (!result.repositories.length) {
-    $("#github-files").innerHTML = `<div class="github-empty">Install Fountain Publisher on at least one repository to browse files.</div>`;
+    $("#github-files").innerHTML = `<div class="github-column"><div class="github-empty">Install Fountain Publisher on at least one repository to browse files.</div></div>`;
     $("#github-branch").innerHTML = "";
     return;
   }
-  await loadGithubBranches();
+  const remembered = readGithubBrowserLocation();
+  if (remembered && result.repositories.some((repo) => repo.fullName === remembered.repository)) $("#github-repository").value = remembered.repository;
+  await loadGithubBranches(remembered?.repository === $("#github-repository").value ? remembered.path : "");
 }
 
 async function openGithubBrowser() {
@@ -2433,6 +2484,7 @@ $("#github-install").addEventListener("click", () => { if (state.githubInstallUr
 $("#github-disconnect").addEventListener("click", async () => {
   try { await githubRequest("/auth/logout", { method: "POST" }); } catch { /* the local disconnected state still applies */ }
   state.githubConnected = false; state.githubFile = null;
+  localStorage.removeItem(GITHUB_BROWSER_KEY);
   if (clearWorkspaceOnExit()) clearWorkspaceCache();
   updateGithubMenu(); $("#github-dialog").close(); toast("Disconnected from GitHub");
 });
@@ -2441,13 +2493,13 @@ $("#github-repository-search").addEventListener("input", (event) => {
   const matches = renderGithubRepositories(event.target.value);
   if (!matches) {
     $("#github-branch").innerHTML = "";
-    $("#github-files").innerHTML = `<div class="github-empty">No repositories match that search.</div>`;
+    $("#github-files").innerHTML = `<div class="github-column"><div class="github-empty">No repositories match that search.</div></div>`;
     return;
   }
-  $("#github-files").innerHTML = `<div class="github-empty">Loading repository…</div>`;
+  $("#github-files").innerHTML = `<div class="github-column"><div class="github-empty">Loading repository…</div></div>`;
   state.githubRepositoryTimer = setTimeout(() => loadGithubBranches().catch((error) => toast(error.message)), 250);
 });
-$("#github-repository").addEventListener("change", () => loadGithubBranches().catch((error) => toast(error.message)));
+$("#github-repository").addEventListener("change", () => loadGithubBranches("").catch((error) => toast(error.message)));
 $("#github-branch").addEventListener("change", () => loadGithubFiles("").catch((error) => toast(error.message)));
 $("#github-breadcrumbs").addEventListener("click", (event) => { const button = event.target.closest("[data-github-path]"); if (button) loadGithubFiles(button.dataset.githubPath); });
 $("#github-files").addEventListener("click", (event) => {
