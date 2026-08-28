@@ -136,8 +136,8 @@ export class GitHubClient {
   }
 }
 
-export class GitHubTokenSession {
-  constructor(storage, key = "fountain-publisher.github-token") {
+export class GitHubOAuthSession {
+  constructor(storage, key = "fountain-publisher.github-oauth") {
     this.storage = storage;
     this.key = key;
     this.memoryToken = "";
@@ -151,7 +151,7 @@ export class GitHubTokenSession {
 
   set(token) {
     this.memoryToken = String(token || "").trim();
-    if (!this.memoryToken) throw new Error("Enter a fine-grained personal access token");
+    if (!this.memoryToken) throw new Error("GitHub did not return an access token");
     try { this.storage?.setItem(this.key, this.memoryToken); }
     catch { /* Memory-only use remains available when session storage is blocked. */ }
     return this.memoryToken;

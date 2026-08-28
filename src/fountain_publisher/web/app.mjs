@@ -1,4 +1,4 @@
-import { GitHubClient, GitHubError, GitHubTokenSession, branchName, normalizePath } from "./github.mjs";
+import { GitHubClient, GitHubError, GitHubOAuthSession, branchName, normalizePath } from "./github.mjs";
 
 const SAMPLE = `Title: The Last Light
 Credit: Written by
@@ -209,7 +209,7 @@ const page = $("#screenplay-page");
 const WORKSPACE_CACHE_KEY = "fountain-publisher.workspace.v1";
 let githubSessionStorage;
 try { githubSessionStorage = window.sessionStorage; } catch { /* Keep the token in memory if storage is unavailable. */ }
-const githubTokens = new GitHubTokenSession(githubSessionStorage);
+const githubSession = new GitHubOAuthSession(githubSessionStorage);
 const GITHUB_OAUTH_ENABLED = typeof __FOUNTAIN_GITHUB_OAUTH__ !== "undefined" && __FOUNTAIN_GITHUB_OAUTH__;
 let githubAuthPopup = null;
 let githubAuthTimer = 0;
@@ -1497,7 +1497,7 @@ function githubResult(message, url) {
 
 async function ensureGitHubClient() {
   if (state.githubClient) return state.githubClient;
-  const token = githubTokens.get();
+  const token = githubSession.get();
   if (!token) return null;
   state.githubClient = new GitHubClient(token);
   return state.githubClient;
@@ -1534,7 +1534,7 @@ async function loadGitHubRepositories() {
     const client = await ensureGitHubClient();
     if (!client) {
       $("#github-auth").hidden = false;
-      githubProgress("Enter a fine-grained personal access token to continue.");
+      githubProgress(GITHUB_OAUTH_ENABLED ? "Sign in with GitHub to continue." : "GitHub OAuth is available in the GoDaddy deployment.", !GITHUB_OAUTH_ENABLED);
       return;
     }
     const repositories = await client.repositories();
@@ -1545,7 +1545,7 @@ async function loadGitHubRepositories() {
     $("#github-picker").hidden = false;
     $("#github-confirm").hidden = state.githubMode !== "open";
     if (!writable.length) {
-      githubProgress("No repositories are available to this token.", true);
+      githubProgress("No writable repositories are available to this GitHub account.", true);
       $("#github-confirm").hidden = true;
       return;
     }
@@ -1560,7 +1560,8 @@ async function loadGitHubRepositories() {
     }
   } catch (error) {
     $("#github-auth").hidden = false;
-    githubProgress(error.status === 401 ? "GitHub rejected this token. Enter a valid token." : error.message, true);
+    if (error.status === 401) githubSession.clear();
+    githubProgress(error.status === 401 ? "Your GitHub session expired. Sign in again." : error.message, true);
   }
 }
 
@@ -1571,10 +1572,9 @@ async function openGitHubDialog(mode = "open") {
   $("#github-heading").textContent = mode === "open" ? "Open from GitHub" : "Save to GitHub As";
   $("#github-help").textContent = GITHUB_OAUTH_ENABLED
     ? "Sign in with GitHub, then choose a repository, branch, and Fountain file."
-    : "Enter a fine-grained personal access token, then choose a repository, branch, and Fountain file.";
-  $("#github-auth").hidden = Boolean(githubTokens.get());
-  $("#github-disconnect").hidden = !githubTokens.get();
-  $("#github-token").value = "";
+    : "GitHub sign in requires the GoDaddy OAuth deployment.";
+  $("#github-auth").hidden = Boolean(githubSession.get());
+  $("#github-disconnect").hidden = !githubSession.get();
   $("#github-picker").hidden = true;
   $("#github-confirm").hidden = true;
   $("#github-result").hidden = true;
@@ -1618,9 +1618,8 @@ window.addEventListener("message", (event) => {
     return;
   }
   try {
-    githubTokens.set(event.data.token);
+    githubSession.set(event.data.token);
     state.githubClient = null;
-    $("#github-token").value = "";
     loadGitHubRepositories();
   } catch (error) {
     githubProgress(error.message, true);
@@ -2482,25 +2481,13 @@ $("#github-save").addEventListener("click", saveGitHub);
 $("#github-save-as").addEventListener("click", () => openGitHubDialog("save-as"));
 $("#github-login").addEventListener("click", beginGitHubLogin);
 $("#github-login").hidden = !GITHUB_OAUTH_ENABLED;
-$(".github-token-fallback").open = !GITHUB_OAUTH_ENABLED;
-$("#github-connect").addEventListener("click", () => {
-  try {
-    githubTokens.set($("#github-token").value);
-    $("#github-token").value = "";
-    state.githubClient = null;
-    loadGitHubRepositories();
-  } catch (error) { githubProgress(error.message, true); }
-});
-$("#github-token").addEventListener("keydown", (event) => {
-  if (event.key === "Enter") { event.preventDefault(); $("#github-connect").click(); }
-});
 $("#github-disconnect").addEventListener("click", () => {
-  githubTokens.clear();
+  githubSession.clear();
   state.githubClient = null;
   $("#github-picker").hidden = true;
   $("#github-disconnect").hidden = true;
   $("#github-auth").hidden = false;
-  githubProgress("Token forgotten for this session.");
+  githubProgress("Signed out of GitHub.");
 });
 $("#github-repository").addEventListener("change", () => loadGitHubBranches().catch((error) => githubProgress(error.message, true)));
 $("#github-branch").addEventListener("change", () => loadGitHubFiles().catch((error) => githubProgress(error.message, true)));

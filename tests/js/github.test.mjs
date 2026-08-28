@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   GitHubClient,
   GitHubError,
-  GitHubTokenSession,
+  GitHubOAuthSession,
   branchName,
   decodeContent,
   encodeContent,
@@ -38,17 +38,17 @@ test("repository paths are encoded per segment", async () => {
   assert.match(requestedUrl, /contents\/drafts\/Act%20%231%3F\.fountain\?ref=main$/);
 });
 
-test("token session uses only the supplied session storage and supports forgetting", () => {
+test("OAuth session uses only session storage and supports signing out", () => {
   const values = new Map();
   const storage = {
     getItem: (key) => values.get(key) || null,
     setItem: (key, value) => values.set(key, value),
     removeItem: (key) => values.delete(key),
   };
-  const session = new GitHubTokenSession(storage);
-  session.set("github_pat_example");
-  assert.equal(session.get(), "github_pat_example");
-  assert.equal(values.get("fountain-publisher.github-token"), "github_pat_example");
+  const session = new GitHubOAuthSession(storage);
+  session.set("oauth_access_token");
+  assert.equal(session.get(), "oauth_access_token");
+  assert.equal(values.get("fountain-publisher.github-oauth"), "oauth_access_token");
   session.clear();
   assert.equal(session.get(), "");
 });

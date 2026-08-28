@@ -20,10 +20,10 @@ test("application shell exposes editing, preview, and insights regions", async (
   assert.match(html, /id="export-pdf"/);
 });
 
-test("GitHub integration offers popup login with token fallback", async () => {
+test("GitHub integration offers popup OAuth without PAT entry", async () => {
   const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
   assert.match(html, /id="github-login"[^>]*>Sign in with GitHub/);
-  assert.match(html, /class="github-token-fallback"/);
+  assert.doesNotMatch(html, /github-token|personal access token|Use token/i);
   assert.match(app, /__FOUNTAIN_GITHUB_OAUTH__/);
   assert.match(app, /window\.open\([\s\S]*auth\/github\/start\.php/);
   assert.match(app, /event\.origin !== location\.origin \|\| event\.source !== githubAuthPopup/);
