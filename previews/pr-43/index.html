@@ -76,6 +76,8 @@
               <span>Theme</span><small><svg class="theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg><svg class="theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4 8.5 8.5 0 1 0 20 15.2Z"></path></svg><span id="theme-value">System</span></small>
             </button>
             <label class="setting-row"><span>Paper</span><select id="page-size"><option value="letter">US Letter</option><option value="a4">A4</option></select></label>
+            <label class="setting-row"><span>Preview background</span><select id="preview-background"><option value="blank">Blank</option><option value="dots" selected>Dots</option><option value="damascus">Damascus</option></select></label>
+            <label class="setting-row preview-dot-radius" id="preview-dot-radius-row"><span>Dot radius</span><span class="range-setting"><input id="preview-dot-radius" type="range" min="0.6" max="1.8" step="0.1" value="1" /><output id="preview-dot-radius-value">1.0px</output></span></label>
             <label class="setting-row" title="Underline misspellings and right-click them for replacement suggestions"><span>Spellcheck</span><input id="spellcheck" type="checkbox" role="switch" checked /></label>
             <label class="setting-row" title="Wrap long source lines without changing Fountain line numbers"><span>Source word wrap</span><input id="word-wrap" type="checkbox" role="switch" checked /></label>
             <span class="menu-separator"></span>
@@ -145,7 +147,7 @@
             <button id="zoom-fit" class="zoom-fit" type="button" aria-label="Fit preview to pane width" aria-pressed="false">Fit</button>
           </div>
         </header>
-        <div id="preview-scroll" class="preview-scroll">
+        <div id="preview-scroll" class="preview-scroll" data-background="dots">
           <div id="preview-page-stage" class="preview-page-stage">
             <article id="screenplay-page" class="screenplay-page" aria-label="Editable published screenplay" contenteditable="plaintext-only" spellcheck="true"></article>
           </div>
