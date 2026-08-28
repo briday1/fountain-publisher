@@ -126,7 +126,7 @@ test("preview edits keep the source cursor on the edited line", async () => {
   assert.doesNotMatch(app, /page\.addEventListener\("focusin"[^\n]*jumpToLine/);
 });
 
-test("preview cursor synchronization does not add an active-line highlight", async () => {
+test("preview cursor synchronization highlights the active line", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="screenplay-page"[^>]*contenteditable="plaintext-only"/);
   assert.doesNotMatch(app, /class="\$\{className\}"[^>]*contenteditable/);
@@ -134,7 +134,9 @@ test("preview cursor synchronization does not add an active-line highlight", asy
   assert.match(app, /function setSourceSelectionFromPreview\(edit\)[\s\S]*source\.setSelectionRange\(start, end, edit\.direction\)/);
   assert.match(app, /page\.addEventListener\("pointerup"[\s\S]*previewLineForNode\(getSelection\(\)\?\.focusNode\)[\s\S]*setSourceSelectionFromPreview\(edit\)/);
   assert.match(app, /page\.addEventListener\("keyup"[\s\S]*setSourceSelectionFromPreview\(edit\)/);
-  assert.doesNotMatch(css, /\.script-line\.source-current:not\(:focus\)/);
+  assert.match(css, /\.screenplay-page:focus\s*\{\s*outline:\s*none;/);
+  assert.match(css, /\.script-line\.source-current\s*\{[^}]*background:\s*color-mix\([^}]*var\(--syntax-scene\)[^}]*\}/s);
+  assert.doesNotMatch(css, /\.script-line\.source-current\s*\{[^}]*box-shadow:/s);
 });
 
 test("source and preview navigation scroll in both directions", async () => {
@@ -174,7 +176,8 @@ test("top-level act headings are supported in the live editor", async () => {
   assert.match(app, /appendToSource\("# Act 1\\n\\n"\)/);
   assert.match(css, /\.script-line\.section\.act[^}]*display:\s*block;/);
   assert.match(app, /def _fp_format_pdf_act_headings\(screenplay\)/);
-  assert.match(app, /Action\(\[bold\(str\(paragraph\.text\)\.upper\(\)\)\], centered=True\)/);
+  assert.match(app, /Slug\(bold\(str\(paragraph\.text\)\.upper\(\)\), scene_number=None\)/);
+  assert.match(css, /\.script-line\.section\.act[^}]*font:\s*700 16px\/1 var\(--screenplay\);[^}]*text-align:\s*left;/s);
 });
 
 test("source completions wait for typing on a new line and support explicit character lookup", async () => {
@@ -219,10 +222,10 @@ test("theme control uses Pugflow-style sun and moon icons", async () => {
   assert.match(css, /data-effective-theme="dark"[^}]*\.theme-sun\s*\{\s*display:\s*none;/);
 });
 
-test("source editor uses distinct studio palettes with colored character cues", async () => {
+test("source editor uses neutral backgrounds with colored screenplay cues", async () => {
   const css = await readFile(cssPath, "utf8");
-  assert.match(css, /:root\s*\{[\s\S]*--source-bg:\s*#f8fafc;[\s\S]*--source-ink:\s*#0f172a;[\s\S]*--syntax-scene:\s*#0284c7;[\s\S]*--syntax-character:\s*#7c3aed;[\s\S]*--syntax-transition:\s*#b45309;[\s\S]*--syntax-ignored:\s*#be123c;/);
-  assert.match(css, /:root\[data-theme="dark"\]\s*\{[\s\S]*--source-bg:\s*#0f141c;[\s\S]*--source-ink:\s*#cbd5e1;[\s\S]*--syntax-scene:\s*#38bdf8;[\s\S]*--syntax-character:\s*#c4b5fd;[\s\S]*--syntax-transition:\s*#fbbf24;[\s\S]*--syntax-ignored:\s*#fb7185;/);
+  assert.match(css, /:root\s*\{[\s\S]*--source-bg:\s*#f6f6f5;[\s\S]*--source-ink:\s*#0f172a;[\s\S]*--syntax-scene:\s*#0284c7;[\s\S]*--syntax-character:\s*#7c3aed;[\s\S]*--syntax-transition:\s*#b45309;[\s\S]*--syntax-ignored:\s*#be123c;/);
+  assert.match(css, /:root\[data-theme="dark"\]\s*\{[\s\S]*--source-bg:\s*#111315;[\s\S]*--source-ink:\s*#cbd5e1;[\s\S]*--syntax-scene:\s*#38bdf8;[\s\S]*--syntax-character:\s*#c4b5fd;[\s\S]*--syntax-transition:\s*#fbbf24;[\s\S]*--syntax-ignored:\s*#fb7185;/);
   assert.match(css, /\.editor-shell\s*\{[^}]*background:\s*var\(--source-bg\);/s);
   assert.match(css, /\.source-highlight\s*\{[^}]*color:\s*var\(--source-ink\);/s);
   assert.match(css, /\.line-numbers\s*\{[^}]*background:\s*var\(--source-gutter-bg\);/s);
@@ -267,11 +270,15 @@ test("the browser continuously restores a separate local recovery workspace", as
   const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
   assert.match(app, /WORKSPACE_CACHE_KEY = "fountain-publisher\.workspace\.v1"/);
   assert.match(app, /function persistWorkspaceNow\([\s\S]*source:\s*source\.value[\s\S]*savedSource:\s*state\.savedSource[\s\S]*selectionStart:[\s\S]*sourceScrollTop:[\s\S]*previewScrollTop:[\s\S]*previewMode:[\s\S]*zoom:/);
-  assert.match(app, /window\.addEventListener\("beforeunload", persistWorkspaceNow\)/);
+  assert.match(app, /window\.addEventListener\("beforeunload", \(\) => \{[\s\S]*clearWorkspaceOnExit\(\)[\s\S]*clearWorkspaceCache\(\)[\s\S]*persistWorkspaceNow\(\)/);
   assert.doesNotMatch(app, /beforeunload[^\n]*preventDefault/);
   assert.match(app, /toast\("Workspace restored"\)/);
+  assert.match(app, /const enableWorkspaceCache = params\.get\("demo"\) !== "1"/);
+  assert.match(app, /source\.setSelectionRange\(start, end\)[\s\S]*state\.cacheEnabled = enableWorkspaceCache/);
   assert.match(html, /continuously cached in this browser/);
   assert.match(html, /recovery draft is separate from your files/);
+  assert.match(html, /id="clear-workspace-on-exit"/);
+  assert.match(app, /if \(clearWorkspaceOnExit\(\)\) clearWorkspaceCache\(\)/);
 });
 
 test("the active non-printing line remains visible as editor context", async () => {
@@ -401,12 +408,20 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(app, /document\.execCommand\("copy"\)/);
   assert.match(app, /navigator\.clipboard\.readText\(\)/);
   assert.match(app, /data-annotation-line/);
+  assert.match(app, /function annotationAfter\(lines, index\)/);
+  assert.match(app, /next\?\.type === "note" && !managedNote\(next\.raw\)/);
+  assert.match(app, /const insertAt = state\.noteEditor\.insertAfter \+ 1;/);
+  assert.match(app, /const nextType = classifyLines\(source\.value\)\[insertAt\]\?\.type;/);
+  assert.match(app, /lines\.splice\(insertAt, 0, `\[\[\$\{text\}\]\]`\)/);
+  assert.match(app, /if \(nextType === "character"[\s\S]*lines\.splice\(insertAt \+ 1, 0, ""\)/);
+  assert.doesNotMatch(app, /class="script-line note annotation-line"/);
   assert.match(app, /managedCharacterSource/);
   assert.match(app, /managedGeneralSource/);
   assert.match(app, /const preservedNotes = startIndex === endIndex/);
   assert.match(app, /const candidates = \$\$\("\.script-line\[data-display\]"/);
   assert.match(app, /\["dialogue", "parenthetical", "note"\]\.includes/);
   assert.match(css, /\.annotation-orb\s*\{/);
+  assert.match(css, /\.annotation-orb\s*\{[^}]*top:\s*1px;/s);
   assert.match(css, /\.preview-context-menu\s*\{/);
   assert.match(css, /\.general-notes\s*\{/);
 });
@@ -424,10 +439,20 @@ test("insight colors coordinate with the source palette", async () => {
   const css = await readFile(cssPath, "utf8");
   assert.match(css, /\.balance > div\s*\{[^}]*background:\s*var\(--syntax-scene\);/s);
   assert.match(css, /\.balance > div span\s*\{[^}]*background:\s*var\(--syntax-character\);/s);
-  assert.match(css, /\.metric-grid div:nth-child\(1\)\s*\{\s*color:\s*var\(--metric-pages-ink\);\s*background:\s*var\(--metric-pages-bg\);\s*\}/s);
-  assert.match(css, /\.metric-grid div:nth-child\(2\)\s*\{\s*color:\s*var\(--metric-scenes-ink\);\s*background:\s*var\(--metric-scenes-bg\);\s*\}/s);
-  assert.match(css, /\.metric-grid div:nth-child\(3\)\s*\{\s*color:\s*var\(--metric-words-ink\);\s*background:\s*var\(--metric-words-bg\);\s*\}/s);
+  assert.match(css, /\.metric-grid div:nth-child\(1\)\s*\{\s*color:\s*var\(--metric-pages-ink\);\s*\}/s);
+  assert.match(css, /\.metric-grid div:nth-child\(2\)\s*\{\s*color:\s*var\(--metric-scenes-ink\);\s*\}/s);
+  assert.match(css, /\.metric-grid div:nth-child\(3\)\s*\{\s*color:\s*var\(--metric-words-ink\);\s*\}/s);
+  assert.doesNotMatch(css, /\.metric-grid div:nth-child\([123]\)[^}]*background:/s);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.metric-grid\s*\{\s*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);/s);
+});
+
+test("source backgrounds are neutral and character analytics canvas hugs its table", async () => {
+  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(css, /--source-bg:\s*#f6f6f5;[\s\S]*--source-gutter-bg:\s*#ececeb;/);
+  assert.match(css, /--source-bg:\s*#111315;[\s\S]*--source-gutter-bg:\s*#181a1c;/);
+  assert.match(app, /const width = scenes\.length \? labelWidth \+ scenes\.length \* sceneWidth : 480;/);
+  assert.match(app, /const height = actHeight \+ sceneHeight \+ Math\.max\(characters\.length, 1\) \* rowHeight;/);
+  assert.doesNotMatch(app, /scenes\.length \* sceneWidth \+ 18|rowHeight \+ 18/);
 });
 
 test("source word wrap defaults on and preserves logical line numbers", async () => {
@@ -538,16 +563,48 @@ test("mobile preview is live-only, reflows horizontally, and retains zoom contro
   assert.match(html, /class="preview-actions"[\s\S]*id="zoom-out"[\s\S]*id="zoom"[\s\S]*id="zoom-in"[\s\S]*id="zoom-fit"/);
 });
 
-test("preview zoom centers the page and offers a dedicated fit-to-width control", async () => {
+test("preview zoom clamps scaled bounds and reports the calculated fit percentage", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
-  assert.doesNotMatch(html, /<option value="fit">/);
+  assert.match(html, /id="zoom-fit-value" value="fit" hidden/);
+  assert.match(html, /<option value="200">200%<\/option>/);
   assert.match(html, /id="zoom-in"[\s\S]*id="zoom-fit"[^>]*>Fit<\/button>/);
-  assert.match(app, /scale = Math\.max\(\.25,\s*availableWidth \/ 816\)/);
+  assert.match(app, /scale = Math\.max\(\.25,\s*Math\.min\(2,\s*availableWidth \/ 816\)\)/);
   assert.match(app, /preview\.scrollLeft = Math\.max\(0,\s*\(preview\.scrollWidth - preview\.clientWidth\) \/ 2\)/);
+  assert.match(app, /function clampPreviewScroll\(preview = \$\("#preview-scroll"\)\)/);
+  assert.match(app, /const maxTop = Math\.max\(0, preview\.scrollHeight - preview\.clientHeight\)/);
+  assert.match(app, /preview\.scrollTop = Math\.max\(0, Math\.min\(preview\.scrollTop, maxTop\)\)/);
+  assert.match(app, /Math\.max\(1056, page\.scrollHeight\) \* scale/);
+  assert.match(app, /fitOption\.textContent = `\$\{Math\.round\(scale \* 100\)\}%`/);
+  assert.match(app, /zoomControl\.value = "fit"/);
+  assert.match(app, /"150",\s*"175",\s*"200"/);
+  assert.match(app, /const fitPercent = Number\.parseInt\(\$\("#zoom-fit-value"\)\.textContent, 10\) \|\| 100/);
+  assert.match(app, /value > fitPercent/);
+  assert.match(app, /value < fitPercent/);
+  assert.match(css, /\.preview-page-stage\s*\{[^}]*position:\s*relative;/s);
+  assert.match(css, /\.screenplay-page\s*\{[^}]*position:\s*absolute;/s);
   assert.match(app, /if \(state\.previewZoom === "fit"\) requestAnimationFrame\(applyZoom\);/);
-  assert.match(app, /if \(state\.previewZoom === "fit"\)\s*\{\s*zoom\.value = "100";/);
-  assert.match(app, /\["fit",\s*"70",\s*"85",\s*"100",\s*"115",\s*"130"\]/);
+  assert.doesNotMatch(app, /if \(state\.previewZoom === "fit"\)\s*\{\s*zoom\.value = "100";/);
+  assert.match(app, /\["fit",\s*"70",\s*"85",\s*"100",\s*"115",\s*"130",\s*"150",\s*"175",\s*"200"\]/);
   assert.match(css, /\.preview-page-stage\s*\{[^}]*margin:\s*0 auto;/s);
+});
+
+test("preview background popup supports blank and adjustable dots", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  const settingsMenu = html.match(/<details class="toolbar-menu settings-menu">([\s\S]*?)<\/details>/)?.[1] || "";
+  assert.match(settingsMenu, /id="open-background-dialog"[^>]*>Background…<\/button>/);
+  assert.match(html, /<dialog id="background-dialog"/);
+  assert.match(html, /id="preview-background"[\s\S]*value="blank">Blank[\s\S]*value="dots" selected>Dots/);
+  assert.doesNotMatch(html, /Damascus|value="damascus"/);
+  assert.match(html, /id="preview-dot-radius" type="range" min="0\.6" max="1\.8" step="0\.1" value="1"/);
+  assert.match(css, /\.preview-scroll\[data-background="dots"\][^}]*radial-gradient[^}]*background-size:\s*16px 16px;/s);
+  assert.doesNotMatch(css, /data-background="damascus"|repeating-radial-gradient/);
+  assert.match(css, /#background-dialog\s*\{[^}]*width:\s*min\(390px,/s);
+  assert.doesNotMatch(css, /\.preview-scroll\s*\{[^}]*background-color:/s);
+  assert.match(app, /function applyPreviewBackground\(\)/);
+  assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-background", event\.target\.value\)/);
+  assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-dot-radius", event\.target\.value\)/);
+  assert.match(app, /hidden = pattern !== "dots"/);
+  assert.match(app, /#background-dialog"\)\.showModal\(\)/);
 });
 
 test("mobile PDF export path remains accessible via toolbar File menu", async () => {

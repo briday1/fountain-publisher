@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fountain-publisher",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-08-27",
+  "routes": [
+    { "pattern": "api.fountain-publisher.com", "custom_domain": true }
+  ],
+  "vars": {
+    "APP_ORIGIN": "https://fountain-publisher.com"
+  },
+  "triggers": {
+    "crons": ["17 3 * * *"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "fountain-publisher-github",
+      "database_id": "ade9feb4-b944-4097-a455-427515648ccd",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "secrets": {
+    "required": ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "GITHUB_APP_SLUG", "TOKEN_ENCRYPTION_KEY"]
+  }
+}

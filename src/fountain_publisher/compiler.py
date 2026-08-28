@@ -152,17 +152,17 @@ def number_screenplay_scenes(screenplay: Any, options: CompileOptions | None = N
 
 
 def format_pdf_act_headings(screenplay: Any) -> Any:
-    """Turn top-level Act sections into centered, bold PDF paragraphs."""
+    """Turn top-level Act sections into bold, unnumbered scene-style headings."""
     try:
         from screenplain.richstring import bold
-        from screenplain.types import Action, Section
+        from screenplain.types import Section, Slug
     except ImportError:  # pragma: no cover
         return screenplay
     paragraphs = getattr(screenplay, "paragraphs", None)
     if paragraphs is None:
         return screenplay
     screenplay.paragraphs = [
-        Action([bold(str(paragraph.text).upper())], centered=True)
+        Slug(bold(str(paragraph.text).upper()), scene_number=None)
         if isinstance(paragraph, Section)
         and getattr(paragraph, "level", 0) == 1
         and re.match(r"^Act\b", str(paragraph.text), re.IGNORECASE)
