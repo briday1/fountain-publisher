@@ -252,6 +252,7 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 }
 .script-line { min-height: 16px; margin: 0; white-space: pre-wrap; outline: none; position: relative; }
 .script-line:focus { outline: none; }
+.script-line.source-current { background: color-mix(in srgb, var(--syntax-scene) 10%, transparent); box-shadow: -4px 0 var(--syntax-scene); }
 .script-line.lyric { margin-left: 96px; font-style: italic; }
 .script-line.empty { height: 16px; }
 .script-line.title-key { display: none; }
