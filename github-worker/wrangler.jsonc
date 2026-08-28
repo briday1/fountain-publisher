@@ -16,7 +16,7 @@
     {
       "binding": "DB",
       "database_name": "fountain-publisher-github",
-      "database_id": "REPLACE_WITH_CLOUDFLARE_D1_DATABASE_ID",
+      "database_id": "ade9feb4-b944-4097-a455-427515648ccd",
       "migrations_dir": "migrations"
     }
   ],
