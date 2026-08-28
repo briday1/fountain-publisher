@@ -17,6 +17,7 @@ test("app exposes a credentialed GitHub repository browser", async () => {
   assert.match(html, /connect-src 'self' https:\/\/api\.fountain-publisher\.com/);
   assert.match(html, /id="github-connect"/);
   assert.match(html, /id="github-dialog"/);
+  assert.match(html, /id="github-repository-search" type="search"/);
   assert.match(html, /id="github-repository"/);
   assert.match(html, /id="github-branch"/);
   assert.match(html, /id="github-save-here"/);
@@ -26,6 +27,8 @@ test("app exposes a credentialed GitHub repository browser", async () => {
   assert.match(app, /confirmDiscard\(\)/);
   assert.match(app, /githubFile: state\.githubFile/);
   assert.match(app, /restore \? cached\.githubFile \|\| null : null/);
+  assert.match(app, /function renderGithubRepositories\(query = ""\)/);
+  assert.match(app, /openGithubFile\(entry\.dataset\.githubEntry, entry\)/);
   assert.match(app, /sha: body\.sha|JSON\.stringify\(\{ content: source\.value, message:/);
 });
 
