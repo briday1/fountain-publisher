@@ -1613,6 +1613,7 @@ async function openGithubBrowser() {
   if (!state.githubConnected && !(await refreshGithubSession())) return connectGithub();
   closeMenus();
   $("#github-filename").value = normalizedFilename("fountain");
+  $("#github-save-details").open = !matchMedia("(max-width: 640px)").matches;
   $("#github-dialog").showModal();
   try { await loadGithubRepositories(); } catch (error) { toast(error.message); }
 }

@@ -377,10 +377,10 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .github-header button:hover { background: var(--surface-2); color: var(--ink); }
 .github-account-row { display: flex; align-items: center; gap: 7px; padding: 7px 14px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; }
 .github-account-row span { flex: 1; }
-.github-account-row button, .github-save-panel button { min-height: 32px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); padding: 6px 10px; }
+.github-account-row button, .github-save-fields button { min-height: 32px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); padding: 6px 10px; }
 .github-controls { display: grid; grid-template-columns: 1fr 160px; align-items: end; gap: 8px; padding: 9px 14px; border-bottom: 1px solid var(--border); }
-.github-controls label, .github-save-panel label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
-.github-controls select, .github-controls input, .github-save-panel input { width: 100%; height: 32px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--ink); padding: 0 8px; text-transform: none; letter-spacing: normal; }
+.github-controls label, .github-save-fields label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.github-controls select, .github-controls input, .github-save-fields input { width: 100%; height: 32px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--ink); padding: 0 8px; text-transform: none; letter-spacing: normal; }
 .github-repository-control { display: grid !important; grid-template-columns: minmax(120px, .8fr) minmax(160px, 1.2fr); }
 .github-repository-control #github-repository-search { grid-column: 1; }
 .github-repository-control #github-repository { grid-column: 2; }
@@ -394,8 +394,11 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .github-files button:last-child { border-bottom: 0; border-radius: 0 0 6px 6px; }
 .github-files button small { color: var(--muted); }
 .github-files .github-empty { padding: 30px; color: var(--muted); text-align: center; }
-.github-save-panel { display: grid; grid-template-columns: minmax(140px, .8fr) minmax(180px, 1.2fr) auto; align-items: end; gap: 8px; padding: 9px 14px; border-top: 1px solid var(--border); background: var(--panel); }
-.github-save-panel button.primary { border-color: var(--accent); background: var(--accent); color: white; }
+.github-save-panel { border-top: 1px solid var(--border); background: var(--panel); }
+.github-save-panel details > summary { display: none; }
+.github-save-fields { display: grid; grid-template-columns: minmax(140px, .8fr) minmax(180px, 1.2fr) auto; align-items: end; gap: 8px; padding: 9px 14px; }
+.github-save-panel details:not([open]) .github-save-fields { display: none; }
+.github-save-fields button.primary { border-color: var(--accent); background: var(--accent); color: white; }
 button:disabled { cursor: default; opacity: .45; }
 
 #character-analytics-dialog { width: min(1100px, calc(100vw - 32px)); height: min(760px, calc(100vh - 32px)); max-width: none; max-height: none; padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
@@ -577,9 +580,10 @@ button:disabled { cursor: default; opacity: .45; }
 
   .github-controls { grid-template-columns: 1fr; }
   .github-repository-control { grid-template-columns: 1fr 1fr; }
-  .github-save-panel { grid-template-columns: 1fr 1fr; }
-  .github-save-panel button { grid-column: 1 / -1; }
-  .github-header button, .github-account-row button, .github-files button, .github-save-panel button { min-height: 44px; }
+  .github-save-panel details > summary { display: flex; align-items: center; min-height: 44px; padding: 0 14px; color: var(--accent); cursor: pointer; font-size: 11px; font-weight: 700; list-style-position: inside; }
+  .github-save-fields { grid-template-columns: 1fr 1fr; padding-top: 0; }
+  .github-save-fields button { grid-column: 1 / -1; }
+  .github-header button, .github-account-row button, .github-files button, .github-save-fields button { min-height: 44px; }
   .github-header button { width: 44px; }
   #github-dialog { width: min(520px, calc(var(--visual-viewport-width) - 20px)); height: min(480px, calc(var(--visual-viewport-height) - 20px)); }
 

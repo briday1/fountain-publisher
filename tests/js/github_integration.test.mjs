@@ -20,6 +20,7 @@ test("app exposes a credentialed GitHub repository browser", async () => {
   assert.match(html, /id="github-repository-search" type="search"/);
   assert.match(html, /id="github-repository"/);
   assert.match(html, /id="github-branch"/);
+  assert.match(html, /id="github-save-details" open/);
   assert.match(html, /id="github-save-here"/);
   assert.match(app, /credentials: "include"/);
   assert.match(app, /window\.open\(url, "fountain-publisher-github"/);
@@ -28,6 +29,7 @@ test("app exposes a credentialed GitHub repository browser", async () => {
   assert.match(app, /githubFile: state\.githubFile/);
   assert.match(app, /restore \? cached\.githubFile \|\| null : null/);
   assert.match(app, /function renderGithubRepositories\(query = ""\)/);
+  assert.match(app, /\$\("#github-save-details"\)\.open = !matchMedia\("\(max-width: 640px\)"\)\.matches/);
   assert.match(app, /openGithubFile\(entry\.dataset\.githubEntry, entry\)/);
   assert.match(app, /sha: body\.sha|JSON\.stringify\(\{ content: source\.value, message:/);
 });
