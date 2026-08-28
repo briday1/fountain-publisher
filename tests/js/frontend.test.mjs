@@ -570,10 +570,15 @@ test("preview zoom clamps scaled bounds and reports the calculated fit percentag
 
 test("preview background setting supports blank, adjustable dots, and a local Damascus pattern", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  const settingsMenu = html.match(/<details class="toolbar-menu settings-menu">([\s\S]*?)<\/details>/)?.[1] || "";
+  const backgroundMenu = html.match(/<details class="toolbar-menu preview-background-menu">([\s\S]*?)<\/details>/)?.[1] || "";
+  assert.doesNotMatch(settingsMenu, /preview-background|Dot radius|Damascus/);
+  assert.match(backgroundMenu, /<summary[^>]*>Background<\/summary>/);
   assert.match(html, /id="preview-background"[\s\S]*value="blank">Blank[\s\S]*value="dots" selected>Dots[\s\S]*value="damascus">Damascus/);
   assert.match(html, /id="preview-dot-radius" type="range" min="0\.6" max="1\.8" step="0\.1" value="1"/);
   assert.match(css, /\.preview-scroll\[data-background="dots"\][^}]*radial-gradient[^}]*background-size:\s*16px 16px;/s);
   assert.match(css, /\.preview-scroll\[data-background="damascus"\][^{]*\{[\s\S]*repeating-radial-gradient[\s\S]*background-size:\s*46px 32px;/);
+  assert.match(css, /\.preview-background-popover\s*\{[^}]*right:\s*0;[^}]*left:\s*auto;/s);
   assert.doesNotMatch(css, /\.preview-scroll\s*\{[^}]*background-color:/s);
   assert.match(app, /function applyPreviewBackground\(\)/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-background", event\.target\.value\)/);
