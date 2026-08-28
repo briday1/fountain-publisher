@@ -358,6 +358,7 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .dialog-actions button { border: 1px solid var(--border); border-radius: 5px; background: var(--surface); padding: 7px 14px; }
 .dialog-actions .primary { border-color: var(--accent); background: var(--accent); color: white; }
 .github-connect { width: 100%; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-2); padding: 9px; font-weight: 700; }
+.github-connect.primary { border-color: var(--accent); background: var(--accent); color: white; }
 .github-disconnect { float: right; border: 0; background: transparent; color: var(--muted); padding: 0; font-size: 11px; }
 #github-auth > p { color: var(--muted); font-size: 11px; }
 .github-progress { min-height: 20px; color: var(--muted); }
