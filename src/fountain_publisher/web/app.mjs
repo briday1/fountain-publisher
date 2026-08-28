@@ -284,7 +284,7 @@ function scheduleWorkspaceCache() {
 
 function applyPreviewBackground() {
   const storedPattern = localStorage.getItem("fountain-publisher.preview-background") || "dots";
-  const pattern = ["blank", "dots", "damascus"].includes(storedPattern) ? storedPattern : "dots";
+  const pattern = ["blank", "dots"].includes(storedPattern) ? storedPattern : "dots";
   const storedRadius = Number(localStorage.getItem("fountain-publisher.preview-dot-radius"));
   const radius = storedRadius >= .6 && storedRadius <= 1.8 ? storedRadius : 1;
   const preview = $("#preview-scroll");

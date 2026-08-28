@@ -253,13 +253,6 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .preview-actions .preview-background-popover select { width: auto; }
 .preview-scroll { --preview-dot-radius: 1px; flex: 1 1 0; min-height: 0; overflow: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 34px 20px; }
 .preview-scroll[data-background="dots"] { background-image: radial-gradient(color-mix(in srgb, var(--ink) 14%, transparent) var(--preview-dot-radius), transparent var(--preview-dot-radius)); background-size: 16px 16px; }
-.preview-scroll[data-background="damascus"] {
-  background-image:
-    repeating-radial-gradient(ellipse at 0 50%, transparent 0 9px, color-mix(in srgb, var(--ink) 9%, transparent) 10px 11px, transparent 12px 20px),
-    repeating-radial-gradient(ellipse at 100% 50%, transparent 0 13px, color-mix(in srgb, var(--ink) 7%, transparent) 14px 15px, transparent 16px 25px);
-  background-position: 0 0, 23px 16px;
-  background-size: 46px 32px;
-}
 .preview-scroll.pdf-mode { padding: 0; overflow: hidden; }
 .preview-page-stage { position: relative; width: 816px; min-height: 1056px; margin: 0 auto; }
 .screenplay-page {
