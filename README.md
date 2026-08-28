@@ -19,7 +19,7 @@ In GitHub **Settings → Developer settings → GitHub Apps**, create an app wit
 - Homepage URL: `https://fountain-publisher.com`
 - Callback URL: `https://api.fountain-publisher.com/auth/github/callback`
 - Setup URL: `https://api.fountain-publisher.com/auth/github/installed`
-- Request user authorization during installation: enabled
+- Request user authorization during installation: disabled (Fountain Publisher starts OAuth separately)
 - Webhooks: disabled
 - Repository permissions: **Contents — Read and write** (Metadata read access is automatic)
 - Installation target: any account, with users choosing all or selected repositories
