@@ -570,7 +570,7 @@ test("preview zoom clamps scaled bounds and reports the calculated fit percentag
 
 test("preview uses a subtle Pugflow-style dotted canvas without replacing its background color", async () => {
   const css = await readFile(cssPath, "utf8");
-  assert.match(css, /\.preview-scroll\s*\{[^}]*background-image:\s*radial-gradient\(color-mix\(in srgb, var\(--ink\) 14%, transparent\) \.7px, transparent \.7px\);/s);
+  assert.match(css, /\.preview-scroll\s*\{[^}]*background-image:\s*radial-gradient\(color-mix\(in srgb, var\(--ink\) 14%, transparent\) 1px, transparent 1px\);/s);
   assert.match(css, /\.preview-scroll\s*\{[^}]*background-size:\s*16px 16px;/s);
   assert.doesNotMatch(css, /\.preview-scroll\s*\{[^}]*background-color:/s);
 });
