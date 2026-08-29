@@ -30,9 +30,14 @@ test("app exposes a credentialed GitHub repository browser", async () => {
   assert.match(app, /restore \? cached\.githubFile \|\| null : null/);
   assert.match(app, /function renderGithubRepositories\(\)/);
   assert.match(app, /state\.githubBranches\.includes\(\$\("#github-branch"\)\.value\)/);
-  assert.match(app, /function renderGithubColumns\(\)/);
+  assert.match(app, /function renderGithubColumns\(\{ animate = true \} = \{\}\)/);
+  assert.match(app, /async function openGithubBrowser\(mode = "open"\)/);
+  assert.match(app, /openGithubBrowser\("save"\)/);
+  assert.match(app, /state\.githubBrowserMode === "save"/);
+  assert.match(app, /Filename selected\. Choose Save here to commit\./);
   assert.match(app, /async function loadGithubFolderPath\(path = ""\)/);
-  assert.match(app, /loadGithubFiles\("", \{ remember: !path \}\)/);
+  assert.match(app, /render: finalFolder, animate: false/);
+  assert.match(app, /loadGithubFiles\("", \{ remember: !path, render: !path, animate: false \}\)/);
   assert.match(app, /const folder = state\.githubPath/);
   assert.match(app, /repository\.fullName !== state\.githubRepository \|\| branch !== state\.githubBranch/);
   assert.match(app, /entry\.type === "file" && entry\.path === path/);
@@ -45,7 +50,7 @@ test("app exposes a credentialed GitHub repository browser", async () => {
   assert.match(app, /const location = \{ repository: repository\.fullName, branch, path: state\.githubPath \}/);
   assert.match(app, /loadGithubBranches\(restoreLocation\?\.path \|\| "", restoreLocation\?\.branch \|\| ""\)/);
   assert.match(app, /\[rememberedBranch, repository\.defaultBranch, result\.defaultBranch, "main"\]/);
-  assert.match(app, /\$\("#github-save-details"\)\.open = !matchMedia\("\(max-width: 640px\)"\)\.matches/);
+  assert.match(app, /\$\("#github-save-details"\)\.open = mode === "save" && !matchMedia\("\(max-width: 640px\)"\)\.matches/);
   assert.match(app, /openGithubFile\(entry\.dataset\.githubEntry, entry\)/);
   assert.match(app, /sha: body\.sha|JSON\.stringify\(\{ content: source\.value, message:/);
 });

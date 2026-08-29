@@ -246,6 +246,7 @@ const state = {
   githubRepositoryTimer: 0,
   githubColumns: [],
   githubFilesRevision: 0,
+  githubBrowserMode: "open",
   githubRepository: "",
   githubBranch: "",
   githubPath: "",
@@ -1588,22 +1589,23 @@ function renderGithubBreadcrumbs() {
   $("#github-breadcrumbs").innerHTML = items.join("");
 }
 
-function renderGithubColumns() {
+function renderGithubColumns({ animate = true } = {}) {
+  const fileAction = state.githubBrowserMode === "save" ? "Select" : "Open";
   $("#github-files").innerHTML = state.githubColumns.map((column, index) => {
     const selectedPath = state.githubColumns[index + 1]?.path;
-    const entries = column.entries.map((entry) => `<button type="button" role="listitem" data-github-entry="${escapeHtml(entry.path)}" data-github-type="${entry.type}"${entry.path === selectedPath ? ` class="selected" aria-current="true"` : ""}><span aria-hidden="true">${entry.type === "dir" ? "▸" : "F"}</span><span>${escapeHtml(entry.name)}</span><small>${entry.type === "dir" ? "Folder" : "Open"}</small></button>`).join("");
+    const entries = column.entries.map((entry) => `<button type="button" role="listitem" data-github-entry="${escapeHtml(entry.path)}" data-github-type="${entry.type}"${entry.path === selectedPath ? ` class="selected" aria-current="true"` : ""}><span aria-hidden="true">${entry.type === "dir" ? "▸" : "F"}</span><span>${escapeHtml(entry.name)}</span><small>${entry.type === "dir" ? "Folder" : fileAction}</small></button>`).join("");
     return `<div class="github-column" data-github-column="${escapeHtml(column.path)}">${entries || `<div class="github-empty">No Fountain files in this folder.</div>`}</div>`;
   }).join("");
-  $("#github-files").lastElementChild?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "end" });
+  $("#github-files").lastElementChild?.scrollIntoView({ behavior: animate ? "smooth" : "auto", block: "nearest", inline: "end" });
 }
 
-async function loadGithubFiles(path = "", { remember = true } = {}) {
+async function loadGithubFiles(path = "", { remember = true, render = true, animate = true } = {}) {
   const revision = ++state.githubFilesRevision;
   const repository = selectedGithubRepository();
   const branch = $("#github-branch").value;
   const files = $("#github-files");
   $("#github-save-here").disabled = true;
-  if (!path) files.innerHTML = `<div class="github-column"><div class="github-empty">Loading repository…</div></div>`;
+  if (!path && render) files.innerHTML = `<div class="github-column"><div class="github-empty">Loading repository…</div></div>`;
   try {
     const result = await githubRequest(githubContentPath(path));
     if (revision !== state.githubFilesRevision || selectedGithubRepository()?.fullName !== repository?.fullName || $("#github-branch").value !== branch) return false;
@@ -1616,9 +1618,11 @@ async function loadGithubFiles(path = "", { remember = true } = {}) {
       ? [...state.githubColumns.slice(0, parentIndex + 1), { path, entries }]
       : [{ path, entries }];
     state.githubPath = path;
-    renderGithubBreadcrumbs();
     if (remember) rememberGithubBrowserLocation();
-    renderGithubColumns();
+    if (render) {
+      renderGithubBreadcrumbs();
+      renderGithubColumns({ animate });
+    }
     return true;
   } catch (error) {
     if (revision === state.githubFilesRevision) files.innerHTML = `<div class="github-column"><div class="github-empty">${escapeHtml(error.message)}</div></div>`;
@@ -1629,13 +1633,14 @@ async function loadGithubFiles(path = "", { remember = true } = {}) {
 }
 
 async function loadGithubFolderPath(path = "") {
-  if (!(await loadGithubFiles("", { remember: !path }))) return;
+  $("#github-files").innerHTML = `<div class="github-column"><div class="github-empty">Loading repository…</div></div>`;
+  if (!(await loadGithubFiles("", { remember: !path, render: !path, animate: false }))) return;
   let revision = state.githubFilesRevision;
   if (!path) return;
   const parts = path.split("/");
   for (let index = 0; index < parts.length; index += 1) {
     const finalFolder = index === parts.length - 1;
-    if (revision !== state.githubFilesRevision || !(await loadGithubFiles(parts.slice(0, index + 1).join("/"), { remember: finalFolder }))) {
+    if (revision !== state.githubFilesRevision || !(await loadGithubFiles(parts.slice(0, index + 1).join("/"), { remember: finalFolder, render: finalFolder, animate: false }))) {
       return;
     }
     revision = state.githubFilesRevision;
@@ -1683,11 +1688,17 @@ async function loadGithubRepositories() {
   await loadGithubBranches(restoreLocation?.path || "", restoreLocation?.branch || "");
 }
 
-async function openGithubBrowser() {
+async function openGithubBrowser(mode = "open") {
   if (!state.githubConnected && !(await refreshGithubSession())) return connectGithub();
   closeMenus();
-  $("#github-filename").value = normalizedFilename("fountain");
-  $("#github-save-details").open = !matchMedia("(max-width: 640px)").matches;
+  state.githubBrowserMode = mode;
+  $("#github-dialog-title").textContent = mode === "save" ? "Save to GitHub" : "Open from GitHub";
+  $("#github-save-panel").hidden = mode !== "save";
+  if (mode === "save") {
+    $("#github-filename").value = normalizedFilename("fountain");
+    $("#github-save-status").textContent = "";
+  }
+  $("#github-save-details").open = mode === "save" && !matchMedia("(max-width: 640px)").matches;
   $("#github-dialog").showModal();
   try { await loadGithubRepositories(); } catch (error) { toast(error.message); }
 }
@@ -2521,8 +2532,8 @@ $("#delete-general-note").addEventListener("click", () => {
 
 $("#new-file").addEventListener("click", newFile); $("#open-file").addEventListener("click", openFile); $("#save-file").addEventListener("click", () => saveFile(false)); $("#save-file-as").addEventListener("click", () => saveFile(true));
 $("#github-connect").addEventListener("click", connectGithub);
-$("#github-open").addEventListener("click", openGithubBrowser);
-$("#github-save").addEventListener("click", openGithubBrowser);
+$("#github-open").addEventListener("click", () => openGithubBrowser("open"));
+$("#github-save").addEventListener("click", () => openGithubBrowser("save"));
 $("#close-github-dialog").addEventListener("click", () => $("#github-dialog").close());
 $("#github-install").addEventListener("click", () => { if (state.githubInstallUrl) openGithubPopup(state.githubInstallUrl); });
 $("#github-disconnect").addEventListener("click", async () => {
@@ -2562,7 +2573,11 @@ $("#github-files").addEventListener("click", (event) => {
   const entry = event.target.closest("[data-github-entry]");
   if (!entry) return;
   if (entry.dataset.githubType === "dir") loadGithubFiles(entry.dataset.githubEntry);
-  else openGithubFile(entry.dataset.githubEntry, entry);
+  else if (state.githubBrowserMode === "save") {
+    $("#github-filename").value = entry.dataset.githubEntry.split("/").pop();
+    $("#github-save-details").open = true;
+    $("#github-save-status").textContent = "Filename selected. Choose Save here to commit.";
+  } else openGithubFile(entry.dataset.githubEntry, entry);
 });
 $("#github-save-here").addEventListener("click", saveGithubFile);
 window.addEventListener("message", async (event) => {
