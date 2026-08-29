@@ -298,6 +298,12 @@ test("the active non-printing line remains visible as editor context", async () 
   assert.match(css, /\.script-line\.empty\s*\{[^}]*display:\s*none;[^}]*\}[\s\S]*\.script-line\.empty\.source-current\s*\{[^}]*display:\s*block;/);
 });
 
+test("Preview action spacing follows Screenplain paragraph spacing", async () => {
+  const css = await readFile(cssPath, "utf8");
+  assert.match(css, /\.script-line\.action\s*\{[^}]*margin:\s*16px 0 0;/);
+  assert.match(css, /\.script-line\.action \+ \.script-line\.action\s*\{[^}]*margin-top:\s*0;/);
+});
+
 test("scene outline clicks synchronize source and live preview", async () => {
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(app, /function jumpToLine[\s\S]*updateCursor\(\{ scrollPreview: true \}\)/);

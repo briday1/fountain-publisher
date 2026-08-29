@@ -268,7 +268,8 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .script-line.title-value.title { margin-top: 230px; }
 .script-line.scene { position: relative; margin: 32px 0 16px; font-weight: 700; text-transform: uppercase; }
 body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: attr(data-scene-number) "."; position: absolute; right: 100%; padding-right: 10px; top: 0; font-weight: 400; text-transform: none; color: var(--paper-ink); opacity: .45; white-space: nowrap; }
-.script-line.action { margin: 0 0 16px; }
+.script-line.action { margin: 16px 0 0; }
+.script-line.action + .script-line.action { margin-top: 0; }
 .script-line.character { width: 250px; margin: 16px 0 0 192px; text-transform: uppercase; }
 .script-line.parenthetical { width: 300px; margin-left: 144px; padding-left: 16px; }
 .script-line.dialogue { width: 336px; margin-left: 96px; }
