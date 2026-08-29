@@ -2501,57 +2501,63 @@ function vimPreviewTargetLine(currentLine, command) {
   return renderedLines.findLast((line) => line < currentLine) ?? currentLine;
 }
 
-function sourceWrappedRowOffset(command, startOffset) {
-  if (!document.body.classList.contains("source-wrap")) return null;
-  const position = vimLinePosition(startOffset);
-  const computed = getComputedStyle(source);
-  const width = source.clientWidth - (parseFloat(computed.paddingLeft) || 0) - (parseFloat(computed.paddingRight) || 0);
-  if (width <= 0) return null;
-  const mirror = document.createElement("div");
-  Object.assign(mirror.style, {
-    position: "fixed", visibility: "hidden", pointerEvents: "none", left: "0", top: "0",
-    width: `${width}px`, font: computed.font, letterSpacing: computed.letterSpacing,
-    lineHeight: computed.lineHeight, whiteSpace: "pre-wrap", overflowWrap: "anywhere", tabSize: computed.tabSize,
-  });
-  const markers = [];
-  [...position.lines[position.line]].forEach((character) => {
-    const marker = document.createElement("span"); marker.textContent = "\u200b"; markers.push(marker);
-    mirror.append(marker, document.createTextNode(character));
-  });
-  const end = document.createElement("span"); end.textContent = "\u200b"; markers.push(end); mirror.append(end);
-  document.body.append(mirror);
-  const points = markers.map((marker, column) => ({ column, rect: marker.getBoundingClientRect() }));
-  mirror.remove();
-  const current = points[Math.min(position.column, points.length - 1)];
+function renderedTextOffsetRect(element, offset) {
+  const length = element.textContent.replace(/\n$/, "").length;
+  const column = Math.max(0, Math.min(offset, length));
+  const point = previewTextPoint(element, column);
+  const range = document.createRange(); range.setStart(point.node, point.offset); range.collapse(true);
+  let rect = range.getClientRects()[0];
+  if (!rect && length) {
+    const adjacent = previewTextPoint(element, column < length ? column + 1 : column - 1);
+    range.setStart(column < length ? point.node : adjacent.node, column < length ? point.offset : adjacent.offset);
+    range.setEnd(column < length ? adjacent.node : point.node, column < length ? adjacent.offset : point.offset);
+    const character = range.getClientRects()[0];
+    if (character) rect = { top: character.top, left: column < length ? character.left : character.right };
+  }
+  return rect;
+}
+
+function wrappedRowTarget(points, currentColumn, command) {
+  const current = points.find(({ column }) => column === currentColumn)
+    || [...points].sort((left, right) => Math.abs(left.column - currentColumn) - Math.abs(right.column - currentColumn))[0];
+  if (!current?.rect) return null;
   const tops = [...new Set(points.map(({ rect }) => Math.round(rect.top * 2) / 2))].sort((a, b) => a - b);
   const row = tops.findIndex((top) => Math.abs(top - current.rect.top) < 1);
   const targetRow = row + (command === "gj" ? 1 : -1);
   if (targetRow < 0 || targetRow >= tops.length) return null;
   const candidates = points.filter(({ rect }) => Math.abs(rect.top - tops[targetRow]) < 1);
-  const target = candidates.sort((left, right) => Math.abs(left.rect.left - current.rect.left) - Math.abs(right.rect.left - current.rect.left))[0];
-  return position.start + target.column;
+  return candidates.sort((left, right) => Math.abs(left.rect.left - current.rect.left) - Math.abs(right.rect.left - current.rect.left))[0]?.column ?? null;
+}
+
+function sourceWrappedRowOffset(command, startOffset) {
+  if (!document.body.classList.contains("source-wrap")) return null;
+  const position = vimLinePosition(startOffset);
+  const line = $(`[data-source-line="${position.line}"]`, $("#source-highlight"));
+  if (!line) return null;
+  const points = Array.from({ length: position.lines[position.line].length + 1 }, (_, column) => ({ column, rect: renderedTextOffsetRect(line, column) })).filter(({ rect }) => rect);
+  const column = wrappedRowTarget(points, position.column, command);
+  return column === null ? null : position.start + column;
+}
+
+function previewWrappedRowOffset(command, startOffset) {
+  const position = vimLinePosition(startOffset);
+  const line = $(`[data-line="${position.line}"]`, page);
+  if (!line) return null;
+  const original = position.lines[position.line];
+  const points = Array.from({ length: line.textContent.length + 1 }, (_, displayColumn) => ({
+    column: previewSourceOffset(line, original, displayColumn),
+    rect: renderedTextOffsetRect(line, displayColumn),
+  })).filter(({ rect }) => rect);
+  const sourceColumn = wrappedRowTarget(points, position.column, command);
+  return sourceColumn === null ? null : position.start + sourceColumn;
 }
 
 function moveVimDisplayLine(command, previewFocus, visual = false) {
-  if (previewFocus && typeof getSelection()?.modify === "function") {
-    const selection = getSelection();
-    selection.modify(visual ? "extend" : "move", command === "gj" ? "forward" : "backward", "line");
-    const line = previewLineForNode(selection.focusNode);
-    const edit = previewSelection(line);
-    if (line && edit) {
-      if (visual) {
-        setSourceSelectionFromPreview(edit);
-        state.vimVisualFocus = source.selectionDirection === "backward" ? source.selectionStart : source.selectionEnd;
-      } else setSourceCursorFromPreview(line, edit.startOffset);
-      scrollPreviewTarget(line);
-    }
-    return;
-  }
   const start = visual ? state.vimVisualFocus : vimCursorOffset();
-  const wrapped = sourceWrappedRowOffset(command, start);
-  const offset = wrapped ?? moveVimCursor(command === "gj" ? "j" : "k", false, start);
-  if (visual) focusVimSelection(false, state.vimVisualAnchor, offset);
-  else focusVimCursor(false, offset);
+  const wrapped = previewFocus ? previewWrappedRowOffset(command, start) : sourceWrappedRowOffset(command, start);
+  const offset = wrapped ?? moveVimCursor(command === "gj" ? "j" : "k", previewFocus, start);
+  if (visual) focusVimSelection(previewFocus, state.vimVisualAnchor, offset);
+  else focusVimCursor(previewFocus, offset);
 }
 
 function moveVimHalfPage(command, previewFocus, visual = false) {
@@ -2559,27 +2565,13 @@ function moveVimHalfPage(command, previewFocus, visual = false) {
   const viewportHeight = previewFocus ? $("#preview-scroll").clientHeight : source.clientHeight;
   const steps = Math.max(1, Math.floor(viewportHeight / lineHeight / 2));
   const down = command === "d";
-  if (previewFocus && typeof getSelection()?.modify === "function") {
-    const selection = getSelection();
-    for (let step = 0; step < steps; step += 1) selection.modify(visual ? "extend" : "move", down ? "forward" : "backward", "line");
-    const line = previewLineForNode(selection.focusNode);
-    const edit = previewSelection(line);
-    if (line && edit) {
-      if (visual) {
-        setSourceSelectionFromPreview(edit);
-        state.vimVisualFocus = source.selectionDirection === "backward" ? source.selectionStart : source.selectionEnd;
-      } else setSourceCursorFromPreview(line, edit.startOffset);
-      scrollPreviewTarget(line);
-    }
-    return;
-  }
   let offset = visual ? state.vimVisualFocus : vimCursorOffset();
   for (let step = 0; step < steps; step += 1) {
-    offset = sourceWrappedRowOffset(down ? "gj" : "gk", offset)
-      ?? moveVimCursor(down ? "j" : "k", false, offset);
+    const wrapped = previewFocus ? previewWrappedRowOffset(down ? "gj" : "gk", offset) : sourceWrappedRowOffset(down ? "gj" : "gk", offset);
+    offset = wrapped ?? moveVimCursor(down ? "j" : "k", previewFocus, offset);
   }
-  if (visual) focusVimSelection(false, state.vimVisualAnchor, offset);
-  else focusVimCursor(false, offset);
+  if (visual) focusVimSelection(previewFocus, state.vimVisualAnchor, offset);
+  else focusVimCursor(previewFocus, offset);
 }
 
 function moveVimCursor(command, previewFocus = false, startOffset = vimCursorOffset()) {

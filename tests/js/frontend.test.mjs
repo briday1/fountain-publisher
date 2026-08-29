@@ -518,9 +518,10 @@ test("desktop Vim mode is persistent and shared by Source and Preview", async ()
   assert.match(app, /state\.vimMode === "visual"[\s\S]*focusVimSelection\(previewFocus[\s\S]*\["y", "d", "x"\]/);
   assert.match(app, /state\.vimMode === "insert"[\s\S]*\["\[", "c"\]\.includes\(event\.key\.toLowerCase\(\)\)/);
   assert.match(app, /state\.vimMode === "visual" && event\.ctrlKey && event\.key\.toLowerCase\(\) === "c"/);
-  assert.match(app, /function moveVimDisplayLine\(command, previewFocus, visual = false\)[\s\S]*selection\.modify\(visual \? "extend" : "move"[\s\S]*sourceWrappedRowOffset/);
+  assert.match(app, /function renderedTextOffsetRect\(element, offset\)[\s\S]*getClientRects/);
+  assert.match(app, /function moveVimDisplayLine\(command, previewFocus, visual = false\)[\s\S]*previewWrappedRowOffset[\s\S]*sourceWrappedRowOffset/);
   assert.match(app, /state\.vimPending === "g"[\s\S]*moveVimDisplayLine\(`g\$\{key\}`/);
-  assert.match(app, /function moveVimHalfPage\(command, previewFocus, visual = false\)[\s\S]*viewportHeight \/ lineHeight \/ 2[\s\S]*selection\.modify[\s\S]*sourceWrappedRowOffset/);
+  assert.match(app, /function moveVimHalfPage\(command, previewFocus, visual = false\)[\s\S]*viewportHeight \/ lineHeight \/ 2[\s\S]*previewWrappedRowOffset[\s\S]*sourceWrappedRowOffset/);
   assert.match(app, /event\.ctrlKey && \["d", "u"\]\.includes\(event\.key\.toLowerCase\(\)\)[\s\S]*moveVimHalfPage/);
   assert.match(css, /\.vim-status\[data-mode="normal"\][^}]*var\(--metric-pages-ink\)[\s\S]*\.vim-status\[data-mode="insert"\][^}]*var\(--metric-words-ink\)[\s\S]*\.vim-status\[data-mode="visual"\][^}]*var\(--metric-scenes-ink\)/);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.desktop-setting, \.vim-status\s*\{\s*display:\s*none !important;/s);
