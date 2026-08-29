@@ -562,6 +562,7 @@ button:disabled { cursor: default; opacity: .45; }
   }
   body.scene-nums-margin .screenplay-page { padding-left: calc(54px * var(--mobile-preview-zoom, 1)); }
   .script-line { overflow-wrap: anywhere; }
+  .annotation-orb { left: calc(100% + 4px); }
   .script-line.lyric { margin-left: 15%; }
   .script-line.character { width: 48%; margin-left: 34%; }
   .script-line.parenthetical { width: 62%; margin-left: 23%; padding-left: 3%; }

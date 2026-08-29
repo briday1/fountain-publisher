@@ -422,6 +422,7 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(app, /\["dialogue", "parenthetical", "note"\]\.includes/);
   assert.match(css, /\.annotation-orb\s*\{/);
   assert.match(css, /\.annotation-orb\s*\{[^}]*top:\s*1px;/s);
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.annotation-orb\s*\{\s*left:\s*calc\(100% \+ 4px\);/s);
   assert.match(css, /\.preview-context-menu\s*\{/);
   assert.match(css, /\.general-notes\s*\{/);
 });
