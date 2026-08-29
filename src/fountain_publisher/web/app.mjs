@@ -1738,23 +1738,31 @@ async function saveGithubFile() {
     ? linked.sha
     : existing?.sha;
   const button = $("#github-save-here");
+  const status = $("#github-save-status");
   button.disabled = true;
   button.textContent = "Saving…";
+  status.className = "";
+  status.textContent = `Saving to ${repository.fullName} · ${branch} · ${folder || "Root"}…`;
   try {
     const result = await githubRequest(githubContentPath(path, repository, branch), {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ content: source.value, message: message || `Update ${filename}`, sha }),
     });
+    if (!result.sha || !result.commit) throw new Error("GitHub did not confirm the commit");
+    const saved = await githubRequest(githubContentPath(path, repository, branch));
+    if (saved.sha !== result.sha) throw new Error("GitHub could not verify the saved file");
     state.githubFile = { owner: repository.owner, repo: repository.repo, branch, path, sha: result.sha };
     state.filename = filename;
     state.savedSource = source.value;
     $("#filename").textContent = filename;
     document.title = `${filename} — Fountain Publisher`;
     document.body.classList.remove("dirty");
-    $("#github-dialog").close();
-    toast(`Committed ${repository.fullName}/${path}`);
+    status.className = "success";
+    status.innerHTML = `Saved to ${escapeHtml(branch)} · <a href="${escapeHtml(result.commit)}" target="_blank" rel="noopener noreferrer">View commit</a>`;
   } catch (error) {
+    status.className = "error";
+    status.textContent = error.message;
     toast(error.message);
   } finally {
     button.disabled = false;

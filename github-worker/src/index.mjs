@@ -235,7 +235,8 @@ async function apiRequest(request, env, url) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ message: body.message, content: encodeContent(body.content), branch: branch || undefined, sha: body.sha || undefined }),
       })).json();
-      return json({ sha: result.content?.sha, commit: result.commit?.html_url });
+      if (!result.content?.sha || !result.commit?.html_url) return json({ error: "GitHub did not confirm the commit" }, 502);
+      return json({ sha: result.content.sha, commit: result.commit.html_url });
     }
   }
   return json({ error: "Not found" }, 404);

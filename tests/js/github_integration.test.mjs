@@ -21,6 +21,7 @@ test("app exposes a credentialed GitHub repository browser", async () => {
   assert.match(html, /id="github-branch" type="text" list="github-branches"/);
   assert.match(html, /id="github-save-details" open/);
   assert.match(html, /id="github-save-here"/);
+  assert.match(html, /id="github-save-status" role="status"/);
   assert.match(app, /credentials: "include"/);
   assert.match(app, /window\.open\(url, "fountain-publisher-github"/);
   assert.match(app, /event\.origin !== GITHUB_API/);
@@ -37,6 +38,8 @@ test("app exposes a credentialed GitHub repository browser", async () => {
   assert.match(app, /entry\.type === "file" && entry\.path === path/);
   assert.match(app, /: existing\?\.sha/);
   assert.match(app, /githubContentPath\(path, repository, branch\)/);
+  assert.match(app, /saved\.sha !== result\.sha/);
+  assert.match(app, /View commit/);
   assert.match(app, /button\.textContent = "Saving…"/);
   assert.match(app, /localStorage\.setItem\(GITHUB_BROWSER_KEY/);
   assert.match(app, /const location = \{ repository: repository\.fullName, branch, path: state\.githubPath \}/);
@@ -77,6 +80,7 @@ test("Worker encrypts and isolates GitHub sessions with lifecycle controls", asy
   assert.match(worker, /\/user\/installations\?per_page=100/);
   assert.match(worker, /\/repositories\?per_page=100/);
   assert.match(worker, /defaultBranch: repository\.default_branch/);
+  assert.match(worker, /GitHub did not confirm the commit/);
   assert.match(worker, /body: JSON\.stringify\(\{ message: body\.message, content: encodeContent\(body\.content\)/);
   assert.doesNotMatch(worker, /access_token[^\n]+localStorage/);
 });
