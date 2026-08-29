@@ -1574,9 +1574,7 @@ function renderGithubRepositories() {
   $("#github-repository").disabled = !state.githubRepositories.length;
 }
 
-function githubContentPath(path = state.githubPath) {
-  const repository = selectedGithubRepository();
-  const branch = $("#github-branch").value;
+function githubContentPath(path = state.githubPath, repository = selectedGithubRepository(), branch = $("#github-branch").value) {
   if (!repository) return "";
   return `/api/contents?${new URLSearchParams({ owner: repository.owner, repo: repository.repo, branch, path })}`;
 }
@@ -1731,15 +1729,19 @@ async function saveGithubFile() {
   const folder = state.githubPath;
   const filename = $("#github-filename").value.trim();
   const message = $("#github-commit-message").value.trim();
-  if (!repository || !branch || !/^[^/]+\.(fountain|txt)$/i.test(filename)) return toast("Enter a .fountain file name");
+  if (!repository || repository.fullName !== state.githubRepository || branch !== state.githubBranch) return toast("Choose a loaded repository and branch");
+  if (!/^[^/]+\.(fountain|txt)$/i.test(filename)) return toast("Enter a .fountain file name");
   const path = [folder, filename].filter(Boolean).join("/");
   const linked = state.githubFile;
-  const sha = linked && linked.owner === repository.owner && linked.repo === repository.repo && linked.branch === branch && linked.path === path ? linked.sha : undefined;
+  const existing = state.githubColumns.find((column) => column.path === folder)?.entries.find((entry) => entry.type === "file" && entry.path === path);
+  const sha = linked && linked.owner === repository.owner && linked.repo === repository.repo && linked.branch === branch && linked.path === path
+    ? linked.sha
+    : existing?.sha;
   const button = $("#github-save-here");
   button.disabled = true;
   button.textContent = "Saving…";
   try {
-    const result = await githubRequest(githubContentPath(path), {
+    const result = await githubRequest(githubContentPath(path, repository, branch), {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ content: source.value, message: message || `Update ${filename}`, sha }),

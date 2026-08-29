@@ -33,6 +33,10 @@ test("app exposes a credentialed GitHub repository browser", async () => {
   assert.match(app, /async function loadGithubFolderPath\(path = ""\)/);
   assert.match(app, /loadGithubFiles\("", \{ remember: !path \}\)/);
   assert.match(app, /const folder = state\.githubPath/);
+  assert.match(app, /repository\.fullName !== state\.githubRepository \|\| branch !== state\.githubBranch/);
+  assert.match(app, /entry\.type === "file" && entry\.path === path/);
+  assert.match(app, /: existing\?\.sha/);
+  assert.match(app, /githubContentPath\(path, repository, branch\)/);
   assert.match(app, /button\.textContent = "Saving…"/);
   assert.match(app, /localStorage\.setItem\(GITHUB_BROWSER_KEY/);
   assert.match(app, /const location = \{ repository: repository\.fullName, branch, path: state\.githubPath \}/);
