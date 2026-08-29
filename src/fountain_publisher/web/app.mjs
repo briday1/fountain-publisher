@@ -2501,6 +2501,87 @@ function vimPreviewTargetLine(currentLine, command) {
   return renderedLines.findLast((line) => line < currentLine) ?? currentLine;
 }
 
+function sourceWrappedRowOffset(command, startOffset) {
+  if (!document.body.classList.contains("source-wrap")) return null;
+  const position = vimLinePosition(startOffset);
+  const computed = getComputedStyle(source);
+  const width = source.clientWidth - (parseFloat(computed.paddingLeft) || 0) - (parseFloat(computed.paddingRight) || 0);
+  if (width <= 0) return null;
+  const mirror = document.createElement("div");
+  Object.assign(mirror.style, {
+    position: "fixed", visibility: "hidden", pointerEvents: "none", left: "0", top: "0",
+    width: `${width}px`, font: computed.font, letterSpacing: computed.letterSpacing,
+    lineHeight: computed.lineHeight, whiteSpace: "pre-wrap", overflowWrap: "anywhere", tabSize: computed.tabSize,
+  });
+  const markers = [];
+  [...position.lines[position.line]].forEach((character) => {
+    const marker = document.createElement("span"); marker.textContent = "\u200b"; markers.push(marker);
+    mirror.append(marker, document.createTextNode(character));
+  });
+  const end = document.createElement("span"); end.textContent = "\u200b"; markers.push(end); mirror.append(end);
+  document.body.append(mirror);
+  const points = markers.map((marker, column) => ({ column, rect: marker.getBoundingClientRect() }));
+  mirror.remove();
+  const current = points[Math.min(position.column, points.length - 1)];
+  const tops = [...new Set(points.map(({ rect }) => Math.round(rect.top * 2) / 2))].sort((a, b) => a - b);
+  const row = tops.findIndex((top) => Math.abs(top - current.rect.top) < 1);
+  const targetRow = row + (command === "gj" ? 1 : -1);
+  if (targetRow < 0 || targetRow >= tops.length) return null;
+  const candidates = points.filter(({ rect }) => Math.abs(rect.top - tops[targetRow]) < 1);
+  const target = candidates.sort((left, right) => Math.abs(left.rect.left - current.rect.left) - Math.abs(right.rect.left - current.rect.left))[0];
+  return position.start + target.column;
+}
+
+function moveVimDisplayLine(command, previewFocus, visual = false) {
+  if (previewFocus && typeof getSelection()?.modify === "function") {
+    const selection = getSelection();
+    selection.modify(visual ? "extend" : "move", command === "gj" ? "forward" : "backward", "line");
+    const line = previewLineForNode(selection.focusNode);
+    const edit = previewSelection(line);
+    if (line && edit) {
+      if (visual) {
+        setSourceSelectionFromPreview(edit);
+        state.vimVisualFocus = source.selectionDirection === "backward" ? source.selectionStart : source.selectionEnd;
+      } else setSourceCursorFromPreview(line, edit.startOffset);
+      scrollPreviewTarget(line);
+    }
+    return;
+  }
+  const start = visual ? state.vimVisualFocus : vimCursorOffset();
+  const wrapped = sourceWrappedRowOffset(command, start);
+  const offset = wrapped ?? moveVimCursor(command === "gj" ? "j" : "k", false, start);
+  if (visual) focusVimSelection(false, state.vimVisualAnchor, offset);
+  else focusVimCursor(false, offset);
+}
+
+function moveVimHalfPage(command, previewFocus, visual = false) {
+  const lineHeight = parseFloat(getComputedStyle(previewFocus ? page : source).lineHeight) || 16;
+  const viewportHeight = previewFocus ? $("#preview-scroll").clientHeight : source.clientHeight;
+  const steps = Math.max(1, Math.floor(viewportHeight / lineHeight / 2));
+  const down = command === "d";
+  if (previewFocus && typeof getSelection()?.modify === "function") {
+    const selection = getSelection();
+    for (let step = 0; step < steps; step += 1) selection.modify(visual ? "extend" : "move", down ? "forward" : "backward", "line");
+    const line = previewLineForNode(selection.focusNode);
+    const edit = previewSelection(line);
+    if (line && edit) {
+      if (visual) {
+        setSourceSelectionFromPreview(edit);
+        state.vimVisualFocus = source.selectionDirection === "backward" ? source.selectionStart : source.selectionEnd;
+      } else setSourceCursorFromPreview(line, edit.startOffset);
+      scrollPreviewTarget(line);
+    }
+    return;
+  }
+  let offset = visual ? state.vimVisualFocus : vimCursorOffset();
+  for (let step = 0; step < steps; step += 1) {
+    offset = sourceWrappedRowOffset(down ? "gj" : "gk", offset)
+      ?? moveVimCursor(down ? "j" : "k", false, offset);
+  }
+  if (visual) focusVimSelection(false, state.vimVisualAnchor, offset);
+  else focusVimCursor(false, offset);
+}
+
 function moveVimCursor(command, previewFocus = false, startOffset = vimCursorOffset()) {
   const position = vimLinePosition(startOffset);
   let offset = startOffset;
@@ -2540,10 +2621,18 @@ function handleVimKey(event, surface) {
     const focus = state.vimVisualFocus;
     setVimMode("normal"); focusVimCursor(previewFocus, focus); return true;
   }
+  if (event.ctrlKey && ["d", "u"].includes(event.key.toLowerCase())) {
+    event.preventDefault();
+    moveVimHalfPage(event.key.toLowerCase(), previewFocus, state.vimMode === "visual"); return true;
+  }
   if ((event.metaKey || event.ctrlKey) && !(event.ctrlKey && event.key.toLowerCase() === "r")) return false;
   event.preventDefault();
   const key = event.key;
   if (state.vimMode === "visual") {
+    if (["j", "k"].includes(key) && state.vimPending === "g") {
+      state.vimPending = ""; moveVimDisplayLine(`g${key}`, previewFocus, true); return true;
+    }
+    if (key === "g") { state.vimPending = state.vimPending === "g" ? "" : "g"; return true; }
     if (["h", "j", "k", "l", "0", "^", "$", "w", "b", "G"].includes(key)) {
       const focus = moveVimCursor(key, previewFocus, state.vimVisualFocus);
       focusVimSelection(previewFocus, state.vimVisualAnchor, focus);
@@ -2564,6 +2653,9 @@ function handleVimKey(event, surface) {
   }
   const position = vimLinePosition();
   if (event.ctrlKey && key.toLowerCase() === "r") { redoDocument(); return true; }
+  if (["j", "k"].includes(key) && state.vimPending === "g") {
+    state.vimPending = ""; moveVimDisplayLine(`g${key}`, previewFocus); return true;
+  }
   if (["h", "j", "k", "l", "0", "^", "$", "w", "b", "G"].includes(key)) {
     state.vimPending = "";
     focusVimCursor(previewFocus, moveVimCursor(key, previewFocus)); return true;
