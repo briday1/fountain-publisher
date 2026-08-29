@@ -580,15 +580,20 @@ button:disabled { cursor: default; opacity: .45; }
   /* Insights: scene list wraps text and avoids column overflow */
   .scene-list button { white-space: normal; word-break: break-word; }
 
-  .github-controls { grid-template-columns: 1fr; }
-  .github-repository-control { grid-template-columns: 1fr 1fr; }
+  .github-controls { grid-template-columns: 1fr 1fr; gap: 6px; padding: 6px 8px; }
+  .github-repository-control { display: contents !important; }
+  .github-repository-control #github-repository-search { grid-column: 1 / -1; }
+  .github-repository-control #github-repository { grid-column: 1; }
+  .github-branch-control { display: contents !important; }
+  .github-branch-control #github-branch { grid-column: 2; }
+  .github-control-label { display: none; }
   .github-save-panel details > summary { display: flex; align-items: center; min-height: 44px; padding: 0 14px; color: var(--accent); cursor: pointer; font-size: 11px; font-weight: 700; list-style-position: inside; }
   .github-save-fields { grid-template-columns: 1fr 1fr; padding-top: 0; }
   .github-save-fields button { grid-column: 1 / -1; }
   .github-column { flex-basis: 78%; }
   .github-header button, .github-account-row button, .github-files button, .github-save-fields button { min-height: 44px; }
   .github-header button { width: 44px; }
-  #github-dialog { width: min(520px, calc(var(--visual-viewport-width) - 20px)); height: min(480px, calc(var(--visual-viewport-height) - 20px)); }
+  #github-dialog { width: min(520px, calc(var(--visual-viewport-width) - 20px)); height: min(560px, calc(var(--visual-viewport-height) - 20px)); }
 
   /* Insights: location list wraps long names */
   .location-list li { word-break: break-word; }

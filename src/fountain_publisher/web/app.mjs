@@ -1595,15 +1595,16 @@ function renderGithubColumns() {
   $("#github-files").lastElementChild?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "end" });
 }
 
-async function loadGithubFiles(path = "") {
+async function loadGithubFiles(path = "", { remember = true } = {}) {
   const revision = ++state.githubFilesRevision;
-  state.githubPath = path;
-  renderGithubBreadcrumbs();
+  const repository = selectedGithubRepository();
+  const branch = $("#github-branch").value;
   const files = $("#github-files");
+  $("#github-save-here").disabled = true;
   if (!path) files.innerHTML = `<div class="github-column"><div class="github-empty">Loading repository…</div></div>`;
   try {
     const result = await githubRequest(githubContentPath(path));
-    if (revision !== state.githubFilesRevision) return;
+    if (revision !== state.githubFilesRevision || selectedGithubRepository()?.fullName !== repository?.fullName || $("#github-branch").value !== branch) return false;
     const entries = (Array.isArray(result) ? result : [result])
       .filter((entry) => entry.type === "dir" || /\.(fountain|txt)$/i.test(entry.name))
       .sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === "dir" ? -1 : 1));
@@ -1612,35 +1613,49 @@ async function loadGithubFiles(path = "") {
     state.githubColumns = path && parentIndex >= 0
       ? [...state.githubColumns.slice(0, parentIndex + 1), { path, entries }]
       : [{ path, entries }];
-    rememberGithubBrowserLocation();
+    state.githubPath = path;
+    renderGithubBreadcrumbs();
+    if (remember) rememberGithubBrowserLocation();
     renderGithubColumns();
     return true;
   } catch (error) {
     if (revision === state.githubFilesRevision) files.innerHTML = `<div class="github-column"><div class="github-empty">${escapeHtml(error.message)}</div></div>`;
     return false;
+  } finally {
+    if (revision === state.githubFilesRevision) $("#github-save-here").disabled = false;
   }
 }
 
 async function loadGithubFolderPath(path = "") {
-  if (!(await loadGithubFiles(""))) return;
+  if (!(await loadGithubFiles("", { remember: !path }))) return;
   let revision = state.githubFilesRevision;
   if (!path) return;
   const parts = path.split("/");
   for (let index = 0; index < parts.length; index += 1) {
-    if (revision !== state.githubFilesRevision || !(await loadGithubFiles(parts.slice(0, index + 1).join("/")))) return;
+    const finalFolder = index === parts.length - 1;
+    if (revision !== state.githubFilesRevision || !(await loadGithubFiles(parts.slice(0, index + 1).join("/"), { remember: finalFolder }))) {
+      rememberGithubBrowserLocation();
+      return;
+    }
     revision = state.githubFilesRevision;
   }
 }
 
 async function loadGithubBranches(path = "") {
+  const revision = ++state.githubFilesRevision;
   const repository = selectedGithubRepository();
   if (!repository) return;
-  const result = await githubRequest(`/api/branches?${new URLSearchParams({ owner: repository.owner, repo: repository.repo })}`);
-  if (selectedGithubRepository()?.fullName !== repository.fullName) return;
-  const defaultBranch = result.defaultBranch || repository.defaultBranch;
-  $("#github-branch").innerHTML = result.branches.map((branch) => `<option value="${escapeHtml(branch)}"${branch === defaultBranch ? " selected" : ""}>${escapeHtml(branch)}</option>`).join("");
-  state.githubColumns = [];
-  await loadGithubFolderPath(path);
+  $("#github-save-here").disabled = true;
+  try {
+    const result = await githubRequest(`/api/branches?${new URLSearchParams({ owner: repository.owner, repo: repository.repo })}`);
+    if (revision !== state.githubFilesRevision || selectedGithubRepository()?.fullName !== repository.fullName) return;
+    const defaultBranch = result.defaultBranch || repository.defaultBranch;
+    $("#github-branch").innerHTML = result.branches.map((branch) => `<option value="${escapeHtml(branch)}"${branch === defaultBranch ? " selected" : ""}>${escapeHtml(branch)}</option>`).join("");
+    state.githubColumns = [];
+    await loadGithubFolderPath(path);
+  } finally {
+    if (revision === state.githubFilesRevision) $("#github-save-here").disabled = false;
+  }
 }
 
 async function loadGithubRepositories() {
@@ -1703,12 +1718,16 @@ async function openGithubFile(path, trigger) {
 async function saveGithubFile() {
   const repository = selectedGithubRepository();
   const branch = $("#github-branch").value;
+  const folder = state.githubPath;
   const filename = $("#github-filename").value.trim();
   const message = $("#github-commit-message").value.trim();
   if (!repository || !branch || !/^[^/]+\.(fountain|txt)$/i.test(filename)) return toast("Enter a .fountain file name");
-  const path = [state.githubPath, filename].filter(Boolean).join("/");
+  const path = [folder, filename].filter(Boolean).join("/");
   const linked = state.githubFile;
   const sha = linked && linked.owner === repository.owner && linked.repo === repository.repo && linked.branch === branch && linked.path === path ? linked.sha : undefined;
+  const button = $("#github-save-here");
+  button.disabled = true;
+  button.textContent = "Saving…";
   try {
     const result = await githubRequest(githubContentPath(path), {
       method: "PUT",
@@ -1723,7 +1742,12 @@ async function saveGithubFile() {
     document.body.classList.remove("dirty");
     $("#github-dialog").close();
     toast(`Committed ${repository.fullName}/${path}`);
-  } catch (error) { toast(error.message); }
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Save here";
+  }
 }
 
 function normalizedFilename(extension) {
@@ -2490,6 +2514,8 @@ $("#github-disconnect").addEventListener("click", async () => {
 });
 $("#github-repository-search").addEventListener("input", (event) => {
   clearTimeout(state.githubRepositoryTimer);
+  state.githubFilesRevision += 1;
+  $("#github-save-here").disabled = true;
   const matches = renderGithubRepositories(event.target.value);
   if (!matches) {
     $("#github-branch").innerHTML = "";

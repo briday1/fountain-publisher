@@ -31,6 +31,9 @@ test("app exposes a credentialed GitHub repository browser", async () => {
   assert.match(app, /function renderGithubRepositories\(query = ""\)/);
   assert.match(app, /function renderGithubColumns\(\)/);
   assert.match(app, /async function loadGithubFolderPath\(path = ""\)/);
+  assert.match(app, /loadGithubFiles\("", \{ remember: !path \}\)/);
+  assert.match(app, /const folder = state\.githubPath/);
+  assert.match(app, /button\.textContent = "Saving…"/);
   assert.match(app, /localStorage\.setItem\(GITHUB_BROWSER_KEY/);
   assert.match(app, /loadGithubBranches\(remembered\?\.repository === \$\("#github-repository"\)\.value \? remembered\.path : ""\)/);
   assert.match(app, /\$\("#github-save-details"\)\.open = !matchMedia\("\(max-width: 640px\)"\)\.matches/);
