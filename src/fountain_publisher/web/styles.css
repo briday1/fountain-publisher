@@ -339,6 +339,13 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .general-notes > button span { flex: 1; overflow: hidden; white-space: pre-wrap; text-overflow: ellipsis; }
 .general-notes > button small { color: var(--muted); }
 .add-note-button { width: calc(100% - 20px); margin: 0 10px 11px; border: 1px solid var(--border); border-radius: 5px; padding: 7px; background: var(--surface); color: var(--muted); }
+.beat-sheet-summary { padding: 0 10px 3px; }
+.beat-sheet-summary p { margin: 0 0 8px; padding: 9px; border-left: 3px solid var(--metric-scenes-ink); border-radius: 4px; background: var(--surface-2); font-size: 11px; line-height: 1.4; }
+.beat-sheet-summary ol { margin: 0; padding: 0; list-style: none; counter-reset: beat; }
+.beat-sheet-summary li { display: grid; grid-template-columns: 19px 1fr; gap: 5px; padding: 5px 2px; border-bottom: 1px solid var(--border); font-size: 10px; line-height: 1.35; }
+.beat-sheet-summary li::before { counter-increment: beat; content: counter(beat); color: var(--metric-pages-ink); font: 700 9px var(--mono); }
+.beat-sheet-summary li.unplaced { opacity: .58; }
+.beat-sheet-summary > small { display: block; padding: 6px 2px; color: var(--muted); }
 .scene-list { counter-reset: scene; }
 .scene-list li { display: grid; grid-template-columns: 29px 1fr; padding: 7px 5px; border-top: 1px solid var(--border); }
 .scene-list li.empty-list { display: block; }
@@ -437,6 +444,44 @@ button:disabled { cursor: default; opacity: .45; }
 .note-form .dialog-actions { align-items: center; }
 .note-form .dialog-actions span { flex: 1; }
 .dialog-actions .danger { border-color: color-mix(in srgb, #dc2626 45%, var(--border)); color: #dc2626; }
+
+#beat-sheet-dialog { width: min(900px, calc(100vw - 32px)); height: min(780px, calc(100vh - 32px)); max-width: none; max-height: none; padding: 0; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+#beat-sheet-dialog::backdrop { background: rgb(0 0 0 / 46%); backdrop-filter: blur(3px); }
+.beat-sheet-shell { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+.beat-sheet-header { min-height: 62px; display: flex; align-items: center; justify-content: space-between; padding: 9px 14px 8px 20px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.beat-sheet-header small, .beat-sheet-title small { color: var(--metric-scenes-ink); font-size: 9px; font-weight: 800; letter-spacing: .13em; }
+.beat-sheet-header h2, .beat-sheet-title h3 { margin: 1px 0 0; }
+.beat-sheet-header button { width: 32px; height: 32px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: 22px; }
+.beat-sheet-workspace { flex: 1; min-height: 0; overflow: auto; padding: 20px; background: var(--surface-2); }
+.premise-field { display: block; max-width: 760px; margin: 0 auto 22px; }
+.premise-field > span { display: block; margin-bottom: 7px; color: var(--metric-scenes-ink); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.premise-field textarea, .beat-card textarea { box-sizing: border-box; width: 100%; resize: vertical; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--ink); font: 13px/1.45 var(--sans); }
+.premise-field textarea { min-height: 84px; padding: 12px; font-size: 15px; }
+.beat-sheet-title { max-width: 760px; display: flex; align-items: end; justify-content: space-between; margin: 0 auto 10px; }
+.beat-sheet-title button { border: 1px solid var(--border); border-radius: 5px; padding: 7px 11px; background: var(--surface); color: var(--metric-pages-ink); font-weight: 700; }
+.beat-list { max-width: 760px; margin: 0 auto; padding: 0; list-style: none; counter-reset: beat; }
+.beat-card { display: grid; grid-template-columns: 30px 28px minmax(0, 1fr) 28px; gap: 8px; align-items: start; margin-bottom: 9px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: 0 1px 3px rgb(0 0 0 / 7%); }
+.beat-card.dragging { opacity: .4; }
+.beat-drag, .beat-card-actions button { width: 28px; min-height: 26px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); }
+.beat-drag { cursor: grab; font-weight: 800; letter-spacing: -3px; }
+.beat-number { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--metric-pages-bg); color: var(--metric-pages-ink); font: 800 10px var(--mono); }
+.beat-card-fields { min-width: 0; }
+.beat-card textarea { min-height: 58px; padding: 8px 9px; }
+.beat-card-fields label { display: flex; align-items: center; gap: 7px; margin-top: 7px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.beat-card-fields select { min-width: 0; max-width: 360px; height: 28px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-2); color: var(--ink); font-size: 10px; text-transform: none; }
+.beat-card-actions { display: flex; flex-direction: column; gap: 2px; }
+.beat-card-actions button:hover { background: var(--surface-2); color: var(--ink); }
+.beat-card-actions .beat-remove:hover { background: color-mix(in srgb, #dc2626 10%, transparent); color: #dc2626; }
+.beat-sheet-actions { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
+.beat-sheet-actions span { flex: 1; color: var(--muted); font-size: 10px; }
+.beat-sheet-actions button { border: 1px solid var(--border); border-radius: 5px; padding: 7px 13px; background: var(--surface); color: var(--ink); }
+.beat-sheet-actions .primary { border-color: var(--accent); background: var(--accent); color: white; }
+
+.beat-guide-layer { position: absolute; inset: 0 auto auto 0; z-index: 3; width: 816px; min-height: 1056px; transform-origin: top left; pointer-events: none; }
+.beat-guide-marker { position: absolute; left: 724px; width: 180px; min-height: 30px; display: flex; align-items: flex-start; gap: 6px; transform: translateY(-3px); border: 1px solid color-mix(in srgb, var(--metric-scenes-ink) 45%, transparent); border-radius: 6px; padding: 5px 7px; background: color-mix(in srgb, var(--paper) 90%, var(--metric-scenes-bg)); color: var(--paper-ink); box-shadow: 0 2px 7px rgb(0 0 0 / 12%); text-align: left; pointer-events: auto; }
+.beat-guide-marker::before { content: ""; position: absolute; right: 100%; top: 13px; width: 52px; border-top: 1px dashed var(--metric-scenes-ink); opacity: .65; }
+.beat-guide-marker b { flex: 0 0 18px; display: grid; place-items: center; height: 18px; border-radius: 50%; background: var(--metric-scenes-ink); color: var(--surface); font: 800 9px var(--mono); }
+.beat-guide-marker span { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; font: 10px/1.25 var(--sans); }
 
 #title-page-dialog { width: min(430px, calc(100vw - 30px)); border: 1px solid var(--border); border-radius: 9px; padding: 0; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 #title-page-dialog::backdrop { background: rgb(0 0 0 / 40%); backdrop-filter: blur(2px); }
@@ -568,6 +613,15 @@ button:disabled { cursor: default; opacity: .45; }
     position: relative; inset: auto; width: 100%; min-height: 100%; margin: 0; padding: 48px max(20px, 6vw) 72px;
     transform: none; box-shadow: none; font-size: calc(16px * var(--mobile-preview-zoom, 1));
   }
+  .beat-guide-layer { width: 100%; transform: none !important; }
+  .beat-guide-marker { left: auto; right: 4px; width: min(42vw, 180px); opacity: .94; }
+  .beat-guide-marker::before { width: 26px; }
+  #beat-sheet-dialog { width: calc(100vw - 16px); height: calc(var(--visual-viewport-height) - 16px); }
+  .beat-sheet-workspace { padding: 12px; }
+  .beat-card { grid-template-columns: 24px 24px minmax(0, 1fr) 28px; gap: 5px; padding: 8px; }
+  .beat-card-fields label { align-items: flex-start; flex-direction: column; }
+  .beat-card-fields select { width: 100%; max-width: none; }
+  .beat-sheet-actions span { display: none; }
   body.scene-nums-margin .screenplay-page { padding-left: calc(54px * var(--mobile-preview-zoom, 1)); }
   .script-line { overflow-wrap: anywhere; }
   .annotation-orb { left: calc(100% + 4px); }

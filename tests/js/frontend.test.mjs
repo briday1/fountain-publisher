@@ -444,6 +444,19 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(css, /\.general-notes\s*\{/);
 });
 
+test("Beat Sheet provides a source-backed draggable story map and Preview guide", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(html, /summary>Beat Sheet <small id="beat-count">/);
+  assert.match(html, /id="beat-sheet-dialog"[\s\S]*id="beat-premise"[\s\S]*id="beat-list"/);
+  assert.match(html, /id="menu-toggle-beat-guide"[\s\S]*id="beat-guide-layer"/);
+  assert.match(app, /MANAGED_NOTE_RE = \/[\s\S]*BEATS/);
+  assert.match(app, /function managedBeatSheetSource\(premise, beats\)/);
+  assert.match(app, /function beatSceneEntries\(\)[\s\S]*occurrence/);
+  assert.match(app, /addEventListener\("dragover"[\s\S]*insertBefore\(draggedBeat/);
+  assert.match(app, /function renderBeatGuide\(\)[\s\S]*beat-guide-marker/);
+  assert.match(css, /#beat-sheet-dialog\s*\{[\s\S]*\.beat-card\s*\{[\s\S]*\.beat-guide-marker\s*\{/);
+});
+
 test("mobile preview clipboard actions preserve selections and avoid covering them", async () => {
   const app = await readFile(appPath, "utf8");
   assert.match(app, /previewContextEdit:\s*null/);

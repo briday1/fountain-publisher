@@ -201,7 +201,7 @@ const BLANK_TEMPLATE = ``;
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const TITLE_KEYS = new Set(["title", "credit", "author", "authors", "source", "draft date", "date", "contact", "copyright", "notes"]);
-const MANAGED_NOTE_RE = /^\[\[FP-(GENERAL|CHARACTER):(.+)\]\]$/;
+const MANAGED_NOTE_RE = /^\[\[FP-(GENERAL|CHARACTER|BEATS):(.+)\]\]$/;
 const source = $("#source");
 const page = $("#screenplay-page");
 const WORKSPACE_CACHE_KEY = "fountain-publisher.workspace.v1";
@@ -260,10 +260,11 @@ const state = {
   vimVisualFocus: 0,
   vimYank: "",
   vimYankLine: false,
+  beatGuide: localStorage.getItem("fountain-publisher.beat-guide") === "true",
 };
 
 function emptyMetadata() {
-  return { lineCount: 1, wordCount: 0, dialogueWords: 0, actionWords: 0, estimatedSeconds: 0, characters: [], scenes: [], sections: [], locations: [], titleFields: [], generalNotes: [], characterNotes: {} };
+  return { lineCount: 1, wordCount: 0, dialogueWords: 0, actionWords: 0, estimatedSeconds: 0, characters: [], scenes: [], sections: [], locations: [], titleFields: [], generalNotes: [], characterNotes: {}, beatSheet: { line: null, premise: "", beats: [] } };
 }
 
 function readWorkspaceCache() {
@@ -344,6 +345,13 @@ function managedNote(line) {
   const match = line.trim().match(MANAGED_NOTE_RE);
   if (!match) return null;
   if (match[1] === "GENERAL") return { kind: "general", text: decodeNotePart(match[2]) };
+  if (match[1] === "BEATS") {
+    try {
+      const value = JSON.parse(decodeNotePart(match[2]));
+      const beats = Array.isArray(value.beats) ? value.beats.map((beat) => typeof beat === "string" ? { text: beat, scene: "" } : { text: String(beat.text || ""), scene: String(beat.scene || "") }).filter((beat) => beat.text) : [];
+      return { kind: "beats", premise: String(value.premise || ""), beats };
+    } catch { return { kind: "beats", premise: "", beats: [] }; }
+  }
   const separator = match[2].indexOf(":");
   if (separator < 0) return null;
   return {
@@ -360,6 +368,7 @@ function annotationText(raw) {
 function parseManagedNotes(lines) {
   const generalNotes = [];
   const characterNotes = {};
+  let beatSheet = { line: null, premise: "", beats: [] };
   let boneyard = false;
   lines.forEach((raw, line) => {
     if (raw.includes("/*")) boneyard = true;
@@ -370,8 +379,9 @@ function parseManagedNotes(lines) {
     const note = managedNote(raw);
     if (note?.kind === "general") generalNotes.push({ line, text: note.text });
     else if (note?.kind === "character") characterNotes[note.name] = { line, text: note.text };
+    else if (note?.kind === "beats") beatSheet = { line, premise: note.premise, beats: note.beats };
   });
-  return { generalNotes, characterNotes };
+  return { generalNotes, characterNotes, beatSheet };
 }
 
 function isScene(text) {
@@ -577,6 +587,7 @@ function renderPreview({ focusLine = null, focusOffset = null } = {}) {
   const scrollTop = previewScroll.scrollTop;
   const scrollLeft = previewScroll.scrollLeft;
   page.innerHTML = renderPreviewLines(lines);
+  renderBeatGuide();
   page.spellcheck = $("#spellcheck").checked;
   const meaningful = lines.some((line) => line.raw.trim());
   $("#empty-state").hidden = meaningful;
@@ -1068,6 +1079,8 @@ function renderInsights(metadata) {
   $("#scene-list").innerHTML = renderOutline(metadata);
   renderCharacterTable();
   renderGeneralNotes();
+  renderBeatSheetSummary();
+  renderBeatGuide();
   const contentWords = metadata.dialogueWords + metadata.actionWords;
   const dialoguePercent = contentWords ? Math.round(metadata.dialogueWords / contentWords * 100) : 0;
   $("#dialogue-bar").style.width = `${dialoguePercent}%`;
@@ -1093,6 +1106,35 @@ function renderGeneralNotes() {
   $("#general-notes").innerHTML = notes.length
     ? notes.map((note) => `<button type="button" data-general-note-line="${note.line}"><span>${escapeHtml(note.text)}</span><small>Edit</small></button>`).join("")
     : `<div class="empty-list">No general notes yet.</div>`;
+}
+
+function renderBeatSheetSummary() {
+  const sheet = state.metadata.beatSheet || { premise: "", beats: [] };
+  $("#beat-count").textContent = sheet.beats.length;
+  $("#beat-sheet-summary").innerHTML = sheet.premise || sheet.beats.length
+    ? `${sheet.premise ? `<p>${escapeHtml(sheet.premise)}</p>` : ""}<ol>${sheet.beats.slice(0, 4).map((beat) => `<li class="${beat.scene ? "" : "unplaced"}">${escapeHtml(beat.text)}</li>`).join("")}</ol>${sheet.beats.length > 4 ? `<small>+${sheet.beats.length - 4} more</small>` : ""}`
+    : `<div class="empty-list">Map the premise and major story beats.</div>`;
+}
+
+function renderBeatGuide() {
+  const layer = $("#beat-guide-layer");
+  const button = $("#menu-toggle-beat-guide");
+  const beats = state.metadata.beatSheet?.beats || [];
+  const enabled = state.beatGuide && state.previewMode === "live";
+  layer.hidden = !enabled;
+  $(".menu-check", button).textContent = state.beatGuide ? "✓" : "";
+  if (!enabled) { layer.innerHTML = ""; return; }
+  const sceneEntries = beatSceneEntries();
+  const placements = new Map();
+  layer.innerHTML = beats.map((beat, index) => {
+    if (!beat.scene) return "";
+    const scene = sceneEntries.find((entry) => entry.key === beat.scene)?.scene;
+    const target = scene ? $(`[data-line="${scene.line - 1}"]`, page) : null;
+    if (!target) return "";
+    const stack = placements.get(beat.scene) || 0; placements.set(beat.scene, stack + 1);
+    return `<button class="beat-guide-marker" type="button" style="top:${target.offsetTop + stack * 38}px" data-beat-index="${index}" title="Open Beat Sheet"><b>${index + 1}</b><span>${escapeHtml(beat.text)}</span></button>`;
+  }).join("");
+  layer.style.height = `${page.scrollHeight}px`;
 }
 
 function outlineSceneRow(scene, label = scene.number) {
@@ -2066,6 +2108,7 @@ async function setPreviewMode(mode) {
   $$('[data-preview-mode]').forEach((button) => { button.classList.toggle("active", button.dataset.previewMode === mode); const check = $(".menu-check", button); if (check) check.textContent = button.dataset.previewMode === mode ? "✓" : ""; });
   $("#preview-page-stage").hidden = mode !== "live"; page.hidden = mode !== "live"; $("#empty-state").hidden = mode !== "live" || Boolean(source.value.trim()); $("#pdf-view").hidden = mode !== "pdf";
   $("#preview-scroll").classList.toggle("pdf-mode", mode === "pdf");
+  renderBeatGuide();
   scheduleWorkspaceCache();
   if (mode === "pdf") await refreshPdf();
   else if (returnToLive) requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -2155,6 +2198,7 @@ function applyZoom() {
   const stage = $("#preview-page-stage");
   stage.style.width = `${816 * scale}px`; stage.style.minHeight = `${Math.max(1056, page.scrollHeight) * scale}px`;
   page.style.transform = `scale(${scale})`; page.style.marginBottom = "0"; page.style.marginRight = "0";
+  $("#beat-guide-layer").style.transform = `scale(${scale})`;
   const preview = $("#preview-scroll");
   requestAnimationFrame(() => {
     preview.scrollLeft = Math.max(0, (preview.scrollWidth - preview.clientWidth) / 2);
@@ -2226,6 +2270,40 @@ function managedGeneralSource(text) {
 
 function managedCharacterSource(name, text) {
   return `[[FP-CHARACTER:${encodeURIComponent(name)}:${encodeURIComponent(text)}]]`;
+}
+
+function managedBeatSheetSource(premise, beats) {
+  return `[[FP-BEATS:${encodeURIComponent(JSON.stringify({ premise, beats }))}]]`;
+}
+
+function beatSceneEntries() {
+  const occurrences = new Map();
+  return (state.metadata.scenes || []).map((scene) => {
+    const occurrence = (occurrences.get(scene.heading) || 0) + 1; occurrences.set(scene.heading, occurrence);
+    return { scene, key: `${encodeURIComponent(scene.heading)}:${occurrence}` };
+  });
+}
+
+function beatSceneOptions(selectedScene = "") {
+  return `<option value="">Unplaced</option>${beatSceneEntries().map(({ scene, key }) => `<option value="${escapeHtml(key)}"${key === selectedScene ? " selected" : ""}>${scene.number}. ${escapeHtml(scene.heading)}</option>`).join("")}`;
+}
+
+function beatCard(beat = { text: "", scene: "" }) {
+  if (typeof beat === "string") beat = { text: beat, scene: "" };
+  return `<li class="beat-card"><button class="beat-drag" draggable="true" type="button" aria-label="Drag to reorder" title="Drag to reorder">⋮⋮</button><span class="beat-number"></span><div class="beat-card-fields"><textarea rows="2" placeholder="What happens in this beat?">${escapeHtml(beat.text)}</textarea><label>Place at scene<select>${beatSceneOptions(beat.scene)}</select></label></div><div class="beat-card-actions"><button class="beat-up" type="button" aria-label="Move beat up">↑</button><button class="beat-down" type="button" aria-label="Move beat down">↓</button><button class="beat-remove" type="button" aria-label="Remove beat" title="Remove beat">×</button></div></li>`;
+}
+
+function renumberBeatCards() {
+  $$(".beat-card", $("#beat-list")).forEach((card, index) => { $(".beat-number", card).textContent = index + 1; });
+}
+
+function openBeatSheet() {
+  const sheet = state.metadata.beatSheet || { premise: "", beats: [] };
+  $("#beat-premise").value = sheet.premise || "";
+  $("#beat-list").innerHTML = (sheet.beats.length ? sheet.beats : [""]).map(beatCard).join("");
+  renumberBeatCards();
+  $("#beat-sheet-dialog").showModal();
+  setTimeout(() => (sheet.premise ? $("#beat-list textarea") : $("#beat-premise")).focus(), 0);
 }
 
 function openAnnotationEditor(line = null, insertAfter = null) {
@@ -2826,6 +2904,58 @@ $("#general-notes").addEventListener("click", (event) => {
   if (button) openGeneralNoteEditor(Number(button.dataset.generalNoteLine));
 });
 $("#add-general-note").addEventListener("click", () => openGeneralNoteEditor());
+$("#open-beat-sheet").addEventListener("click", openBeatSheet);
+$("#menu-toggle-beat-guide").addEventListener("click", () => {
+  state.beatGuide = !state.beatGuide;
+  localStorage.setItem("fountain-publisher.beat-guide", String(state.beatGuide));
+  renderBeatGuide(); closeMenus();
+});
+$("#beat-guide-layer").addEventListener("click", (event) => {
+  const marker = event.target.closest(".beat-guide-marker");
+  if (!marker) return;
+  openBeatSheet();
+  setTimeout(() => $$(".beat-card textarea", $("#beat-list"))[Number(marker.dataset.beatIndex)]?.focus(), 0);
+});
+$("#close-beat-sheet").addEventListener("click", () => $("#beat-sheet-dialog").close());
+$("#add-beat").addEventListener("click", () => {
+  $("#beat-list").insertAdjacentHTML("beforeend", beatCard()); renumberBeatCards();
+  $("#beat-list .beat-card:last-child textarea").focus();
+});
+$("#beat-list").addEventListener("click", (event) => {
+  const card = event.target.closest(".beat-card");
+  if (!card) return;
+  if (event.target.closest(".beat-up") && card.previousElementSibling) card.parentElement.insertBefore(card, card.previousElementSibling);
+  else if (event.target.closest(".beat-down") && card.nextElementSibling) card.parentElement.insertBefore(card.nextElementSibling, card);
+  else if (event.target.closest(".beat-remove")) card.remove();
+  else return;
+  if (!$(".beat-card", $("#beat-list"))) $("#beat-list").insertAdjacentHTML("beforeend", beatCard());
+  renumberBeatCards();
+});
+let draggedBeat = null;
+$("#beat-list").addEventListener("dragstart", (event) => { draggedBeat = event.target.closest(".beat-card"); draggedBeat?.classList.add("dragging"); });
+$("#beat-list").addEventListener("dragend", () => { draggedBeat?.classList.remove("dragging"); draggedBeat = null; renumberBeatCards(); });
+$("#beat-list").addEventListener("dragover", (event) => {
+  if (!draggedBeat) return;
+  event.preventDefault();
+  const target = event.target.closest(".beat-card");
+  if (!target || target === draggedBeat) return;
+  const after = event.clientY > target.getBoundingClientRect().top + target.offsetHeight / 2;
+  target.parentElement.insertBefore(draggedBeat, after ? target.nextSibling : target);
+});
+$("#beat-sheet-form").addEventListener("submit", (event) => {
+  if (event.submitter?.value !== "default") return;
+  event.preventDefault();
+  const premise = $("#beat-premise").value.trim();
+  const beats = $$(".beat-card", $("#beat-list")).map((card) => ({ text: $("textarea", card).value.trim(), scene: $("select", card).value })).filter((beat) => beat.text);
+  const existingLine = state.metadata.beatSheet?.line;
+  if (!premise && !beats.length) deleteNoteLine(existingLine);
+  else {
+    const value = managedBeatSheetSource(premise, beats);
+    if (existingLine === null || existingLine === undefined) appendManagedNote(value);
+    else { const lines = sourceLines(); lines[existingLine] = value; setSourceLines(lines); }
+  }
+  $("#beat-sheet-dialog").close();
+});
 
 $("#annotation-form").addEventListener("submit", (event) => {
   if (event.submitter?.value !== "default") return;

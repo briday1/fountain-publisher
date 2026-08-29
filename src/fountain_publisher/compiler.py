@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import re
 from urllib.parse import unquote
 from collections import defaultdict
@@ -17,7 +18,7 @@ TITLE_KEYS = {"title", "credit", "author", "authors", "source", "draft date", "d
 SECTION_RE = re.compile(r"^(#{1,6})\s+(.+)$")
 SCENE_NUMBER_RE = re.compile(r"\s+#([^#]+)#\s*$")
 CHARACTER_EXTENSION_RE = re.compile(r"\s*\([^)]*\)\s*$")
-MANAGED_NOTE_RE = re.compile(r"^\[\[FP-(GENERAL|CHARACTER):(.+)\]\]$")
+MANAGED_NOTE_RE = re.compile(r"^\[\[FP-(GENERAL|CHARACTER|BEATS):(.+)\]\]$")
 COURIER_PRIME_FONT_ROOT = Path(__file__).resolve().with_name("web") / "fonts"
 COURIER_PRIME_FONT_FILES = {
     "CourierPrime": "CourierPrime-Regular.ttf",
@@ -291,6 +292,7 @@ def analyze_source(source: str) -> dict[str, Any]:
     action_words = 0
     general_notes: list[dict[str, Any]] = []
     character_notes: dict[str, dict[str, Any]] = {}
+    beat_sheet: dict[str, Any] = {"line": None, "premise": "", "beats": []}
 
     for index, raw in enumerate(lines):
         line_number = index + 1
@@ -310,6 +312,22 @@ def analyze_source(source: str) -> dict[str, Any]:
             managed_note = MANAGED_NOTE_RE.match(stripped)
             if managed_note and managed_note.group(1) == "GENERAL":
                 general_notes.append({"line": index, "text": unquote(managed_note.group(2))})
+            elif managed_note and managed_note.group(1) == "BEATS":
+                try:
+                    value = json.loads(unquote(managed_note.group(2)))
+                    beats = value.get("beats", []) if isinstance(value, dict) else []
+                    beat_sheet = {
+                        "line": index,
+                        "premise": str(value.get("premise", "")),
+                        "beats": [
+                            {"text": str(beat.get("text", "")), "scene": str(beat.get("scene", ""))}
+                            if isinstance(beat, dict) else {"text": str(beat), "scene": ""}
+                            for beat in beats
+                            if (isinstance(beat, dict) and beat.get("text")) or (not isinstance(beat, dict) and beat)
+                        ],
+                    }
+                except (json.JSONDecodeError, TypeError, AttributeError):
+                    pass
             elif managed_note:
                 encoded_name, separator, encoded_text = managed_note.group(2).partition(":")
                 if separator:
@@ -422,4 +440,5 @@ def analyze_source(source: str) -> dict[str, Any]:
         "titleFields": title_fields,
         "generalNotes": general_notes,
         "characterNotes": character_notes,
+        "beatSheet": beat_sheet,
     }
