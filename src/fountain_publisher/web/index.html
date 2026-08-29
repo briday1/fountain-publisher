@@ -217,15 +217,29 @@
           <button id="github-disconnect" type="button">Disconnect</button>
         </div>
         <div class="github-controls">
-          <label>Repository<select id="github-repository"></select></label>
-          <label>Branch<select id="github-branch"></select></label>
+          <label class="github-repository-control">
+            <span class="github-control-label">Repository</span>
+            <input id="github-repository" type="text" list="github-repositories" placeholder="Find repository…" autocomplete="off" />
+            <datalist id="github-repositories"></datalist>
+          </label>
+          <label class="github-branch-control">
+            <span class="github-control-label">Branch</span>
+            <input id="github-branch" type="text" list="github-branches" placeholder="Find branch…" autocomplete="off" />
+            <datalist id="github-branches"></datalist>
+          </label>
         </div>
         <nav id="github-breadcrumbs" class="github-breadcrumbs" aria-label="Repository path"></nav>
         <div id="github-files" class="github-files" role="list"></div>
-        <footer class="github-save-panel">
-          <label>File name<input id="github-filename" type="text" value="Untitled.fountain" /></label>
-          <label>Commit message<input id="github-commit-message" type="text" value="Update screenplay" /></label>
-          <button class="primary" id="github-save-here" type="button">Save here</button>
+        <footer id="github-save-panel" class="github-save-panel">
+          <details id="github-save-details" open>
+            <summary>Save to this folder</summary>
+            <div class="github-save-fields">
+              <label>File name<input id="github-filename" type="text" value="Untitled.fountain" /></label>
+              <label>Commit message<input id="github-commit-message" type="text" value="Update screenplay" /></label>
+              <button class="primary" id="github-save-here" type="button">Save here</button>
+              <p id="github-save-status" role="status" aria-live="polite"></p>
+            </div>
+          </details>
         </footer>
       </article>
     </dialog>

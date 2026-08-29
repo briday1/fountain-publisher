@@ -211,8 +211,12 @@ async function apiRequest(request, env, url) {
   const repo = url.searchParams.get("repo");
   if (!safeRepository(owner) || !safeRepository(repo)) return json({ error: "Invalid repository" }, 400);
   if (url.pathname === "/api/branches") {
-    const branches = await (await githubFetch(`/repos/${owner}/${repo}/branches?per_page=100`, session.access_token)).json();
-    return json({ branches: branches.map((branch) => branch.name) });
+    const [branchesResponse, repositoryResponse] = await Promise.all([
+      githubFetch(`/repos/${owner}/${repo}/branches?per_page=100`, session.access_token),
+      githubFetch(`/repos/${owner}/${repo}`, session.access_token),
+    ]);
+    const [branches, repository] = await Promise.all([branchesResponse.json(), repositoryResponse.json()]);
+    return json({ branches: branches.map((branch) => branch.name), defaultBranch: repository.default_branch });
   }
   if (url.pathname === "/api/contents") {
     const path = url.searchParams.get("path") || "";
@@ -231,7 +235,8 @@ async function apiRequest(request, env, url) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ message: body.message, content: encodeContent(body.content), branch: branch || undefined, sha: body.sha || undefined }),
       })).json();
-      return json({ sha: result.content?.sha, commit: result.commit?.html_url });
+      if (!result.content?.sha || !result.commit?.html_url) return json({ error: "GitHub did not confirm the commit" }, 502);
+      return json({ sha: result.content.sha, commit: result.commit.html_url });
     }
   }
   return json({ error: "Not found" }, 404);

@@ -205,6 +205,7 @@ const MANAGED_NOTE_RE = /^\[\[FP-(GENERAL|CHARACTER):(.+)\]\]$/;
 const source = $("#source");
 const page = $("#screenplay-page");
 const WORKSPACE_CACHE_KEY = "fountain-publisher.workspace.v1";
+const GITHUB_BROWSER_KEY = "fountain-publisher.github-browser.v1";
 const GITHUB_API = "https://api.fountain-publisher.com";
 let STATIC_HOST = location.hostname.endsWith(".github.io") || new URLSearchParams(location.search).get("static") === "1";
 const docSettings = {
@@ -240,6 +241,14 @@ const state = {
   previewContextText: "",
   githubConnected: false,
   githubInstallUrl: "",
+  githubRepositories: [],
+  githubBranches: [],
+  githubRepositoryTimer: 0,
+  githubColumns: [],
+  githubFilesRevision: 0,
+  githubBrowserMode: "open",
+  githubRepository: "",
+  githubBranch: "",
   githubPath: "",
   githubFile: null,
 };
@@ -1521,7 +1530,9 @@ async function refreshGithubSession({ notify = false } = {}) {
 }
 
 function openGithubPopup(url) {
-  const popup = window.open(url, "fountain-publisher-github", "popup,width=600,height=760");
+  const width = Math.min(480, screen.availWidth - 24);
+  const height = Math.min(640, screen.availHeight - 24);
+  const popup = window.open(url, "fountain-publisher-github", `popup,width=${width},height=${height}`);
   if (!popup) toast("Allow popups to connect GitHub");
   return popup;
 }
@@ -1532,15 +1543,39 @@ async function connectGithub() {
 }
 
 function selectedGithubRepository() {
-  const option = $("#github-repository").selectedOptions[0];
-  if (!option?.value) return null;
-  const [owner, repo] = option.value.split("/");
-  return { owner, repo, fullName: option.value, defaultBranch: option.dataset.defaultBranch };
+  const fullName = $("#github-repository").value.trim();
+  const repository = state.githubRepositories.find((item) => item.fullName === fullName);
+  if (!repository) return null;
+  const [owner, repo] = fullName.split("/");
+  return { ...repository, owner, repo };
 }
 
-function githubContentPath(path = state.githubPath) {
+function readGithubBrowserLocation() {
+  try {
+    const location = JSON.parse(localStorage.getItem(GITHUB_BROWSER_KEY) || "null");
+    if (typeof location?.repository === "string" && typeof location?.path === "string") return location;
+  } catch { /* Fall back to this tab's confirmed location. */ }
+  return state.githubRepository ? { repository: state.githubRepository, branch: state.githubBranch, path: state.githubPath } : null;
+}
+
+function rememberGithubBrowserLocation() {
   const repository = selectedGithubRepository();
   const branch = $("#github-branch").value;
+  if (!repository || !branch) return;
+  const location = { repository: repository.fullName, branch, path: state.githubPath };
+  state.githubRepository = location.repository;
+  state.githubBranch = location.branch;
+  try {
+    localStorage.setItem(GITHUB_BROWSER_KEY, JSON.stringify(location));
+  } catch { /* Browsing must continue if private mode blocks local storage. */ }
+}
+
+function renderGithubRepositories() {
+  $("#github-repositories").innerHTML = state.githubRepositories.map((repo) => `<option value="${escapeHtml(repo.fullName)}">${repo.private ? "Private" : "Public"}</option>`).join("");
+  $("#github-repository").disabled = !state.githubRepositories.length;
+}
+
+function githubContentPath(path = state.githubPath, repository = selectedGithubRepository(), branch = $("#github-branch").value) {
   if (!repository) return "";
   return `/api/contents?${new URLSearchParams({ owner: repository.owner, repo: repository.repo, branch, path })}`;
 }
@@ -1554,47 +1589,116 @@ function renderGithubBreadcrumbs() {
   $("#github-breadcrumbs").innerHTML = items.join("");
 }
 
-async function loadGithubFiles(path = "") {
-  state.githubPath = path;
-  renderGithubBreadcrumbs();
+function renderGithubColumns({ animate = true } = {}) {
+  const fileAction = state.githubBrowserMode === "save" ? "Select" : "Open";
+  $("#github-files").innerHTML = state.githubColumns.map((column, index) => {
+    const selectedPath = state.githubColumns[index + 1]?.path;
+    const entries = column.entries.map((entry) => `<button type="button" role="listitem" data-github-entry="${escapeHtml(entry.path)}" data-github-type="${entry.type}"${entry.path === selectedPath ? ` class="selected" aria-current="true"` : ""}><span aria-hidden="true">${entry.type === "dir" ? "▸" : "F"}</span><span>${escapeHtml(entry.name)}</span><small>${entry.type === "dir" ? "Folder" : fileAction}</small></button>`).join("");
+    return `<div class="github-column" data-github-column="${escapeHtml(column.path)}">${entries || `<div class="github-empty">No Fountain files in this folder.</div>`}</div>`;
+  }).join("");
+  $("#github-files").lastElementChild?.scrollIntoView({ behavior: animate ? "smooth" : "auto", block: "nearest", inline: "end" });
+}
+
+async function loadGithubFiles(path = "", { remember = true, render = true, animate = true } = {}) {
+  const revision = ++state.githubFilesRevision;
+  const repository = selectedGithubRepository();
+  const branch = $("#github-branch").value;
   const files = $("#github-files");
-  files.innerHTML = `<div class="github-empty">Loading repository…</div>`;
+  $("#github-save-here").disabled = true;
+  if (!path && render) files.innerHTML = `<div class="github-column"><div class="github-empty">Loading repository…</div></div>`;
   try {
     const result = await githubRequest(githubContentPath(path));
+    if (revision !== state.githubFilesRevision || selectedGithubRepository()?.fullName !== repository?.fullName || $("#github-branch").value !== branch) return false;
     const entries = (Array.isArray(result) ? result : [result])
       .filter((entry) => entry.type === "dir" || /\.(fountain|txt)$/i.test(entry.name))
       .sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === "dir" ? -1 : 1));
-    files.innerHTML = entries.length ? entries.map((entry) => `<button type="button" role="listitem" data-github-entry="${escapeHtml(entry.path)}" data-github-type="${entry.type}"><span>${entry.type === "dir" ? "▸" : "F"}</span><span>${escapeHtml(entry.name)}</span><small>${entry.type === "dir" ? "Folder" : "Fountain"}</small></button>`).join("") : `<div class="github-empty">No Fountain files in this folder.</div>`;
+    const parentPath = path.split("/").slice(0, -1).join("/");
+    const parentIndex = path ? state.githubColumns.findIndex((column) => column.path === parentPath) : -1;
+    state.githubColumns = path && parentIndex >= 0
+      ? [...state.githubColumns.slice(0, parentIndex + 1), { path, entries }]
+      : [{ path, entries }];
+    state.githubPath = path;
+    if (remember) rememberGithubBrowserLocation();
+    if (render) {
+      renderGithubBreadcrumbs();
+      renderGithubColumns({ animate });
+    }
+    return true;
   } catch (error) {
-    files.innerHTML = `<div class="github-empty">${escapeHtml(error.message)}</div>`;
+    if (revision === state.githubFilesRevision) files.innerHTML = `<div class="github-column"><div class="github-empty">${escapeHtml(error.message)}</div></div>`;
+    return false;
+  } finally {
+    if (revision === state.githubFilesRevision) $("#github-save-here").disabled = false;
   }
 }
 
-async function loadGithubBranches() {
+async function loadGithubFolderPath(path = "") {
+  $("#github-files").innerHTML = `<div class="github-column"><div class="github-empty">Loading repository…</div></div>`;
+  if (!(await loadGithubFiles("", { remember: !path, render: !path, animate: false }))) return;
+  let revision = state.githubFilesRevision;
+  if (!path) return;
+  const parts = path.split("/");
+  for (let index = 0; index < parts.length; index += 1) {
+    const finalFolder = index === parts.length - 1;
+    if (revision !== state.githubFilesRevision || !(await loadGithubFiles(parts.slice(0, index + 1).join("/"), { remember: finalFolder, render: finalFolder, animate: false }))) {
+      return;
+    }
+    revision = state.githubFilesRevision;
+  }
+}
+
+async function loadGithubBranches(path = "", rememberedBranch = "") {
+  const revision = ++state.githubFilesRevision;
   const repository = selectedGithubRepository();
   if (!repository) return;
-  const result = await githubRequest(`/api/branches?${new URLSearchParams({ owner: repository.owner, repo: repository.repo })}`);
-  $("#github-branch").innerHTML = result.branches.map((branch) => `<option value="${escapeHtml(branch)}"${branch === repository.defaultBranch ? " selected" : ""}>${escapeHtml(branch)}</option>`).join("");
-  await loadGithubFiles("");
+  $("#github-save-here").disabled = true;
+  try {
+    const result = await githubRequest(`/api/branches?${new URLSearchParams({ owner: repository.owner, repo: repository.repo })}`);
+    if (revision !== state.githubFilesRevision || selectedGithubRepository()?.fullName !== repository.fullName) return;
+    const availableBranches = result.branches;
+    const branch = [rememberedBranch, repository.defaultBranch, result.defaultBranch, "main"]
+      .find((candidate) => candidate && availableBranches.includes(candidate)) || availableBranches[0] || "";
+    state.githubBranches = availableBranches;
+    $("#github-branches").innerHTML = availableBranches.map((name) => `<option value="${escapeHtml(name)}"></option>`).join("");
+    $("#github-branch").value = branch;
+    state.githubColumns = [];
+    await loadGithubFolderPath(path);
+  } finally {
+    if (revision === state.githubFilesRevision) $("#github-save-here").disabled = false;
+  }
 }
 
 async function loadGithubRepositories() {
   const result = await githubRequest("/api/repositories");
   state.githubInstallUrl = result.installUrl;
+  state.githubRepositories = result.repositories;
   $("#github-install").hidden = false;
-  $("#github-repository").innerHTML = result.repositories.map((repo) => `<option value="${escapeHtml(repo.fullName)}" data-default-branch="${escapeHtml(repo.defaultBranch)}">${escapeHtml(repo.fullName)}${repo.private ? " · Private" : ""}</option>`).join("");
+  renderGithubRepositories();
   if (!result.repositories.length) {
-    $("#github-files").innerHTML = `<div class="github-empty">Install Fountain Publisher on at least one repository to browse files.</div>`;
-    $("#github-branch").innerHTML = "";
+    $("#github-files").innerHTML = `<div class="github-column"><div class="github-empty">Install Fountain Publisher on at least one repository to browse files.</div></div>`;
+    $("#github-branch").value = "";
     return;
   }
-  await loadGithubBranches();
+  const remembered = readGithubBrowserLocation();
+  const repository = remembered && result.repositories.some((repo) => repo.fullName === remembered.repository)
+    ? remembered.repository
+    : result.repositories[0].fullName;
+  $("#github-repository").value = repository;
+  const restoreLocation = remembered?.repository === $("#github-repository").value ? remembered : null;
+  await loadGithubBranches(restoreLocation?.path || "", restoreLocation?.branch || "");
 }
 
-async function openGithubBrowser() {
+async function openGithubBrowser(mode = "open") {
   if (!state.githubConnected && !(await refreshGithubSession())) return connectGithub();
   closeMenus();
-  $("#github-filename").value = normalizedFilename("fountain");
+  state.githubBrowserMode = mode;
+  $("#github-dialog-title").textContent = mode === "save" ? "Save to GitHub" : "Open from GitHub";
+  $("#github-save-panel").hidden = mode !== "save";
+  if (mode === "save") {
+    $("#github-filename").value = normalizedFilename("fountain");
+    $("#github-save-status").textContent = "";
+  }
+  $("#github-save-details").open = mode === "save" && !matchMedia("(max-width: 640px)").matches;
   $("#github-dialog").showModal();
   try { await loadGithubRepositories(); } catch (error) { toast(error.message); }
 }
@@ -1604,8 +1708,13 @@ function decodeGithubContent(content) {
   return new TextDecoder().decode(Uint8Array.from(binary, (character) => character.charCodeAt(0)));
 }
 
-async function openGithubFile(path) {
+async function openGithubFile(path, trigger) {
   if (!(await confirmDiscard())) return;
+  if (trigger) {
+    trigger.disabled = true;
+    trigger.setAttribute("aria-busy", "true");
+    trigger.querySelector("small").textContent = "Opening…";
+  }
   try {
     const repository = selectedGithubRepository();
     const branch = $("#github-branch").value;
@@ -1615,33 +1724,61 @@ async function openGithubFile(path) {
     setDocument(decodeGithubContent(file.content), file.name, true, remote);
     $("#github-dialog").close();
     toast(`Opened ${repository.fullName}/${path}`);
-  } catch (error) { toast(error.message); }
+  } catch (error) {
+    toast(error.message);
+    if (trigger?.isConnected) {
+      trigger.disabled = false;
+      trigger.removeAttribute("aria-busy");
+      trigger.querySelector("small").textContent = "Open";
+    }
+  }
 }
 
 async function saveGithubFile() {
   const repository = selectedGithubRepository();
   const branch = $("#github-branch").value;
+  const folder = state.githubPath;
   const filename = $("#github-filename").value.trim();
   const message = $("#github-commit-message").value.trim();
-  if (!repository || !branch || !/^[^/]+\.(fountain|txt)$/i.test(filename)) return toast("Enter a .fountain file name");
-  const path = [state.githubPath, filename].filter(Boolean).join("/");
+  if (!repository || repository.fullName !== state.githubRepository || branch !== state.githubBranch) return toast("Choose a loaded repository and branch");
+  if (!/^[^/]+\.(fountain|txt)$/i.test(filename)) return toast("Enter a .fountain file name");
+  const path = [folder, filename].filter(Boolean).join("/");
   const linked = state.githubFile;
-  const sha = linked && linked.owner === repository.owner && linked.repo === repository.repo && linked.branch === branch && linked.path === path ? linked.sha : undefined;
+  const existing = state.githubColumns.find((column) => column.path === folder)?.entries.find((entry) => entry.type === "file" && entry.path === path);
+  const sha = linked && linked.owner === repository.owner && linked.repo === repository.repo && linked.branch === branch && linked.path === path
+    ? linked.sha
+    : existing?.sha;
+  const button = $("#github-save-here");
+  const status = $("#github-save-status");
+  button.disabled = true;
+  button.textContent = "Saving…";
+  status.className = "";
+  status.textContent = `Saving to ${repository.fullName} · ${branch} · ${folder || "Root"}…`;
   try {
-    const result = await githubRequest(githubContentPath(path), {
+    const result = await githubRequest(githubContentPath(path, repository, branch), {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ content: source.value, message: message || `Update ${filename}`, sha }),
     });
+    if (!result.sha || !result.commit) throw new Error("GitHub did not confirm the commit");
+    const saved = await githubRequest(githubContentPath(path, repository, branch));
+    if (saved.sha !== result.sha) throw new Error("GitHub could not verify the saved file");
     state.githubFile = { owner: repository.owner, repo: repository.repo, branch, path, sha: result.sha };
     state.filename = filename;
     state.savedSource = source.value;
     $("#filename").textContent = filename;
     document.title = `${filename} — Fountain Publisher`;
     document.body.classList.remove("dirty");
-    $("#github-dialog").close();
-    toast(`Committed ${repository.fullName}/${path}`);
-  } catch (error) { toast(error.message); }
+    status.className = "success";
+    status.innerHTML = `Saved to ${escapeHtml(branch)} · <a href="${escapeHtml(result.commit)}" target="_blank" rel="noopener noreferrer">View commit</a>`;
+  } catch (error) {
+    status.className = "error";
+    status.textContent = error.message;
+    toast(error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Save here";
+  }
 }
 
 function normalizedFilename(extension) {
@@ -2395,24 +2532,52 @@ $("#delete-general-note").addEventListener("click", () => {
 
 $("#new-file").addEventListener("click", newFile); $("#open-file").addEventListener("click", openFile); $("#save-file").addEventListener("click", () => saveFile(false)); $("#save-file-as").addEventListener("click", () => saveFile(true));
 $("#github-connect").addEventListener("click", connectGithub);
-$("#github-open").addEventListener("click", openGithubBrowser);
-$("#github-save").addEventListener("click", openGithubBrowser);
+$("#github-open").addEventListener("click", () => openGithubBrowser("open"));
+$("#github-save").addEventListener("click", () => openGithubBrowser("save"));
 $("#close-github-dialog").addEventListener("click", () => $("#github-dialog").close());
 $("#github-install").addEventListener("click", () => { if (state.githubInstallUrl) openGithubPopup(state.githubInstallUrl); });
 $("#github-disconnect").addEventListener("click", async () => {
   try { await githubRequest("/auth/logout", { method: "POST" }); } catch { /* the local disconnected state still applies */ }
   state.githubConnected = false; state.githubFile = null;
+  state.githubRepository = ""; state.githubBranch = ""; state.githubPath = "";
+  localStorage.removeItem(GITHUB_BROWSER_KEY);
   if (clearWorkspaceOnExit()) clearWorkspaceCache();
   updateGithubMenu(); $("#github-dialog").close(); toast("Disconnected from GitHub");
 });
-$("#github-repository").addEventListener("change", () => loadGithubBranches().catch((error) => toast(error.message)));
-$("#github-branch").addEventListener("change", () => loadGithubFiles("").catch((error) => toast(error.message)));
+$("#github-repository").addEventListener("input", () => {
+  clearTimeout(state.githubRepositoryTimer);
+  state.githubFilesRevision += 1;
+  $("#github-save-here").disabled = true;
+  if (!selectedGithubRepository()) {
+    $("#github-branch").value = "";
+    state.githubBranches = [];
+    $("#github-branches").innerHTML = "";
+    $("#github-files").innerHTML = `<div class="github-column"><div class="github-empty">Choose a repository suggestion.</div></div>`;
+    return;
+  }
+  $("#github-files").innerHTML = `<div class="github-column"><div class="github-empty">Loading repository…</div></div>`;
+  state.githubRepositoryTimer = setTimeout(() => loadGithubBranches().catch((error) => toast(error.message)), 250);
+});
+$("#github-branch").addEventListener("input", () => {
+  clearTimeout(state.githubRepositoryTimer);
+  state.githubFilesRevision += 1;
+  $("#github-save-here").disabled = true;
+  if (!state.githubBranches.includes($("#github-branch").value)) {
+    $("#github-files").innerHTML = `<div class="github-column"><div class="github-empty">Choose a branch suggestion.</div></div>`;
+    return;
+  }
+  state.githubRepositoryTimer = setTimeout(() => loadGithubFiles("").catch((error) => toast(error.message)), 250);
+});
 $("#github-breadcrumbs").addEventListener("click", (event) => { const button = event.target.closest("[data-github-path]"); if (button) loadGithubFiles(button.dataset.githubPath); });
 $("#github-files").addEventListener("click", (event) => {
   const entry = event.target.closest("[data-github-entry]");
   if (!entry) return;
   if (entry.dataset.githubType === "dir") loadGithubFiles(entry.dataset.githubEntry);
-  else openGithubFile(entry.dataset.githubEntry);
+  else if (state.githubBrowserMode === "save") {
+    $("#github-filename").value = entry.dataset.githubEntry.split("/").pop();
+    $("#github-save-details").open = true;
+    $("#github-save-status").textContent = "Filename selected. Choose Save here to commit.";
+  } else openGithubFile(entry.dataset.githubEntry, entry);
 });
 $("#github-save-here").addEventListener("click", saveGithubFile);
 window.addEventListener("message", async (event) => {
