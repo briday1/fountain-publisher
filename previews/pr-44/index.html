@@ -218,18 +218,27 @@
         </div>
         <div class="github-controls">
           <label class="github-repository-control">
-            Repository
-            <input id="github-repository-search" type="search" placeholder="Search repositories…" autocomplete="off" aria-controls="github-repository" />
-            <select id="github-repository" aria-label="Repository"></select>
+            <span class="github-control-label">Repository</span>
+            <input id="github-repository" type="text" list="github-repositories" placeholder="Find repository…" autocomplete="off" />
+            <datalist id="github-repositories"></datalist>
           </label>
-          <label>Branch<select id="github-branch"></select></label>
+          <label class="github-branch-control">
+            <span class="github-control-label">Branch</span>
+            <input id="github-branch" type="text" list="github-branches" placeholder="Find branch…" autocomplete="off" />
+            <datalist id="github-branches"></datalist>
+          </label>
         </div>
         <nav id="github-breadcrumbs" class="github-breadcrumbs" aria-label="Repository path"></nav>
         <div id="github-files" class="github-files" role="list"></div>
         <footer class="github-save-panel">
-          <label>File name<input id="github-filename" type="text" value="Untitled.fountain" /></label>
-          <label>Commit message<input id="github-commit-message" type="text" value="Update screenplay" /></label>
-          <button class="primary" id="github-save-here" type="button">Save here</button>
+          <details id="github-save-details" open>
+            <summary>Save to this folder</summary>
+            <div class="github-save-fields">
+              <label>File name<input id="github-filename" type="text" value="Untitled.fountain" /></label>
+              <label>Commit message<input id="github-commit-message" type="text" value="Update screenplay" /></label>
+              <button class="primary" id="github-save-here" type="button">Save here</button>
+            </div>
+          </details>
         </footer>
       </article>
     </dialog>
