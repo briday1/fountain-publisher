@@ -232,6 +232,11 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .preview-context-menu button:hover, .preview-context-menu button:focus-visible { background: var(--accent-soft); outline: none; }
 .editor-footer { min-height: 31px; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 5px 10px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
 .editor-footer > span:last-child { white-space: nowrap; }
+.editor-mode { display: inline-flex; align-items: center; gap: 7px; }
+.vim-status { padding: 2px 5px; border-radius: 3px; background: color-mix(in srgb, currentColor 12%, transparent); font: 700 9px/1.2 var(--mono); letter-spacing: .06em; }
+.vim-status[data-mode="normal"] { color: var(--metric-pages-ink); }
+.vim-status[data-mode="insert"] { color: var(--metric-words-ink); }
+.vim-status[data-mode="visual"] { color: var(--metric-scenes-ink); }
 
 .preview-panel { min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; position: relative; background: var(--bg); }
 .preview-toolbar { flex: 0 0 auto; min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 12px 6px 15px; border-bottom: 1px solid var(--border); background: var(--panel); }
@@ -259,13 +264,15 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .script-line:focus { outline: none; }
 .script-line.source-current { background: color-mix(in srgb, var(--syntax-scene) 10%, transparent); }
 .script-line.lyric { margin-left: 96px; font-style: italic; }
-.script-line.empty { height: 16px; }
+.script-line.empty { display: none; height: 16px; }
+.script-line.empty.source-current { display: block; }
 .script-line.title-key { display: none; }
 .script-line.title-value { text-align: center; margin: 16px 0; }
 .script-line.title-value.title { margin-top: 230px; }
 .script-line.scene { position: relative; margin: 32px 0 16px; font-weight: 700; text-transform: uppercase; }
 body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: attr(data-scene-number) "."; position: absolute; right: 100%; padding-right: 10px; top: 0; font-weight: 400; text-transform: none; color: var(--paper-ink); opacity: .45; white-space: nowrap; }
-.script-line.action { margin: 0 0 16px; }
+.script-line.action { margin: 16px 0 0; }
+.script-line.action + .script-line.action { margin-top: 0; }
 .script-line.character { width: 250px; margin: 16px 0 0 192px; text-transform: uppercase; }
 .script-line.parenthetical { width: 300px; margin-left: 144px; padding-left: 16px; }
 .script-line.dialogue { width: 336px; margin-left: 96px; }
@@ -494,6 +501,7 @@ button:disabled { cursor: default; opacity: .45; }
 /* Mobile — single-panel tab layout */
 @media (max-width: 640px) {
   :root { --mobile-tabs-h: 44px; }
+  .desktop-setting, .vim-status { display: none !important; }
 
   .mobile-panel-tabs {
     display: flex; height: var(--mobile-tabs-h);

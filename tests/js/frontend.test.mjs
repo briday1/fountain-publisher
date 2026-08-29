@@ -70,6 +70,16 @@ test("live and PDF previews have bounded scrolling containers", async () => {
   assert.match(app, /\$\("#preview-page-stage"\)\.hidden = mode !== "live"/);
 });
 
+test("switching through PDF restores the live Preview viewport", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /livePreviewScrollTop:\s*0/);
+  assert.match(app, /livePreviewScrollLeft:\s*0/);
+  assert.match(app, /if \(state\.previewMode === "live" && mode === "pdf"\)[\s\S]*state\.livePreviewScrollTop = preview\.scrollTop;[\s\S]*state\.livePreviewScrollLeft = preview\.scrollLeft;/);
+  assert.match(app, /else if \(returnToLive\) requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => \{[\s\S]*preview\.scrollTop = state\.livePreviewScrollTop;[\s\S]*preview\.scrollLeft = state\.livePreviewScrollLeft;[\s\S]*clampPreviewScroll\(preview\)/);
+  assert.match(app, /previewScrollTop:\s*state\.previewMode === "live"/);
+  assert.match(app, /previewScrollLeft:\s*state\.previewMode === "live"/);
+});
+
 test("toolbar menus use Pugflow-style popup interaction", async () => {
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(css, /\.toolbar-menu\s*\{[^}]*height:\s*30px;/s);
@@ -285,6 +295,13 @@ test("the active non-printing line remains visible as editor context", async () 
   const css = await readFile(cssPath, "utf8");
   assert.match(css, /\.script-line\.section\.source-current/);
   assert.match(css, /content:\s*"EDITOR ONLY/);
+  assert.match(css, /\.script-line\.empty\s*\{[^}]*display:\s*none;[^}]*\}[\s\S]*\.script-line\.empty\.source-current\s*\{[^}]*display:\s*block;/);
+});
+
+test("Preview action spacing follows Screenplain paragraph spacing", async () => {
+  const css = await readFile(cssPath, "utf8");
+  assert.match(css, /\.script-line\.action\s*\{[^}]*margin:\s*16px 0 0;/);
+  assert.match(css, /\.script-line\.action \+ \.script-line\.action\s*\{[^}]*margin-top:\s*0;/);
 });
 
 test("scene outline clicks synchronize source and live preview", async () => {
@@ -481,6 +498,33 @@ test("shared undo and redo work from source and screenplay focus", async () => {
   assert.match(app, /page\.contains\(document\.activeElement\)/);
   assert.match(app, /event\.shiftKey \? redoDocument\(\) : undoDocument\(\)/);
   assert.match(app, /event\.key\.toLowerCase\(\) === "y"/);
+});
+
+test("desktop Vim mode is persistent and shared by Source and Preview", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(html, /class="setting-row desktop-setting"[^>]*>[\s\S]*Vim mode[\s\S]*id="vim-mode"/);
+  assert.match(html, /id="vim-source-status"[^>]*hidden>NORMAL/);
+  assert.match(html, /id="vim-preview-status"[^>]*hidden>NORMAL/);
+  assert.match(html, /<h4>Vim mode<\/h4>[\s\S]*Visual mode[\s\S]*<kbd>dd<\/kbd>[\s\S]*<kbd>yy<\/kbd>/);
+  assert.match(app, /vimEnabled:\s*localStorage\.getItem\("fountain-publisher\.vim-mode"\) === "true"/);
+  assert.match(app, /function handleVimKey\(event, surface\)/);
+  assert.match(app, /handleVimKey\(event, "source"\)/);
+  assert.match(app, /handleVimKey\(event, "preview"\)/);
+  assert.match(app, /\["h", "j", "k", "l", "0", "\^", "\$", "w", "b", "G"\]/);
+  assert.match(app, /state\.vimYank = `\$\{position\.lines\[position\.line\]\}\\n`/);
+  assert.match(app, /localStorage\.setItem\("fountain-publisher\.vim-mode", String\(state\.vimEnabled\)\)/);
+  assert.match(app, /function vimPreviewTargetLine\(currentLine, command\)[\s\S]*\.script-line\[data-line\][\s\S]*!line\.classList\.contains\("empty"\)[\s\S]*line > currentLine[\s\S]*line < currentLine/);
+  assert.match(app, /moveVimCursor\(key, previewFocus\)/);
+  assert.match(app, /state\.vimMode === "visual"[\s\S]*focusVimSelection\(previewFocus[\s\S]*\["y", "d", "x"\]/);
+  assert.match(app, /state\.vimMode === "insert"[\s\S]*\["\[", "c"\]\.includes\(event\.key\.toLowerCase\(\)\)/);
+  assert.match(app, /state\.vimMode === "visual" && event\.ctrlKey && event\.key\.toLowerCase\(\) === "c"/);
+  assert.match(app, /function renderedTextOffsetRect\(element, offset\)[\s\S]*getClientRects/);
+  assert.match(app, /function moveVimDisplayLine\(command, previewFocus, visual = false\)[\s\S]*previewWrappedRowOffset[\s\S]*sourceWrappedRowOffset/);
+  assert.match(app, /state\.vimPending === "g"[\s\S]*moveVimDisplayLine\(`g\$\{key\}`/);
+  assert.match(app, /function moveVimHalfPage\(command, previewFocus, visual = false\)[\s\S]*viewportHeight \/ lineHeight \/ 2[\s\S]*previewWrappedRowOffset[\s\S]*sourceWrappedRowOffset/);
+  assert.match(app, /event\.ctrlKey && \["d", "u"\]\.includes\(event\.key\.toLowerCase\(\)\)[\s\S]*moveVimHalfPage/);
+  assert.match(css, /\.vim-status\[data-mode="normal"\][^}]*var\(--metric-pages-ink\)[\s\S]*\.vim-status\[data-mode="insert"\][^}]*var\(--metric-words-ink\)[\s\S]*\.vim-status\[data-mode="visual"\][^}]*var\(--metric-scenes-ink\)/);
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.desktop-setting, \.vim-status\s*\{\s*display:\s*none !important;/s);
 });
 
 test("dual dialogue renders concurrently in the live screenplay", async () => {

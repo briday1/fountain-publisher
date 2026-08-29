@@ -227,6 +227,8 @@ const state = {
   previewCompletionIndex: 0,
   previewCompletionLine: null,
   previewMode: "live",
+  livePreviewScrollTop: 0,
+  livePreviewScrollLeft: 0,
   pdfUrl: null,
   insightLine: null,
   previewZoom: "100",
@@ -251,6 +253,13 @@ const state = {
   githubBranch: "",
   githubPath: "",
   githubFile: null,
+  vimEnabled: localStorage.getItem("fountain-publisher.vim-mode") === "true",
+  vimMode: "normal",
+  vimPending: "",
+  vimVisualAnchor: 0,
+  vimVisualFocus: 0,
+  vimYank: "",
+  vimYankLine: false,
 };
 
 function emptyMetadata() {
@@ -276,7 +285,8 @@ function persistWorkspaceNow() {
       selectionStart: source.selectionStart,
       selectionEnd: source.selectionEnd,
       sourceScrollTop: source.scrollTop,
-      previewScrollTop: $("#preview-scroll").scrollTop,
+      previewScrollTop: state.previewMode === "live" ? $("#preview-scroll").scrollTop : state.livePreviewScrollTop,
+      previewScrollLeft: state.previewMode === "live" ? $("#preview-scroll").scrollLeft : state.livePreviewScrollLeft,
       previewMode: state.previewMode,
       zoom: state.previewZoom,
       githubFile: state.githubFile,
@@ -2046,12 +2056,23 @@ function isMobilePreview() {
 
 async function setPreviewMode(mode) {
   if (isMobilePreview()) mode = "live";
+  const preview = $("#preview-scroll");
+  const returnToLive = state.previewMode === "pdf" && mode === "live";
+  if (state.previewMode === "live" && mode === "pdf") {
+    state.livePreviewScrollTop = preview.scrollTop;
+    state.livePreviewScrollLeft = preview.scrollLeft;
+  }
   state.previewMode = mode; localStorage.setItem("fountain-publisher.preview", mode);
   $$('[data-preview-mode]').forEach((button) => { button.classList.toggle("active", button.dataset.previewMode === mode); const check = $(".menu-check", button); if (check) check.textContent = button.dataset.previewMode === mode ? "✓" : ""; });
   $("#preview-page-stage").hidden = mode !== "live"; page.hidden = mode !== "live"; $("#empty-state").hidden = mode !== "live" || Boolean(source.value.trim()); $("#pdf-view").hidden = mode !== "pdf";
   $("#preview-scroll").classList.toggle("pdf-mode", mode === "pdf");
   scheduleWorkspaceCache();
   if (mode === "pdf") await refreshPdf();
+  else if (returnToLive) requestAnimationFrame(() => requestAnimationFrame(() => {
+    preview.scrollTop = state.livePreviewScrollTop;
+    preview.scrollLeft = state.livePreviewScrollLeft;
+    clampPreviewScroll(preview);
+  }));
 }
 
 async function refreshPdf() {
@@ -2363,16 +2384,341 @@ const toolbarMenus = $$(".toolbar-menu");
 
 function closeMenus(except = null) { toolbarMenus.forEach((menu) => { if (menu !== except) menu.open = false; }); }
 
+function vimActive() {
+  return state.vimEnabled && !isMobilePreview();
+}
+
+function updateVimUi() {
+  const active = vimActive();
+  const label = state.vimMode.toUpperCase();
+  [$("#vim-source-status"), $("#vim-preview-status")].forEach((element) => {
+    element.hidden = !active;
+    element.textContent = label;
+    element.dataset.mode = state.vimMode;
+  });
+  document.body.classList.toggle("vim-enabled", active);
+  document.body.classList.toggle("vim-normal", active && state.vimMode === "normal");
+}
+
+function setVimMode(mode) {
+  state.vimMode = mode;
+  state.vimPending = "";
+  hideCompletions(); hidePreviewCompletions();
+  updateVimUi();
+}
+
+function vimCursorOffset() {
+  if (state.vimMode === "visual") return state.vimVisualFocus;
+  return source.selectionDirection === "backward" ? source.selectionStart : source.selectionEnd;
+}
+
+function vimLinePosition(offset = vimCursorOffset()) {
+  const lines = sourceLines();
+  const before = source.value.slice(0, offset);
+  const line = before.split("\n").length - 1;
+  const start = before.lastIndexOf("\n") + 1;
+  return { lines, line, start, column: offset - start, end: start + (lines[line]?.length || 0) };
+}
+
+function vimVisualRange(anchor = state.vimVisualAnchor, focus = state.vimVisualFocus) {
+  return { start: Math.min(anchor, focus), end: Math.min(source.value.length, Math.max(anchor, focus) + 1) };
+}
+
+function previewTextPoint(element, offset) {
+  let remaining = Math.max(0, Math.min(offset, element.textContent.length));
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+  while (node && remaining > node.textContent.length) { remaining -= node.textContent.length; node = walker.nextNode(); }
+  return node ? { node, offset: remaining } : { node: element, offset: element.childNodes.length };
+}
+
+function vimPreviewEndpoint(offset) {
+  const position = vimLinePosition(offset);
+  const line = $(`[data-line="${position.line}"]`, page);
+  if (!line) return null;
+  return { line, ...previewTextPoint(line, Math.min(position.column, line.textContent.length)) };
+}
+
+function focusVimSelection(previewFocus, anchor, focus) {
+  state.vimVisualAnchor = anchor;
+  state.vimVisualFocus = focus;
+  const visual = vimVisualRange(anchor, focus);
+  source.setSelectionRange(visual.start, visual.end, focus < anchor ? "backward" : "forward");
+  if (!previewFocus) {
+    source.focus({ preventScroll: true });
+    scrollSourceTarget(vimLinePosition(focus).line);
+    updateCursor({ scrollPreview: true });
+    return;
+  }
+  const anchorPoint = vimPreviewEndpoint(Math.min(source.value.length, anchor + (focus < anchor ? 1 : 0)));
+  const focusPoint = vimPreviewEndpoint(Math.min(source.value.length, focus + (focus >= anchor ? 1 : 0)));
+  if (!anchorPoint || !focusPoint) return;
+  page.focus({ preventScroll: true });
+  const selection = getSelection(); selection.removeAllRanges();
+  selection.setBaseAndExtent(anchorPoint.node, anchorPoint.offset, focusPoint.node, focusPoint.offset);
+  scrollPreviewTarget(focusPoint.line);
+  updateCursor();
+}
+
+function focusVimCursor(previewFocus, offset = source.selectionStart) {
+  source.setSelectionRange(offset, offset);
+  const position = vimLinePosition(offset);
+  if (!previewFocus) {
+    source.focus({ preventScroll: true });
+    scrollSourceTarget(position.line);
+    updateCursor({ scrollPreview: true });
+    return;
+  }
+  const line = $(`[data-line="${position.line}"]`, page);
+  if (!line) return;
+  page.focus({ preventScroll: true });
+  placeCaretAtOffset(line, Math.min(position.column, line.textContent.length));
+  scrollPreviewTarget(line);
+  updateCursor();
+}
+
+function changeVimSource(value, offset, previewFocus) {
+  source.value = value;
+  source.setSelectionRange(offset, offset);
+  sourceChanged();
+  focusVimCursor(previewFocus, offset);
+}
+
+function syncVimPreviewPosition() {
+  const line = previewLineForNode(getSelection()?.focusNode);
+  const edit = previewSelection(line);
+  if (line && edit) setSourceCursorFromPreview(line, edit.startOffset);
+}
+
+function vimPreviewTargetLine(currentLine, command) {
+  const renderedLines = [...new Set($$(".script-line[data-line]", page)
+    .filter((line) => !line.classList.contains("empty"))
+    .map((line) => Number(line.dataset.line))
+    .filter(Number.isFinite))]
+    .sort((left, right) => left - right);
+  if (!renderedLines.length) return currentLine;
+  if (command === "j") return renderedLines.find((line) => line > currentLine) ?? currentLine;
+  return renderedLines.findLast((line) => line < currentLine) ?? currentLine;
+}
+
+function renderedTextOffsetRect(element, offset) {
+  const length = element.textContent.replace(/\n$/, "").length;
+  const column = Math.max(0, Math.min(offset, length));
+  const point = previewTextPoint(element, column);
+  const range = document.createRange(); range.setStart(point.node, point.offset); range.collapse(true);
+  let rect = range.getClientRects()[0];
+  if (!rect && length) {
+    const adjacent = previewTextPoint(element, column < length ? column + 1 : column - 1);
+    range.setStart(column < length ? point.node : adjacent.node, column < length ? point.offset : adjacent.offset);
+    range.setEnd(column < length ? adjacent.node : point.node, column < length ? adjacent.offset : point.offset);
+    const character = range.getClientRects()[0];
+    if (character) rect = { top: character.top, left: column < length ? character.left : character.right };
+  }
+  return rect;
+}
+
+function wrappedRowTarget(points, currentColumn, command) {
+  const current = points.find(({ column }) => column === currentColumn)
+    || [...points].sort((left, right) => Math.abs(left.column - currentColumn) - Math.abs(right.column - currentColumn))[0];
+  if (!current?.rect) return null;
+  const tops = [...new Set(points.map(({ rect }) => Math.round(rect.top * 2) / 2))].sort((a, b) => a - b);
+  const row = tops.findIndex((top) => Math.abs(top - current.rect.top) < 1);
+  const targetRow = row + (command === "gj" ? 1 : -1);
+  if (targetRow < 0 || targetRow >= tops.length) return null;
+  const candidates = points.filter(({ rect }) => Math.abs(rect.top - tops[targetRow]) < 1);
+  return candidates.sort((left, right) => Math.abs(left.rect.left - current.rect.left) - Math.abs(right.rect.left - current.rect.left))[0]?.column ?? null;
+}
+
+function sourceWrappedRowOffset(command, startOffset) {
+  if (!document.body.classList.contains("source-wrap")) return null;
+  const position = vimLinePosition(startOffset);
+  const line = $(`[data-source-line="${position.line}"]`, $("#source-highlight"));
+  if (!line) return null;
+  const points = Array.from({ length: position.lines[position.line].length + 1 }, (_, column) => ({ column, rect: renderedTextOffsetRect(line, column) })).filter(({ rect }) => rect);
+  const column = wrappedRowTarget(points, position.column, command);
+  return column === null ? null : position.start + column;
+}
+
+function previewWrappedRowOffset(command, startOffset) {
+  const position = vimLinePosition(startOffset);
+  const line = $(`[data-line="${position.line}"]`, page);
+  if (!line) return null;
+  const original = position.lines[position.line];
+  const points = Array.from({ length: line.textContent.length + 1 }, (_, displayColumn) => ({
+    column: previewSourceOffset(line, original, displayColumn),
+    rect: renderedTextOffsetRect(line, displayColumn),
+  })).filter(({ rect }) => rect);
+  const sourceColumn = wrappedRowTarget(points, position.column, command);
+  return sourceColumn === null ? null : position.start + sourceColumn;
+}
+
+function moveVimDisplayLine(command, previewFocus, visual = false) {
+  const start = visual ? state.vimVisualFocus : vimCursorOffset();
+  const wrapped = previewFocus ? previewWrappedRowOffset(command, start) : sourceWrappedRowOffset(command, start);
+  const offset = wrapped ?? moveVimCursor(command === "gj" ? "j" : "k", previewFocus, start);
+  if (visual) focusVimSelection(previewFocus, state.vimVisualAnchor, offset);
+  else focusVimCursor(previewFocus, offset);
+}
+
+function moveVimHalfPage(command, previewFocus, visual = false) {
+  const lineHeight = parseFloat(getComputedStyle(previewFocus ? page : source).lineHeight) || 16;
+  const viewportHeight = previewFocus ? $("#preview-scroll").clientHeight : source.clientHeight;
+  const steps = Math.max(1, Math.floor(viewportHeight / lineHeight / 2));
+  const down = command === "d";
+  let offset = visual ? state.vimVisualFocus : vimCursorOffset();
+  for (let step = 0; step < steps; step += 1) {
+    const wrapped = previewFocus ? previewWrappedRowOffset(down ? "gj" : "gk", offset) : sourceWrappedRowOffset(down ? "gj" : "gk", offset);
+    offset = wrapped ?? moveVimCursor(down ? "j" : "k", previewFocus, offset);
+  }
+  if (visual) focusVimSelection(previewFocus, state.vimVisualAnchor, offset);
+  else focusVimCursor(previewFocus, offset);
+}
+
+function moveVimCursor(command, previewFocus = false, startOffset = vimCursorOffset()) {
+  const position = vimLinePosition(startOffset);
+  let offset = startOffset;
+  if (command === "h") offset = Math.max(position.start, offset - 1);
+  else if (command === "l") offset = Math.min(position.end, offset + 1);
+  else if (command === "0" || command === "^") offset = position.start;
+  else if (command === "$") offset = position.end;
+  else if (command === "j" || command === "k") {
+    const line = previewFocus
+      ? vimPreviewTargetLine(position.line, command)
+      : Math.max(0, Math.min(position.lines.length - 1, position.line + (command === "j" ? 1 : -1)));
+    offset = sourceOffsetForLine(position.lines, line, Math.min(position.column, position.lines[line].length));
+  } else if (command === "w") {
+    const match = source.value.slice(offset + 1).match(/\b\w/);
+    offset = match ? offset + 1 + match.index : source.value.length;
+  } else if (command === "b") {
+    const before = source.value.slice(0, Math.max(0, offset)).replace(/\W+$/, "");
+    const match = [...before.matchAll(/\b\w/g)].at(-1);
+    offset = match?.index ?? 0;
+  } else if (command === "G") offset = source.value.length;
+  return offset;
+}
+
+function handleVimKey(event, surface) {
+  if (!vimActive()) return false;
+  const previewFocus = surface === "preview";
+  if (previewFocus) syncVimPreviewPosition();
+  if (state.vimMode === "insert") {
+    if (event.key === "Escape" || (event.ctrlKey && ["[", "c"].includes(event.key.toLowerCase()))) {
+      event.preventDefault(); setVimMode("normal"); focusVimCursor(previewFocus);
+      return true;
+    }
+    return false;
+  }
+  if (state.vimMode === "visual" && event.ctrlKey && event.key.toLowerCase() === "c") {
+    event.preventDefault();
+    const focus = state.vimVisualFocus;
+    setVimMode("normal"); focusVimCursor(previewFocus, focus); return true;
+  }
+  if (event.ctrlKey && ["d", "u"].includes(event.key.toLowerCase())) {
+    event.preventDefault();
+    moveVimHalfPage(event.key.toLowerCase(), previewFocus, state.vimMode === "visual"); return true;
+  }
+  if ((event.metaKey || event.ctrlKey) && !(event.ctrlKey && event.key.toLowerCase() === "r")) return false;
+  event.preventDefault();
+  const key = event.key;
+  if (state.vimMode === "visual") {
+    if (["j", "k"].includes(key) && state.vimPending === "g") {
+      state.vimPending = ""; moveVimDisplayLine(`g${key}`, previewFocus, true); return true;
+    }
+    if (key === "g") { state.vimPending = state.vimPending === "g" ? "" : "g"; return true; }
+    if (["h", "j", "k", "l", "0", "^", "$", "w", "b", "G"].includes(key)) {
+      const focus = moveVimCursor(key, previewFocus, state.vimVisualFocus);
+      focusVimSelection(previewFocus, state.vimVisualAnchor, focus);
+      return true;
+    }
+    if (key === "v" || key === "Escape") {
+      const focus = state.vimVisualFocus;
+      setVimMode("normal"); focusVimCursor(previewFocus, focus); return true;
+    }
+    if (["y", "d", "x"].includes(key)) {
+      const visual = vimVisualRange();
+      state.vimYank = source.value.slice(visual.start, visual.end); state.vimYankLine = false;
+      const focus = visual.start;
+      if (key === "d" || key === "x") changeVimSource(source.value.slice(0, visual.start) + source.value.slice(visual.end), focus, previewFocus);
+      setVimMode("normal"); focusVimCursor(previewFocus, focus); return true;
+    }
+    return true;
+  }
+  const position = vimLinePosition();
+  if (event.ctrlKey && key.toLowerCase() === "r") { redoDocument(); return true; }
+  if (["j", "k"].includes(key) && state.vimPending === "g") {
+    state.vimPending = ""; moveVimDisplayLine(`g${key}`, previewFocus); return true;
+  }
+  if (["h", "j", "k", "l", "0", "^", "$", "w", "b", "G"].includes(key)) {
+    state.vimPending = "";
+    focusVimCursor(previewFocus, moveVimCursor(key, previewFocus)); return true;
+  }
+  if (key === "g") {
+    if (state.vimPending === "g") { state.vimPending = ""; focusVimCursor(previewFocus, 0); }
+    else state.vimPending = "g";
+    return true;
+  }
+  if (key === "v") {
+    const anchor = vimCursorOffset();
+    setVimMode("visual"); focusVimSelection(previewFocus, anchor, anchor); return true;
+  }
+  if (key === "i" || key === "a" || key === "I" || key === "A") {
+    let offset = source.selectionStart;
+    if (key === "a") offset = Math.min(position.end, offset + 1);
+    else if (key === "I") offset = position.start;
+    else if (key === "A") offset = position.end;
+    focusVimCursor(previewFocus, offset); setVimMode("insert"); return true;
+  }
+  if (key === "o" || key === "O") {
+    const insertAt = key === "o" ? position.end : position.start;
+    const value = `${source.value.slice(0, insertAt)}\n${source.value.slice(insertAt)}`;
+    changeVimSource(value, key === "o" ? insertAt + 1 : insertAt, previewFocus); setVimMode("insert"); return true;
+  }
+  if (key === "x" && source.selectionStart < position.end) {
+    const offset = source.selectionStart;
+    changeVimSource(source.value.slice(0, offset) + source.value.slice(offset + 1), offset, previewFocus); return true;
+  }
+  if (key === "d" || key === "y") {
+    if (state.vimPending !== key) { state.vimPending = key; return true; }
+    state.vimPending = "";
+    state.vimYank = `${position.lines[position.line]}\n`; state.vimYankLine = true;
+    if (key === "d") {
+      position.lines.splice(position.line, 1);
+      if (!position.lines.length) position.lines.push("");
+      const line = Math.min(position.line, position.lines.length - 1);
+      changeVimSource(position.lines.join("\n"), sourceOffsetForLine(position.lines, line, 0), previewFocus);
+    }
+    return true;
+  }
+  if (key === "p" && state.vimYank) {
+    if (state.vimYankLine) {
+      const pasted = state.vimYank.replace(/\n$/, "");
+      position.lines.splice(position.line + 1, 0, pasted);
+      const line = position.line + 1;
+      changeVimSource(position.lines.join("\n"), sourceOffsetForLine(position.lines, line, 0), previewFocus);
+    } else {
+      const offset = Math.min(source.value.length, source.selectionStart + 1);
+      changeVimSource(source.value.slice(0, offset) + state.vimYank + source.value.slice(offset), offset, previewFocus);
+    }
+    return true;
+  }
+  if (key === "u") { undoDocument(); return true; }
+  if (key === "Escape") { setVimMode("normal"); return true; }
+  state.vimPending = "";
+  return true;
+}
+
 source.addEventListener("input", (event) => {
   sourceChanged();
   if (event.inputType === "insertText") showCompletions();
   else hideCompletions();
 });
+source.addEventListener("beforeinput", (event) => { if (vimActive() && state.vimMode === "normal") event.preventDefault(); });
 source.addEventListener("scroll", () => { $("#line-numbers").scrollTop = source.scrollTop; syncSourceOverlay(); updateCursor(); scheduleWorkspaceCache(); });
 source.addEventListener("click", () => { updateCursor({ scrollPreview: true }); hideCompletions(); scheduleWorkspaceCache(); });
 source.addEventListener("select", () => { updateCursor({ scrollPreview: true }); scheduleWorkspaceCache(); });
 source.addEventListener("keyup", (event) => { if (!["Enter", "Tab", "Escape"].includes(event.key)) updateCursor({ scrollPreview: true }); scheduleWorkspaceCache(); });
 source.addEventListener("keydown", (event) => {
+  if (handleVimKey(event, "source")) return;
   if (!$("#completion-menu").hidden) {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); state.completionIndex = (state.completionIndex + (event.key === "ArrowDown" ? 1 : -1) + state.completionItems.length) % state.completionItems.length; renderCompletionMenu(); return; }
     if (event.key === "Tab") { event.preventDefault(); acceptCompletion(); return; }
@@ -2384,6 +2730,7 @@ source.addEventListener("keydown", (event) => {
 });
 
 page.addEventListener("beforeinput", (event) => {
+  if (vimActive() && state.vimMode === "normal") { event.preventDefault(); return; }
   const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); if (!line) return;
   const edit = previewSelection(line); if (!edit) return;
   const insertionTypes = new Set(["insertText", "insertReplacementText", "insertFromPaste", "insertFromDrop", "insertParagraph", "insertLineBreak"]);
@@ -2409,6 +2756,7 @@ page.addEventListener("paste", (event) => {
   replacePreviewSelection(edit, event.clipboardData?.getData("text/plain") || "");
 });
 page.addEventListener("keydown", (event) => {
+  if (handleVimKey(event, "preview")) return;
   const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); if (!line) return;
   if (!$("#preview-completion-menu").hidden) {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); state.previewCompletionIndex = (state.previewCompletionIndex + (event.key === "ArrowDown" ? 1 : -1) + state.previewCompletionItems.length) % state.previewCompletionItems.length; renderPreviewCharacterCompletions(); return; }
@@ -2604,6 +2952,11 @@ $("#word-wrap").addEventListener("change", () => {
   document.body.classList.toggle("source-wrap", enabled);
   source.setAttribute("wrap", enabled ? "soft" : "off");
   renderEditorChrome();
+});
+$("#vim-mode").addEventListener("change", (event) => {
+  state.vimEnabled = event.target.checked;
+  localStorage.setItem("fountain-publisher.vim-mode", String(state.vimEnabled));
+  setVimMode("normal");
 });
 $("#clear-workspace-on-exit").addEventListener("change", (event) => {
   localStorage.setItem("fountain-publisher.clear-workspace-on-exit", String(event.target.checked));
@@ -2812,6 +3165,7 @@ window.addEventListener("resize", () => {
   renderEditorChrome();
   if (isMobilePreview() && state.previewMode === "pdf") void setPreviewMode("live");
   applyZoom();
+  updateVimUi();
 });
 
 async function initialize() {
@@ -2822,6 +3176,8 @@ async function initialize() {
   document.documentElement.dataset.os = isMac ? "mac" : "win";
   const wordWrap = localStorage.getItem("fountain-publisher.word-wrap") !== "false";
   $("#word-wrap").checked = wordWrap; document.body.classList.toggle("source-wrap", wordWrap); source.setAttribute("wrap", wordWrap ? "soft" : "off");
+  $("#vim-mode").checked = state.vimEnabled;
+  updateVimUi();
   $("#clear-workspace-on-exit").checked = clearWorkspaceOnExit();
   document.body.classList.add(`scene-nums-${docSettings.sceneNumbers}`);
   const sourceWidth = Number(localStorage.getItem("fountain-publisher.--source-w")); const statsWidth = Number(localStorage.getItem("fountain-publisher.--stats-w"));
@@ -2853,7 +3209,10 @@ async function initialize() {
     const end = Math.min(Number(cached.selectionEnd) || start, source.value.length);
     source.setSelectionRange(start, end);
     source.scrollTop = Math.max(0, Number(cached.sourceScrollTop) || 0);
-    $("#preview-scroll").scrollTop = Math.max(0, Number(cached.previewScrollTop) || 0);
+    state.livePreviewScrollTop = Math.max(0, Number(cached.previewScrollTop) || 0);
+    state.livePreviewScrollLeft = Math.max(0, Number(cached.previewScrollLeft) || 0);
+    $("#preview-scroll").scrollTop = state.livePreviewScrollTop;
+    $("#preview-scroll").scrollLeft = state.livePreviewScrollLeft;
     $("#line-numbers").scrollTop = source.scrollTop; syncSourceOverlay(); updateCursor();
     state.cacheEnabled = enableWorkspaceCache;
     scheduleWorkspaceCache();
