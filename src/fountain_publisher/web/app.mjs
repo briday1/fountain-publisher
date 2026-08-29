@@ -245,6 +245,8 @@ const state = {
   githubRepositoryTimer: 0,
   githubColumns: [],
   githubFilesRevision: 0,
+  githubRepository: "",
+  githubBranch: "",
   githubPath: "",
   githubFile: null,
 };
@@ -1548,14 +1550,20 @@ function selectedGithubRepository() {
 function readGithubBrowserLocation() {
   try {
     const location = JSON.parse(localStorage.getItem(GITHUB_BROWSER_KEY) || "null");
-    return typeof location?.repository === "string" && typeof location?.path === "string" ? location : null;
-  } catch { return null; }
+    if (typeof location?.repository === "string" && typeof location?.path === "string") return location;
+  } catch { /* Fall back to this tab's confirmed location. */ }
+  return state.githubRepository ? { repository: state.githubRepository, branch: state.githubBranch, path: state.githubPath } : null;
 }
 
 function rememberGithubBrowserLocation() {
   const repository = selectedGithubRepository();
+  const branch = $("#github-branch").value;
+  if (!repository || !branch) return;
+  const location = { repository: repository.fullName, branch, path: state.githubPath };
+  state.githubRepository = location.repository;
+  state.githubBranch = location.branch;
   try {
-    if (repository) localStorage.setItem(GITHUB_BROWSER_KEY, JSON.stringify({ repository: repository.fullName, path: state.githubPath }));
+    localStorage.setItem(GITHUB_BROWSER_KEY, JSON.stringify(location));
   } catch { /* Browsing must continue if private mode blocks local storage. */ }
 }
 
@@ -1634,14 +1642,13 @@ async function loadGithubFolderPath(path = "") {
   for (let index = 0; index < parts.length; index += 1) {
     const finalFolder = index === parts.length - 1;
     if (revision !== state.githubFilesRevision || !(await loadGithubFiles(parts.slice(0, index + 1).join("/"), { remember: finalFolder }))) {
-      rememberGithubBrowserLocation();
       return;
     }
     revision = state.githubFilesRevision;
   }
 }
 
-async function loadGithubBranches(path = "") {
+async function loadGithubBranches(path = "", rememberedBranch = "") {
   const revision = ++state.githubFilesRevision;
   const repository = selectedGithubRepository();
   if (!repository) return;
@@ -1649,8 +1656,10 @@ async function loadGithubBranches(path = "") {
   try {
     const result = await githubRequest(`/api/branches?${new URLSearchParams({ owner: repository.owner, repo: repository.repo })}`);
     if (revision !== state.githubFilesRevision || selectedGithubRepository()?.fullName !== repository.fullName) return;
-    const defaultBranch = result.defaultBranch || repository.defaultBranch;
-    $("#github-branch").innerHTML = result.branches.map((branch) => `<option value="${escapeHtml(branch)}"${branch === defaultBranch ? " selected" : ""}>${escapeHtml(branch)}</option>`).join("");
+    const availableBranches = result.branches;
+    const branch = [rememberedBranch, repository.defaultBranch, result.defaultBranch, "main"]
+      .find((candidate) => candidate && availableBranches.includes(candidate)) || availableBranches[0] || "";
+    $("#github-branch").innerHTML = availableBranches.map((name) => `<option value="${escapeHtml(name)}"${name === branch ? " selected" : ""}>${escapeHtml(name)}</option>`).join("");
     state.githubColumns = [];
     await loadGithubFolderPath(path);
   } finally {
@@ -1672,7 +1681,8 @@ async function loadGithubRepositories() {
   }
   const remembered = readGithubBrowserLocation();
   if (remembered && result.repositories.some((repo) => repo.fullName === remembered.repository)) $("#github-repository").value = remembered.repository;
-  await loadGithubBranches(remembered?.repository === $("#github-repository").value ? remembered.path : "");
+  const restoreLocation = remembered?.repository === $("#github-repository").value ? remembered : null;
+  await loadGithubBranches(restoreLocation?.path || "", restoreLocation?.branch || "");
 }
 
 async function openGithubBrowser() {
@@ -2508,6 +2518,7 @@ $("#github-install").addEventListener("click", () => { if (state.githubInstallUr
 $("#github-disconnect").addEventListener("click", async () => {
   try { await githubRequest("/auth/logout", { method: "POST" }); } catch { /* the local disconnected state still applies */ }
   state.githubConnected = false; state.githubFile = null;
+  state.githubRepository = ""; state.githubBranch = ""; state.githubPath = "";
   localStorage.removeItem(GITHUB_BROWSER_KEY);
   if (clearWorkspaceOnExit()) clearWorkspaceCache();
   updateGithubMenu(); $("#github-dialog").close(); toast("Disconnected from GitHub");
