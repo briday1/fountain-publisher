@@ -2394,6 +2394,7 @@ function updateVimUi() {
   [$("#vim-source-status"), $("#vim-preview-status")].forEach((element) => {
     element.hidden = !active;
     element.textContent = label;
+    element.dataset.mode = state.vimMode;
   });
   document.body.classList.toggle("vim-enabled", active);
   document.body.classList.toggle("vim-normal", active && state.vimMode === "normal");
@@ -2528,11 +2529,16 @@ function handleVimKey(event, surface) {
   const previewFocus = surface === "preview";
   if (previewFocus) syncVimPreviewPosition();
   if (state.vimMode === "insert") {
-    if (event.key === "Escape" || (event.ctrlKey && event.key === "[")) {
+    if (event.key === "Escape" || (event.ctrlKey && ["[", "c"].includes(event.key.toLowerCase()))) {
       event.preventDefault(); setVimMode("normal"); focusVimCursor(previewFocus);
       return true;
     }
     return false;
+  }
+  if (state.vimMode === "visual" && event.ctrlKey && event.key.toLowerCase() === "c") {
+    event.preventDefault();
+    const focus = state.vimVisualFocus;
+    setVimMode("normal"); focusVimCursor(previewFocus, focus); return true;
   }
   if ((event.metaKey || event.ctrlKey) && !(event.ctrlKey && event.key.toLowerCase() === "r")) return false;
   event.preventDefault();

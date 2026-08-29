@@ -516,6 +516,9 @@ test("desktop Vim mode is persistent and shared by Source and Preview", async ()
   assert.match(app, /function vimPreviewTargetLine\(currentLine, command\)[\s\S]*\.script-line\[data-line\][\s\S]*!line\.classList\.contains\("empty"\)[\s\S]*line > currentLine[\s\S]*line < currentLine/);
   assert.match(app, /moveVimCursor\(key, previewFocus\)/);
   assert.match(app, /state\.vimMode === "visual"[\s\S]*focusVimSelection\(previewFocus[\s\S]*\["y", "d", "x"\]/);
+  assert.match(app, /state\.vimMode === "insert"[\s\S]*\["\[", "c"\]\.includes\(event\.key\.toLowerCase\(\)\)/);
+  assert.match(app, /state\.vimMode === "visual" && event\.ctrlKey && event\.key\.toLowerCase\(\) === "c"/);
+  assert.match(css, /\.vim-status\[data-mode="normal"\][^}]*var\(--metric-pages-ink\)[\s\S]*\.vim-status\[data-mode="insert"\][^}]*var\(--metric-words-ink\)[\s\S]*\.vim-status\[data-mode="visual"\][^}]*var\(--metric-scenes-ink\)/);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.desktop-setting, \.vim-status\s*\{\s*display:\s*none !important;/s);
 });
 
