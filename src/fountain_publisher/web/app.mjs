@@ -261,6 +261,7 @@ const state = {
   vimYank: "",
   vimYankLine: false,
   beatGuide: localStorage.getItem("fountain-publisher.beat-guide") === "true",
+  activeBeat: 0,
 };
 
 function emptyMetadata() {
@@ -348,7 +349,7 @@ function managedNote(line) {
   if (match[1] === "BEATS") {
     try {
       const value = JSON.parse(decodeNotePart(match[2]));
-      const beats = Array.isArray(value.beats) ? value.beats.map((beat) => typeof beat === "string" ? { text: beat, scene: "" } : { text: String(beat.text || ""), scene: String(beat.scene || "") }).filter((beat) => beat.text) : [];
+      const beats = Array.isArray(value.beats) ? value.beats.map((beat) => ({ text: typeof beat === "string" ? beat : String(beat.text || "") })).filter((beat) => beat.text) : [];
       return { kind: "beats", premise: String(value.premise || ""), beats };
     } catch { return { kind: "beats", premise: "", beats: [] }; }
   }
@@ -1124,17 +1125,9 @@ function renderBeatGuide() {
   layer.hidden = !enabled;
   $(".menu-check", button).textContent = state.beatGuide ? "✓" : "";
   if (!enabled) { layer.innerHTML = ""; return; }
-  const sceneEntries = beatSceneEntries();
-  const placements = new Map();
-  layer.innerHTML = beats.map((beat, index) => {
-    if (!beat.scene) return "";
-    const scene = sceneEntries.find((entry) => entry.key === beat.scene)?.scene;
-    const target = scene ? $(`[data-line="${scene.line - 1}"]`, page) : null;
-    if (!target) return "";
-    const stack = placements.get(beat.scene) || 0; placements.set(beat.scene, stack + 1);
-    return `<button class="beat-guide-marker" type="button" style="top:${target.offsetTop + stack * 38}px" data-beat-index="${index}" title="Open Beat Sheet"><b>${index + 1}</b><span>${escapeHtml(beat.text)}</span></button>`;
-  }).join("");
-  layer.style.height = `${page.scrollHeight}px`;
+  state.activeBeat = Math.max(0, Math.min(state.activeBeat, Math.max(0, beats.length - 1)));
+  const premise = state.metadata.beatSheet?.premise || "";
+  layer.innerHTML = `<header><div><small>STORY GUIDE</small><strong>Beat Sheet</strong></div><button type="button" data-close-beat-guide aria-label="Hide Beat guide">×</button></header>${premise ? `<p>${escapeHtml(premise)}</p>` : ""}<ol>${beats.map((beat, index) => `<li class="${index === state.activeBeat ? "active" : ""}${index === state.activeBeat + 1 ? " next" : ""}"><button type="button" data-beat-index="${index}"><b>${index + 1}</b><span>${escapeHtml(beat.text)}</span>${index === state.activeBeat ? `<em>Writing now</em>` : index === state.activeBeat + 1 ? `<em>Up next</em>` : ""}</button></li>`).join("")}</ol><footer><button type="button" data-open-beat-sheet>Edit Beat Sheet</button><button type="button" data-next-beat${beats.length ? "" : " disabled"}>Next beat →</button></footer>`;
 }
 
 function outlineSceneRow(scene, label = scene.number) {
@@ -2198,7 +2191,6 @@ function applyZoom() {
   const stage = $("#preview-page-stage");
   stage.style.width = `${816 * scale}px`; stage.style.minHeight = `${Math.max(1056, page.scrollHeight) * scale}px`;
   page.style.transform = `scale(${scale})`; page.style.marginBottom = "0"; page.style.marginRight = "0";
-  $("#beat-guide-layer").style.transform = `scale(${scale})`;
   const preview = $("#preview-scroll");
   requestAnimationFrame(() => {
     preview.scrollLeft = Math.max(0, (preview.scrollWidth - preview.clientWidth) / 2);
@@ -2276,24 +2268,9 @@ function managedBeatSheetSource(premise, beats) {
   return `[[FP-BEATS:${encodeURIComponent(JSON.stringify({ premise, beats }))}]]`;
 }
 
-function beatSceneEntries() {
-  const occurrences = new Map();
-  return (state.metadata.scenes || []).map((scene) => {
-    const occurrence = (occurrences.get(scene.heading) || 0) + 1; occurrences.set(scene.heading, occurrence);
-    return { scene, key: `${encodeURIComponent(scene.heading)}:${occurrence}` };
-  });
-}
-
-function beatSceneOptions(selectedScene = "") {
-  return `<option value="">Not connected</option>${beatSceneEntries().map(({ scene, key }) => `<option value="${escapeHtml(key)}"${key === selectedScene ? " selected" : ""}>${scene.number}. ${escapeHtml(scene.heading)}</option>`).join("")}`;
-}
-
-function beatCard(beat = { text: "", scene: "" }) {
-  if (typeof beat === "string") beat = { text: beat, scene: "" };
-  const connection = beatSceneEntries().length
-    ? `<label>Connect to scene <em>optional</em><select>${beatSceneOptions(beat.scene)}</select></label>`
-    : `<p class="beat-link-later">Write the beats first. You can connect them to screenplay scenes later.</p>`;
-  return `<li class="beat-card"><button class="beat-drag" draggable="true" type="button" aria-label="Drag to reorder" title="Drag to reorder">⋮⋮</button><span class="beat-number"></span><div class="beat-card-fields"><textarea rows="2" placeholder="What happens in this beat?">${escapeHtml(beat.text)}</textarea>${connection}</div><div class="beat-card-actions"><button class="beat-up" type="button" aria-label="Move beat up">↑</button><button class="beat-down" type="button" aria-label="Move beat down">↓</button><button class="beat-remove" type="button" aria-label="Remove beat" title="Remove beat">×</button></div></li>`;
+function beatCard(beat = { text: "" }) {
+  if (typeof beat === "string") beat = { text: beat };
+  return `<li class="beat-card"><div class="beat-card-moves"><span class="beat-number"></span><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">↑</button><button class="beat-drag" draggable="true" type="button" aria-label="Drag to reorder" title="Drag to reorder">⠿</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">↓</button></div><div class="beat-card-fields"><textarea rows="2" placeholder="What happens in this beat?">${escapeHtml(beat.text)}</textarea></div><button class="beat-remove" type="button" aria-label="Remove beat" title="Remove beat">×</button></li>`;
 }
 
 function renumberBeatCards() {
@@ -2914,10 +2891,15 @@ $("#menu-toggle-beat-guide").addEventListener("click", () => {
   renderBeatGuide(); closeMenus();
 });
 $("#beat-guide-layer").addEventListener("click", (event) => {
-  const marker = event.target.closest(".beat-guide-marker");
-  if (!marker) return;
-  openBeatSheet();
-  setTimeout(() => $$(".beat-card textarea", $("#beat-list"))[Number(marker.dataset.beatIndex)]?.focus(), 0);
+  if (event.target.closest("[data-close-beat-guide]")) {
+    state.beatGuide = false; localStorage.setItem("fountain-publisher.beat-guide", "false"); renderBeatGuide(); return;
+  }
+  if (event.target.closest("[data-open-beat-sheet]")) { openBeatSheet(); return; }
+  if (event.target.closest("[data-next-beat]")) {
+    state.activeBeat = Math.min((state.metadata.beatSheet?.beats.length || 1) - 1, state.activeBeat + 1); renderBeatGuide(); return;
+  }
+  const beat = event.target.closest("[data-beat-index]");
+  if (beat) { state.activeBeat = Number(beat.dataset.beatIndex); renderBeatGuide(); }
 });
 $("#close-beat-sheet").addEventListener("click", () => $("#beat-sheet-dialog").close());
 $("#add-beat").addEventListener("click", () => {
@@ -2949,7 +2931,7 @@ $("#beat-sheet-form").addEventListener("submit", (event) => {
   if (event.submitter?.value !== "default") return;
   event.preventDefault();
   const premise = $("#beat-premise").value.trim();
-  const beats = $$(".beat-card", $("#beat-list")).map((card) => ({ text: $("textarea", card).value.trim(), scene: $("select", card)?.value || "" })).filter((beat) => beat.text);
+  const beats = $$(".beat-card", $("#beat-list")).map((card) => ({ text: $("textarea", card).value.trim() })).filter((beat) => beat.text);
   const existingLine = state.metadata.beatSheet?.line;
   if (!premise && !beats.length) deleteNoteLine(existingLine);
   else {

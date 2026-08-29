@@ -451,13 +451,13 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(html, /id="menu-toggle-beat-guide"[\s\S]*id="beat-guide-layer"/);
   assert.match(app, /MANAGED_NOTE_RE = \/[\s\S]*BEATS/);
   assert.match(app, /function managedBeatSheetSource\(premise, beats\)/);
-  assert.match(app, /function beatSceneEntries\(\)[\s\S]*occurrence/);
-  assert.match(app, /Connect to scene <em>optional<\/em>/);
-  assert.match(app, /Write the beats first\. You can connect them to screenplay scenes later\./);
+  assert.match(app, /STORY GUIDE[\s\S]*Writing now[\s\S]*Up next/);
+  assert.match(app, /data-next-beat[\s\S]*state\.activeBeat/);
+  assert.doesNotMatch(app, /beatSceneEntries|Connect to scene/);
   assert.doesNotMatch(app, /Place at scene/);
   assert.match(app, /addEventListener\("dragover"[\s\S]*insertBefore\(draggedBeat/);
-  assert.match(app, /function renderBeatGuide\(\)[\s\S]*beat-guide-marker/);
-  assert.match(css, /#beat-sheet-dialog\s*\{[\s\S]*\.beat-card\s*\{[\s\S]*\.beat-guide-marker\s*\{/);
+  assert.match(app, /function renderBeatGuide\(\)[\s\S]*beat-guide-layer/);
+  assert.match(css, /#beat-sheet-dialog\s*\{[\s\S]*\.beat-card\s*\{[\s\S]*\.beat-guide-layer\s*\{/);
 });
 
 test("mobile preview clipboard actions preserve selections and avoid covering them", async () => {
