@@ -227,6 +227,8 @@ const state = {
   previewCompletionIndex: 0,
   previewCompletionLine: null,
   previewMode: "live",
+  livePreviewScrollTop: 0,
+  livePreviewScrollLeft: 0,
   pdfUrl: null,
   insightLine: null,
   previewZoom: "100",
@@ -281,7 +283,8 @@ function persistWorkspaceNow() {
       selectionStart: source.selectionStart,
       selectionEnd: source.selectionEnd,
       sourceScrollTop: source.scrollTop,
-      previewScrollTop: $("#preview-scroll").scrollTop,
+      previewScrollTop: state.previewMode === "live" ? $("#preview-scroll").scrollTop : state.livePreviewScrollTop,
+      previewScrollLeft: state.previewMode === "live" ? $("#preview-scroll").scrollLeft : state.livePreviewScrollLeft,
       previewMode: state.previewMode,
       zoom: state.previewZoom,
       githubFile: state.githubFile,
@@ -2051,12 +2054,23 @@ function isMobilePreview() {
 
 async function setPreviewMode(mode) {
   if (isMobilePreview()) mode = "live";
+  const preview = $("#preview-scroll");
+  const returnToLive = state.previewMode === "pdf" && mode === "live";
+  if (state.previewMode === "live" && mode === "pdf") {
+    state.livePreviewScrollTop = preview.scrollTop;
+    state.livePreviewScrollLeft = preview.scrollLeft;
+  }
   state.previewMode = mode; localStorage.setItem("fountain-publisher.preview", mode);
   $$('[data-preview-mode]').forEach((button) => { button.classList.toggle("active", button.dataset.previewMode === mode); const check = $(".menu-check", button); if (check) check.textContent = button.dataset.previewMode === mode ? "✓" : ""; });
   $("#preview-page-stage").hidden = mode !== "live"; page.hidden = mode !== "live"; $("#empty-state").hidden = mode !== "live" || Boolean(source.value.trim()); $("#pdf-view").hidden = mode !== "pdf";
   $("#preview-scroll").classList.toggle("pdf-mode", mode === "pdf");
   scheduleWorkspaceCache();
   if (mode === "pdf") await refreshPdf();
+  else if (returnToLive) requestAnimationFrame(() => requestAnimationFrame(() => {
+    preview.scrollTop = state.livePreviewScrollTop;
+    preview.scrollLeft = state.livePreviewScrollLeft;
+    clampPreviewScroll(preview);
+  }));
 }
 
 async function refreshPdf() {
@@ -3022,7 +3036,10 @@ async function initialize() {
     const end = Math.min(Number(cached.selectionEnd) || start, source.value.length);
     source.setSelectionRange(start, end);
     source.scrollTop = Math.max(0, Number(cached.sourceScrollTop) || 0);
-    $("#preview-scroll").scrollTop = Math.max(0, Number(cached.previewScrollTop) || 0);
+    state.livePreviewScrollTop = Math.max(0, Number(cached.previewScrollTop) || 0);
+    state.livePreviewScrollLeft = Math.max(0, Number(cached.previewScrollLeft) || 0);
+    $("#preview-scroll").scrollTop = state.livePreviewScrollTop;
+    $("#preview-scroll").scrollLeft = state.livePreviewScrollLeft;
     $("#line-numbers").scrollTop = source.scrollTop; syncSourceOverlay(); updateCursor();
     state.cacheEnabled = enableWorkspaceCache;
     scheduleWorkspaceCache();

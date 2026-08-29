@@ -70,6 +70,16 @@ test("live and PDF previews have bounded scrolling containers", async () => {
   assert.match(app, /\$\("#preview-page-stage"\)\.hidden = mode !== "live"/);
 });
 
+test("switching through PDF restores the live Preview viewport", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /livePreviewScrollTop:\s*0/);
+  assert.match(app, /livePreviewScrollLeft:\s*0/);
+  assert.match(app, /if \(state\.previewMode === "live" && mode === "pdf"\)[\s\S]*state\.livePreviewScrollTop = preview\.scrollTop;[\s\S]*state\.livePreviewScrollLeft = preview\.scrollLeft;/);
+  assert.match(app, /else if \(returnToLive\) requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => \{[\s\S]*preview\.scrollTop = state\.livePreviewScrollTop;[\s\S]*preview\.scrollLeft = state\.livePreviewScrollLeft;[\s\S]*clampPreviewScroll\(preview\)/);
+  assert.match(app, /previewScrollTop:\s*state\.previewMode === "live"/);
+  assert.match(app, /previewScrollLeft:\s*state\.previewMode === "live"/);
+});
+
 test("toolbar menus use Pugflow-style popup interaction", async () => {
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(css, /\.toolbar-menu\s*\{[^}]*height:\s*30px;/s);
