@@ -219,10 +219,14 @@
         <div class="github-controls">
           <label class="github-repository-control">
             <span class="github-control-label">Repository</span>
-            <input id="github-repository-search" type="search" placeholder="Search repositories…" autocomplete="off" aria-controls="github-repository" />
-            <select id="github-repository" aria-label="Repository"></select>
+            <input id="github-repository" type="text" list="github-repositories" placeholder="Find repository…" autocomplete="off" />
+            <datalist id="github-repositories"></datalist>
           </label>
-          <label class="github-branch-control"><span class="github-control-label">Branch</span><select id="github-branch"></select></label>
+          <label class="github-branch-control">
+            <span class="github-control-label">Branch</span>
+            <input id="github-branch" type="text" list="github-branches" placeholder="Find branch…" autocomplete="off" />
+            <datalist id="github-branches"></datalist>
+          </label>
         </div>
         <nav id="github-breadcrumbs" class="github-breadcrumbs" aria-label="Repository path"></nav>
         <div id="github-files" class="github-files" role="list"></div>

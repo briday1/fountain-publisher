@@ -17,9 +17,8 @@ test("app exposes a credentialed GitHub repository browser", async () => {
   assert.match(html, /connect-src 'self' https:\/\/api\.fountain-publisher\.com/);
   assert.match(html, /id="github-connect"/);
   assert.match(html, /id="github-dialog"/);
-  assert.match(html, /id="github-repository-search" type="search"/);
-  assert.match(html, /id="github-repository"/);
-  assert.match(html, /id="github-branch"/);
+  assert.match(html, /id="github-repository" type="text" list="github-repositories"/);
+  assert.match(html, /id="github-branch" type="text" list="github-branches"/);
   assert.match(html, /id="github-save-details" open/);
   assert.match(html, /id="github-save-here"/);
   assert.match(app, /credentials: "include"/);
@@ -28,7 +27,8 @@ test("app exposes a credentialed GitHub repository browser", async () => {
   assert.match(app, /confirmDiscard\(\)/);
   assert.match(app, /githubFile: state\.githubFile/);
   assert.match(app, /restore \? cached\.githubFile \|\| null : null/);
-  assert.match(app, /function renderGithubRepositories\(query = ""\)/);
+  assert.match(app, /function renderGithubRepositories\(\)/);
+  assert.match(app, /state\.githubBranches\.includes\(\$\("#github-branch"\)\.value\)/);
   assert.match(app, /function renderGithubColumns\(\)/);
   assert.match(app, /async function loadGithubFolderPath\(path = ""\)/);
   assert.match(app, /loadGithubFiles\("", \{ remember: !path \}\)/);
