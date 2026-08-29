@@ -1112,7 +1112,7 @@ function renderBeatSheetSummary() {
   const sheet = state.metadata.beatSheet || { premise: "", beats: [] };
   $("#beat-count").textContent = sheet.beats.length;
   $("#beat-sheet-summary").innerHTML = sheet.premise || sheet.beats.length
-    ? `${sheet.premise ? `<p>${escapeHtml(sheet.premise)}</p>` : ""}<ol>${sheet.beats.slice(0, 4).map((beat) => `<li class="${beat.scene ? "" : "unplaced"}">${escapeHtml(beat.text)}</li>`).join("")}</ol>${sheet.beats.length > 4 ? `<small>+${sheet.beats.length - 4} more</small>` : ""}`
+    ? `${sheet.premise ? `<p>${escapeHtml(sheet.premise)}</p>` : ""}<ol>${sheet.beats.slice(0, 4).map((beat) => `<li>${escapeHtml(beat.text)}</li>`).join("")}</ol>${sheet.beats.length > 4 ? `<small>+${sheet.beats.length - 4} more</small>` : ""}`
     : `<div class="empty-list">Map the premise and major story beats.</div>`;
 }
 
@@ -2285,12 +2285,15 @@ function beatSceneEntries() {
 }
 
 function beatSceneOptions(selectedScene = "") {
-  return `<option value="">Unplaced</option>${beatSceneEntries().map(({ scene, key }) => `<option value="${escapeHtml(key)}"${key === selectedScene ? " selected" : ""}>${scene.number}. ${escapeHtml(scene.heading)}</option>`).join("")}`;
+  return `<option value="">Not connected</option>${beatSceneEntries().map(({ scene, key }) => `<option value="${escapeHtml(key)}"${key === selectedScene ? " selected" : ""}>${scene.number}. ${escapeHtml(scene.heading)}</option>`).join("")}`;
 }
 
 function beatCard(beat = { text: "", scene: "" }) {
   if (typeof beat === "string") beat = { text: beat, scene: "" };
-  return `<li class="beat-card"><button class="beat-drag" draggable="true" type="button" aria-label="Drag to reorder" title="Drag to reorder">⋮⋮</button><span class="beat-number"></span><div class="beat-card-fields"><textarea rows="2" placeholder="What happens in this beat?">${escapeHtml(beat.text)}</textarea><label>Place at scene<select>${beatSceneOptions(beat.scene)}</select></label></div><div class="beat-card-actions"><button class="beat-up" type="button" aria-label="Move beat up">↑</button><button class="beat-down" type="button" aria-label="Move beat down">↓</button><button class="beat-remove" type="button" aria-label="Remove beat" title="Remove beat">×</button></div></li>`;
+  const connection = beatSceneEntries().length
+    ? `<label>Connect to scene <em>optional</em><select>${beatSceneOptions(beat.scene)}</select></label>`
+    : `<p class="beat-link-later">Write the beats first. You can connect them to screenplay scenes later.</p>`;
+  return `<li class="beat-card"><button class="beat-drag" draggable="true" type="button" aria-label="Drag to reorder" title="Drag to reorder">⋮⋮</button><span class="beat-number"></span><div class="beat-card-fields"><textarea rows="2" placeholder="What happens in this beat?">${escapeHtml(beat.text)}</textarea>${connection}</div><div class="beat-card-actions"><button class="beat-up" type="button" aria-label="Move beat up">↑</button><button class="beat-down" type="button" aria-label="Move beat down">↓</button><button class="beat-remove" type="button" aria-label="Remove beat" title="Remove beat">×</button></div></li>`;
 }
 
 function renumberBeatCards() {
@@ -2946,7 +2949,7 @@ $("#beat-sheet-form").addEventListener("submit", (event) => {
   if (event.submitter?.value !== "default") return;
   event.preventDefault();
   const premise = $("#beat-premise").value.trim();
-  const beats = $$(".beat-card", $("#beat-list")).map((card) => ({ text: $("textarea", card).value.trim(), scene: $("select", card).value })).filter((beat) => beat.text);
+  const beats = $$(".beat-card", $("#beat-list")).map((card) => ({ text: $("textarea", card).value.trim(), scene: $("select", card)?.value || "" })).filter((beat) => beat.text);
   const existingLine = state.metadata.beatSheet?.line;
   if (!premise && !beats.length) deleteNoteLine(existingLine);
   else {

@@ -344,7 +344,6 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .beat-sheet-summary ol { margin: 0; padding: 0; list-style: none; counter-reset: beat; }
 .beat-sheet-summary li { display: grid; grid-template-columns: 19px 1fr; gap: 5px; padding: 5px 2px; border-bottom: 1px solid var(--border); font-size: 10px; line-height: 1.35; }
 .beat-sheet-summary li::before { counter-increment: beat; content: counter(beat); color: var(--metric-pages-ink); font: 700 9px var(--mono); }
-.beat-sheet-summary li.unplaced { opacity: .58; }
 .beat-sheet-summary > small { display: block; padding: 6px 2px; color: var(--muted); }
 .scene-list { counter-reset: scene; }
 .scene-list li { display: grid; grid-template-columns: 29px 1fr; padding: 7px 5px; border-top: 1px solid var(--border); }
@@ -468,6 +467,8 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-card-fields { min-width: 0; }
 .beat-card textarea { min-height: 58px; padding: 8px 9px; }
 .beat-card-fields label { display: flex; align-items: center; gap: 7px; margin-top: 7px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.beat-card-fields label em { padding: 2px 5px; border-radius: 8px; background: var(--surface-2); font-size: 8px; font-style: normal; font-weight: 600; }
+.beat-link-later { margin: 7px 0 0; color: var(--muted); font-size: 10px; }
 .beat-card-fields select { min-width: 0; max-width: 360px; height: 28px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-2); color: var(--ink); font-size: 10px; text-transform: none; }
 .beat-card-actions { display: flex; flex-direction: column; gap: 2px; }
 .beat-card-actions button:hover { background: var(--surface-2); color: var(--ink); }
