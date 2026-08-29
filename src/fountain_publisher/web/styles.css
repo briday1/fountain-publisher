@@ -261,7 +261,8 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .script-line:focus { outline: none; }
 .script-line.source-current { background: color-mix(in srgb, var(--syntax-scene) 10%, transparent); }
 .script-line.lyric { margin-left: 96px; font-style: italic; }
-.script-line.empty { height: 16px; }
+.script-line.empty { display: none; height: 16px; }
+.script-line.empty.source-current { display: block; }
 .script-line.title-key { display: none; }
 .script-line.title-value { text-align: center; margin: 16px 0; }
 .script-line.title-value.title { margin-top: 230px; }

@@ -295,6 +295,7 @@ test("the active non-printing line remains visible as editor context", async () 
   const css = await readFile(cssPath, "utf8");
   assert.match(css, /\.script-line\.section\.source-current/);
   assert.match(css, /content:\s*"EDITOR ONLY/);
+  assert.match(css, /\.script-line\.empty\s*\{[^}]*display:\s*none;[^}]*\}[\s\S]*\.script-line\.empty\.source-current\s*\{[^}]*display:\s*block;/);
 });
 
 test("scene outline clicks synchronize source and live preview", async () => {
@@ -498,7 +499,7 @@ test("desktop Vim mode is persistent and shared by Source and Preview", async ()
   assert.match(html, /class="setting-row desktop-setting"[^>]*>[\s\S]*Vim mode[\s\S]*id="vim-mode"/);
   assert.match(html, /id="vim-source-status"[^>]*hidden>NORMAL/);
   assert.match(html, /id="vim-preview-status"[^>]*hidden>NORMAL/);
-  assert.match(html, /<h4>Vim mode<\/h4>[\s\S]*<kbd>dd<\/kbd>[\s\S]*<kbd>yy<\/kbd>/);
+  assert.match(html, /<h4>Vim mode<\/h4>[\s\S]*Visual mode[\s\S]*<kbd>dd<\/kbd>[\s\S]*<kbd>yy<\/kbd>/);
   assert.match(app, /vimEnabled:\s*localStorage\.getItem\("fountain-publisher\.vim-mode"\) === "true"/);
   assert.match(app, /function handleVimKey\(event, surface\)/);
   assert.match(app, /handleVimKey\(event, "source"\)/);
@@ -506,6 +507,9 @@ test("desktop Vim mode is persistent and shared by Source and Preview", async ()
   assert.match(app, /\["h", "j", "k", "l", "0", "\^", "\$", "w", "b", "G"\]/);
   assert.match(app, /state\.vimYank = `\$\{position\.lines\[position\.line\]\}\\n`/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.vim-mode", String\(state\.vimEnabled\)\)/);
+  assert.match(app, /function vimPreviewTargetLine\(currentLine, command\)[\s\S]*\.script-line\[data-line\][\s\S]*!line\.classList\.contains\("empty"\)[\s\S]*line > currentLine[\s\S]*line < currentLine/);
+  assert.match(app, /moveVimCursor\(key, previewFocus\)/);
+  assert.match(app, /state\.vimMode === "visual"[\s\S]*focusVimSelection\(previewFocus[\s\S]*\["y", "d", "x"\]/);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.desktop-setting, \.vim-status\s*\{\s*display:\s*none !important;/s);
 });
 

@@ -256,6 +256,8 @@ const state = {
   vimEnabled: localStorage.getItem("fountain-publisher.vim-mode") === "true",
   vimMode: "normal",
   vimPending: "",
+  vimVisualAnchor: 0,
+  vimVisualFocus: 0,
   vimYank: "",
   vimYankLine: false,
 };
@@ -2404,12 +2406,57 @@ function setVimMode(mode) {
   updateVimUi();
 }
 
-function vimLinePosition(offset = source.selectionStart) {
+function vimCursorOffset() {
+  if (state.vimMode === "visual") return state.vimVisualFocus;
+  return source.selectionDirection === "backward" ? source.selectionStart : source.selectionEnd;
+}
+
+function vimLinePosition(offset = vimCursorOffset()) {
   const lines = sourceLines();
   const before = source.value.slice(0, offset);
   const line = before.split("\n").length - 1;
   const start = before.lastIndexOf("\n") + 1;
   return { lines, line, start, column: offset - start, end: start + (lines[line]?.length || 0) };
+}
+
+function vimVisualRange(anchor = state.vimVisualAnchor, focus = state.vimVisualFocus) {
+  return { start: Math.min(anchor, focus), end: Math.min(source.value.length, Math.max(anchor, focus) + 1) };
+}
+
+function previewTextPoint(element, offset) {
+  let remaining = Math.max(0, Math.min(offset, element.textContent.length));
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+  while (node && remaining > node.textContent.length) { remaining -= node.textContent.length; node = walker.nextNode(); }
+  return node ? { node, offset: remaining } : { node: element, offset: element.childNodes.length };
+}
+
+function vimPreviewEndpoint(offset) {
+  const position = vimLinePosition(offset);
+  const line = $(`[data-line="${position.line}"]`, page);
+  if (!line) return null;
+  return { line, ...previewTextPoint(line, Math.min(position.column, line.textContent.length)) };
+}
+
+function focusVimSelection(previewFocus, anchor, focus) {
+  state.vimVisualAnchor = anchor;
+  state.vimVisualFocus = focus;
+  const visual = vimVisualRange(anchor, focus);
+  source.setSelectionRange(visual.start, visual.end, focus < anchor ? "backward" : "forward");
+  if (!previewFocus) {
+    source.focus({ preventScroll: true });
+    scrollSourceTarget(vimLinePosition(focus).line);
+    updateCursor({ scrollPreview: true });
+    return;
+  }
+  const anchorPoint = vimPreviewEndpoint(Math.min(source.value.length, anchor + (focus < anchor ? 1 : 0)));
+  const focusPoint = vimPreviewEndpoint(Math.min(source.value.length, focus + (focus >= anchor ? 1 : 0)));
+  if (!anchorPoint || !focusPoint) return;
+  page.focus({ preventScroll: true });
+  const selection = getSelection(); selection.removeAllRanges();
+  selection.setBaseAndExtent(anchorPoint.node, anchorPoint.offset, focusPoint.node, focusPoint.offset);
+  scrollPreviewTarget(focusPoint.line);
+  updateCursor();
 }
 
 function focusVimCursor(previewFocus, offset = source.selectionStart) {
@@ -2442,15 +2489,28 @@ function syncVimPreviewPosition() {
   if (line && edit) setSourceCursorFromPreview(line, edit.startOffset);
 }
 
-function moveVimCursor(command) {
-  const position = vimLinePosition();
-  let offset = source.selectionStart;
+function vimPreviewTargetLine(currentLine, command) {
+  const renderedLines = [...new Set($$(".script-line[data-line]", page)
+    .filter((line) => !line.classList.contains("empty"))
+    .map((line) => Number(line.dataset.line))
+    .filter(Number.isFinite))]
+    .sort((left, right) => left - right);
+  if (!renderedLines.length) return currentLine;
+  if (command === "j") return renderedLines.find((line) => line > currentLine) ?? currentLine;
+  return renderedLines.findLast((line) => line < currentLine) ?? currentLine;
+}
+
+function moveVimCursor(command, previewFocus = false, startOffset = vimCursorOffset()) {
+  const position = vimLinePosition(startOffset);
+  let offset = startOffset;
   if (command === "h") offset = Math.max(position.start, offset - 1);
   else if (command === "l") offset = Math.min(position.end, offset + 1);
   else if (command === "0" || command === "^") offset = position.start;
   else if (command === "$") offset = position.end;
   else if (command === "j" || command === "k") {
-    const line = Math.max(0, Math.min(position.lines.length - 1, position.line + (command === "j" ? 1 : -1)));
+    const line = previewFocus
+      ? vimPreviewTargetLine(position.line, command)
+      : Math.max(0, Math.min(position.lines.length - 1, position.line + (command === "j" ? 1 : -1)));
     offset = sourceOffsetForLine(position.lines, line, Math.min(position.column, position.lines[line].length));
   } else if (command === "w") {
     const match = source.value.slice(offset + 1).match(/\b\w/);
@@ -2477,16 +2537,39 @@ function handleVimKey(event, surface) {
   if ((event.metaKey || event.ctrlKey) && !(event.ctrlKey && event.key.toLowerCase() === "r")) return false;
   event.preventDefault();
   const key = event.key;
+  if (state.vimMode === "visual") {
+    if (["h", "j", "k", "l", "0", "^", "$", "w", "b", "G"].includes(key)) {
+      const focus = moveVimCursor(key, previewFocus, state.vimVisualFocus);
+      focusVimSelection(previewFocus, state.vimVisualAnchor, focus);
+      return true;
+    }
+    if (key === "v" || key === "Escape") {
+      const focus = state.vimVisualFocus;
+      setVimMode("normal"); focusVimCursor(previewFocus, focus); return true;
+    }
+    if (["y", "d", "x"].includes(key)) {
+      const visual = vimVisualRange();
+      state.vimYank = source.value.slice(visual.start, visual.end); state.vimYankLine = false;
+      const focus = visual.start;
+      if (key === "d" || key === "x") changeVimSource(source.value.slice(0, visual.start) + source.value.slice(visual.end), focus, previewFocus);
+      setVimMode("normal"); focusVimCursor(previewFocus, focus); return true;
+    }
+    return true;
+  }
   const position = vimLinePosition();
   if (event.ctrlKey && key.toLowerCase() === "r") { redoDocument(); return true; }
   if (["h", "j", "k", "l", "0", "^", "$", "w", "b", "G"].includes(key)) {
     state.vimPending = "";
-    focusVimCursor(previewFocus, moveVimCursor(key)); return true;
+    focusVimCursor(previewFocus, moveVimCursor(key, previewFocus)); return true;
   }
   if (key === "g") {
     if (state.vimPending === "g") { state.vimPending = ""; focusVimCursor(previewFocus, 0); }
     else state.vimPending = "g";
     return true;
+  }
+  if (key === "v") {
+    const anchor = vimCursorOffset();
+    setVimMode("visual"); focusVimSelection(previewFocus, anchor, anchor); return true;
   }
   if (key === "i" || key === "a" || key === "I" || key === "A") {
     let offset = source.selectionStart;
