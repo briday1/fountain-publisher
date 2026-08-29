@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Write, preview, and publish Fountain screenplays." />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:; worker-src 'self' blob:; connect-src 'self' https://api.fountain-publisher.com" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23000'/><text x='16' y='23' text-anchor='middle' font-family='Georgia,serif' font-weight='700' font-size='20' fill='%23fff'>F</text></svg>" />
+    <title>Fountain Publisher</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app-toolbar">
+      <details class="toolbar-menu about-menu">
+        <summary><span class="app-mark">F</span><span class="about-label"> Fountain Publisher</span></summary>
+        <div class="toolbar-popover about-popover">
+          <strong>FOUNTAIN PUBLISHER</strong>
+          <p>A source-first screenplay studio.</p>
+          <span class="menu-separator"></span>
+          <a class="about-repo-link" href="https://github.com/briday1/fountain-publisher" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+        </div>
+      </details>
+      <nav class="global-actions" aria-label="Application menu">
+        <details class="toolbar-menu file-menu">
+          <summary>File</summary>
+          <div class="toolbar-popover">
+            <strong>SCREENPLAY</strong>
+            <button id="new-file" type="button">New <kbd>⌘N</kbd></button>
+            <button id="open-file" type="button">Open… <kbd>⌘O</kbd></button>
+            <button id="save-file" type="button">Save <kbd>⌘S</kbd></button>
+            <button id="save-file-as" type="button">Save As… <kbd>⇧⌘S</kbd></button>
+            <span class="menu-separator"></span>
+            <strong>GITHUB</strong>
+            <button id="github-connect" type="button">Connect GitHub…</button>
+            <button id="github-open" type="button" disabled>Open from GitHub…</button>
+            <button id="github-save" type="button" disabled>Save to GitHub…</button>
+            <span class="menu-separator"></span>
+            <strong>PUBLISH</strong>
+            <button id="export-pdf" type="button">Export PDF…</button>
+            <button id="export-fdx" type="button">Export Final Draft…</button>
+          </div>
+        </details>
+        <details class="toolbar-menu view-menu">
+          <summary>View</summary>
+          <div class="toolbar-popover">
+            <strong>PANELS</strong>
+            <button id="menu-toggle-source" type="button">Hide Source</button>
+            <button id="menu-toggle-stats" type="button">Hide Insights</button>
+            <span class="menu-separator"></span>
+            <strong>PREVIEW</strong>
+            <button data-preview-mode="live" type="button">Live screenplay <span class="menu-check">✓</span></button>
+            <button data-preview-mode="pdf" type="button">Exact PDF preview <span class="menu-check"></span></button>
+          </div>
+        </details>
+        <details class="toolbar-menu document-menu">
+          <summary>Document</summary>
+          <div class="toolbar-popover">
+            <strong>INSERT</strong>
+            <button id="menu-insert-title-page" type="button">Title page…</button>
+            <button id="menu-insert-scene" type="button">Scene heading</button>
+            <button id="menu-insert-dialogue" type="button">Dialogue</button>
+            <button id="menu-insert-direction" type="button">Direction</button>
+            <span class="menu-separator"></span>
+            <strong>FORMAT</strong>
+            <button id="menu-insert-transition" type="button">Transition</button>
+            <button id="menu-insert-section" type="button">Act heading</button>
+            <button id="menu-insert-pagebreak" type="button">Page break</button>
+            <button id="menu-insert-centered" type="button">Centered text</button>
+          </div>
+        </details>
+        <details class="toolbar-menu settings-menu">
+          <summary>Settings</summary>
+          <div class="toolbar-popover">
+            <strong>APPEARANCE</strong>
+            <button class="setting-row theme-setting" id="theme" type="button" aria-label="Switch color theme" title="Switch to dark mode">
+              <span>Theme</span><small><svg class="theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg><svg class="theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4 8.5 8.5 0 1 0 20 15.2Z"></path></svg><span id="theme-value">System</span></small>
+            </button>
+            <label class="setting-row"><span>Paper</span><select id="page-size"><option value="letter">US Letter</option><option value="a4">A4</option></select></label>
+            <button id="open-background-dialog" type="button">Background…</button>
+            <label class="setting-row" title="Underline misspellings and right-click them for replacement suggestions"><span>Spellcheck</span><input id="spellcheck" type="checkbox" role="switch" checked /></label>
+            <label class="setting-row" title="Wrap long source lines without changing Fountain line numbers"><span>Source word wrap</span><input id="word-wrap" type="checkbox" role="switch" checked /></label>
+            <label class="setting-row" title="Remove the browser recovery draft when disconnecting GitHub or closing this tab"><span>Clear workspace on exit</span><input id="clear-workspace-on-exit" type="checkbox" role="switch" /></label>
+            <span class="menu-separator"></span>
+            <strong>DOCUMENT</strong>
+            <button id="menu-scene-numbers" type="button">Scene numbers…</button>
+          </div>
+        </details>
+        <details class="toolbar-menu help-menu">
+          <summary>Help</summary>
+          <div class="toolbar-popover">
+            <strong>LEARN</strong>
+            <button id="open-docs" type="button">Documentation <kbd>?</kbd></button>
+          </div>
+        </details>
+        <span class="toolbar-divider"></span>
+        <button class="icon-tool" id="undo" type="button" aria-label="Undo" title="Undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5"></path><path d="M5 12h8a6 6 0 0 1 6 6"></path></svg></button>
+        <button class="icon-tool" id="redo" type="button" aria-label="Redo" title="Redo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5"></path><path d="M19 12h-8a6 6 0 0 0-6 6"></path></svg></button>
+      </nav>
+      <div class="document-identity">
+        <span id="dirty-dot" aria-hidden="true"></span>
+        <span id="filename">Untitled.fountain</span>
+        <span id="compile-status" class="compile-status">Ready</span>
+      </div>
+      <input id="file-input" type="file" accept=".fountain,.txt,text/plain" hidden />
+    </header>
+
+    <nav class="mobile-panel-tabs" aria-label="View panels">
+      <button class="mobile-tab" data-mobile-panel="source" type="button">Source</button>
+      <button class="mobile-tab" data-mobile-panel="preview" type="button">Preview</button>
+      <button class="mobile-tab" data-mobile-panel="stats" type="button">Insights</button>
+    </nav>
+
+    <main id="workspace">
+      <aside id="source-panel" aria-label="Fountain source">
+        <div class="panel-title">
+          <div><small>SOURCE</small><h1>Fountain</h1></div>
+        </div>
+        <div class="editor-shell">
+          <div id="current-line" class="current-line" aria-hidden="true"></div>
+          <div id="line-numbers" class="line-numbers" aria-hidden="true"></div>
+          <pre id="source-highlight" class="source-highlight" aria-hidden="true"></pre>
+          <textarea id="source" aria-label="Fountain source" aria-describedby="editor-status spellcheck-help" autocapitalize="off" autocomplete="off" spellcheck="true" wrap="soft"></textarea>
+          <div id="completion-menu" class="completion-menu" role="listbox" aria-label="Fountain suggestions" hidden></div>
+        </div>
+        <footer class="editor-footer">
+          <span id="editor-status">Action</span>
+          <span><span id="spellcheck-help">Right-click spelling for suggestions</span> · <kbd>⌃</kbd><kbd>Space</kbd> Complete · <span id="cursor-position">Ln 1, Col 1</span></span>
+        </footer>
+      </aside>
+
+      <button class="panel-toggle source-toggle" id="toggle-source" type="button" aria-label="Toggle source panel" aria-controls="source-panel" aria-expanded="true"><span>‹</span><b>Source</b></button>
+      <div id="source-resizer" class="panel-resizer" role="separator" aria-label="Resize source panel" aria-controls="source-panel" aria-orientation="vertical" tabindex="0"></div>
+
+      <section class="preview-panel" aria-label="Screenplay document">
+        <header class="preview-toolbar">
+          <div class="preview-heading">
+            <div class="preview-title"><small>SCREENPLAY</small><h2>Preview</h2></div>
+            <div class="view-switcher" role="group" aria-label="Preview mode">
+              <button class="active" data-preview-mode="live" type="button">Preview</button>
+              <button data-preview-mode="pdf" type="button">PDF</button>
+            </div>
+          </div>
+          <div class="preview-actions">
+            <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+            <select id="zoom" aria-label="Preview zoom"><option id="zoom-fit-value" value="fit" hidden>100%</option><option value="70">70%</option><option value="85">85%</option><option value="100" selected>100%</option><option value="115">115%</option><option value="130">130%</option><option value="150">150%</option><option value="175">175%</option><option value="200">200%</option></select>
+            <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+            <button id="zoom-fit" class="zoom-fit" type="button" aria-label="Fit preview to pane width" aria-pressed="false">Fit</button>
+          </div>
+        </header>
+        <div id="preview-scroll" class="preview-scroll" data-background="dots">
+          <div id="preview-page-stage" class="preview-page-stage">
+            <article id="screenplay-page" class="screenplay-page" aria-label="Editable published screenplay" contenteditable="plaintext-only" spellcheck="true"></article>
+          </div>
+          <div id="empty-state" class="empty-state" hidden><strong>Blank page.</strong><div class="empty-actions"><button type="button" id="insert-title-page">Add title page</button><button type="button" id="insert-scene">Add scene</button><button type="button" id="insert-dialogue">Add dialogue</button><button type="button" id="insert-direction">Add direction</button><button type="button" id="insert-pagebreak">Add page break</button></div><span>Or just start typing — Fountain formats as you write.</span></div>
+          <div id="pdf-view" class="pdf-view" hidden>
+            <div id="pdf-placeholder"><span class="spinner"></span><strong>Loading PDF preview.</strong><span>This will take longer the first time.</span></div>
+            <iframe id="pdf-frame" title="Compiled PDF preview"></iframe>
+          </div>
+        </div>
+        <div id="preview-completion-menu" class="completion-menu preview-completion-menu" role="listbox" aria-label="Character suggestions" hidden></div>
+        <div id="preview-context-menu" class="preview-context-menu" role="menu" aria-label="Preview actions" hidden>
+          <button type="button" data-preview-menu-action="annotation" role="menuitem">Add annotation</button>
+          <button type="button" data-preview-menu-action="copy" role="menuitem">Copy</button>
+          <button type="button" data-preview-menu-action="cut" role="menuitem">Cut</button>
+          <button type="button" data-preview-menu-action="paste" role="menuitem">Paste</button>
+        </div>
+        <div id="toast" class="toast" role="status" aria-live="polite"></div>
+      </section>
+
+      <div id="stats-resizer" class="panel-resizer stats-resizer" role="separator" aria-label="Resize insights panel" aria-controls="stats-panel" aria-orientation="vertical" tabindex="0"></div>
+      <button class="panel-toggle stats-toggle" id="toggle-stats" type="button" aria-label="Toggle insights panel" aria-controls="stats-panel" aria-expanded="true"><span>›</span><b>Insights</b></button>
+
+      <aside id="stats-panel" aria-label="Screenplay insights">
+        <div class="panel-title">
+          <div><small>DOCUMENT</small><h2>Insights</h2></div>
+        </div>
+        <div class="insights-scroll">
+          <section class="metric-grid" aria-label="Document totals">
+            <div><strong id="stat-pages">0</strong><span>pages</span></div>
+            <div><strong id="stat-scenes">0</strong><span>scenes</span></div>
+            <div><strong id="stat-words">0</strong><span>words</span></div>
+          </section>
+          <details class="insight-section" open>
+            <summary>Characters <small id="character-count">0</small></summary>
+            <div class="character-insights">
+              <button class="character-analytics-button" type="button" data-character-analytics>Character Analytics</button>
+              <div id="character-line-table" class="character-line-table"></div>
+              <button id="copy-character-lines" class="character-csv-button" type="button">Copy line usage CSV</button>
+            </div>
+          </details>
+          <details class="insight-section" open>
+            <summary>Outline <small id="scene-count">0</small></summary>
+            <ol id="scene-list" class="scene-list"></ol>
+          </details>
+          <details class="insight-section">
+            <summary>Document balance</summary>
+            <div class="balance"><div><span id="dialogue-bar"></span></div><p><span>Dialogue <b id="dialogue-percent">0%</b></span><span>Action <b id="action-percent">0%</b></span></p></div>
+          </details>
+          <details class="insight-section">
+            <summary>General notes <small id="general-note-count">0</small></summary>
+            <div id="general-notes" class="general-notes"></div>
+            <button id="add-general-note" class="add-note-button" type="button">Add note</button>
+          </details>
+        </div>
+      </aside>
+    </main>
+
+    <dialog id="github-dialog" aria-labelledby="github-dialog-title">
+      <article class="github-shell">
+        <header class="github-header">
+          <div><small>VERSION CONTROL</small><h2 id="github-dialog-title">GitHub</h2></div>
+          <button id="close-github-dialog" type="button" aria-label="Close GitHub browser">×</button>
+        </header>
+        <div class="github-account-row">
+          <span id="github-account">Connected to GitHub</span>
+          <button id="github-install" type="button" hidden>Add repositories…</button>
+          <button id="github-disconnect" type="button">Disconnect</button>
+        </div>
+        <div class="github-controls">
+          <label class="github-repository-control">
+            <span class="github-control-label">Repository</span>
+            <input id="github-repository" type="text" list="github-repositories" placeholder="Find repository…" autocomplete="off" />
+            <datalist id="github-repositories"></datalist>
+          </label>
+          <label class="github-branch-control">
+            <span class="github-control-label">Branch</span>
+            <input id="github-branch" type="text" list="github-branches" placeholder="Find branch…" autocomplete="off" />
+            <datalist id="github-branches"></datalist>
+          </label>
+        </div>
+        <nav id="github-breadcrumbs" class="github-breadcrumbs" aria-label="Repository path"></nav>
+        <div id="github-files" class="github-files" role="list"></div>
+        <footer id="github-save-panel" class="github-save-panel">
+          <details id="github-save-details" open>
+            <summary>Save to this folder</summary>
+            <div class="github-save-fields">
+              <label>File name<input id="github-filename" type="text" value="Untitled.fountain" /></label>
+              <label>Commit message<input id="github-commit-message" type="text" value="Update screenplay" /></label>
+              <button class="primary" id="github-save-here" type="button">Save here</button>
+              <p id="github-save-status" role="status" aria-live="polite"></p>
+            </div>
+          </details>
+        </footer>
+      </article>
+    </dialog>
+
+    <dialog id="export-dialog">
+      <form method="dialog" id="export-form">
+        <div class="dialog-heading"><small>PUBLISH</small><h2>Export screenplay</h2></div>
+        <p>Compile the current Fountain source with Screenplain.</p>
+        <label>Format<select id="export-format"><option value="pdf">PDF screenplay</option><option value="fdx">Final Draft FDX</option></select></label>
+        <label id="dialog-page-size">Paper size<select id="export-page-size"><option value="letter">US Letter</option><option value="a4">A4</option></select></label>
+        <div class="dialog-actions"><button value="cancel">Cancel</button><button class="primary" id="confirm-export" value="default">Export</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="background-dialog" aria-labelledby="background-dialog-title">
+      <form method="dialog" id="background-form">
+        <div class="dialog-heading"><small>APPEARANCE</small><h2 id="background-dialog-title">Preview background</h2></div>
+        <label>Pattern<select id="preview-background"><option value="blank">Blank</option><option value="dots" selected>Dots</option></select></label>
+        <label id="preview-dot-radius-row">Dot radius<span class="range-setting"><input id="preview-dot-radius" type="range" min="0.6" max="1.8" step="0.1" value="1" /><output id="preview-dot-radius-value">1.0px</output></span></label>
+        <div class="dialog-actions"><button value="default">Done</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="character-analytics-dialog" aria-labelledby="character-analytics-title">
+      <article class="analytics-shell">
+        <header class="analytics-header">
+          <div><small>INSIGHTS</small><h2 id="character-analytics-title">Character Analytics</h2></div>
+          <button id="close-character-analytics" type="button" aria-label="Close character analytics">×</button>
+        </header>
+        <p>Dialogue lines by character across acts and scenes. Scroll or pan to explore the full screenplay.</p>
+        <div id="character-analytics-legend" class="analytics-gradient-legend" aria-label="Dialogue line usage color scale" hidden>
+          <span id="character-analytics-min">0 lines</span><i></i><span id="character-analytics-max">0 lines</span>
+        </div>
+        <div class="analytics-content-scroll">
+          <div class="analytics-chart-scroll">
+            <canvas id="character-analytics-chart" role="img"></canvas>
+          </div>
+        </div>
+        <footer class="analytics-actions">
+          <button class="primary" id="save-character-analytics" type="button">Save PNG</button>
+        </footer>
+      </article>
+    </dialog>
+
+    <dialog id="annotation-dialog" aria-labelledby="annotation-heading">
+      <form method="dialog" id="annotation-form" class="note-form">
+        <div class="dialog-heading"><small>SCREENPLAY</small><h2 id="annotation-heading">Annotation</h2></div>
+        <label>Note<textarea id="annotation-text" rows="6"></textarea></label>
+        <div class="dialog-actions"><button id="delete-annotation" class="danger" type="button">Delete</button><span></span><button value="cancel" formnovalidate>Cancel</button><button class="primary" value="default">Save</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="character-note-dialog" aria-labelledby="character-note-heading">
+      <form method="dialog" id="character-note-form" class="note-form">
+        <div class="dialog-heading"><small>CHARACTER</small><h2 id="character-note-heading">Character notes</h2></div>
+        <label>Notes<textarea id="character-note-text" rows="8"></textarea></label>
+        <div class="dialog-actions"><button id="delete-character-note" class="danger" type="button">Delete notes</button><span></span><button value="cancel">Cancel</button><button class="primary" value="default">Save</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="general-note-dialog" aria-labelledby="general-note-heading">
+      <form method="dialog" id="general-note-form" class="note-form">
+        <div class="dialog-heading"><small>DOCUMENT</small><h2 id="general-note-heading">General note</h2></div>
+        <label>Note<textarea id="general-note-text" rows="8" required></textarea></label>
+        <div class="dialog-actions"><button id="delete-general-note" class="danger" type="button">Delete</button><span></span><button value="cancel">Cancel</button><button class="primary" value="default">Save</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="docs-dialog" aria-labelledby="docs-title">
+      <article class="docs-shell">
+        <header class="docs-header"><div><small>FOUNTAIN PUBLISHER</small><h2 id="docs-title">Documentation</h2></div><button id="close-docs" type="button" aria-label="Close documentation">×</button></header>
+        <div class="docs-layout">
+          <nav aria-label="Documentation sections"><a href="#docs-start">Quick start</a><a href="#docs-fountain">Fountain format</a><a href="#docs-structure">Structure</a><a href="#docs-formatting">Formatting</a><a href="#docs-publish">Preview & publish</a><a href="#docs-github">GitHub</a><a href="#docs-shortcuts">Shortcuts</a></nav>
+          <div class="docs-content">
+            <section id="docs-start"><small>GET STARTED</small><h3>Quick start</h3><p>Write plain-text Fountain in Source. The screenplay updates as you type; edit a line directly in Screenplay when you prefer the page view. Insights tracks scenes and dialogue automatically.</p><p>On a blank page, use the helper buttons — <strong>Add title page</strong>, <strong>Add scene</strong>, <strong>Add dialogue</strong>, and <strong>Add direction</strong> — to insert formatted Fountain snippets, or just start typing and the format follows automatically.</p><ol><li>Use <strong>Add title page</strong> (or type <code>Title:</code>) to set your screenplay's metadata.</li><li>Start a scene with a scene heading: <code>INT. LOCATION - DAY</code>.</li><li>Put a character cue on its own uppercase line, then write dialogue immediately below.</li><li>Use PDF mode to inspect exact compiled output, then export from File.</li></ol></section>
+            <section id="docs-fountain"><small>SYNTAX</small><h3>Fountain format</h3><p>Fountain is readable plain text. Most elements are inferred from capitalization, blank lines, and familiar screenplay conventions.</p><div class="docs-example"><code>INT. OBSERVATORY - NIGHT<br><br>A telescope turns beneath the dome.<br><br>MAYA<br>(quietly)<br>There you are.<br><br>CUT TO:</code><dl><div><dt>Scene heading</dt><dd><code>INT.</code>, <code>EXT.</code>, <code>EST.</code>, <code>INT./EXT.</code>, or <code>I/E</code></dd></div><div><dt>Action</dt><dd>Ordinary text separated by blank lines</dd></div><div><dt>Character</dt><dd>An uppercase cue followed by dialogue</dd></div><div><dt>Parenthetical</dt><dd>A line in parentheses inside dialogue</dd></div><div><dt>Transition</dt><dd>An uppercase line ending in <code>TO:</code></dd></div></dl></div></section>
+            <section id="docs-structure"><small>ORGANIZE</small><h3>Title page and structure</h3><table><tbody><tr><th>Title page</th><td><code>Title: My Film</code>, <code>Credit: Written by</code>, <code>Author: Name</code>, <code>Draft date:</code>, and <code>Contact:</code> at the start of the file.</td></tr><tr><th>Sections</th><td><code># Act One</code>; add more <code>#</code> characters for deeper levels.</td></tr><tr><th>Synopsis</th><td><code>= A short outline note</code>.</td></tr><tr><th>Scene numbers</th><td><code>INT. LAB - DAY #12#</code>.</td></tr><tr><th>Page break</th><td><code>===</code> on its own line.</td></tr><tr><th>Notes</th><td><code>[[Private production note]]</code>. Notes appear as clickable orbs in Preview; right-click a preview line to add one.</td></tr><tr><th>Character notes</th><td>Open Characters in Insights and select a character. Notes are stored at the end of the Fountain source.</td></tr><tr><th>General notes</th><td>Add, edit, or remove document notes from the General notes section in Insights.</td></tr><tr><th>Boneyard</th><td><code>/* omitted text */</code>.</td></tr></tbody></table></section>
+            <section id="docs-formatting"><small>CONTROL</small><h3>Forced elements and formatting</h3><table><tbody><tr><th>Forced scene</th><td><code>.THE ROOFTOP</code></td></tr><tr><th>Forced action</th><td><code>!THIS IS ACTION</code></td></tr><tr><th>Forced character</th><td><code>@McCLANE</code></td></tr><tr><th>Forced transition</th><td><code>&gt; SMASH CUT TO:</code></td></tr><tr><th>Centered</th><td><code>&gt; THE END &lt;</code></td></tr><tr><th>Lyrics</th><td><code>~ Singing in the rain</code></td></tr><tr><th>Dual dialogue</th><td>Add <code>^</code> to the second character cue, for example <code>JANE ^</code>. The two adjacent dialogue blocks render concurrently side-by-side.</td></tr><tr><th>Emphasis</th><td><code>*italic*</code>, <code>**bold**</code>, <code>***bold italic***</code>, <code>_underline_</code></td></tr></tbody></table></section>
+            <section id="docs-publish"><small>OUTPUT</small><h3>Preview and publish</h3><p>Preview mode is optimized for fast editing and source synchronization. PDF mode is the authoritative Screenplain rendering. Choose US Letter or A4 in Settings, then export PDF or Final Draft FDX from File.</p><p>Your current workspace is continuously cached in this browser and restored when you return. This recovery draft is separate from your files: use Save or Save As when you want to write or download a <code>.fountain</code> file. On a shared or sensitive browser, enable <strong>Clear workspace on exit</strong> in Settings to remove the recovery draft when you disconnect GitHub or close the tab.</p><p>Open a local file with File → Open. Save overwrites through the File System Access API when supported; otherwise the browser downloads a safe copy.</p></section>
+            <section id="docs-github"><small>VERSION CONTROL</small><h3>GitHub</h3><p>Choose <strong>File → Connect GitHub</strong>, authorize Fountain Publisher, and select the repositories it may access. The GitHub browser lists branches, folders, and Fountain files from only those repositories.</p><p>Opening a GitHub file loads it into the editor without changing the repository until you explicitly choose <strong>Save to GitHub</strong>. Each save creates a commit with your message. Fountain Publisher includes the version of the file you opened when saving, so GitHub rejects a conflicting update instead of silently replacing somebody else's work. Disconnect from the GitHub browser whenever you want to end the session.</p><p>Local Save and Save As remain separate. The browser recovery draft also continues to work while a GitHub file is open.</p></section>
+            <section id="docs-shortcuts"><small>KEYBOARD</small><h3>Shortcuts</h3><table class="shortcut-table"><thead><tr><th>Action</th><th class="shortcut-mac">macOS</th><th class="shortcut-win">Windows / Linux</th></tr></thead><tbody><tr><th>Undo</th><td class="shortcut-mac"><kbd>⌘ Z</kbd></td><td class="shortcut-win"><kbd>Ctrl Z</kbd></td></tr><tr><th>Redo</th><td class="shortcut-mac"><kbd>⇧ ⌘ Z</kbd></td><td class="shortcut-win"><kbd>Ctrl Shift Z</kbd> or <kbd>Ctrl Y</kbd></td></tr><tr><th>Save</th><td class="shortcut-mac"><kbd>⌘ S</kbd></td><td class="shortcut-win"><kbd>Ctrl S</kbd></td></tr><tr><th>Save as</th><td class="shortcut-mac"><kbd>⇧ ⌘ S</kbd></td><td class="shortcut-win"><kbd>Ctrl Shift S</kbd></td></tr><tr><th>Open</th><td class="shortcut-mac"><kbd>⌘ O</kbd></td><td class="shortcut-win"><kbd>Ctrl O</kbd></td></tr><tr><th>New</th><td class="shortcut-mac"><kbd>⌘ N</kbd></td><td class="shortcut-win"><kbd>Ctrl N</kbd></td></tr><tr><th>Complete</th><td class="shortcut-mac"><kbd>⌘ Space</kbd>, then <kbd>Tab</kbd></td><td class="shortcut-win"><kbd>Ctrl Space</kbd>, then <kbd>Tab</kbd></td></tr><tr><th>Spelling</th><td colspan="2">Right-click a marked word for system suggestions.</td></tr></tbody></table></section>
+          </div>
+        </div>
+      </article>
+    </dialog>
+
+    <dialog id="title-page-dialog" aria-labelledby="tp-heading">
+      <form method="dialog" id="title-page-form">
+        <div class="dialog-heading"><small>DOCUMENT</small><h2 id="tp-heading">Add title page</h2></div>
+        <p>Fill in the fields you want. Leave any blank to skip.</p>
+        <label>Title<input id="tp-title" type="text" placeholder="My Screenplay" autocomplete="off" /></label>
+        <label>Credit<input id="tp-credit" type="text" autocomplete="off" /></label>
+        <label>Author<input id="tp-author" type="text" autocomplete="off" /></label>
+        <label>Draft date<input id="tp-date" type="text" autocomplete="off" /></label>
+        <label>Contact<input id="tp-contact" type="text" placeholder="Optional" autocomplete="off" /></label>
+        <div class="dialog-actions"><button value="cancel">Cancel</button><button class="primary" value="default">Add title page</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="scene-num-dialog" aria-labelledby="sn-heading">
+      <form method="dialog" id="scene-num-form">
+        <div class="dialog-heading"><small>DOCUMENT</small><h2 id="sn-heading">Scene Numbers</h2></div>
+        <p>Configure scene number display in preview and exported PDF.</p>
+        <label>Placement<select id="scene-num-placement"><option value="margin">Left margin</option><option value="inline">Inline</option><option value="off">Off</option></select></label>
+        <label>Format<select id="scene-num-format"><option value="sequential">1, 2, 3…</option><option value="act">A1S1, A1S2…</option></select></label>
+        <div class="dialog-actions"><button value="cancel">Cancel</button><button class="primary" value="default">Apply</button></div>
+      </form>
+    </dialog>
+
+    <script type="module" src="app.mjs"></script>
+  </body>
+</html>
