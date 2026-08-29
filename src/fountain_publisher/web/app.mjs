@@ -251,6 +251,11 @@ const state = {
   githubBranch: "",
   githubPath: "",
   githubFile: null,
+  vimEnabled: localStorage.getItem("fountain-publisher.vim-mode") === "true",
+  vimMode: "normal",
+  vimPending: "",
+  vimYank: "",
+  vimYankLine: false,
 };
 
 function emptyMetadata() {
@@ -2363,16 +2368,170 @@ const toolbarMenus = $$(".toolbar-menu");
 
 function closeMenus(except = null) { toolbarMenus.forEach((menu) => { if (menu !== except) menu.open = false; }); }
 
+function vimActive() {
+  return state.vimEnabled && !isMobilePreview();
+}
+
+function updateVimUi() {
+  const active = vimActive();
+  const label = state.vimMode.toUpperCase();
+  [$("#vim-source-status"), $("#vim-preview-status")].forEach((element) => {
+    element.hidden = !active;
+    element.textContent = label;
+  });
+  document.body.classList.toggle("vim-enabled", active);
+  document.body.classList.toggle("vim-normal", active && state.vimMode === "normal");
+}
+
+function setVimMode(mode) {
+  state.vimMode = mode;
+  state.vimPending = "";
+  hideCompletions(); hidePreviewCompletions();
+  updateVimUi();
+}
+
+function vimLinePosition(offset = source.selectionStart) {
+  const lines = sourceLines();
+  const before = source.value.slice(0, offset);
+  const line = before.split("\n").length - 1;
+  const start = before.lastIndexOf("\n") + 1;
+  return { lines, line, start, column: offset - start, end: start + (lines[line]?.length || 0) };
+}
+
+function focusVimCursor(previewFocus, offset = source.selectionStart) {
+  source.setSelectionRange(offset, offset);
+  const position = vimLinePosition(offset);
+  if (!previewFocus) {
+    source.focus({ preventScroll: true });
+    scrollSourceTarget(position.line);
+    updateCursor({ scrollPreview: true });
+    return;
+  }
+  const line = $(`[data-line="${position.line}"]`, page);
+  if (!line) return;
+  page.focus({ preventScroll: true });
+  placeCaretAtOffset(line, Math.min(position.column, line.textContent.length));
+  scrollPreviewTarget(line);
+  updateCursor();
+}
+
+function changeVimSource(value, offset, previewFocus) {
+  source.value = value;
+  source.setSelectionRange(offset, offset);
+  sourceChanged();
+  focusVimCursor(previewFocus, offset);
+}
+
+function syncVimPreviewPosition() {
+  const line = previewLineForNode(getSelection()?.focusNode);
+  const edit = previewSelection(line);
+  if (line && edit) setSourceCursorFromPreview(line, edit.startOffset);
+}
+
+function moveVimCursor(command) {
+  const position = vimLinePosition();
+  let offset = source.selectionStart;
+  if (command === "h") offset = Math.max(position.start, offset - 1);
+  else if (command === "l") offset = Math.min(position.end, offset + 1);
+  else if (command === "0" || command === "^") offset = position.start;
+  else if (command === "$") offset = position.end;
+  else if (command === "j" || command === "k") {
+    const line = Math.max(0, Math.min(position.lines.length - 1, position.line + (command === "j" ? 1 : -1)));
+    offset = sourceOffsetForLine(position.lines, line, Math.min(position.column, position.lines[line].length));
+  } else if (command === "w") {
+    const match = source.value.slice(offset + 1).match(/\b\w/);
+    offset = match ? offset + 1 + match.index : source.value.length;
+  } else if (command === "b") {
+    const before = source.value.slice(0, Math.max(0, offset)).replace(/\W+$/, "");
+    const match = [...before.matchAll(/\b\w/g)].at(-1);
+    offset = match?.index ?? 0;
+  } else if (command === "G") offset = source.value.length;
+  return offset;
+}
+
+function handleVimKey(event, surface) {
+  if (!vimActive()) return false;
+  const previewFocus = surface === "preview";
+  if (previewFocus) syncVimPreviewPosition();
+  if (state.vimMode === "insert") {
+    if (event.key === "Escape" || (event.ctrlKey && event.key === "[")) {
+      event.preventDefault(); setVimMode("normal"); focusVimCursor(previewFocus);
+      return true;
+    }
+    return false;
+  }
+  if ((event.metaKey || event.ctrlKey) && !(event.ctrlKey && event.key.toLowerCase() === "r")) return false;
+  event.preventDefault();
+  const key = event.key;
+  const position = vimLinePosition();
+  if (event.ctrlKey && key.toLowerCase() === "r") { redoDocument(); return true; }
+  if (["h", "j", "k", "l", "0", "^", "$", "w", "b", "G"].includes(key)) {
+    state.vimPending = "";
+    focusVimCursor(previewFocus, moveVimCursor(key)); return true;
+  }
+  if (key === "g") {
+    if (state.vimPending === "g") { state.vimPending = ""; focusVimCursor(previewFocus, 0); }
+    else state.vimPending = "g";
+    return true;
+  }
+  if (key === "i" || key === "a" || key === "I" || key === "A") {
+    let offset = source.selectionStart;
+    if (key === "a") offset = Math.min(position.end, offset + 1);
+    else if (key === "I") offset = position.start;
+    else if (key === "A") offset = position.end;
+    focusVimCursor(previewFocus, offset); setVimMode("insert"); return true;
+  }
+  if (key === "o" || key === "O") {
+    const insertAt = key === "o" ? position.end : position.start;
+    const value = `${source.value.slice(0, insertAt)}\n${source.value.slice(insertAt)}`;
+    changeVimSource(value, key === "o" ? insertAt + 1 : insertAt, previewFocus); setVimMode("insert"); return true;
+  }
+  if (key === "x" && source.selectionStart < position.end) {
+    const offset = source.selectionStart;
+    changeVimSource(source.value.slice(0, offset) + source.value.slice(offset + 1), offset, previewFocus); return true;
+  }
+  if (key === "d" || key === "y") {
+    if (state.vimPending !== key) { state.vimPending = key; return true; }
+    state.vimPending = "";
+    state.vimYank = `${position.lines[position.line]}\n`; state.vimYankLine = true;
+    if (key === "d") {
+      position.lines.splice(position.line, 1);
+      if (!position.lines.length) position.lines.push("");
+      const line = Math.min(position.line, position.lines.length - 1);
+      changeVimSource(position.lines.join("\n"), sourceOffsetForLine(position.lines, line, 0), previewFocus);
+    }
+    return true;
+  }
+  if (key === "p" && state.vimYank) {
+    if (state.vimYankLine) {
+      const pasted = state.vimYank.replace(/\n$/, "");
+      position.lines.splice(position.line + 1, 0, pasted);
+      const line = position.line + 1;
+      changeVimSource(position.lines.join("\n"), sourceOffsetForLine(position.lines, line, 0), previewFocus);
+    } else {
+      const offset = Math.min(source.value.length, source.selectionStart + 1);
+      changeVimSource(source.value.slice(0, offset) + state.vimYank + source.value.slice(offset), offset, previewFocus);
+    }
+    return true;
+  }
+  if (key === "u") { undoDocument(); return true; }
+  if (key === "Escape") { setVimMode("normal"); return true; }
+  state.vimPending = "";
+  return true;
+}
+
 source.addEventListener("input", (event) => {
   sourceChanged();
   if (event.inputType === "insertText") showCompletions();
   else hideCompletions();
 });
+source.addEventListener("beforeinput", (event) => { if (vimActive() && state.vimMode === "normal") event.preventDefault(); });
 source.addEventListener("scroll", () => { $("#line-numbers").scrollTop = source.scrollTop; syncSourceOverlay(); updateCursor(); scheduleWorkspaceCache(); });
 source.addEventListener("click", () => { updateCursor({ scrollPreview: true }); hideCompletions(); scheduleWorkspaceCache(); });
 source.addEventListener("select", () => { updateCursor({ scrollPreview: true }); scheduleWorkspaceCache(); });
 source.addEventListener("keyup", (event) => { if (!["Enter", "Tab", "Escape"].includes(event.key)) updateCursor({ scrollPreview: true }); scheduleWorkspaceCache(); });
 source.addEventListener("keydown", (event) => {
+  if (handleVimKey(event, "source")) return;
   if (!$("#completion-menu").hidden) {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); state.completionIndex = (state.completionIndex + (event.key === "ArrowDown" ? 1 : -1) + state.completionItems.length) % state.completionItems.length; renderCompletionMenu(); return; }
     if (event.key === "Tab") { event.preventDefault(); acceptCompletion(); return; }
@@ -2384,6 +2543,7 @@ source.addEventListener("keydown", (event) => {
 });
 
 page.addEventListener("beforeinput", (event) => {
+  if (vimActive() && state.vimMode === "normal") { event.preventDefault(); return; }
   const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); if (!line) return;
   const edit = previewSelection(line); if (!edit) return;
   const insertionTypes = new Set(["insertText", "insertReplacementText", "insertFromPaste", "insertFromDrop", "insertParagraph", "insertLineBreak"]);
@@ -2409,6 +2569,7 @@ page.addEventListener("paste", (event) => {
   replacePreviewSelection(edit, event.clipboardData?.getData("text/plain") || "");
 });
 page.addEventListener("keydown", (event) => {
+  if (handleVimKey(event, "preview")) return;
   const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); if (!line) return;
   if (!$("#preview-completion-menu").hidden) {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); state.previewCompletionIndex = (state.previewCompletionIndex + (event.key === "ArrowDown" ? 1 : -1) + state.previewCompletionItems.length) % state.previewCompletionItems.length; renderPreviewCharacterCompletions(); return; }
@@ -2604,6 +2765,11 @@ $("#word-wrap").addEventListener("change", () => {
   document.body.classList.toggle("source-wrap", enabled);
   source.setAttribute("wrap", enabled ? "soft" : "off");
   renderEditorChrome();
+});
+$("#vim-mode").addEventListener("change", (event) => {
+  state.vimEnabled = event.target.checked;
+  localStorage.setItem("fountain-publisher.vim-mode", String(state.vimEnabled));
+  setVimMode("normal");
 });
 $("#clear-workspace-on-exit").addEventListener("change", (event) => {
   localStorage.setItem("fountain-publisher.clear-workspace-on-exit", String(event.target.checked));
@@ -2812,6 +2978,7 @@ window.addEventListener("resize", () => {
   renderEditorChrome();
   if (isMobilePreview() && state.previewMode === "pdf") void setPreviewMode("live");
   applyZoom();
+  updateVimUi();
 });
 
 async function initialize() {
@@ -2822,6 +2989,8 @@ async function initialize() {
   document.documentElement.dataset.os = isMac ? "mac" : "win";
   const wordWrap = localStorage.getItem("fountain-publisher.word-wrap") !== "false";
   $("#word-wrap").checked = wordWrap; document.body.classList.toggle("source-wrap", wordWrap); source.setAttribute("wrap", wordWrap ? "soft" : "off");
+  $("#vim-mode").checked = state.vimEnabled;
+  updateVimUi();
   $("#clear-workspace-on-exit").checked = clearWorkspaceOnExit();
   document.body.classList.add(`scene-nums-${docSettings.sceneNumbers}`);
   const sourceWidth = Number(localStorage.getItem("fountain-publisher.--source-w")); const statsWidth = Number(localStorage.getItem("fountain-publisher.--stats-w"));

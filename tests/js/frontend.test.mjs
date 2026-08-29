@@ -483,6 +483,22 @@ test("shared undo and redo work from source and screenplay focus", async () => {
   assert.match(app, /event\.key\.toLowerCase\(\) === "y"/);
 });
 
+test("desktop Vim mode is persistent and shared by Source and Preview", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(html, /class="setting-row desktop-setting"[^>]*>[\s\S]*Vim mode[\s\S]*id="vim-mode"/);
+  assert.match(html, /id="vim-source-status"[^>]*hidden>NORMAL/);
+  assert.match(html, /id="vim-preview-status"[^>]*hidden>NORMAL/);
+  assert.match(html, /<h4>Vim mode<\/h4>[\s\S]*<kbd>dd<\/kbd>[\s\S]*<kbd>yy<\/kbd>/);
+  assert.match(app, /vimEnabled:\s*localStorage\.getItem\("fountain-publisher\.vim-mode"\) === "true"/);
+  assert.match(app, /function handleVimKey\(event, surface\)/);
+  assert.match(app, /handleVimKey\(event, "source"\)/);
+  assert.match(app, /handleVimKey\(event, "preview"\)/);
+  assert.match(app, /\["h", "j", "k", "l", "0", "\^", "\$", "w", "b", "G"\]/);
+  assert.match(app, /state\.vimYank = `\$\{position\.lines\[position\.line\]\}\\n`/);
+  assert.match(app, /localStorage\.setItem\("fountain-publisher\.vim-mode", String\(state\.vimEnabled\)\)/);
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.desktop-setting, \.vim-status\s*\{\s*display:\s*none !important;/s);
+});
+
 test("dual dialogue renders concurrently in the live screenplay", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(app, /raw\.trim\(\)\.endsWith\("\^"\)/);
