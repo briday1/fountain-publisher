@@ -2976,6 +2976,7 @@ $("#add-general-note").addEventListener("click", () => openGeneralNoteEditor());
 $("#menu-toggle-beat-guide").addEventListener("click", () => {
   state.beatGuide = !state.beatGuide;
   localStorage.setItem("fountain-publisher.beat-guide", String(state.beatGuide));
+  if (state.beatGuide && isMobilePreview()) setMobileTab("preview");
   renderBeatGuide(); closeMenus();
 });
 $("#beat-guide-layer").addEventListener("click", (event) => {
@@ -3209,14 +3210,22 @@ $("#preview-dot-radius").addEventListener("input", (event) => {
   applyPreviewBackground();
 });
 $("#page-size").addEventListener("change", () => { scheduleCompile(0); if (state.previewMode === "pdf") refreshPdf(); });
-$$('[data-preview-mode]').forEach((button) => button.addEventListener("click", () => setPreviewMode(button.dataset.previewMode)));
-$("#toggle-stats").addEventListener("click", () => togglePanel("stats")); $("#menu-toggle-stats").addEventListener("click", () => togglePanel("stats"));
+$$('[data-preview-mode]').forEach((button) => button.addEventListener("click", () => {
+  const mode = button.dataset.previewMode;
+  if (isMobilePreview()) setMobileTab(mode === "beats" ? "beats" : mode === "source" ? "source" : "preview");
+  else setPreviewMode(mode);
+}));
+$("#toggle-stats").addEventListener("click", () => togglePanel("stats"));
+$("#menu-toggle-stats").addEventListener("click", () => isMobilePreview() ? setMobileTab("stats") : togglePanel("stats"));
 $("#menu-toggle-source-tab").addEventListener("click", () => {
   const enabled = !sourceTabEnabled();
   localStorage.setItem("fountain-publisher.source-tab", String(enabled));
   document.body.classList.toggle("source-tab-hidden", !enabled);
   $(".menu-check", $("#menu-toggle-source-tab")).textContent = enabled ? "✓" : "";
-  if (!enabled && state.previewMode === "source") void setPreviewMode("live");
+  if (!enabled && state.previewMode === "source") {
+    if (isMobilePreview()) setMobileTab("preview");
+    else void setPreviewMode("live");
+  }
   closeMenus();
 });
 $("#undo").addEventListener("click", undoDocument); $("#redo").addEventListener("click", redoDocument);

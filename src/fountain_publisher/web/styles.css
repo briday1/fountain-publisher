@@ -648,6 +648,7 @@ button:disabled { cursor: default; opacity: .45; }
   body[data-mobile-tab="stats"] .preview-panel { display: none !important; }
 
   /* Mobile preview reflows to the viewport instead of scaling a fixed paper sheet */
+  .preview-toolbar, #source-panel > .panel-title, .beat-sheet-header, #stats-panel > .panel-title { display: none; }
   .view-switcher { display: none; }
   .workspace-zoom-actions { display: none; }
   .preview-scroll { padding: 0; overflow-x: hidden; scrollbar-gutter: auto; }
@@ -659,7 +660,7 @@ button:disabled { cursor: default; opacity: .45; }
     position: relative; inset: auto; width: 100%; min-height: 100%; margin: 0; padding: 48px max(20px, 6vw) 72px;
     transform: none; box-shadow: none; font-size: calc(16px * var(--mobile-preview-zoom, 1));
   }
-  .beat-guide-layer { top: var(--toolbar-h); min-height: 44px; padding-inline: 6px; }
+  .beat-guide-layer { top: 0; min-height: 44px; padding-inline: 6px; }
   .beat-runner-progress strong { display: none; }
   .beat-runner-progress em { display: none; }
   .beat-runner-actions button[data-open-beat-sheet] { display: none; }
@@ -724,8 +725,9 @@ button:disabled { cursor: default; opacity: .45; }
   .about-menu { padding-right: 4px; margin-right: 0; }
   .about-menu > summary { padding: 0 6px; }
   .about-label { display: none; }
-  /* Hide View and Help menus — panel tabs and docs dialog cover these on mobile */
-  .view-menu, .help-menu { display: none; }
+  /* View remains available for Source and the Beat guide; docs stay out of the compact toolbar. */
+  .help-menu { display: none; }
+  .view-menu [data-preview-mode="pdf"] { display: none; }
   /* Hide undo/redo icon buttons and the divider to save space */
   .toolbar-divider, #undo, #redo { display: none; }
   /* Fix popovers: pin to the top of the screen so they're always fully visible

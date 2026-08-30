@@ -750,7 +750,7 @@ test("mobile page count is preserved across source edits", async () => {
   assert.match(app, /const pageCount = state\.metadata\?\.pageCount \?\? null/);
 });
 
-test("mobile toolbar compresses the about menu and fixes popover visibility", async () => {
+test("mobile toolbar keeps View available and fixes popover visibility", async () => {
   const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
   // HTML: about-menu text wrapped in a class so it can be hidden on mobile
   assert.match(html, /class="about-label"/);
@@ -758,8 +758,9 @@ test("mobile toolbar compresses the about menu and fixes popover visibility", as
   assert.match(html, /class="toolbar-menu file-menu"/);
   assert.match(html, /class="toolbar-menu view-menu"/);
   assert.match(html, /class="toolbar-menu help-menu"/);
-  // CSS: view-menu and help-menu are hidden on mobile
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.view-menu,\s*\.help-menu\s*\{\s*display:\s*none;/s);
+  // CSS: View remains available for Source and Beat guide; Help and PDF preview stay out of the compact mobile menu.
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.help-menu\s*\{\s*display:\s*none;/s);
+  assert.match(css, /\.view-menu \[data-preview-mode="pdf"\]\s*\{\s*display:\s*none;/);
   // CSS: popovers use position:fixed on mobile so they are always in-viewport
   assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.toolbar-popover\s*\{[^}]*position:\s*fixed;/s);
   // CSS: about label is hidden on mobile
