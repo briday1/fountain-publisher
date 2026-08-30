@@ -453,6 +453,8 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /function managedBeatSheetSource\(premise, beats\)/);
   assert.match(app, /Next Beat:[\s\S]*data-assign-beat-area[\s\S]*data-next-beat/);
   assert.match(app, /function selectedBeatArea\(\)[\s\S]*function assignCurrentBeatArea\(\)/);
+  assert.match(app, /function jumpToBeatArea\(beat\)[\s\S]*!\["empty", "note", "boneyard"\]\.includes/);
+  assert.match(app, /function setSourceLines\(lines\)[\s\S]*selectionDirection[\s\S]*setSelectionRange/);
   assert.doesNotMatch(app, /beatSceneEntries|Connect to scene/);
   assert.doesNotMatch(app, /Place at scene/);
   assert.match(app, /addEventListener\("dragover"[\s\S]*insertBefore\(draggedBeat/);

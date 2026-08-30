@@ -1167,6 +1167,16 @@ function assignCurrentBeatArea() {
   toast("Beat area assigned");
 }
 
+function jumpToBeatArea(beat) {
+  if (!beat?.range) return;
+  const lines = classifyLines(source.value);
+  let target = beat.range.startLine;
+  for (let line = beat.range.startLine; line <= beat.range.endLine; line += 1) {
+    if (lines[line] && !["empty", "note", "boneyard"].includes(lines[line].type)) { target = line; break; }
+  }
+  jumpToLine(target + 1, false);
+}
+
 function outlineSceneRow(scene, label = scene.number) {
   return `<li><span class="scene-num">${escapeHtml(label)}</span><button type="button" data-line="${scene.line}">${escapeHtml(scene.heading)}</button></li>`;
 }
@@ -2287,7 +2297,15 @@ function sourceLines() {
 }
 
 function setSourceLines(lines) {
+  const selectionStart = source.selectionStart;
+  const selectionEnd = source.selectionEnd;
+  const selectionDirection = source.selectionDirection;
   source.value = lines.join("\n").replace(/\n{3,}$/g, "\n\n");
+  source.setSelectionRange(
+    Math.min(selectionStart, source.value.length),
+    Math.min(selectionEnd, source.value.length),
+    selectionDirection,
+  );
   sourceChanged();
 }
 
@@ -2964,10 +2982,10 @@ $("#beat-guide-layer").addEventListener("click", (event) => {
   if (event.target.closest("[data-open-beat-sheet]")) { openBeatSheet(); return; }
   if (event.target.closest("[data-assign-beat-area]")) { assignCurrentBeatArea(); return; }
   if (event.target.closest("[data-previous-beat]")) {
-    state.activeBeat = Math.max(0, state.activeBeat - 1); renderBeatGuide(); return;
+    state.activeBeat = Math.max(0, state.activeBeat - 1); renderBeatGuide(); jumpToBeatArea(state.metadata.beatSheet?.beats[state.activeBeat]); return;
   }
   if (event.target.closest("[data-next-beat]")) {
-    state.activeBeat = Math.min((state.metadata.beatSheet?.beats.length || 1) - 1, state.activeBeat + 1); renderBeatGuide(); return;
+    state.activeBeat = Math.min((state.metadata.beatSheet?.beats.length || 1) - 1, state.activeBeat + 1); renderBeatGuide(); jumpToBeatArea(state.metadata.beatSheet?.beats[state.activeBeat]); return;
   }
 });
 $("#add-beat").addEventListener("click", () => {
@@ -3004,7 +3022,7 @@ $("#beat-flow").addEventListener("click", async (event) => {
   state.activeBeat = index;
   if (!beat?.range) { renderBeatFlow(); return; }
   await setPreviewMode("live");
-  requestAnimationFrame(() => jumpToLine(beat.range.startLine + 1, false));
+  requestAnimationFrame(() => jumpToBeatArea(beat));
 });
 $("#beat-sheet-form").addEventListener("submit", (event) => {
   event.preventDefault();
