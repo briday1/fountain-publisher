@@ -2332,12 +2332,15 @@ function managedBeatSheetSource(premise, beats) {
 function beatCard(beat = { text: "" }) {
   if (typeof beat === "string") beat = { text: beat };
   const range = beat.range || {};
-  return `<li class="beat-card" data-start-line="${range.startLine ?? ""}" data-end-line="${range.endLine ?? ""}"><div class="beat-card-moves"><span class="beat-number"></span><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">↑</button><button class="beat-drag" draggable="true" type="button" aria-label="Drag to reorder" title="Drag to reorder">⠿</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">↓</button></div><div class="beat-card-fields"><textarea rows="2" placeholder="What happens in this beat?">${escapeHtml(beat.text)}</textarea>${beat.range ? `<small class="beat-range-label">Screenplay lines ${beat.range.startLine + 1}–${beat.range.endLine + 1}</small>` : ""}</div><button class="beat-remove" type="button" aria-label="Remove beat" title="Remove beat">×</button></li>`;
+  const scene = beat.range ? [...(state.metadata.scenes || [])].reverse().find((item) => item.line <= beat.range.startLine) : null;
+  const assignment = beat.range
+    ? `${scene ? `Scene ${scene.number} · ${scene.heading} · ` : ""}Lines ${beat.range.startLine + 1}–${beat.range.endLine + 1}`
+    : "Not assigned to screenplay";
+  return `<li class="beat-card beat-graph-node${beat.range ? " assigned" : ""}" data-start-line="${range.startLine ?? ""}" data-end-line="${range.endLine ?? ""}"><div class="beat-card-moves"><span class="beat-number"></span><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">↑</button><button class="beat-drag" draggable="true" type="button" aria-label="Drag to reorder" title="Drag to reorder">⠿</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">↓</button></div><div class="beat-card-fields"><textarea rows="2" placeholder="What happens in this beat?">${escapeHtml(beat.text)}</textarea><button class="beat-assignment" type="button" ${beat.range ? "data-beat-jump" : "disabled"}><span>${beat.range ? "Assigned" : "Unassigned"}</span>${escapeHtml(assignment)}</button></div><button class="beat-remove" type="button" aria-label="Remove beat" title="Remove beat">×</button></li>`;
 }
 
 function renumberBeatCards() {
   $$(".beat-card", $("#beat-list")).forEach((card, index) => { $(".beat-number", card).textContent = index + 1; });
-  renderBeatFlow();
 }
 
 function currentBeatCards() {
@@ -2346,18 +2349,6 @@ function currentBeatCards() {
     const endLine = card.dataset.endLine === "" ? null : Number(card.dataset.endLine);
     return { text: $("textarea", card).value.trim(), range: startLine === null || endLine === null ? null : { startLine, endLine } };
   });
-}
-
-function renderBeatFlow() {
-  const flow = $("#beat-flow");
-  if (!flow) return;
-  const beats = currentBeatCards().filter((beat) => beat.text);
-  const sceneFor = (beat) => {
-    if (!beat.range) return "Unassigned";
-    const scene = [...(state.metadata.scenes || [])].reverse().find((item) => item.line <= beat.range.startLine);
-    return scene ? `Scene ${scene.number} · ${scene.heading}` : `Lines ${beat.range.startLine + 1}–${beat.range.endLine + 1}`;
-  };
-  flow.innerHTML = beats.length ? beats.map((beat, index) => `<button type="button" data-beat-flow-index="${index}" class="beat-flow-node${beat.range ? " assigned" : ""}${index === state.activeBeat ? " active" : ""}"><header><b>${index + 1}</b><small>${beat.range ? `Lines ${beat.range.startLine + 1}–${beat.range.endLine + 1}` : "Unassigned"}</small></header><p>${escapeHtml(beat.text)}</p><em>${escapeHtml(sceneFor(beat))}</em></button>`).join("") : `<p class="beat-flow-empty">Add beats below to build the story flow.</p>`;
 }
 
 function renderBeatSheetView() {
@@ -2998,13 +2989,20 @@ $("#beat-list").addEventListener("click", (event) => {
   if (event.target.closest(".beat-up") && card.previousElementSibling) card.parentElement.insertBefore(card, card.previousElementSibling);
   else if (event.target.closest(".beat-down") && card.nextElementSibling) card.parentElement.insertBefore(card.nextElementSibling, card);
   else if (event.target.closest(".beat-remove")) card.remove();
+  else if (event.target.closest("[data-beat-jump]")) {
+    const beat = currentBeatCards()[$$(".beat-card", $("#beat-list")).indexOf(card)];
+    persistBeatSheet();
+    void setPreviewMode("live").then(() => requestAnimationFrame(() => jumpToBeatArea(beat)));
+    return;
+  }
   else return;
   if (!$(".beat-card", $("#beat-list"))) $("#beat-list").insertAdjacentHTML("beforeend", beatCard());
   renumberBeatCards();
+  scheduleBeatSheetSave();
 });
 let draggedBeat = null;
 $("#beat-list").addEventListener("dragstart", (event) => { draggedBeat = event.target.closest(".beat-card"); draggedBeat?.classList.add("dragging"); });
-$("#beat-list").addEventListener("dragend", () => { draggedBeat?.classList.remove("dragging"); draggedBeat = null; renumberBeatCards(); });
+$("#beat-list").addEventListener("dragend", () => { draggedBeat?.classList.remove("dragging"); draggedBeat = null; renumberBeatCards(); scheduleBeatSheetSave(); });
 $("#beat-list").addEventListener("dragover", (event) => {
   if (!draggedBeat) return;
   event.preventDefault();
@@ -3013,19 +3011,8 @@ $("#beat-list").addEventListener("dragover", (event) => {
   const after = event.clientY > target.getBoundingClientRect().top + target.offsetHeight / 2;
   target.parentElement.insertBefore(draggedBeat, after ? target.nextSibling : target);
 });
-$("#beat-list").addEventListener("input", renderBeatFlow);
-$("#beat-flow").addEventListener("click", async (event) => {
-  const node = event.target.closest("[data-beat-flow-index]");
-  if (!node) return;
-  const index = Number(node.dataset.beatFlowIndex);
-  const beat = currentBeatCards().filter((item) => item.text)[index];
-  state.activeBeat = index;
-  if (!beat?.range) { renderBeatFlow(); return; }
-  await setPreviewMode("live");
-  requestAnimationFrame(() => jumpToBeatArea(beat));
-});
-$("#beat-sheet-form").addEventListener("submit", (event) => {
-  event.preventDefault();
+let beatSheetSaveTimer = 0;
+function persistBeatSheet() {
   const premise = $("#beat-premise").value.trim();
   const beats = currentBeatCards().filter((beat) => beat.text);
   const existingLine = state.metadata.beatSheet?.line;
@@ -3035,8 +3022,14 @@ $("#beat-sheet-form").addEventListener("submit", (event) => {
     if (existingLine === null || existingLine === undefined) appendManagedNote(value);
     else { const lines = sourceLines(); lines[existingLine] = value; setSourceLines(lines); }
   }
-  toast("Beat Sheet saved");
-});
+}
+function scheduleBeatSheetSave() {
+  clearTimeout(beatSheetSaveTimer);
+  beatSheetSaveTimer = setTimeout(persistBeatSheet, 300);
+}
+$("#beat-sheet-form").addEventListener("submit", (event) => event.preventDefault());
+$("#beat-sheet-form").addEventListener("input", scheduleBeatSheetSave);
+$("#beat-sheet-form").addEventListener("change", scheduleBeatSheetSave);
 
 $("#annotation-form").addEventListener("submit", (event) => {
   if (event.submitter?.value !== "default") return;
