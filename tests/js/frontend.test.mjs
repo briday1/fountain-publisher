@@ -704,7 +704,7 @@ test("preview zoom clamps scaled bounds and reports the calculated fit percentag
   assert.match(css, /\.preview-page-stage\s*\{[^}]*margin:\s*0 auto;/s);
 });
 
-test("preview background popup supports blank and adjustable dots", async () => {
+test("preview background popup supports themed, directional dot motion", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   const settingsMenu = html.match(/<details class="toolbar-menu settings-menu">([\s\S]*?)<\/details>/)?.[1] || "";
   assert.match(settingsMenu, /id="open-background-dialog"[^>]*>Background…<\/button>/);
@@ -713,7 +713,12 @@ test("preview background popup supports blank and adjustable dots", async () => 
   assert.doesNotMatch(html, /value="rain"|Raindrops|preview-rain-speed/);
   assert.doesNotMatch(html, /Damascus|value="damascus"/);
   assert.match(html, /id="preview-dot-radius" type="range" min="0\.6" max="1\.8" step="0\.1" value="1"/);
+  assert.match(html, /id="background-pattern-preview"[^>]*data-background="dots"/);
+  assert.match(html, /id="preview-dot-direction"[\s\S]*value="up"[\s\S]*value="down"[\s\S]*value="left"[\s\S]*value="right"[\s\S]*value="up-left"[\s\S]*value="up-right"[\s\S]*value="down-left"[\s\S]*value="down-right"[\s\S]*value="random"/);
+  assert.match(html, /id="preview-dot-speed" type="range" min="1" max="100" step="1" value="20"/);
   assert.match(css, /\.preview-scroll\[data-background="dots"\][^}]*radial-gradient[^}]*background-size:\s*16px 16px;/s);
+  assert.match(css, /\.background-pattern-preview\s*\{[^}]*background-color:\s*var\(--bg\);/s);
+  assert.match(css, /background-position:\s*var\(--preview-dot-x, 0px\) var\(--preview-dot-y, 0px\)/);
   assert.doesNotMatch(css, /data-background="damascus"|repeating-radial-gradient/);
   assert.match(css, /#background-dialog\s*\{[^}]*width:\s*min\(390px,/s);
   assert.doesNotMatch(css, /\.preview-scroll\s*\{[^}]*background-color:/s);
@@ -721,6 +726,10 @@ test("preview background popup supports blank and adjustable dots", async () => 
   assert.match(css, /\.beat-guide-layer\s*\{[^}]*position:\s*absolute;/s);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-background", event\.target\.value\)/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-dot-radius", event\.target\.value\)/);
+  assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-dot-direction", event\.target\.value\)/);
+  assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-dot-speed", event\.target\.value\)/);
+  assert.match(app, /time - dotRandomChangedAt >= 60000/);
+  assert.match(app, /1 - Math\.exp\(-dt \/ 6\)/);
   assert.match(app, /hidden = pattern !== "dots"/);
   assert.match(app, /open-background-dialog[\s\S]*requestAnimationFrame\(\(\) => \{[\s\S]*setMobileMenu\(false\);[\s\S]*\$\("#background-dialog"\)\.showModal\(\)/);
   assert.match(app, /event\.target\.closest\("button, a"\)[\s\S]*requestAnimationFrame\(\(\) => \{[\s\S]*menu\.open = false;[\s\S]*setMobileMenu\(false\)/);

@@ -318,13 +318,90 @@ function clearWorkspaceCache() {
   localStorage.removeItem(WORKSPACE_CACHE_KEY);
 }
 
+const DOT_DIRECTIONS = {
+  up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0],
+  "up-left": [-Math.SQRT1_2, -Math.SQRT1_2], "up-right": [Math.SQRT1_2, -Math.SQRT1_2],
+  "down-left": [-Math.SQRT1_2, Math.SQRT1_2], "down-right": [Math.SQRT1_2, Math.SQRT1_2],
+};
+let dotMotionFrame = 0;
+let dotMotionLastTime = 0;
+let dotRandomChangedAt = 0;
+let dotMotionVector = [0, 0];
+let dotMotionTarget = [0, 0];
+let dotOffset = [0, 0];
+let dotMotionDirection = "still";
+let dotMotionSpeed = 20;
+
+function backgroundSurfaces() {
+  return [$("#preview-scroll"), $("#source-panel"), $("#beat-sheet-panel"), $("#background-pattern-preview")];
+}
+
+function chooseRandomDotDirection() {
+  const directions = Object.values(DOT_DIRECTIONS);
+  let next = directions[Math.floor(Math.random() * directions.length)];
+  if (directions.length > 1) while (next === dotMotionTarget) next = directions[Math.floor(Math.random() * directions.length)];
+  dotMotionTarget = next;
+}
+
+function stopDotMotion(reset = false) {
+  cancelAnimationFrame(dotMotionFrame);
+  dotMotionFrame = 0;
+  dotMotionLastTime = 0;
+  if (reset) {
+    dotOffset = [0, 0];
+    backgroundSurfaces().forEach((surface) => {
+      surface.style.setProperty("--preview-dot-x", "0px");
+      surface.style.setProperty("--preview-dot-y", "0px");
+    });
+  }
+}
+
+function startDotMotion(direction, speed) {
+  dotMotionSpeed = speed;
+  if (dotMotionFrame && direction === dotMotionDirection) return;
+  stopDotMotion(direction === "still");
+  dotMotionDirection = direction;
+  if (direction === "still" || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (direction === "random") {
+    chooseRandomDotDirection();
+    dotMotionVector = [...dotMotionTarget];
+    dotRandomChangedAt = performance.now();
+  } else {
+    dotMotionTarget = DOT_DIRECTIONS[direction] || DOT_DIRECTIONS.down;
+    dotMotionVector = [...dotMotionTarget];
+  }
+  const animate = (time) => {
+    if (!dotMotionLastTime) dotMotionLastTime = time;
+    const dt = Math.min((time - dotMotionLastTime) / 1000, .1);
+    dotMotionLastTime = time;
+    if (direction === "random") {
+      if (time - dotRandomChangedAt >= 60000) { chooseRandomDotDirection(); dotRandomChangedAt = time; }
+      const ease = 1 - Math.exp(-dt / 6);
+      dotMotionVector[0] += (dotMotionTarget[0] - dotMotionVector[0]) * ease;
+      dotMotionVector[1] += (dotMotionTarget[1] - dotMotionVector[1]) * ease;
+    }
+    const pixelsPerSecond = dotMotionSpeed * .25;
+    dotOffset[0] = (dotOffset[0] + dotMotionVector[0] * pixelsPerSecond * dt) % 16;
+    dotOffset[1] = (dotOffset[1] + dotMotionVector[1] * pixelsPerSecond * dt) % 16;
+    backgroundSurfaces().forEach((surface) => {
+      surface.style.setProperty("--preview-dot-x", `${dotOffset[0].toFixed(2)}px`);
+      surface.style.setProperty("--preview-dot-y", `${dotOffset[1].toFixed(2)}px`);
+    });
+    dotMotionFrame = requestAnimationFrame(animate);
+  };
+  dotMotionFrame = requestAnimationFrame(animate);
+}
+
 function applyPreviewBackground() {
   const storedPattern = localStorage.getItem("fountain-publisher.preview-background") || "dots";
   const pattern = ["blank", "dots"].includes(storedPattern) ? storedPattern : "dots";
   const storedRadius = Number(localStorage.getItem("fountain-publisher.preview-dot-radius"));
   const radius = storedRadius >= .6 && storedRadius <= 1.8 ? storedRadius : 1;
-  const preview = $("#preview-scroll");
-  [preview, $("#source-panel"), $("#beat-sheet-panel")].forEach((surface) => {
+  const storedDirection = localStorage.getItem("fountain-publisher.preview-dot-direction") || "still";
+  const direction = storedDirection === "random" || storedDirection === "still" || DOT_DIRECTIONS[storedDirection] ? storedDirection : "still";
+  const storedSpeed = Number(localStorage.getItem("fountain-publisher.preview-dot-speed"));
+  const speed = storedSpeed >= 1 && storedSpeed <= 100 ? storedSpeed : 20;
+  backgroundSurfaces().forEach((surface) => {
     surface.dataset.background = pattern;
     surface.style.setProperty("--preview-dot-radius", `${radius}px`);
   });
@@ -332,6 +409,12 @@ function applyPreviewBackground() {
   $("#preview-dot-radius").value = String(radius);
   $("#preview-dot-radius-value").textContent = `${radius.toFixed(1)}px`;
   $("#preview-dot-radius-row").hidden = pattern !== "dots";
+  $("#preview-dot-direction").value = direction;
+  $("#preview-dot-speed").value = String(speed);
+  $("#preview-dot-speed-value").textContent = String(speed);
+  $("#preview-dot-direction-row").hidden = pattern !== "dots";
+  $("#preview-dot-speed-row").hidden = pattern !== "dots";
+  if (pattern === "dots") startDotMotion(direction, speed); else stopDotMotion(true);
 }
 
 function escapeHtml(value) {
@@ -3432,6 +3515,14 @@ $("#preview-background").addEventListener("change", (event) => {
 });
 $("#preview-dot-radius").addEventListener("input", (event) => {
   localStorage.setItem("fountain-publisher.preview-dot-radius", event.target.value);
+  applyPreviewBackground();
+});
+$("#preview-dot-direction").addEventListener("change", (event) => {
+  localStorage.setItem("fountain-publisher.preview-dot-direction", event.target.value);
+  applyPreviewBackground();
+});
+$("#preview-dot-speed").addEventListener("input", (event) => {
+  localStorage.setItem("fountain-publisher.preview-dot-speed", event.target.value);
   applyPreviewBackground();
 });
 $("#page-size").addEventListener("change", () => { scheduleCompile(0); if (state.previewMode === "pdf") refreshPdf(); });
