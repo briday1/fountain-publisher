@@ -2364,6 +2364,8 @@ function currentBeatCards() {
 
 function renderBeatSheetView() {
   const sheet = state.metadata.beatSheet || { premise: "", beats: [] };
+  const hasBeatSheet = Boolean(sheet.premise?.trim() || sheet.beats.some((beat) => (typeof beat === "string" ? beat : beat.text)?.trim()));
+  $("#beat-sheet-empty-state").hidden = hasBeatSheet;
   $("#beat-premise").value = sheet.premise || "";
   $("#beat-list").innerHTML = (sheet.beats.length ? sheet.beats : [""]).map(beatCard).join("");
   renumberBeatCards();
@@ -3319,6 +3321,13 @@ $("#insert-scene").addEventListener("click", () => { appendToSource("INT. LOCATI
 $("#insert-dialogue").addEventListener("click", () => { appendToSource("CHARACTER\nDialogue here.\n\n"); });
 $("#insert-direction").addEventListener("click", () => { appendToSource("Action description.\n\n"); });
 $("#insert-pagebreak").addEventListener("click", () => { appendToSource("===\n\n"); });
+$("#beat-sheet-empty-state").addEventListener("click", (event) => {
+  const action = event.target.closest("[data-blank-insert]")?.dataset.blankInsert;
+  if (action === "title") openTitlePageDialog();
+  else if (action === "scene") appendToSource("INT. LOCATION - DAY\n\n");
+  else if (action === "dialogue") appendToSource("CHARACTER\nDialogue here.\n\n");
+  else if (action === "direction") appendToSource("Action description.\n\n");
+});
 $("#menu-insert-title-page").addEventListener("click", openTitlePageDialog);
 $("#menu-insert-scene").addEventListener("click", () => { appendToSource("INT. LOCATION - DAY\n\n"); });
 $("#menu-insert-dialogue").addEventListener("click", () => { appendToSource("CHARACTER\nDialogue here.\n\n"); });
@@ -3454,7 +3463,7 @@ async function initialize() {
   }
   applyZoom();
   const restoredMode = ["source", "live", "pdf", "beats"].includes(cached?.previewMode) ? cached.previewMode : "live";
-  const requestedMode = restore ? restoredMode : localStorage.getItem("fountain-publisher.preview") || "live";
+  const requestedMode = restore ? restoredMode : localStorage.getItem("fountain-publisher.preview") || "beats";
   await setPreviewMode(isMobilePreview() ? (initialMobileTab === "source" ? "source" : "live") : requestedMode);
   if (restore) requestAnimationFrame(() => {
     const start = Math.min(Number(cached.selectionStart) || 0, source.value.length);
