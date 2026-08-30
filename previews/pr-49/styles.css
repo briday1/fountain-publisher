@@ -288,8 +288,9 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
   position: absolute; left: calc(100% + 24px); top: 1px; width: 14px; height: 14px; padding: 0;
   border: 2px solid color-mix(in srgb, var(--accent) 70%, white); border-radius: 50%;
   background: var(--accent); box-shadow: 0 0 5px var(--accent), 0 0 13px color-mix(in srgb, var(--accent) 65%, transparent);
-  pointer-events: auto; cursor: pointer;
+  pointer-events: auto; cursor: pointer; touch-action: manipulation;
 }
+.annotation-orb::after { content: ""; position: absolute; inset: -8px; }
 .annotation-orb:hover, .annotation-orb:focus-visible { transform: scale(1.2); box-shadow: 0 0 7px var(--accent), 0 0 18px var(--accent); }
 .script-line.section.source-current, .script-line.synopsis.source-current, .script-line.note.source-current, .script-line.boneyard.source-current { display: block; margin: 8px 0; padding: 5px 8px; border: 1px dashed color-mix(in srgb, var(--paper-ink) 28%, transparent); color: color-mix(in srgb, var(--paper-ink) 62%, transparent); font-size: 12px; font-style: italic; }
 .script-line.section.source-current::before, .script-line.synopsis.source-current::before, .script-line.note.source-current::before, .script-line.boneyard.source-current::before { content: "EDITOR ONLY  "; font: 700 9px/1 sans-serif; letter-spacing: .08em; opacity: .7; }
@@ -674,7 +675,7 @@ button:disabled { cursor: default; opacity: .45; }
   .preview-panel.beat-runner-on .preview-scroll { padding-top: 44px; }
   .preview-page-stage { width: 100% !important; min-height: 100% !important; }
   .screenplay-page {
-    position: relative; inset: auto; width: 100%; min-height: 100%; margin: 0; padding: 48px max(20px, 6vw) 72px;
+    position: relative; inset: auto; width: 100%; min-height: 100%; margin: 0; padding: 48px max(28px, 7vw) 72px;
     transform: none; box-shadow: none; font-size: calc(16px * var(--mobile-preview-zoom, 1));
   }
   .beat-guide-layer { top: 0; min-height: 44px; padding-inline: 6px; }
@@ -697,7 +698,9 @@ button:disabled { cursor: default; opacity: .45; }
   .beat-sheet-actions span { display: none; }
   body.scene-nums-margin .screenplay-page { padding-left: calc(54px * var(--mobile-preview-zoom, 1)); }
   .script-line { overflow-wrap: anywhere; }
-  .annotation-orb { left: calc(100% + 4px); }
+  .annotation-orb { width: 16px; height: 16px; }
+  .preview-context-menu { min-width: 210px; }
+  .preview-context-menu button { min-height: 44px; padding: 10px 11px; font-size: 13px; }
   .script-line.lyric { margin-left: 15%; }
   .script-line.character { width: 48%; margin-left: 34%; }
   .script-line.parenthetical { width: 62%; margin-left: 23%; padding-left: 3%; }
