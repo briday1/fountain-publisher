@@ -1500,9 +1500,13 @@ function renderCharacterAnalytics() {
       const lineCount = usage.get(index + 1) || 0;
       if (!lineCount) return;
       const x = labelWidth + index * sceneWidth + 4;
+      const intensity = maxLines === minLines ? 1 : 0.3 + 0.7 * ((lineCount - minLines) / (maxLines - minLines));
+      context.save();
+      context.globalAlpha = intensity;
       context.fillStyle = characterColor;
       context.fillRect(x, y + 7, sceneWidth - 8, rowHeight - 14);
-      context.fillStyle = chartLabelColor(characterColor);
+      context.restore();
+      context.fillStyle = intensity >= 0.62 ? chartLabelColor(characterColor) : ink;
       context.textAlign = "center";
       context.fillText(String(lineCount), x + (sceneWidth - 8) / 2, y + rowHeight / 2);
     });

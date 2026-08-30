@@ -456,7 +456,8 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.match(app, /function chartLabelColor\(color\)[\s\S]*luminance/);
   assert.match(app, /renderSceneCharacterAnalytics[\s\S]*characterChartColor\(character\)/);
   assert.match(app, /renderCharacterAnalytics[\s\S]*characterChartColor\(character\.name\)/);
-  assert.doesNotMatch(app, /context\.globalAlpha = intensity/);
+  assert.match(app, /const intensity = maxLines === minLines \? 1 : 0\.3 \+ 0\.7[\s\S]*context\.globalAlpha = intensity/);
+  assert.match(app, /intensity >= 0\.62 \? chartLabelColor\(characterColor\) : ink/);
   assert.match(app, /function sceneCharacterWordSegments\(sceneIndex\)[\s\S]*segments\.push\(\{ character: active, start: position, words \}\)/);
   assert.match(app, /function renderSceneCharacterAnalytics\(sceneIndex\)[\s\S]*segment\.start \/ total[\s\S]*segment\.words \/ total/);
   assert.match(app, /state\.metadata\.scenes\.length === 1 \? 0 : null/);
