@@ -60,6 +60,8 @@ test("tablet landscape keeps document identity clear of history controls", async
   assert.match(css, /\.app-toolbar\.title-right \.global-actions::after\s*\{[^}]*flex:\s*0 0 246px;/s);
   assert.match(css, /\.app-toolbar\.title-right \.document-identity\s*\{[^}]*right:\s*12px;[^}]*width:\s*230px;/s);
   assert.doesNotMatch(css, /title-right[^}]*compile-status[^}]*display:\s*none/);
+  assert.match(css, /#filename\s*\{[^}]*flex:\s*1 1 auto;/s);
+  assert.match(css, /\.compile-status\s*\{[^}]*flex:\s*0 0 auto;[^}]*white-space:\s*nowrap;/s);
   assert.match(app, /function updateToolbarIdentityLayout\(\)[\s\S]*centeredGap[\s\S]*wasRight \? 180 : 140/);
   assert.match(app, /"ResizeObserver" in window[\s\S]*new ResizeObserver\(scheduleToolbarIdentityLayout\)\.observe\(\$\("\.app-toolbar"\)\)/);
   assert.match(app, /window\.addEventListener\("resize"[\s\S]*updateToolbarIdentityLayout\(\)/);

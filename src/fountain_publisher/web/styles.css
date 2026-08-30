@@ -171,10 +171,10 @@ kbd { border: 0; background: none; color: var(--faint); font: 11px var(--mono); 
 .document-identity { position: absolute; left: 50%; transform: translateX(-50%); top: 0; height: 100%; display: flex; align-items: center; gap: 6px; max-width: 34vw; }
 .app-toolbar.title-right .global-actions::after { content: ""; flex: 0 0 246px; }
 .app-toolbar.title-right .document-identity { left: auto; right: 12px; width: 230px; max-width: 230px; transform: none; justify-content: flex-end; }
-#filename { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-#dirty-dot { width: 7px; height: 7px; border-radius: 50%; background: transparent; }
+#filename { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+#dirty-dot { flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; background: transparent; }
 body.dirty #dirty-dot { background: var(--accent); }
-.compile-status { color: var(--muted); font-size: 11px; padding-left: 6px; border-left: 1px solid var(--border); }
+.compile-status { flex: 0 0 auto; white-space: nowrap; color: var(--muted); font-size: 11px; padding-left: 6px; border-left: 1px solid var(--border); }
 .compile-status.error { color: var(--danger); }
 
 #workspace {
