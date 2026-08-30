@@ -176,11 +176,10 @@
           <header class="beat-sheet-header"><div><small>STORY MAP</small><h2 id="beat-sheet-heading">Beat Sheet</h2></div><div class="view-switcher" role="group" aria-label="Workspace view"><button data-preview-mode="source" type="button">Source</button><button data-preview-mode="live" type="button">Preview</button><button data-preview-mode="pdf" type="button">PDF</button><button class="active" data-preview-mode="beats" type="button">Beat Sheet</button></div></header>
           <div class="beat-sheet-workspace">
             <label class="premise-field"><span>Premise</span><textarea id="beat-premise" rows="3" placeholder="What is this story really about?"></textarea></label>
-            <section class="beat-flow-section" aria-labelledby="beat-flow-heading"><div class="beat-sheet-title"><div><small>STORY FLOW</small><h3 id="beat-flow-heading">Beat assignments</h3></div><span>Screenplay order →</span></div><div id="beat-flow" class="beat-flow"></div></section>
-            <div class="beat-sheet-title"><div><small>SEQUENCE</small><h3>Story beats</h3></div><button id="add-beat" type="button">+ Add beat</button></div>
-            <ol id="beat-list" class="beat-list"></ol>
+            <div class="beat-sheet-title"><div><small>STORY FLOW</small><h3>Beats and assignments</h3></div><button id="add-beat" type="button">+ Add beat</button></div>
+            <ol id="beat-list" class="beat-list beat-flow-editor"></ol>
           </div>
-          <footer class="beat-sheet-actions"><span>Drag cards to reorder the story.</span><button class="primary" value="default" type="submit">Save Beat Sheet</button></footer>
+          <footer class="beat-sheet-actions"><span>Changes save automatically. Drag or use arrows to reorder the story.</span></footer>
         </form>
       </section>
 
