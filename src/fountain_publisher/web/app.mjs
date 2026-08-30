@@ -2327,7 +2327,10 @@ function beatCard(beat = { text: "" }) {
   const assignment = beat.range
     ? `${scene ? `Scene ${scene.number} · ${scene.heading} · ` : ""}Lines ${beat.range.startLine + 1}–${beat.range.endLine + 1}`
     : "Not assigned to screenplay";
-  return `<li class="beat-card beat-graph-node${beat.range ? " assigned" : ""}" data-start-line="${range.startLine ?? ""}" data-end-line="${range.endLine ?? ""}"><div class="beat-card-moves"><span class="beat-number"></span><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">↑</button><button class="beat-drag" draggable="true" type="button" aria-label="Drag to reorder" title="Drag to reorder">⠿</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">↓</button></div><div class="beat-card-fields"><textarea rows="2" placeholder="What happens in this beat?">${escapeHtml(beat.text)}</textarea><button class="beat-assignment" type="button" ${beat.range ? "data-beat-jump" : "disabled"}><span>${beat.range ? "Assigned" : "Unassigned"}</span>${escapeHtml(assignment)}</button></div><button class="beat-remove" type="button" aria-label="Remove beat" title="Remove beat">×</button></li>`;
+  const excerpt = beat.range
+    ? sourceLines().slice(beat.range.startLine, beat.range.endLine + 1).filter((line) => line.trim() && !managedNote(line)).join(" ").slice(0, 130)
+    : "Select screenplay text in Preview, then assign it from the Beat runner.";
+  return `<li class="beat-card beat-graph-node${beat.range ? " assigned" : ""}" data-start-line="${range.startLine ?? ""}" data-end-line="${range.endLine ?? ""}"><div class="beat-card-moves"><span class="beat-number"></span><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">↑</button><button class="beat-drag" draggable="true" type="button" aria-label="Drag to reorder" title="Drag to reorder">⠿</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">↓</button></div><div class="beat-card-fields"><input class="beat-text" type="text" placeholder="What happens in this beat?" value="${escapeHtml(beat.text)}" /></div><button class="beat-assignment" type="button" ${beat.range ? "data-beat-jump" : "disabled"}><span>${beat.range ? "Assigned" : "Unassigned"}</span><small>${escapeHtml(assignment)}</small><em>${escapeHtml(excerpt)}</em></button><button class="beat-remove" type="button" aria-label="Remove beat" title="Remove beat">×</button></li>`;
 }
 
 function renumberBeatCards() {
@@ -2338,7 +2341,7 @@ function currentBeatCards() {
   return $$(".beat-card", $("#beat-list")).map((card) => {
     const startLine = card.dataset.startLine === "" ? null : Number(card.dataset.startLine);
     const endLine = card.dataset.endLine === "" ? null : Number(card.dataset.endLine);
-    return { text: $("textarea", card).value.trim(), range: startLine === null || endLine === null ? null : { startLine, endLine } };
+    return { text: $(".beat-text", card).value.trim(), range: startLine === null || endLine === null ? null : { startLine, endLine } };
   });
 }
 
@@ -2971,7 +2974,7 @@ $("#beat-guide-layer").addEventListener("click", (event) => {
 });
 $("#add-beat").addEventListener("click", () => {
   $("#beat-list").insertAdjacentHTML("beforeend", beatCard()); renumberBeatCards();
-  $("#beat-list .beat-card:last-child textarea").focus();
+  $("#beat-list .beat-card:last-child .beat-text").focus();
 });
 $("#beat-list").addEventListener("click", (event) => {
   const card = event.target.closest(".beat-card");
@@ -3000,6 +3003,19 @@ $("#beat-list").addEventListener("dragover", (event) => {
   if (!target || target === draggedBeat) return;
   const after = event.clientY > target.getBoundingClientRect().top + target.offsetHeight / 2;
   target.parentElement.insertBefore(draggedBeat, after ? target.nextSibling : target);
+});
+$("#beat-list").addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" || !event.target.matches(".beat-text")) return;
+  event.preventDefault();
+  const card = event.target.closest(".beat-card");
+  let next = card.nextElementSibling;
+  if (!next) {
+    $("#beat-list").insertAdjacentHTML("beforeend", beatCard());
+    next = $("#beat-list .beat-card:last-child");
+    renumberBeatCards();
+  }
+  scheduleBeatSheetSave();
+  $(".beat-text", next).focus();
 });
 let beatSheetSaveTimer = 0;
 function persistBeatSheet() {
