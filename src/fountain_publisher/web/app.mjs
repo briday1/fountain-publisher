@@ -679,6 +679,23 @@ function renderPreviewLines(lines) {
   return output.join("");
 }
 
+function alignAnnotationOrbs() {
+  const orbs = $$(".annotation-orb", page);
+  if (!orbs.length || page.hidden) return;
+  const pageRect = page.getBoundingClientRect();
+  if (!pageRect.width) return;
+  const scale = pageRect.width / page.offsetWidth || 1;
+  const paddingRight = parseFloat(getComputedStyle(page).paddingRight) || 0;
+  const targetX = isMobilePreview()
+    ? pageRect.right - paddingRight * scale * .5
+    : pageRect.right - paddingRight * scale + 24 * scale;
+  orbs.forEach((orb) => {
+    const line = orb.closest(".script-line");
+    if (!line) return;
+    orb.style.left = `${(targetX - line.getBoundingClientRect().left) / scale}px`;
+  });
+}
+
 function renderPreview({ focusLine = null, focusOffset = null } = {}) {
   const lines = classifyLines(source.value);
   const previewScroll = $("#preview-scroll");
@@ -709,6 +726,7 @@ function renderPreview({ focusLine = null, focusOffset = null } = {}) {
   });
   updatePreviewCursor();
   applyZoom();
+  requestAnimationFrame(alignAnnotationOrbs);
 }
 
 function placeCaretAtOffset(element, offset) {
@@ -2416,7 +2434,7 @@ function applyZoom() {
     $("#preview-page-stage").style.removeProperty("width");
     $("#preview-page-stage").style.removeProperty("min-height");
     page.style.setProperty("--mobile-preview-zoom", scale);
-    requestAnimationFrame(() => clampPreviewScroll());
+    requestAnimationFrame(() => { clampPreviewScroll(); alignAnnotationOrbs(); });
     scheduleWorkspaceCache();
     return;
   }
@@ -2448,6 +2466,7 @@ function applyZoom() {
   requestAnimationFrame(() => {
     preview.scrollLeft = Math.max(0, (preview.scrollWidth - preview.clientWidth) / 2);
     clampPreviewScroll(preview);
+    alignAnnotationOrbs();
   });
   scheduleWorkspaceCache();
 }
@@ -3216,7 +3235,38 @@ page.addEventListener("keyup", (event) => {
   const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); const edit = previewSelection(line); if (edit) setSourceSelectionFromPreview(edit);
 });
 page.addEventListener("focusout", () => setTimeout(() => { if (!$("#preview-completion-menu").matches(":hover")) hidePreviewCompletions(); }, 0));
+let previewTouchMenuTimer = 0;
+let previewTouchStart = null;
+let suppressPreviewClickUntil = 0;
+function cancelPreviewTouchMenu() {
+  clearTimeout(previewTouchMenuTimer);
+  previewTouchMenuTimer = 0;
+  previewTouchStart = null;
+}
+page.addEventListener("pointerdown", (event) => {
+  if (event.pointerType === "mouse" || event.target.closest(".annotation-orb")) return;
+  const line = event.target.closest(".script-line");
+  if (!line) return;
+  cancelPreviewTouchMenu();
+  previewTouchStart = { x: event.clientX, y: event.clientY };
+  previewTouchMenuTimer = setTimeout(() => {
+    previewTouchMenuTimer = 0;
+    if (!line.isConnected) return;
+    suppressPreviewClickUntil = Date.now() + 900;
+    hidePreviewCompletions();
+    placePreviewCaretFromPoint(line, event.clientX, event.clientY);
+    showPreviewContextMenu(line, event.clientX + 12, event.clientY + 12);
+    navigator.vibrate?.(8);
+  }, 420);
+});
+page.addEventListener("pointermove", (event) => {
+  if (!previewTouchStart || Math.hypot(event.clientX - previewTouchStart.x, event.clientY - previewTouchStart.y) <= 10) return;
+  cancelPreviewTouchMenu();
+});
+page.addEventListener("pointerup", cancelPreviewTouchMenu);
+page.addEventListener("pointercancel", cancelPreviewTouchMenu);
 page.addEventListener("contextmenu", (event) => {
+  if (Date.now() < suppressPreviewClickUntil) { event.preventDefault(); return; }
   const line = event.target.closest(".script-line");
   if (!line || event.target.closest(".annotation-orb")) return;
   event.preventDefault();
@@ -3226,6 +3276,7 @@ page.addEventListener("contextmenu", (event) => {
   showPreviewContextMenu(line, event.clientX, event.clientY);
 });
 page.addEventListener("click", (event) => {
+  if (Date.now() < suppressPreviewClickUntil) { event.preventDefault(); return; }
   hidePreviewContextMenu();
   const orb = event.target.closest(".annotation-orb");
   if (orb) { event.preventDefault(); openAnnotationEditor(Number(orb.dataset.annotationLine)); }
