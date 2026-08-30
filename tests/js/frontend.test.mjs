@@ -107,12 +107,14 @@ test("app info uses one understated GitHub link", async () => {
 });
 
 test("third-party license notices accompany local and static distributions", async () => {
-  const [html, notices, build] = await Promise.all([
+  const [html, readme, notices, build] = await Promise.all([
     readFile(htmlPath, "utf8"),
+    readFile(new URL("../../README.md", import.meta.url), "utf8"),
     readFile(new URL("../../src/fountain_publisher/web/THIRD_PARTY_NOTICES.md", import.meta.url), "utf8"),
     readFile(new URL("../../scripts/build-web.mjs", import.meta.url), "utf8"),
   ]);
-  assert.match(html, /href="THIRD_PARTY_NOTICES\.md"[^>]*>Third-party notices</);
+  assert.doesNotMatch(html, />Third-party notices<\/a>/);
+  assert.match(readme, /\[Third-party notices\]\(src\/fountain_publisher\/web\/THIRD_PARTY_NOTICES\.md\)/);
   assert.match(notices, /@zakkster\/lite-rain 1\.4\.0[\s\S]*Copyright \(c\) Zahary Shinikchiev[\s\S]*MIT License Text/);
   assert.match(notices, /Pyodide 314\.0\.6[\s\S]*Mozilla Public License 2\.0/);
   assert.match(notices, /Screenplain 0\.12\.0[\s\S]*ReportLab 5\.0\.1[\s\S]*Courier Prime/);

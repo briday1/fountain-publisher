@@ -144,3 +144,7 @@ src/fountain_publisher/
 ```
 
 The server binds to loopback by default, limits compile request size, serves no arbitrary filesystem paths, and sends restrictive browser security headers.
+
+## Licensing
+
+Fountain Publisher includes open-source dependencies. Their licenses and required attributions are collected in [Third-party notices](src/fountain_publisher/web/THIRD_PARTY_NOTICES.md).
