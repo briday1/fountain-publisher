@@ -1,4 +1,4 @@
-const CACHE_NAME = "fountain-publisher-shell-v1";
+const CACHE_NAME = "fountain-publisher-shell-v2";
 const APP_SHELL = ["./", "./index.html", "./styles.css", "./app.mjs", "./app.webmanifest", "./icons/app-icon-192.png", "./icons/app-icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -19,6 +19,13 @@ self.addEventListener("fetch", (event) => {
       if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
       return response;
     }).catch(() => caches.match(request).then((response) => response || caches.match("./index.html"))));
+    return;
+  }
+  if (["styles.css", "app.mjs"].some((asset) => url.pathname.endsWith(`/${asset}`))) {
+    event.respondWith(fetch(request).then((response) => {
+      if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
+      return response;
+    }).catch(() => caches.match(request)));
     return;
   }
   event.respondWith(caches.match(request).then((cached) => {

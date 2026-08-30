@@ -32,7 +32,7 @@
   --syntax-transition: #b45309;
   --syntax-structure: #0369a1;
   --syntax-ignored: #be123c;
-  --annotation-accent: #9b5c72;
+  --annotation-accent: var(--metric-scenes-ink);
   --character-chart-1: #0072b2;
   --character-chart-2: #c65d00;
   --character-chart-3: #00845f;
@@ -79,7 +79,7 @@
   --syntax-transition: #fbbf24;
   --syntax-structure: #7dd3fc;
   --syntax-ignored: #fb7185;
-  --annotation-accent: #ce849e;
+  --annotation-accent: var(--metric-scenes-ink);
   --character-chart-1: #56b4e9;
   --character-chart-2: #e69f00;
   --character-chart-3: #42c99a;
@@ -108,7 +108,7 @@
     --danger: #f08080; --paper: #17191b; --paper-ink: #f1f1ef;
     --source-bg: #111315; --source-gutter-bg: #181a1c; --source-ink: #cbd5e1; --source-muted: #64748b;
     --syntax-title: #c4b5fd; --syntax-scene: #38bdf8; --syntax-character: #c4b5fd;
-    --syntax-parenthetical: #7c8ba1; --syntax-transition: #fbbf24; --syntax-structure: #7dd3fc; --syntax-ignored: #fb7185; --annotation-accent: #ce849e;
+    --syntax-parenthetical: #7c8ba1; --syntax-transition: #fbbf24; --syntax-structure: #7dd3fc; --syntax-ignored: #fb7185; --annotation-accent: var(--metric-scenes-ink);
     --character-chart-1: #56b4e9; --character-chart-2: #e69f00; --character-chart-3: #42c99a; --character-chart-4: #f0785a;
     --character-chart-5: #a99af5; --character-chart-6: #e88bc3; --character-chart-7: #8bcb65; --character-chart-8: #d7c75b;
     --metric-pages-bg: #2b3944; --metric-pages-ink: #c2d3df;
@@ -308,8 +308,9 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .script-line.section, .script-line.synopsis, .script-line.note, .script-line.boneyard { display: none; }
 .annotation-orb {
   position: absolute; left: calc(100% + 24px); top: 1px; width: 14px; height: 14px; padding: 0;
+  appearance: none; -webkit-appearance: none;
   border: 2px solid color-mix(in srgb, var(--annotation-accent) 70%, white); border-radius: 50%;
-  background: var(--annotation-accent); box-shadow: 0 0 5px var(--annotation-accent), 0 0 13px color-mix(in srgb, var(--annotation-accent) 65%, transparent);
+  background-color: var(--annotation-accent); box-shadow: 0 0 5px var(--annotation-accent), 0 0 13px color-mix(in srgb, var(--annotation-accent) 65%, transparent);
   pointer-events: auto; cursor: pointer; touch-action: manipulation;
 }
 .annotation-orb::after { content: ""; position: absolute; inset: -8px; }

@@ -6,6 +6,7 @@ import test from "node:test";
 const appPath = new URL("../../src/fountain_publisher/web/app.mjs", import.meta.url);
 const htmlPath = new URL("../../src/fountain_publisher/web/index.html", import.meta.url);
 const cssPath = new URL("../../src/fountain_publisher/web/styles.css", import.meta.url);
+const workerPath = new URL("../../src/fountain_publisher/web/service-worker.js", import.meta.url);
 
 test("browser module has valid JavaScript syntax", () => {
   const result = spawnSync(process.execPath, ["--check", appPath.pathname], { encoding: "utf8" });
@@ -493,7 +494,7 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
 });
 
 test("source-backed annotations and notes expose preview and sidebar CRUD", async () => {
-  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  const [html, app, css, worker] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8"), readFile(workerPath, "utf8")]);
   assert.match(html, /id="annotation-dialog"/);
   assert.match(html, /id="annotation-text" rows="6"(?![^>]*required)/);
   assert.match(html, /button value="cancel" formnovalidate>Cancel<\/button>/);
@@ -525,8 +526,10 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(app, /const candidates = \$\$\("\.script-line\[data-display\]"/);
   assert.match(app, /\["dialogue", "parenthetical", "note"\]\.includes/);
   assert.match(css, /\.annotation-orb\s*\{/);
-  assert.match(css, /--annotation-accent:\s*#9b5c72;/);
-  assert.match(css, /\.annotation-orb\s*\{[^}]*background:\s*var\(--annotation-accent\)/s);
+  assert.match(css, /--annotation-accent:\s*var\(--metric-scenes-ink\);/);
+  assert.match(css, /\.annotation-orb\s*\{[^}]*appearance:\s*none;[^}]*-webkit-appearance:\s*none;[^}]*background-color:\s*var\(--annotation-accent\)/s);
+  assert.match(worker, /fountain-publisher-shell-v2/);
+  assert.match(worker, /\["styles\.css", "app\.mjs"\][\s\S]*fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);
   assert.match(css, /\.annotation-orb\s*\{[^}]*top:\s*1px;/s);
   assert.match(app, /function alignAnnotationOrbs\(\)[\s\S]*marginCenterX[\s\S]*orb\.offsetWidth \* scale \* \.5[\s\S]*orb\.style\.left/);
   assert.match(app, /requestAnimationFrame\(alignAnnotationOrbs\)/);
