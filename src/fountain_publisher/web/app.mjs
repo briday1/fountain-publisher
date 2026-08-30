@@ -2681,7 +2681,7 @@ function renderBeatSheetView() {
   const hasBeatSheet = Boolean(sheet.premise?.trim() || sheet.beats.some((beat) => (typeof beat === "string" ? beat : beat.text)?.trim()));
   $("#beat-sheet-empty-state").hidden = hasBeatSheet;
   $("#beat-premise").value = sheet.premise || "";
-  $("#beat-list").innerHTML = (sheet.beats.length ? sheet.beats : [""]).map(beatCard).join("");
+  $("#beat-list").innerHTML = sheet.beats.map(beatCard).join("");
   renumberBeatCards();
 }
 
@@ -3386,7 +3386,6 @@ $("#beat-list").addEventListener("click", (event) => {
     return;
   }
   else return;
-  if (!$(".beat-card", $("#beat-list"))) $("#beat-list").insertAdjacentHTML("beforeend", beatCard());
   renumberBeatCards();
   scheduleBeatSheetSave();
 });
