@@ -32,6 +32,7 @@
   --syntax-transition: #b45309;
   --syntax-structure: #0369a1;
   --syntax-ignored: #be123c;
+  --annotation-accent: var(--metric-scenes-ink);
   --character-chart-1: #0072b2;
   --character-chart-2: #c65d00;
   --character-chart-3: #00845f;
@@ -78,6 +79,7 @@
   --syntax-transition: #fbbf24;
   --syntax-structure: #7dd3fc;
   --syntax-ignored: #fb7185;
+  --annotation-accent: var(--metric-scenes-ink);
   --character-chart-1: #56b4e9;
   --character-chart-2: #e69f00;
   --character-chart-3: #42c99a;
@@ -106,7 +108,7 @@
     --danger: #f08080; --paper: #17191b; --paper-ink: #f1f1ef;
     --source-bg: #111315; --source-gutter-bg: #181a1c; --source-ink: #cbd5e1; --source-muted: #64748b;
     --syntax-title: #c4b5fd; --syntax-scene: #38bdf8; --syntax-character: #c4b5fd;
-    --syntax-parenthetical: #7c8ba1; --syntax-transition: #fbbf24; --syntax-structure: #7dd3fc; --syntax-ignored: #fb7185;
+    --syntax-parenthetical: #7c8ba1; --syntax-transition: #fbbf24; --syntax-structure: #7dd3fc; --syntax-ignored: #fb7185; --annotation-accent: var(--metric-scenes-ink);
     --character-chart-1: #56b4e9; --character-chart-2: #e69f00; --character-chart-3: #42c99a; --character-chart-4: #f0785a;
     --character-chart-5: #a99af5; --character-chart-6: #e88bc3; --character-chart-7: #8bcb65; --character-chart-8: #d7c75b;
     --metric-pages-bg: #2b3944; --metric-pages-ink: #c2d3df;
@@ -165,14 +167,16 @@ kbd { border: 0; background: none; color: var(--faint); font: 11px var(--mono); 
 :root[data-effective-theme="dark"] .theme-sun { display: none; }
 :root[data-effective-theme="dark"] .theme-moon { display: block; }
 .toolbar-divider { height: 20px; margin: auto 5px; border-left: 1px solid var(--border); }
+.history-actions { display: flex; align-items: center; gap: 2px; }
 .icon-tool { width: 30px; margin: 6px 1px; border-radius: 4px; font-size: 18px; color: var(--muted); }
 .icon-tool:hover { background: var(--surface-2); color: var(--ink); }
 .icon-tool svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.document-identity { position: absolute; left: 50%; transform: translateX(-50%); top: 0; height: 100%; display: flex; align-items: center; gap: 6px; max-width: 34vw; }
-#filename { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-#dirty-dot { width: 7px; height: 7px; border-radius: 50%; background: transparent; }
+.app-toolbar::after { content: ""; flex: 0 0 246px; }
+.document-identity { position: absolute; left: auto; right: 12px; top: 0; width: 230px; max-width: 230px; height: 100%; display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+#filename { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+#dirty-dot { flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; background: transparent; }
 body.dirty #dirty-dot { background: var(--accent); }
-.compile-status { color: var(--muted); font-size: 11px; padding-left: 6px; border-left: 1px solid var(--border); }
+.compile-status { flex: 0 0 auto; white-space: nowrap; color: var(--muted); font-size: 11px; padding-left: 6px; border-left: 1px solid var(--border); }
 .compile-status.error { color: var(--danger); }
 
 #workspace {
@@ -304,12 +308,13 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .script-line.section, .script-line.synopsis, .script-line.note, .script-line.boneyard { display: none; }
 .annotation-orb {
   position: absolute; left: calc(100% + 24px); top: 1px; width: 14px; height: 14px; padding: 0;
-  border: 2px solid color-mix(in srgb, var(--accent) 70%, white); border-radius: 50%;
-  background: var(--accent); box-shadow: 0 0 5px var(--accent), 0 0 13px color-mix(in srgb, var(--accent) 65%, transparent);
+  appearance: none; -webkit-appearance: none;
+  border: 2px solid color-mix(in srgb, var(--annotation-accent) 70%, white); border-radius: 50%;
+  background-color: var(--annotation-accent); box-shadow: 0 0 5px var(--annotation-accent), 0 0 13px color-mix(in srgb, var(--annotation-accent) 65%, transparent);
   pointer-events: auto; cursor: pointer; touch-action: manipulation;
 }
 .annotation-orb::after { content: ""; position: absolute; inset: -8px; }
-.annotation-orb:hover, .annotation-orb:focus-visible { transform: scale(1.2); box-shadow: 0 0 7px var(--accent), 0 0 18px var(--accent); }
+.annotation-orb:hover, .annotation-orb:focus-visible { transform: scale(1.2); box-shadow: 0 0 7px var(--annotation-accent), 0 0 18px var(--annotation-accent); }
 .script-line.section.source-current, .script-line.synopsis.source-current, .script-line.note.source-current, .script-line.boneyard.source-current { display: block; margin: 8px 0; padding: 5px 8px; border: 1px dashed color-mix(in srgb, var(--paper-ink) 28%, transparent); color: color-mix(in srgb, var(--paper-ink) 62%, transparent); font-size: 12px; font-style: italic; }
 .script-line.section.source-current::before, .script-line.synopsis.source-current::before, .script-line.note.source-current::before, .script-line.boneyard.source-current::before { content: "EDITOR ONLY  "; font: 700 9px/1 sans-serif; letter-spacing: .08em; opacity: .7; }
 .script-line.section.act, .script-line.section.act.source-current { display: block; margin: 32px 0 16px; padding: 0; border: 0; color: var(--paper-ink); font: 700 16px/1 var(--screenplay); font-style: normal; text-align: left; text-transform: uppercase; }
@@ -612,7 +617,9 @@ button:disabled { cursor: default; opacity: .45; }
   #workspace { grid-template-columns: minmax(280px, 1fr) 0 0 0; }
   #stats-panel, #stats-resizer, .stats-toggle { display: none; }
   .screenplay-page { transform: scale(.78); }
-  .document-identity { display: none; }
+  .about-menu { padding-right: 4px; margin-right: 0; }
+  .about-menu > summary { padding: 0 6px; }
+  .about-label { display: none; }
   .docs-layout { grid-template-columns: 1fr; }
   .docs-layout > nav { display: none; }
   .docs-content { padding-inline: 20px; }
@@ -623,9 +630,11 @@ button:disabled { cursor: default; opacity: .45; }
 .mobile-panel-tabs { display: none; }
 
 /* Mobile — single-panel tab layout */
-@media (max-width: 640px) {
+@media (max-width: 820px) {
   :root { --mobile-tabs-h: 0px; }
   .desktop-setting, .vim-status { display: none !important; }
+  .app-toolbar::after { display: none; }
+  .document-identity { position: relative; inset: auto; z-index: 81; width: auto; max-width: none; height: 100%; display: flex !important; flex: 1 1 auto; justify-content: flex-end; }
 
   .mobile-panel-tabs { display: none; }
   .mobile-tab {
@@ -762,7 +771,7 @@ button:disabled { cursor: default; opacity: .45; }
     padding: 0 6px;
   }
   .mobile-menu-toggle {
-    position: relative; z-index: 82; width: 38px; height: 38px; display: grid; align-content: center; gap: 4px; margin-left: auto; padding: 0 10px; border-radius: 6px;
+    position: relative; z-index: 82; flex: 0 0 38px; width: 38px; height: 38px; display: grid; align-content: center; gap: 4px; margin-left: 0; padding: 0 10px; border-radius: 6px;
   }
   .mobile-menu-toggle span { display: block; width: 18px; height: 2px; border-radius: 2px; background: var(--ink); transition: transform .16s, opacity .16s; }
   body.mobile-menu-open .mobile-menu-toggle span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
@@ -784,8 +793,9 @@ button:disabled { cursor: default; opacity: .45; }
   .about-label { display: none; }
   /* View and Help remain available; exact PDF preview stays out of the mobile view picker. */
   .view-menu [data-preview-mode="pdf"] { display: none; }
-  /* Hide undo/redo icon buttons and the divider to save space */
-  .toolbar-divider, #undo, #redo { display: none; }
+  .history-actions .toolbar-divider { display: none; }
+  .history-actions { position: relative; z-index: 81; display: flex !important; flex: 0 0 auto; margin-left: 1px; }
+  .history-actions #undo, .history-actions #redo { display: block !important; }
   /* Fix popovers: pin to the top of the screen so they're always fully visible
      regardless of which menu triggered them or how far right it sits */
   .toolbar-popover {
