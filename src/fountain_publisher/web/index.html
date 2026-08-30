@@ -120,6 +120,7 @@
           <div class="view-switcher" role="group" aria-label="Workspace view">
             <button class="active" data-preview-mode="source" type="button">Source</button><button data-preview-mode="live" type="button">Preview</button><button data-preview-mode="beats" type="button">Beat Sheet</button><button data-preview-mode="pdf" type="button">PDF</button>
           </div>
+          <div class="preview-actions workspace-zoom-actions"><button data-zoom-out type="button" aria-label="Zoom out">−</button><select data-workspace-zoom aria-label="Workspace zoom"><option value="fit" hidden>100%</option><option value="70">70%</option><option value="85">85%</option><option value="100" selected>100%</option><option value="115">115%</option><option value="130">130%</option><option value="150">150%</option><option value="175">175%</option><option value="200">200%</option></select><button data-zoom-in type="button" aria-label="Zoom in">+</button><button class="zoom-fit" data-zoom-fit type="button" aria-label="Fit workspace to pane width" aria-pressed="false">Fit</button></div>
         </div>
         <div class="editor-shell">
           <div id="current-line" class="current-line" aria-hidden="true"></div>
@@ -142,12 +143,12 @@
               <button data-preview-mode="source" type="button">Source</button><button class="active" data-preview-mode="live" type="button">Preview</button><button data-preview-mode="beats" type="button">Beat Sheet</button><button data-preview-mode="pdf" type="button">PDF</button>
             </div>
           </div>
-          <div class="preview-actions">
+          <div class="preview-actions workspace-zoom-actions">
             <b id="vim-preview-status" class="vim-status" hidden>NORMAL</b>
-            <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
-            <select id="zoom" aria-label="Preview zoom"><option id="zoom-fit-value" value="fit" hidden>100%</option><option value="70">70%</option><option value="85">85%</option><option value="100" selected>100%</option><option value="115">115%</option><option value="130">130%</option><option value="150">150%</option><option value="175">175%</option><option value="200">200%</option></select>
-            <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
-            <button id="zoom-fit" class="zoom-fit" type="button" aria-label="Fit preview to pane width" aria-pressed="false">Fit</button>
+            <button id="zoom-out" data-zoom-out type="button" aria-label="Zoom out">−</button>
+            <select id="zoom" data-workspace-zoom aria-label="Workspace zoom"><option id="zoom-fit-value" value="fit" hidden>100%</option><option value="70">70%</option><option value="85">85%</option><option value="100" selected>100%</option><option value="115">115%</option><option value="130">130%</option><option value="150">150%</option><option value="175">175%</option><option value="200">200%</option></select>
+            <button id="zoom-in" data-zoom-in type="button" aria-label="Zoom in">+</button>
+            <button id="zoom-fit" class="zoom-fit" data-zoom-fit type="button" aria-label="Fit workspace to pane width" aria-pressed="false">Fit</button>
           </div>
         </header>
         <div id="preview-scroll" class="preview-scroll" data-background="dots">
@@ -173,7 +174,7 @@
 
       <section id="beat-sheet-panel" aria-labelledby="beat-sheet-heading" hidden>
         <form id="beat-sheet-form" class="beat-sheet-shell">
-          <header class="beat-sheet-header"><div><small>STORY MAP</small><h2 id="beat-sheet-heading">Beat Sheet</h2></div><div class="view-switcher" role="group" aria-label="Workspace view"><button data-preview-mode="source" type="button">Source</button><button data-preview-mode="live" type="button">Preview</button><button class="active" data-preview-mode="beats" type="button">Beat Sheet</button><button data-preview-mode="pdf" type="button">PDF</button></div></header>
+          <header class="beat-sheet-header"><div><small>STORY MAP</small><h2 id="beat-sheet-heading">Beat Sheet</h2></div><div class="view-switcher" role="group" aria-label="Workspace view"><button data-preview-mode="source" type="button">Source</button><button data-preview-mode="live" type="button">Preview</button><button class="active" data-preview-mode="beats" type="button">Beat Sheet</button><button data-preview-mode="pdf" type="button">PDF</button></div><div class="preview-actions workspace-zoom-actions"><button data-zoom-out type="button" aria-label="Zoom out">−</button><select data-workspace-zoom aria-label="Workspace zoom"><option value="fit" hidden>100%</option><option value="70">70%</option><option value="85">85%</option><option value="100" selected>100%</option><option value="115">115%</option><option value="130">130%</option><option value="150">150%</option><option value="175">175%</option><option value="200">200%</option></select><button data-zoom-in type="button" aria-label="Zoom in">+</button><button class="zoom-fit" data-zoom-fit type="button" aria-label="Fit workspace to pane width" aria-pressed="false">Fit</button></div></header>
           <div class="beat-sheet-workspace">
             <label class="premise-field"><span>Premise</span><textarea id="beat-premise" rows="3" placeholder="What is this story really about?"></textarea></label>
             <div class="beat-sheet-title"><div><small>STORY FLOW</small><h3>Beats and assignments</h3></div><button id="add-beat" type="button">+ Add beat</button></div>

@@ -25,6 +25,7 @@ test("desktop panel headers share a height and preview controls follow its title
   assert.match(html, /class="preview-heading"[\s\S]*<small>SCREENPLAY<\/small><h2>Preview<\/h2>[\s\S]*class="view-switcher"/);
   assert.match(css, /\.panel-title\s*\{[^}]*min-height:\s*58px;/s);
   assert.match(css, /\.preview-toolbar\s*\{[^}]*min-height:\s*58px;/s);
+  assert.match(css, /\.preview-title, #source-panel \.panel-title > div:first-child, \.beat-sheet-header > div:first-child\s*\{[^}]*flex:\s*0 0 96px;[^}]*width:\s*96px;/s);
 });
 
 test("browser page-count compilation only updates metrics present in the document", async () => {
@@ -631,13 +632,16 @@ test("mobile preview is live-only, reflows horizontally, and retains zoom contro
   assert.match(css, /body\.scene-nums-margin \.screenplay-page\s*\{[^}]*padding-left:\s*calc\(54px \* var\(--mobile-preview-zoom,\s*1\)\);/s);
   assert.match(app, /isMobilePreview\(\) && \['pdf', 'beats'\]\.includes\(mode\)/);
   assert.match(html, /class="view-switcher"[\s\S]*data-preview-mode="live"[\s\S]*data-preview-mode="pdf"/);
-  assert.match(html, /class="preview-actions"[\s\S]*id="zoom-out"[\s\S]*id="zoom"[\s\S]*id="zoom-in"[\s\S]*id="zoom-fit"/);
+  assert.match(html, /class="preview-actions workspace-zoom-actions"[\s\S]*id="zoom-out"[\s\S]*id="zoom"[\s\S]*id="zoom-in"[\s\S]*id="zoom-fit"/);
 });
 
 test("preview zoom clamps scaled bounds and reports the calculated fit percentage", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="zoom-fit-value" value="fit" hidden/);
   assert.match(html, /<option value="200">200%<\/option>/);
+  assert.equal((html.match(/data-workspace-zoom/g) || []).length, 3);
+  assert.match(app, /\$\$\('\[data-workspace-zoom\]'\)[\s\S]*--workspace-zoom/);
+  assert.match(css, /#source-panel \.editor-shell, #source-panel \.editor-footer, \.beat-sheet-workspace, \.beat-sheet-actions\s*\{\s*zoom:\s*var\(--workspace-zoom, 1\);/);
   assert.match(html, /id="zoom-in"[\s\S]*id="zoom-fit"[^>]*>Fit<\/button>/);
   assert.match(app, /scale = Math\.max\(\.25,\s*Math\.min\(2,\s*availableWidth \/ 816\)\)/);
   assert.match(app, /preview\.scrollLeft = Math\.max\(0,\s*\(preview\.scrollWidth - preview\.clientWidth\) \/ 2\)/);

@@ -2148,6 +2148,7 @@ async function setPreviewMode(mode) {
   $("#preview-page-stage").hidden = mode !== "live"; page.hidden = mode !== "live"; $("#empty-state").hidden = mode !== "live" || Boolean(source.value.trim()); $("#pdf-view").hidden = mode !== "pdf";
   $("#preview-scroll").classList.toggle("pdf-mode", mode === "pdf");
   renderBeatGuide();
+  requestAnimationFrame(applyZoom);
   scheduleWorkspaceCache();
   if (mode === "source") { renderEditorChrome(); source.focus(); }
   if (mode === "beats") renderBeatSheetView();
@@ -2209,7 +2210,7 @@ function applyZoom() {
   const zoom = state.previewZoom;
   const zoomControl = $("#zoom");
   const fitOption = $("#zoom-fit-value");
-  $("#zoom-fit").setAttribute("aria-pressed", String(zoom === "fit"));
+  $$('[data-zoom-fit]').forEach((button) => button.setAttribute("aria-pressed", String(zoom === "fit")));
   if (isMobilePreview()) {
     const scale = zoom === "fit" ? 1 : Number(zoom) / 100;
     fitOption.hidden = zoom !== "fit";
@@ -2228,7 +2229,8 @@ function applyZoom() {
   if (zoom === "fit") {
     const preview = $("#preview-scroll");
     const style = getComputedStyle(preview);
-    const availableWidth = preview.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    const panelWidth = state.previewMode === "source" ? $("#source-panel").clientWidth : state.previewMode === "beats" ? $("#beat-sheet-panel").clientWidth : preview.clientWidth;
+    const availableWidth = ["source", "beats"].includes(state.previewMode) ? panelWidth - 40 : panelWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
     scale = Math.max(.25, Math.min(2, availableWidth / 816));
   }
   fitOption.hidden = zoom !== "fit";
@@ -2236,6 +2238,13 @@ function applyZoom() {
     fitOption.textContent = `${Math.round(scale * 100)}%`;
     zoomControl.value = "fit";
   } else zoomControl.value = zoom;
+  $$('[data-workspace-zoom]').forEach((control) => {
+    const option = $('option[value="fit"]', control);
+    option.hidden = zoom !== "fit";
+    if (zoom === "fit") option.textContent = `${Math.round(scale * 100)}%`;
+    control.value = zoom === "fit" ? "fit" : zoom;
+  });
+  document.documentElement.style.setProperty("--workspace-zoom", scale);
   const stage = $("#preview-page-stage");
   stage.style.width = `${816 * scale}px`; stage.style.minHeight = `${Math.max(1056, page.scrollHeight) * scale}px`;
   page.style.transform = `scale(${scale})`; page.style.marginBottom = "0"; page.style.marginRight = "0";
@@ -3205,7 +3214,10 @@ $("#menu-toggle-source-tab").addEventListener("click", () => {
   closeMenus();
 });
 $("#undo").addEventListener("click", undoDocument); $("#redo").addEventListener("click", redoDocument);
-$("#zoom").addEventListener("change", () => { state.previewZoom = $("#zoom").value; applyZoom(); }); $("#zoom-out").addEventListener("click", () => stepZoom(-1)); $("#zoom-in").addEventListener("click", () => stepZoom(1)); $("#zoom-fit").addEventListener("click", () => { state.previewZoom = "fit"; applyZoom(); });
+$$('[data-workspace-zoom]').forEach((control) => control.addEventListener("change", () => { state.previewZoom = control.value; applyZoom(); }));
+$$('[data-zoom-out]').forEach((button) => button.addEventListener("click", () => stepZoom(-1)));
+$$('[data-zoom-in]').forEach((button) => button.addEventListener("click", () => stepZoom(1)));
+$$('[data-zoom-fit]').forEach((button) => button.addEventListener("click", () => { state.previewZoom = "fit"; applyZoom(); }));
 $("#open-docs").addEventListener("click", () => $("#docs-dialog").showModal());
 $("#close-docs").addEventListener("click", () => $("#docs-dialog").close());
 
