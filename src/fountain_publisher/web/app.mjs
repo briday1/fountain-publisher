@@ -213,7 +213,11 @@ const docSettings = {
   sceneNumberFormat: localStorage.getItem("fountain-publisher.scene-number-format") ?? "sequential",
 };
 function setDocSetting(key, value) { docSettings[key] = value; localStorage.setItem(`fountain-publisher.${key}`, value); }
-function sourceTabEnabled() { return localStorage.getItem("fountain-publisher.source-tab") !== "false"; }
+function sourceTabEnabled() {
+  const stored = localStorage.getItem("fountain-publisher.source-tab");
+  if (stored !== null) return stored === "true";
+  return localStorage.getItem(WORKSPACE_CACHE_KEY) !== null || localStorage.getItem("fountain-publisher.preview") !== null;
+}
 const state = {
   filename: "Untitled.fountain",
   handle: null,
@@ -3426,7 +3430,8 @@ async function initialize() {
   document.body.classList.add(`scene-nums-${docSettings.sceneNumbers}`);
   const statsWidth = Number(localStorage.getItem("fountain-publisher.--stats-w"));
   if (statsWidth) document.documentElement.style.setProperty("--stats-w", `${statsWidth}px`);
-  togglePanel("stats", localStorage.getItem("fountain-publisher.stats-collapsed") === "true");
+  const storedStatsCollapsed = localStorage.getItem("fountain-publisher.stats-collapsed");
+  togglePanel("stats", storedStatsCollapsed === null || storedStatsCollapsed === "true");
   installResizer($("#stats-resizer"), "--stats-w", -1, 240, 520);
   const params = new URLSearchParams(location.search);
   const cached = params.get("demo") === "1" ? null : readWorkspaceCache();
