@@ -481,26 +481,20 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-sheet-actions button { border: 1px solid var(--border); border-radius: 5px; padding: 7px 13px; background: var(--surface); color: var(--ink); }
 .beat-sheet-actions .primary { border-color: var(--accent); background: var(--accent); color: white; }
 
-.beat-guide-layer { position: absolute; z-index: 9; top: 70px; right: 12px; bottom: 12px; width: min(270px, calc(100% - 24px)); min-height: 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border-strong); border-radius: 9px; background: color-mix(in srgb, var(--panel) 96%, transparent); color: var(--ink); box-shadow: 0 8px 28px rgb(0 0 0 / 18%); backdrop-filter: blur(8px); }
+.beat-guide-layer { position: absolute; z-index: 9; top: 58px; left: 0; right: 0; min-height: 42px; display: flex; align-items: stretch; justify-content: space-between; gap: 8px; padding: 6px 9px; border-bottom: 1px solid var(--border-strong); background: color-mix(in srgb, var(--panel) 96%, transparent); color: var(--ink); box-shadow: 0 3px 10px rgb(0 0 0 / 10%); backdrop-filter: blur(8px); }
 .beat-guide-layer[hidden] { display: none; }
-.beat-guide-layer > header { display: flex; align-items: center; justify-content: space-between; padding: 9px 9px 8px 12px; border-bottom: 1px solid var(--border); }
-.beat-guide-layer > header div { display: flex; flex-direction: column; }
-.beat-guide-layer > header small { color: var(--metric-scenes-ink); font-size: 8px; font-weight: 800; letter-spacing: .12em; }
-.beat-guide-layer > header strong { font-size: 13px; }
-.beat-guide-layer > header button { width: 25px; height: 25px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 18px; }
-.beat-guide-layer > p { margin: 0; padding: 9px 11px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 10px; line-height: 1.4; }
-.beat-guide-layer > ol { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 6px; list-style: none; }
-.beat-guide-layer li { margin-bottom: 4px; }
-.beat-guide-layer li > button { width: 100%; display: grid; grid-template-columns: 22px 1fr auto; gap: 6px; align-items: start; border: 1px solid transparent; border-radius: 6px; padding: 7px; background: transparent; color: var(--ink); text-align: left; }
-.beat-guide-layer li > button:hover { background: var(--surface-2); }
-.beat-guide-layer li.active > button { border-color: color-mix(in srgb, var(--metric-scenes-ink) 45%, var(--border)); background: var(--metric-scenes-bg); }
-.beat-guide-layer li.next > button { border-color: var(--border); }
-.beat-guide-layer li b { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--metric-pages-bg); color: var(--metric-pages-ink); font: 800 9px var(--mono); }
-.beat-guide-layer li span { font-size: 10px; line-height: 1.35; }
-.beat-guide-layer li em { color: var(--metric-scenes-ink); font-size: 8px; font-style: normal; font-weight: 800; text-transform: uppercase; white-space: nowrap; }
-.beat-guide-layer > footer { display: flex; justify-content: space-between; gap: 6px; padding: 8px; border-top: 1px solid var(--border); }
-.beat-guide-layer > footer button { flex: 1; min-height: 29px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--ink); font-size: 9px; }
-.beat-guide-layer > footer button:last-child { border-color: var(--metric-scenes-ink); color: var(--metric-scenes-ink); font-weight: 750; }
+.preview-panel.beat-runner-on .preview-scroll { padding-top: 78px; }
+.beat-runner-progress { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; padding-left: 3px; }
+.beat-runner-progress small { flex: 0 0 auto; color: var(--metric-pages-ink); font: 800 9px var(--mono); }
+.beat-runner-progress strong { flex: 0 0 auto; color: var(--metric-scenes-ink); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+.beat-runner-progress span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.beat-runner-progress em { flex: 0 0 auto; color: var(--muted); font-size: 8px; font-style: normal; }
+.beat-runner-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; }
+.beat-runner-actions button { min-width: 27px; height: 29px; border: 1px solid var(--border); border-radius: 5px; padding: 0 7px; background: var(--surface); color: var(--muted); font-size: 9px; }
+.beat-runner-actions .assign-beat-area { border-color: var(--metric-scenes-ink); color: var(--metric-scenes-ink); font-weight: 750; }
+.beat-runner-actions button:last-child { border: 0; background: transparent; font-size: 17px; }
+.script-line.beat-area { background: color-mix(in srgb, var(--metric-pages-ink) 7%, transparent); }
+.script-line.beat-area.active-beat-area { background: color-mix(in srgb, var(--metric-scenes-ink) 13%, transparent); }
 
 #title-page-dialog { width: min(430px, calc(100vw - 30px)); border: 1px solid var(--border); border-radius: 9px; padding: 0; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 #title-page-dialog::backdrop { background: rgb(0 0 0 / 40%); backdrop-filter: blur(2px); }
@@ -627,12 +621,17 @@ button:disabled { cursor: default; opacity: .45; }
   /* Mobile preview reflows to the viewport instead of scaling a fixed paper sheet */
   .view-switcher { display: none; }
   .preview-scroll { padding: 0; overflow-x: hidden; scrollbar-gutter: auto; }
+  .preview-panel.beat-runner-on .preview-scroll { padding-top: 44px; }
   .preview-page-stage { width: 100% !important; min-height: 100% !important; }
   .screenplay-page {
     position: relative; inset: auto; width: 100%; min-height: 100%; margin: 0; padding: 48px max(20px, 6vw) 72px;
     transform: none; box-shadow: none; font-size: calc(16px * var(--mobile-preview-zoom, 1));
   }
-  .beat-guide-layer { top: calc(var(--toolbar-h) + 8px); right: 8px; bottom: 8px; width: min(300px, calc(100% - 16px)); }
+  .beat-guide-layer { top: var(--toolbar-h); min-height: 44px; padding-inline: 6px; }
+  .beat-runner-progress strong { display: none; }
+  .beat-runner-progress em { display: none; }
+  .beat-runner-actions button[data-open-beat-sheet] { display: none; }
+  .beat-runner-actions .assign-beat-area { max-width: 90px; line-height: 1.05; }
   #beat-sheet-dialog { width: calc(100vw - 16px); height: calc(var(--visual-viewport-height) - 16px); }
   .beat-sheet-workspace { padding: 12px; }
   .beat-card { grid-template-columns: 22px minmax(0, 1fr) 22px; gap: 5px; padding: 7px; }
