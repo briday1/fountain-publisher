@@ -20,7 +20,7 @@
           <a class="about-repo-link" href="https://github.com/briday1/fountain-publisher" target="_blank" rel="noopener noreferrer">View on GitHub</a>
         </div>
       </details>
-      <nav class="global-actions" aria-label="Application menu">
+      <nav id="global-actions" class="global-actions" aria-label="Application menu">
         <details class="toolbar-menu file-menu">
           <summary>File</summary>
           <div class="toolbar-popover">
@@ -104,8 +104,10 @@
         <span id="filename">Untitled.fountain</span>
         <span id="compile-status" class="compile-status">Ready</span>
       </div>
+      <button id="mobile-menu-toggle" class="mobile-menu-toggle" type="button" aria-label="Open menu" aria-controls="global-actions" aria-expanded="false"><span></span><span></span><span></span></button>
       <input id="file-input" type="file" accept=".fountain,.txt,text/plain" hidden />
     </header>
+    <button id="mobile-menu-backdrop" class="mobile-menu-backdrop" type="button" aria-label="Close menu" tabindex="-1"></button>
 
     <main id="workspace">
       <aside id="source-panel" aria-label="Fountain source" hidden>

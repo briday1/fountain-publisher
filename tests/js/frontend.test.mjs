@@ -755,18 +755,23 @@ test("mobile page count is preserved across source edits", async () => {
 });
 
 test("mobile toolbar keeps View available and fixes popover visibility", async () => {
-  const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   // HTML: about-menu text wrapped in a class so it can be hidden on mobile
   assert.match(html, /class="about-label"/);
   // HTML: toolbar menus have individual classes
   assert.match(html, /class="toolbar-menu file-menu"/);
   assert.match(html, /class="toolbar-menu view-menu"/);
   assert.match(html, /class="toolbar-menu help-menu"/);
+  assert.match(html, /id="mobile-menu-toggle"[^>]*aria-controls="global-actions"/);
+  assert.match(html, /id="mobile-menu-backdrop"/);
   // CSS: View and Help remain available; PDF preview stays out of the compact mobile menu.
   assert.doesNotMatch(css, /@media\s*\(max-width:\s*640px\)[^@]*\.help-menu\s*\{\s*display:\s*none;/s);
   assert.match(css, /\.view-menu \[data-preview-mode="pdf"\]\s*\{\s*display:\s*none;/);
   // CSS: popovers use position:fixed on mobile so they are always in-viewport
   assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.toolbar-popover\s*\{[^}]*position:\s*fixed;/s);
+  assert.match(css, /body\.mobile-menu-open \.global-actions\s*\{\s*transform:\s*translateX\(0\);/);
+  assert.match(css, /\.global-actions \.toolbar-menu > summary\s*\{[^}]*height:\s*44px;/s);
+  assert.match(app, /function setMobileMenu\(open\)[\s\S]*mobile-menu-open[\s\S]*aria-expanded/);
   // CSS: about label is hidden on mobile
   assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.about-label\s*\{\s*display:\s*none;/s);
 });

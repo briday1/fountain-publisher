@@ -2531,6 +2531,12 @@ function deleteNoteLine(line) {
 const toolbarMenus = $$(".toolbar-menu");
 
 function closeMenus(except = null) { toolbarMenus.forEach((menu) => { if (menu !== except) menu.open = false; }); }
+function setMobileMenu(open) {
+  document.body.classList.toggle("mobile-menu-open", open);
+  $("#mobile-menu-toggle").setAttribute("aria-expanded", String(open));
+  $("#mobile-menu-toggle").setAttribute("aria-label", open ? "Close menu" : "Open menu");
+  if (!open) closeMenus();
+}
 
 function vimActive() {
   return state.vimEnabled && !isMobilePreview();
@@ -3421,9 +3427,11 @@ function setMobileTab(panel) {
 
 $$(".mobile-tab").forEach((tab) => tab.addEventListener("click", () => setMobileTab(tab.dataset.mobilePanel)));
 $("#preview-scroll").addEventListener("scroll", () => { hidePreviewContextMenu(); scheduleWorkspaceCache(); });
+$("#mobile-menu-toggle").addEventListener("click", () => setMobileMenu(!document.body.classList.contains("mobile-menu-open")));
+$("#mobile-menu-backdrop").addEventListener("click", () => setMobileMenu(false));
 
 toolbarMenus.forEach((menu) => menu.addEventListener("click", (event) => {
-  if (event.target.closest("button")) menu.open = false;
+  if (event.target.closest("button")) { menu.open = false; if (isMobilePreview()) setMobileMenu(false); }
   else if (event.target.closest("summary")) closeMenus(menu);
 }));
 document.addEventListener("pointerdown", (event) => toolbarMenus.forEach((menu) => {
@@ -3435,6 +3443,7 @@ document.addEventListener("pointerdown", (event) => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !$("#preview-context-menu").hidden) hidePreviewContextMenu();
+  else if (event.key === "Escape" && document.body.classList.contains("mobile-menu-open")) setMobileMenu(false);
   else if (event.key === "Escape" && toolbarMenus.some((menu) => menu.open)) { closeMenus(); }
   else if ((source === document.activeElement || page.contains(document.activeElement)) && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redoDocument() : undoDocument(); }
   else if ((source === document.activeElement || page.contains(document.activeElement)) && event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === "y") { event.preventDefault(); redoDocument(); }
