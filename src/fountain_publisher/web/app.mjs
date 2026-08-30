@@ -686,12 +686,13 @@ function alignAnnotationOrbs() {
   if (!pageRect.width) return;
   const scale = pageRect.width / page.offsetWidth || 1;
   const paddingRight = parseFloat(getComputedStyle(page).paddingRight) || 0;
-  const targetX = isMobilePreview()
-    ? pageRect.right - paddingRight * scale * .5
-    : pageRect.right - paddingRight * scale + 24 * scale;
+  const mobile = isMobilePreview();
+  const marginCenterX = pageRect.right - paddingRight * scale * .5;
+  const desktopX = pageRect.right - paddingRight * scale + 24 * scale;
   orbs.forEach((orb) => {
     const line = orb.closest(".script-line");
     if (!line) return;
+    const targetX = mobile ? marginCenterX - orb.offsetWidth * scale * .5 : desktopX;
     orb.style.left = `${(targetX - line.getBoundingClientRect().left) / scale}px`;
   });
 }
@@ -1303,6 +1304,24 @@ function canvasColor(name, fallback) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }
 
+const CHARACTER_CHART_FALLBACKS = ["#0072b2", "#c65d00", "#00845f", "#b43c20", "#6653b8", "#a43f83", "#397b32", "#716400"];
+
+function characterChartColor(name) {
+  const knownIndex = (state.metadata.characters || []).findIndex((character) => character.name === name);
+  let hash = 0;
+  if (knownIndex < 0) for (const character of name) hash = ((hash * 31) + character.codePointAt(0)) >>> 0;
+  const index = (knownIndex < 0 ? hash : knownIndex) % CHARACTER_CHART_FALLBACKS.length;
+  return canvasColor(`--character-chart-${index + 1}`, CHARACTER_CHART_FALLBACKS[index]);
+}
+
+function chartLabelColor(color) {
+  const hex = color.match(/^#([\da-f]{6})$/i)?.[1];
+  const rgb = hex ? [0, 2, 4].map((offset) => parseInt(hex.slice(offset, offset + 2), 16)) : (color.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
+  if (rgb.length < 3) return "#fff";
+  const luminance = rgb.reduce((sum, value, index) => sum + (value / 255) * [0.2126, 0.7152, 0.0722][index], 0);
+  return luminance > 0.58 ? "#17191b" : "#fff";
+}
+
 function fitCanvasText(context, value, width) {
   const text = String(value);
   if (context.measureText(text).width <= width) return text;
@@ -1333,18 +1352,26 @@ function sceneCharacterWordSegments(sceneIndex) {
 
 function renderSceneCharacterAnalytics(sceneIndex) {
   const canvas = $("#character-analytics-chart");
+  const chartViewport = $(".analytics-chart-scroll", $("#character-analytics-dialog"));
   const scene = state.metadata.scenes[sceneIndex];
   const { segments, total } = sceneCharacterWordSegments(sceneIndex);
-  const characters = [...new Set(segments.map((segment) => segment.character))];
+  const presentCharacters = new Set(segments.map((segment) => segment.character));
+  const rollupOrder = (state.metadata.characters || []).map((character) => character.name);
+  const characters = [
+    ...rollupOrder.filter((character) => presentCharacters.has(character)),
+    ...[...presentCharacters].filter((character) => !rollupOrder.includes(character)),
+  ];
   const scale = Math.min(window.devicePixelRatio || 1, 2);
-  const labelWidth = 150; const plotWidth = 760; const headerHeight = 58; const rowHeight = 38;
+  const labelWidth = 150;
+  const plotWidth = Math.max(760, chartViewport.clientWidth - labelWidth);
+  const headerHeight = 58; const rowHeight = 38;
   const width = labelWidth + plotWidth; const height = headerHeight + Math.max(characters.length, 1) * rowHeight;
   canvas.width = Math.ceil(width * scale); canvas.height = Math.ceil(height * scale);
   canvas.style.width = `${width}px`; canvas.style.height = `${height}px`; canvas.style.cursor = "default";
   const context = canvas.getContext("2d"); context.scale(scale, scale);
   const surface = canvasColor("--surface", "#fff"); const surface2 = canvasColor("--surface-2", "#f2f2f2");
   const ink = canvasColor("--ink", "#202124"); const muted = canvasColor("--muted", "#6b7280");
-  const border = canvasColor("--border", "#d7d9dd"); const characterColor = canvasColor("--syntax-character", "#7c3aed");
+  const border = canvasColor("--border", "#d7d9dd");
   context.fillStyle = surface; context.fillRect(0, 0, width, height);
   context.fillStyle = surface2; context.fillRect(0, 0, width, headerHeight);
   context.strokeStyle = border; context.lineWidth = 1; context.strokeRect(.5, .5, width - 1, headerHeight);
@@ -1364,11 +1391,11 @@ function renderSceneCharacterAnalytics(sceneIndex) {
     if (row % 2 === 1) { context.fillStyle = surface2; context.fillRect(0, y, width, rowHeight); }
     context.fillStyle = ink; context.textAlign = "left"; context.font = "600 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
     context.fillText(fitCanvasText(context, character, labelWidth - 20), 12, y + rowHeight / 2);
+    const characterColor = characterChartColor(character);
     segments.filter((segment) => segment.character === character).forEach((segment) => {
       const x = labelWidth + (total ? segment.start / total : 0) * plotWidth;
       const segmentWidth = Math.max(2, (total ? segment.words / total : 0) * plotWidth);
       context.fillStyle = characterColor; context.fillRect(x, y + 8, segmentWidth, rowHeight - 16);
-      if (segmentWidth >= 24) { context.fillStyle = "#fff"; context.textAlign = "center"; context.fillText(String(segment.words), x + segmentWidth / 2, y + rowHeight / 2); }
     });
   });
   if (!characters.length) { context.fillStyle = muted; context.textAlign = "center"; context.fillText("No character dialogue in this scene.", width / 2, headerHeight + rowHeight / 2); }
@@ -1408,12 +1435,11 @@ function renderCharacterAnalytics() {
   const ink = canvasColor("--ink", "#202124");
   const muted = canvasColor("--muted", "#6b7280");
   const border = canvasColor("--border", "#d7d9dd");
-  const characterColor = canvasColor("--syntax-character", "#7c3aed");
   const lineCounts = characters.flatMap((character) => (character.sceneLines || []).map((item) => item.lines)).filter((lines) => lines > 0);
   const minLines = lineCounts.length ? Math.min(...lineCounts) : 0;
   const maxLines = lineCounts.length ? Math.max(...lineCounts) : 0;
   const legend = $("#character-analytics-legend");
-  legend.hidden = !lineCounts.length;
+  legend.hidden = true;
   $("#character-analytics-min").textContent = `${minLines} ${minLines === 1 ? "line" : "lines"}`;
   $("#character-analytics-max").textContent = `${maxLines} ${maxLines === 1 ? "line" : "lines"}`;
   context.fillStyle = surface;
@@ -1474,17 +1500,18 @@ function renderCharacterAnalytics() {
     context.textAlign = "left";
     context.fillText(fitCanvasText(context, character.name, labelWidth - 20), 12, y + rowHeight / 2);
     const usage = new Map((character.sceneLines || []).map((item) => [item.scene, item.lines]));
+    const characterColor = characterChartColor(character.name);
     scenes.forEach((scene, index) => {
       const lineCount = usage.get(index + 1) || 0;
       if (!lineCount) return;
       const x = labelWidth + index * sceneWidth + 4;
-      const intensity = maxLines === minLines ? 1 : 0.25 + 0.75 * ((lineCount - minLines) / (maxLines - minLines));
+      const intensity = maxLines === minLines ? 1 : 0.3 + 0.7 * ((lineCount - minLines) / (maxLines - minLines));
       context.save();
       context.globalAlpha = intensity;
       context.fillStyle = characterColor;
       context.fillRect(x, y + 7, sceneWidth - 8, rowHeight - 14);
       context.restore();
-      context.fillStyle = intensity >= 0.6 ? "#fff" : ink;
+      context.fillStyle = intensity >= 0.62 ? chartLabelColor(characterColor) : ink;
       context.textAlign = "center";
       context.fillText(String(lineCount), x + (sceneWidth - 8) / 2, y + rowHeight / 2);
     });
@@ -1503,8 +1530,8 @@ function characterLineUsageCsv() {
 
 function openCharacterAnalytics() {
   state.characterAnalyticsScene = state.metadata.scenes.length === 1 ? 0 : null;
-  renderCharacterAnalytics();
   $("#character-analytics-dialog").showModal();
+  renderCharacterAnalytics();
 }
 
 async function copyCharacterLineUsage() {
@@ -3868,6 +3895,7 @@ window.addEventListener("resize", () => {
   if (isMobilePreview() && state.previewMode === "pdf") void setPreviewMode("live");
   applyZoom();
   updateVimUi();
+  if ($("#character-analytics-dialog").open) renderCharacterAnalytics();
 });
 
 function registerAppServiceWorker() {

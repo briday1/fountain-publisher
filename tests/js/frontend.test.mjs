@@ -452,16 +452,27 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.match(html, /id="character-line-table"/);
   assert.match(html, /id="character-line-table" class="character-line-table"/);
   assert.doesNotMatch(app, /table\.style\.width/);
-  assert.match(app, /maxLines === minLines \? 1 : 0\.25 \+ 0\.75/);
-  assert.match(app, /canvasColor\("--syntax-character", "#7c3aed"\)/);
+  assert.match(app, /function characterChartColor\(name\)[\s\S]*findIndex[\s\S]*--character-chart-/);
+  assert.match(app, /function chartLabelColor\(color\)[\s\S]*luminance/);
+  assert.match(app, /renderSceneCharacterAnalytics[\s\S]*characterChartColor\(character\)/);
+  assert.match(app, /renderCharacterAnalytics[\s\S]*characterChartColor\(character\.name\)/);
+  assert.match(app, /const intensity = maxLines === minLines \? 1 : 0\.3 \+ 0\.7[\s\S]*context\.globalAlpha = intensity/);
+  assert.match(app, /intensity >= 0\.62 \? chartLabelColor\(characterColor\) : ink/);
   assert.match(app, /function sceneCharacterWordSegments\(sceneIndex\)[\s\S]*segments\.push\(\{ character: active, start: position, words \}\)/);
   assert.match(app, /function renderSceneCharacterAnalytics\(sceneIndex\)[\s\S]*segment\.start \/ total[\s\S]*segment\.words \/ total/);
+  assert.match(app, /presentCharacters[\s\S]*rollupOrder[\s\S]*rollupOrder\.filter\(\(character\) => presentCharacters\.has\(character\)\)/);
+  const sceneGantt = app.slice(app.indexOf("function renderSceneCharacterAnalytics"), app.indexOf("function renderCharacterAnalytics"));
+  assert.doesNotMatch(sceneGantt, /fillText\(String\(segment\.words\)/);
+  assert.match(app, /fillText\(String\(lineCount\)/);
   assert.match(app, /state\.metadata\.scenes\.length === 1 \? 0 : null/);
   assert.match(app, /character-analytics-chart"\)\.addEventListener\("click"[\s\S]*sceneIndex[\s\S]*renderCharacterAnalytics\(\)/);
+  assert.match(app, /function renderSceneCharacterAnalytics\(sceneIndex\)[\s\S]*chartViewport\.clientWidth - labelWidth/);
+  assert.match(app, /function openCharacterAnalytics\(\)[\s\S]*showModal\(\);[\s\S]*renderCharacterAnalytics\(\)/);
   assert.match(app, /return String\(sceneInAct\)/);
   assert.match(app, /fillRect\(0, y, labelWidth \+ scenes\.length \* sceneWidth, rowHeight\)/);
   assert.doesNotMatch(app, /moveTo\(0, y \+ rowHeight \+ 0\.5\)/);
-  assert.match(css, /\.analytics-gradient-legend i\s*\{[^}]*var\(--syntax-character\)[^}]*var\(--syntax-character\)/s);
+  assert.match(css, /--character-chart-1:\s*#0072b2;[\s\S]*--character-chart-8:\s*#716400;/);
+  assert.match(css, /:root\[data-theme="dark"\][\s\S]*--character-chart-1:\s*#56b4e9;[\s\S]*--character-chart-8:\s*#d7c75b;/);
 });
 
 test("source-backed annotations and notes expose preview and sidebar CRUD", async () => {
@@ -498,7 +509,7 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(app, /\["dialogue", "parenthetical", "note"\]\.includes/);
   assert.match(css, /\.annotation-orb\s*\{/);
   assert.match(css, /\.annotation-orb\s*\{[^}]*top:\s*1px;/s);
-  assert.match(app, /function alignAnnotationOrbs\(\)[\s\S]*targetX[\s\S]*orb\.style\.left/);
+  assert.match(app, /function alignAnnotationOrbs\(\)[\s\S]*marginCenterX[\s\S]*orb\.offsetWidth \* scale \* \.5[\s\S]*orb\.style\.left/);
   assert.match(app, /requestAnimationFrame\(alignAnnotationOrbs\)/);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*padding:\s*48px max\(28px, 7vw\) 72px;/s);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.annotation-orb\s*\{[^}]*width:\s*16px;[^}]*height:\s*16px;/s);
@@ -541,7 +552,7 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /function saveBeatProgressPng\(\)[\s\S]*XMLSerializer[\s\S]*canvas\.toBlob[\s\S]*beat-pacing\.png/);
   assert.match(css, /\.beat-progress-line\s*\{[^}]*stroke:/s);
   assert.match(css, /\.beat-drag\s*\{[^}]*touch-action:\s*none;[^}]*user-select:\s*none;/s);
-  assert.match(css, /#source-panel \.panel-title\s*\{[^}]*justify-content:\s*flex-start;[^}]*gap:\s*16px;/s);
+  assert.match(css, /#source-panel \.panel-title\s*\{[^}]*justify-content:\s*flex-start;[^}]*gap:\s*16px;[^}]*background:\s*var\(--panel\);/s);
 });
 
 test("mobile preview clipboard actions preserve selections and avoid covering them", async () => {
