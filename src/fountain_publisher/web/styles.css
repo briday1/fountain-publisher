@@ -656,7 +656,7 @@ button:disabled { cursor: default; opacity: .45; }
   .beat-runner-progress strong { display: none; }
   .beat-runner-progress em { display: none; }
   .beat-runner-actions button[data-open-beat-sheet] { display: none; }
-  .beat-runner-actions .assign-beat-area { max-width: 90px; line-height: 1.05; }
+  .beat-runner-actions .assign-beat-area { max-width: none; white-space: nowrap; line-height: 1.05; }
   #beat-sheet-panel { grid-column: 1; }
   .beat-sheet-workspace { width: 100%; margin: 0; padding: 12px; border: 0; border-radius: 0; box-shadow: none; zoom: 1; }
   .beat-sheet-actions { width: 100%; margin: 0; border-inline: 0; border-bottom: 0; border-radius: 0; box-shadow: none; zoom: 1; }
@@ -717,8 +717,7 @@ button:disabled { cursor: default; opacity: .45; }
   .about-menu { padding-right: 4px; margin-right: 0; }
   .about-menu > summary { padding: 0 6px; }
   .about-label { display: none; }
-  /* View remains available for Source and the Beat guide; docs stay out of the compact toolbar. */
-  .help-menu { display: none; }
+  /* View and Help remain available; exact PDF preview stays out of the mobile view picker. */
   .view-menu [data-preview-mode="pdf"] { display: none; }
   /* Hide undo/redo icon buttons and the divider to save space */
   .toolbar-divider, #undo, #redo { display: none; }

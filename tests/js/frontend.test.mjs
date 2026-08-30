@@ -221,6 +221,7 @@ test("spellcheck exposes native replacement suggestions", async () => {
   assert.match(html, /Right-click spelling for suggestions/);
   assert.match(html, /aria-describedby="editor-status spellcheck-help"/);
   assert.match(app, /setAttribute\("spellcheck", String\(enabled\)\)/);
+  assert.match(app, /type === "character" \? ` spellcheck="false"`/);
   assert.match(app, /source\.blur\(\); source\.focus\(\)/);
 });
 
@@ -462,6 +463,7 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.doesNotMatch(html, /beat-sheet-insight|id="beat-sheet-summary"|id="open-beat-sheet"/);
   assert.match(html, /id="beat-sheet-panel"[\s\S]*id="beat-premise"[\s\S]*id="beat-list"[^>]*beat-flow-editor/);
   assert.match(html, /id="menu-toggle-beat-guide"[\s\S]*id="beat-guide-layer"/);
+  assert.match(app, /data-assign-beat-area>Assign \+ Next</);
   assert.match(app, /MANAGED_NOTE_RE = \/[\s\S]*BEATS/);
   assert.match(app, /function managedBeatSheetSource\(premise, beats\)/);
   assert.match(app, /Next Beat:[\s\S]*data-assign-beat-area[\s\S]*data-next-beat/);
@@ -758,8 +760,8 @@ test("mobile toolbar keeps View available and fixes popover visibility", async (
   assert.match(html, /class="toolbar-menu file-menu"/);
   assert.match(html, /class="toolbar-menu view-menu"/);
   assert.match(html, /class="toolbar-menu help-menu"/);
-  // CSS: View remains available for Source and Beat guide; Help and PDF preview stay out of the compact mobile menu.
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.help-menu\s*\{\s*display:\s*none;/s);
+  // CSS: View and Help remain available; PDF preview stays out of the compact mobile menu.
+  assert.doesNotMatch(css, /@media\s*\(max-width:\s*640px\)[^@]*\.help-menu\s*\{\s*display:\s*none;/s);
   assert.match(css, /\.view-menu \[data-preview-mode="pdf"\]\s*\{\s*display:\s*none;/);
   // CSS: popovers use position:fixed on mobile so they are always in-viewport
   assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.toolbar-popover\s*\{[^}]*position:\s*fixed;/s);

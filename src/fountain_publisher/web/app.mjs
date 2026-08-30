@@ -544,7 +544,8 @@ function previewLineHtml(line, sceneLabel = null, annotation = null) {
   const orb = annotation
     ? `<button class="annotation-orb" type="button" data-annotation-line="${annotation.index}" title="${escapeHtml(annotation.text)}" aria-label="Edit annotation: ${escapeHtml(annotation.text)}"></button>`
     : "";
-  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(display)}">${content}${orb}</div>`;
+  const spellcheckAttr = type === "character" ? ` spellcheck="false"` : "";
+  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(display)}"${spellcheckAttr}>${content}${orb}</div>`;
 }
 
 function annotationAfter(lines, index) {
@@ -1141,7 +1142,7 @@ function renderBeatGuide() {
   });
   const beat = beats[state.activeBeat];
   layer.innerHTML = beat
-    ? `<div class="beat-runner-progress"><small>${state.activeBeat + 1}/${beats.length}</small><strong>Next Beat:</strong><span>${escapeHtml(beat.text)}</span>${beat.range ? `<em>Lines ${beat.range.startLine + 1}–${beat.range.endLine + 1}</em>` : ""}</div><div class="beat-runner-actions"><button type="button" data-previous-beat aria-label="Previous beat"${state.activeBeat ? "" : " disabled"}>←</button><button type="button" data-open-beat-sheet>Edit</button><button class="assign-beat-area" type="button" data-assign-beat-area>Assign selection &amp; next</button><button type="button" data-next-beat aria-label="Next beat"${state.activeBeat < beats.length - 1 ? "" : " disabled"}>→</button><button type="button" data-close-beat-guide aria-label="Hide Beat guide">×</button></div>`
+    ? `<div class="beat-runner-progress"><small>${state.activeBeat + 1}/${beats.length}</small><strong>Next Beat:</strong><span>${escapeHtml(beat.text)}</span>${beat.range ? `<em>Lines ${beat.range.startLine + 1}–${beat.range.endLine + 1}</em>` : ""}</div><div class="beat-runner-actions"><button type="button" data-previous-beat aria-label="Previous beat"${state.activeBeat ? "" : " disabled"}>←</button><button type="button" data-open-beat-sheet>Edit</button><button class="assign-beat-area" type="button" data-assign-beat-area>Assign + Next</button><button type="button" data-next-beat aria-label="Next beat"${state.activeBeat < beats.length - 1 ? "" : " disabled"}>→</button><button type="button" data-close-beat-guide aria-label="Hide Beat guide">×</button></div>`
     : `<div class="beat-runner-progress"><strong>Beat Sheet</strong><span>Add beats to start the writing runner.</span></div><div class="beat-runner-actions"><button type="button" data-open-beat-sheet>Edit Beat Sheet</button><button type="button" data-close-beat-guide aria-label="Hide Beat guide">×</button></div>`;
 }
 
