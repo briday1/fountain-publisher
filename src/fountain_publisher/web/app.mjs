@@ -1805,9 +1805,27 @@ function openGithubPopup(url) {
   return popup;
 }
 
+async function waitForGithubPopup(popup) {
+  const startedAt = Date.now();
+  while (popup && !popup.closed && Date.now() - startedAt < 120000) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+  if (!popup || !popup.closed) return toast("GitHub connection timed out");
+  // GitHub may apply Cross-Origin-Opener-Policy while authorizing, which can
+  // sever window.opener and prevent the callback page's postMessage. The
+  // HttpOnly session cookie is authoritative, so verify it after the popup closes.
+  if (state.githubConnected) return;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (await refreshGithubSession({ notify: true })) return openGithubBrowser();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  toast("GitHub connection did not complete. Please try again.");
+}
+
 async function connectGithub() {
   if (state.githubConnected) return openGithubBrowser();
-  openGithubPopup(`${GITHUB_API}/auth/github/start`);
+  const popup = openGithubPopup(`${GITHUB_API}/auth/github/start`);
+  if (popup) void waitForGithubPopup(popup);
 }
 
 function selectedGithubRepository() {
