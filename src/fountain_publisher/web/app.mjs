@@ -267,6 +267,7 @@ const state = {
   vimYankLine: false,
   beatGuide: localStorage.getItem("fountain-publisher.beat-guide") === "true",
   activeBeat: 0,
+  characterAnalyticsScene: null,
 };
 
 function emptyMetadata() {
@@ -544,7 +545,8 @@ function previewLineHtml(line, sceneLabel = null, annotation = null) {
   const orb = annotation
     ? `<button class="annotation-orb" type="button" data-annotation-line="${annotation.index}" title="${escapeHtml(annotation.text)}" aria-label="Edit annotation: ${escapeHtml(annotation.text)}"></button>`
     : "";
-  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(display)}">${content}${orb}</div>`;
+  const spellcheckAttr = type === "character" ? ` spellcheck="false"` : "";
+  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(display)}"${spellcheckAttr}>${content}${orb}</div>`;
 }
 
 function annotationAfter(lines, index) {
@@ -1141,7 +1143,7 @@ function renderBeatGuide() {
   });
   const beat = beats[state.activeBeat];
   layer.innerHTML = beat
-    ? `<div class="beat-runner-progress"><small>${state.activeBeat + 1}/${beats.length}</small><strong>Next Beat:</strong><span>${escapeHtml(beat.text)}</span>${beat.range ? `<em>Lines ${beat.range.startLine + 1}–${beat.range.endLine + 1}</em>` : ""}</div><div class="beat-runner-actions"><button type="button" data-previous-beat aria-label="Previous beat"${state.activeBeat ? "" : " disabled"}>←</button><button type="button" data-open-beat-sheet>Edit</button><button class="assign-beat-area" type="button" data-assign-beat-area>Assign selection &amp; next</button><button type="button" data-next-beat aria-label="Next beat"${state.activeBeat < beats.length - 1 ? "" : " disabled"}>→</button><button type="button" data-close-beat-guide aria-label="Hide Beat guide">×</button></div>`
+    ? `<div class="beat-runner-progress"><small>${state.activeBeat + 1}/${beats.length}</small><strong>Next Beat:</strong><span>${escapeHtml(beat.text)}</span>${beat.range ? `<em>Lines ${beat.range.startLine + 1}–${beat.range.endLine + 1}</em>` : ""}</div><div class="beat-runner-actions"><button type="button" data-previous-beat aria-label="Previous beat"${state.activeBeat ? "" : " disabled"}>←</button><button type="button" data-open-beat-sheet>Edit</button><button class="assign-beat-area" type="button" data-assign-beat-area>Assign + Next</button><button type="button" data-next-beat aria-label="Next beat"${state.activeBeat < beats.length - 1 ? "" : " disabled"}>→</button><button type="button" data-close-beat-guide aria-label="Hide Beat guide">×</button></div>`
     : `<div class="beat-runner-progress"><strong>Beat Sheet</strong><span>Add beats to start the writing runner.</span></div><div class="beat-runner-actions"><button type="button" data-open-beat-sheet>Edit Beat Sheet</button><button type="button" data-close-beat-guide aria-label="Hide Beat guide">×</button></div>`;
 }
 
@@ -1207,7 +1209,76 @@ function fitCanvasText(context, value, width) {
   return clipped ? `${clipped}…` : "";
 }
 
+function sceneCharacterWordSegments(sceneIndex) {
+  const scenes = state.metadata.scenes || [];
+  const typed = classifyLines(source.value);
+  const start = Math.max(0, (scenes[sceneIndex]?.line || 1) - 1);
+  const end = sceneIndex + 1 < scenes.length ? Math.max(start, scenes[sceneIndex + 1].line - 1) : typed.length;
+  const segments = [];
+  let active = "";
+  let position = 0;
+  const ignored = new Set(["empty", "parenthetical", "section", "synopsis", "note", "boneyard", "title-value", "title-value title", "character", "scene", "page-break"]);
+  for (let index = start + 1; index < end; index += 1) {
+    const line = typed[index];
+    if (line.type === "character") { active = cleanCharacter(line.display); continue; }
+    const words = ignored.has(line.type) ? 0 : (line.display.match(/[\p{L}\p{N}'’-]+/gu) || []).length;
+    if (line.type === "dialogue" && active && words) segments.push({ character: active, start: position, words });
+    position += words;
+    if (!["dialogue", "parenthetical", "empty", "note"].includes(line.type)) active = "";
+  }
+  return { segments, total: position };
+}
+
+function renderSceneCharacterAnalytics(sceneIndex) {
+  const canvas = $("#character-analytics-chart");
+  const scene = state.metadata.scenes[sceneIndex];
+  const { segments, total } = sceneCharacterWordSegments(sceneIndex);
+  const characters = [...new Set(segments.map((segment) => segment.character))];
+  const scale = Math.min(window.devicePixelRatio || 1, 2);
+  const labelWidth = 150; const plotWidth = 760; const headerHeight = 58; const rowHeight = 38;
+  const width = labelWidth + plotWidth; const height = headerHeight + Math.max(characters.length, 1) * rowHeight;
+  canvas.width = Math.ceil(width * scale); canvas.height = Math.ceil(height * scale);
+  canvas.style.width = `${width}px`; canvas.style.height = `${height}px`; canvas.style.cursor = "default";
+  const context = canvas.getContext("2d"); context.scale(scale, scale);
+  const surface = canvasColor("--surface", "#fff"); const surface2 = canvasColor("--surface-2", "#f2f2f2");
+  const ink = canvasColor("--ink", "#202124"); const muted = canvasColor("--muted", "#6b7280");
+  const border = canvasColor("--border", "#d7d9dd"); const characterColor = canvasColor("--syntax-character", "#7c3aed");
+  context.fillStyle = surface; context.fillRect(0, 0, width, height);
+  context.fillStyle = surface2; context.fillRect(0, 0, width, headerHeight);
+  context.strokeStyle = border; context.lineWidth = 1; context.strokeRect(.5, .5, width - 1, headerHeight);
+  context.textBaseline = "middle"; context.textAlign = "left"; context.fillStyle = ink;
+  context.font = "600 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  context.fillText(fitCanvasText(context, scene?.heading || `Scene ${sceneIndex + 1}`, labelWidth - 20), 12, 20);
+  context.fillStyle = muted; context.font = "9px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  context.fillText(`${total.toLocaleString()} scene words`, 12, 40);
+  [0, .25, .5, .75, 1].forEach((ratio) => {
+    const x = labelWidth + plotWidth * ratio;
+    context.strokeStyle = border; context.beginPath(); context.moveTo(x + .5, headerHeight); context.lineTo(x + .5, height); context.stroke();
+    context.fillStyle = muted; context.textAlign = ratio === 0 ? "left" : ratio === 1 ? "right" : "center";
+    context.fillText(Math.round(total * ratio).toLocaleString(), x, 42);
+  });
+  characters.forEach((character, row) => {
+    const y = headerHeight + row * rowHeight;
+    if (row % 2 === 1) { context.fillStyle = surface2; context.fillRect(0, y, width, rowHeight); }
+    context.fillStyle = ink; context.textAlign = "left"; context.font = "600 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    context.fillText(fitCanvasText(context, character, labelWidth - 20), 12, y + rowHeight / 2);
+    segments.filter((segment) => segment.character === character).forEach((segment) => {
+      const x = labelWidth + (total ? segment.start / total : 0) * plotWidth;
+      const segmentWidth = Math.max(2, (total ? segment.words / total : 0) * plotWidth);
+      context.fillStyle = characterColor; context.fillRect(x, y + 8, segmentWidth, rowHeight - 16);
+      if (segmentWidth >= 24) { context.fillStyle = "#fff"; context.textAlign = "center"; context.fillText(String(segment.words), x + segmentWidth / 2, y + rowHeight / 2); }
+    });
+  });
+  if (!characters.length) { context.fillStyle = muted; context.textAlign = "center"; context.fillText("No character dialogue in this scene.", width / 2, headerHeight + rowHeight / 2); }
+  $("#character-analytics-title").textContent = `Scene ${sceneIndex + 1} Character Gantt`;
+  $("#character-analytics-description").textContent = `${scene?.heading || "Scene"} · Solid bars show dialogue word count and position within the scene.`;
+  $("#character-analytics-back").hidden = state.metadata.scenes.length <= 1;
+  $("#character-analytics-legend").hidden = true;
+  canvas.setAttribute("aria-label", `Character dialogue word-position Gantt for scene ${sceneIndex + 1}, ${scene?.heading || "scene"}, with ${total} words`);
+}
+
 function renderCharacterAnalytics() {
+  if (state.characterAnalyticsScene !== null && state.metadata.scenes[state.characterAnalyticsScene]) { renderSceneCharacterAnalytics(state.characterAnalyticsScene); return; }
   const canvas = $("#character-analytics-chart");
   const characters = state.metadata.characters;
   const scenes = state.metadata.scenes;
@@ -1225,6 +1296,10 @@ function renderCharacterAnalytics() {
   canvas.style.height = `${height}px`;
   const context = canvas.getContext("2d");
   context.scale(scale, scale);
+  canvas.style.cursor = scenes.length ? "pointer" : "default";
+  $("#character-analytics-title").textContent = "Character Analytics";
+  $("#character-analytics-description").textContent = "Dialogue lines by character across acts and scenes. Select a scene header for word-position detail.";
+  $("#character-analytics-back").hidden = true;
 
   const surface = canvasColor("--surface", "#fff");
   const surface2 = canvasColor("--surface-2", "#f2f2f2");
@@ -1325,6 +1400,7 @@ function characterLineUsageCsv() {
 }
 
 function openCharacterAnalytics() {
+  state.characterAnalyticsScene = state.metadata.scenes.length === 1 ? 0 : null;
   renderCharacterAnalytics();
   $("#character-analytics-dialog").showModal();
 }
@@ -2137,7 +2213,7 @@ function isMobilePreview() {
 async function setPreviewMode(mode) {
   if (!['source', 'live', 'pdf', 'beats'].includes(mode)) mode = "live";
   if (mode === "source" && !sourceTabEnabled()) mode = "live";
-  if (isMobilePreview() && ['pdf', 'beats'].includes(mode)) mode = "live";
+  if (isMobilePreview() && mode === "pdf") mode = "live";
   const preview = $("#preview-scroll");
   const returnToLive = state.previewMode === "pdf" && mode === "live";
   if (state.previewMode === "live" && mode === "pdf") {
@@ -2350,8 +2426,93 @@ function beatCard(beat = { text: "" }) {
   return `<li class="beat-card beat-graph-node${beat.range ? " assigned" : ""}" data-start-line="${range.startLine ?? ""}" data-end-line="${range.endLine ?? ""}"><span class="beat-number"></span><button class="beat-drag" draggable="true" type="button" aria-label="Drag to reorder" title="Drag to reorder">⠿</button><div class="beat-shift"><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">↑</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">↓</button></div><div class="beat-node-box"><div class="beat-card-fields"><input class="beat-text" type="text" placeholder="What happens in this beat?" value="${escapeHtml(beat.text)}" /></div><div class="beat-assignment-wrap"><button class="beat-assignment" type="button" ${beat.range ? "data-beat-jump" : "disabled"}><span>${beat.range ? "Assigned" : "Unassigned"}</span><small>${escapeHtml(assignment)}</small><em>${escapeHtml(excerpt)}</em></button>${beat.range ? `<button class="beat-unassign" type="button" aria-label="Unassign beat from screenplay" title="Unassign from screenplay">×</button>` : ""}</div><button class="beat-remove" type="button" aria-label="Delete beat" title="Delete beat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></div></li>`;
 }
 
+function screenplayWordProgress() {
+  const ignored = new Set(["empty", "parenthetical", "section", "synopsis", "note", "boneyard", "title-value", "title-value title", "character", "scene", "page-break"]);
+  const progress = [0];
+  let total = 0;
+  classifyLines(source.value).forEach((line) => {
+    if (!ignored.has(line.type)) total += (line.display.match(/[\p{L}\p{N}'’-]+/gu) || []).length;
+    progress.push(total);
+  });
+  return { progress, total };
+}
+
+function renderBeatProgressGraph(beats = currentBeatCards()) {
+  const graph = $("#beat-progress-graph");
+  if (!graph) return;
+  const count = beats.length;
+  if (!count) { graph.innerHTML = ""; graph.hidden = true; return; }
+  graph.hidden = false;
+  const { progress, total } = screenplayWordProgress();
+  const values = beats.map((beat) => beat.range ? progress[Math.max(0, Math.min(progress.length - 1, beat.range.startLine))] : null);
+  const plotted = values.map((value, index) => {
+    if (value !== null) return value;
+    let before = index - 1;
+    while (before >= 0 && values[before] === null) before -= 1;
+    let after = index + 1;
+    while (after < count && values[after] === null) after += 1;
+    const beforeIndex = before >= 0 ? before : -1;
+    const beforeValue = before >= 0 ? values[before] : 0;
+    const afterIndex = after < count ? after : count;
+    const afterValue = after < count ? values[after] : total;
+    return Math.round(beforeValue + (afterValue - beforeValue) * ((index - beforeIndex) / (afterIndex - beforeIndex)));
+  });
+  const width = 720; const height = 190; const left = 48; const right = 18; const top = 18; const bottom = 32;
+  const x = (index) => left + (width - left - right) * ((index + 1) / (count + 1));
+  const y = (words) => height - bottom - (height - top - bottom) * (total ? words / total : 0);
+  const points = [`${left},${y(0)}`, ...plotted.map((words, index) => `${x(index)},${y(words)}`), `${width - right},${y(total)}`].join(" ");
+  const circles = beats.map((beat, index) => {
+    const assigned = values[index] !== null;
+    const words = plotted[index];
+    const label = beat.text || `Beat ${index + 1}`;
+    return `<g class="beat-plot-point ${assigned ? "assigned" : "unassigned"}"><circle cx="${x(index)}" cy="${y(words)}" r="5"><title>Beat ${index + 1}: ${escapeHtml(label)} · ${words.toLocaleString()} words${assigned ? "" : " (estimated)"}</title></circle><text x="${x(index)}" y="${height - 11}" text-anchor="middle">${index + 1}</text></g>`;
+  }).join("");
+  const midpoint = Math.round(total / 2);
+  graph.innerHTML = `<header><strong>Pacing</strong><span>Cumulative screenplay words at each beat</span><small><i></i> Assigned <i></i> Unassigned estimate</small></header><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Beat pacing graph"><line class="beat-ideal-line" x1="${left}" y1="${y(0)}" x2="${width - right}" y2="${y(total)}"/><line class="beat-grid-line" x1="${left}" y1="${y(midpoint)}" x2="${width - right}" y2="${y(midpoint)}"/><text class="beat-axis-label" x="${left - 7}" y="${y(total) + 3}" text-anchor="end">${total.toLocaleString()}</text><text class="beat-axis-label" x="${left - 7}" y="${y(midpoint) + 3}" text-anchor="end">${midpoint.toLocaleString()}</text><text class="beat-axis-label" x="${left - 7}" y="${y(0) + 3}" text-anchor="end">0</text><polyline class="beat-progress-line" points="${points}"/>${circles}</svg>`;
+}
+
+function openBeatProgressGraph() {
+  renderBeatProgressGraph();
+  $("#beat-progress-dialog").showModal();
+}
+
+async function saveBeatProgressPng() {
+  renderBeatProgressGraph();
+  const sourceSvg = $("#beat-progress-graph svg");
+  if (!sourceSvg) { toast("Add a beat before saving the pacing graph"); return; }
+  const clone = sourceSvg.cloneNode(true);
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  const paper = canvasColor("--surface", "#fff");
+  const ink = canvasColor("--ink", "#202124");
+  const muted = canvasColor("--muted", "#6b7280");
+  const accent = canvasColor("--metric-scenes-ink", "#0284c7");
+  clone.querySelector(".beat-ideal-line")?.setAttribute("style", `stroke:${muted};stroke-opacity:.35;stroke-width:1;stroke-dasharray:4 5`);
+  clone.querySelector(".beat-grid-line")?.setAttribute("style", `stroke:${muted};stroke-opacity:.18;stroke-width:1`);
+  clone.querySelector(".beat-progress-line")?.setAttribute("style", `fill:none;stroke:${accent};stroke-width:2;stroke-linejoin:round`);
+  clone.querySelectorAll(".beat-plot-point.assigned circle").forEach((circle) => circle.setAttribute("style", `fill:${accent};stroke:${paper};stroke-width:2`));
+  clone.querySelectorAll(".beat-plot-point.unassigned circle").forEach((circle) => circle.setAttribute("style", `fill:${paper};stroke:#92979f;stroke-width:2`));
+  clone.querySelectorAll("text").forEach((text) => text.setAttribute("style", `fill:${muted};font:8px ui-monospace,monospace`));
+  const svgBlob = new Blob([new XMLSerializer().serializeToString(clone)], { type: "image/svg+xml" });
+  const image = new Image();
+  const url = URL.createObjectURL(svgBlob);
+  await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject; image.src = url; });
+  URL.revokeObjectURL(url);
+  const canvas = document.createElement("canvas");
+  canvas.width = 1440; canvas.height = 440;
+  const context = canvas.getContext("2d");
+  context.fillStyle = paper; context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = ink; context.font = "700 28px -apple-system, BlinkMacSystemFont, sans-serif"; context.fillText("Beat Pacing", 36, 40);
+  context.fillStyle = muted; context.font = "18px -apple-system, BlinkMacSystemFont, sans-serif"; context.fillText("Cumulative screenplay words at each beat", 36, 68);
+  context.drawImage(image, 0, 60, 1440, 380);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (!blob) { toast("Could not create pacing graph image"); return; }
+  await download(blob, normalizedFilename("beat-pacing.png"));
+  toast("Beat pacing PNG saved");
+}
+
 function renumberBeatCards() {
   $$(".beat-card", $("#beat-list")).forEach((card, index) => { $(".beat-number", card).textContent = index + 1; });
+  renderBeatProgressGraph();
 }
 
 function currentBeatCards() {
@@ -2364,6 +2525,8 @@ function currentBeatCards() {
 
 function renderBeatSheetView() {
   const sheet = state.metadata.beatSheet || { premise: "", beats: [] };
+  const hasBeatSheet = Boolean(sheet.premise?.trim() || sheet.beats.some((beat) => (typeof beat === "string" ? beat : beat.text)?.trim()));
+  $("#beat-sheet-empty-state").hidden = hasBeatSheet;
   $("#beat-premise").value = sheet.premise || "";
   $("#beat-list").innerHTML = (sheet.beats.length ? sheet.beats : [""]).map(beatCard).join("");
   renumberBeatCards();
@@ -2528,6 +2691,12 @@ function deleteNoteLine(line) {
 const toolbarMenus = $$(".toolbar-menu");
 
 function closeMenus(except = null) { toolbarMenus.forEach((menu) => { if (menu !== except) menu.open = false; }); }
+function setMobileMenu(open) {
+  document.body.classList.toggle("mobile-menu-open", open);
+  $("#mobile-menu-toggle").setAttribute("aria-expanded", String(open));
+  $("#mobile-menu-toggle").setAttribute("aria-label", open ? "Close menu" : "Open menu");
+  if (!open) closeMenus();
+}
 
 function vimActive() {
   return state.vimEnabled && !isMobilePreview();
@@ -2959,6 +3128,21 @@ $("#preview-completion-menu").addEventListener("mousedown", (event) => { const i
 $("#completion-menu").addEventListener("mousedown", (event) => { const item = event.target.closest(".completion-item"); if (item) { event.preventDefault(); acceptCompletion(Number(item.dataset.index)); } });
 $("[data-character-analytics]").addEventListener("click", openCharacterAnalytics);
 $("#close-character-analytics").addEventListener("click", () => $("#character-analytics-dialog").close());
+$("#character-analytics-back").addEventListener("click", () => { state.characterAnalyticsScene = null; renderCharacterAnalytics(); });
+$("#character-analytics-chart").addEventListener("click", (event) => {
+  if (state.characterAnalyticsScene !== null) return;
+  const scenes = state.metadata.scenes || [];
+  if (!scenes.length) return;
+  const canvas = event.currentTarget;
+  const bounds = canvas.getBoundingClientRect();
+  const x = (event.clientX - bounds.left) * (parseFloat(canvas.style.width) / bounds.width);
+  const y = (event.clientY - bounds.top) * (parseFloat(canvas.style.height) / bounds.height);
+  if (y < 28 || y > 82 || x < 150) return;
+  const sceneIndex = Math.floor((x - 150) / 92);
+  if (sceneIndex < 0 || sceneIndex >= scenes.length) return;
+  state.characterAnalyticsScene = sceneIndex;
+  renderCharacterAnalytics();
+});
 $("#copy-character-lines").addEventListener("click", copyCharacterLineUsage);
 $("#save-character-analytics").addEventListener("click", saveCharacterAnalyticsPng);
 $("#scene-list").addEventListener("click", (event) => { const button = event.target.closest("button[data-line]"); if (button) jumpToInsightScene(Number(button.dataset.line)); });
@@ -2974,6 +3158,7 @@ $("#add-general-note").addEventListener("click", () => openGeneralNoteEditor());
 $("#menu-toggle-beat-guide").addEventListener("click", () => {
   state.beatGuide = !state.beatGuide;
   localStorage.setItem("fountain-publisher.beat-guide", String(state.beatGuide));
+  if (state.beatGuide && isMobilePreview()) setMobileTab("preview");
   renderBeatGuide(); closeMenus();
 });
 $("#beat-guide-layer").addEventListener("click", (event) => {
@@ -2993,6 +3178,9 @@ $("#add-beat").addEventListener("click", () => {
   $("#beat-list").insertAdjacentHTML("beforeend", beatCard()); renumberBeatCards();
   $("#beat-list .beat-card:last-child .beat-text").focus();
 });
+$("#view-beat-progress").addEventListener("click", openBeatProgressGraph);
+$("#close-beat-progress").addEventListener("click", () => $("#beat-progress-dialog").close());
+$("#save-beat-progress").addEventListener("click", saveBeatProgressPng);
 $("#beat-list").addEventListener("click", (event) => {
   const card = event.target.closest(".beat-card");
   if (!card) return;
@@ -3028,6 +3216,39 @@ $("#beat-list").addEventListener("dragover", (event) => {
   const after = event.clientY > target.getBoundingClientRect().top + target.offsetHeight / 2;
   target.parentElement.insertBefore(draggedBeat, after ? target.nextSibling : target);
 });
+let pointerDraggedBeat = null;
+let beatDragPointerId = null;
+$("#beat-list").addEventListener("pointerdown", (event) => {
+  if (event.pointerType === "mouse") return;
+  const handle = event.target.closest(".beat-drag");
+  if (!handle) return;
+  pointerDraggedBeat = handle.closest(".beat-card");
+  beatDragPointerId = event.pointerId;
+  handle.setPointerCapture?.(event.pointerId);
+  pointerDraggedBeat?.classList.add("dragging", "touch-dragging");
+  event.preventDefault();
+});
+$("#beat-list").addEventListener("pointermove", (event) => {
+  if (!pointerDraggedBeat || event.pointerId !== beatDragPointerId) return;
+  event.preventDefault();
+  const siblings = $$(".beat-card", $("#beat-list")).filter((card) => card !== pointerDraggedBeat);
+  const before = siblings.find((card) => event.clientY < card.getBoundingClientRect().top + card.offsetHeight / 2);
+  $("#beat-list").insertBefore(pointerDraggedBeat, before || null);
+  const scrollArea = $(".beat-sheet-workspace");
+  const bounds = scrollArea.getBoundingClientRect();
+  if (event.clientY < bounds.top + 48) scrollArea.scrollTop -= 14;
+  else if (event.clientY > bounds.bottom - 48) scrollArea.scrollTop += 14;
+});
+function finishPointerBeatDrag(event) {
+  if (!pointerDraggedBeat || event.pointerId !== beatDragPointerId) return;
+  pointerDraggedBeat.classList.remove("dragging", "touch-dragging");
+  pointerDraggedBeat = null;
+  beatDragPointerId = null;
+  renumberBeatCards();
+  scheduleBeatSheetSave();
+}
+$("#beat-list").addEventListener("pointerup", finishPointerBeatDrag);
+$("#beat-list").addEventListener("pointercancel", finishPointerBeatDrag);
 $("#beat-list").addEventListener("keydown", (event) => {
   if (event.key !== "Enter" || !event.target.matches(".beat-text")) return;
   event.preventDefault();
@@ -3058,7 +3279,7 @@ function scheduleBeatSheetSave() {
   beatSheetSaveTimer = setTimeout(persistBeatSheet, 300);
 }
 $("#beat-sheet-form").addEventListener("submit", (event) => event.preventDefault());
-$("#beat-sheet-form").addEventListener("input", scheduleBeatSheetSave);
+$("#beat-sheet-form").addEventListener("input", () => { renderBeatProgressGraph(); scheduleBeatSheetSave(); });
 $("#beat-sheet-form").addEventListener("change", scheduleBeatSheetSave);
 
 $("#annotation-form").addEventListener("submit", (event) => {
@@ -3207,14 +3428,30 @@ $("#preview-dot-radius").addEventListener("input", (event) => {
   applyPreviewBackground();
 });
 $("#page-size").addEventListener("change", () => { scheduleCompile(0); if (state.previewMode === "pdf") refreshPdf(); });
-$$('[data-preview-mode]').forEach((button) => button.addEventListener("click", () => setPreviewMode(button.dataset.previewMode)));
-$("#toggle-stats").addEventListener("click", () => togglePanel("stats")); $("#menu-toggle-stats").addEventListener("click", () => togglePanel("stats"));
+$$('[data-preview-mode]').forEach((button) => button.addEventListener("click", () => {
+  const mode = button.dataset.previewMode;
+  if (isMobilePreview()) setMobileTab(mode === "beats" ? "beats" : mode === "source" ? "source" : "preview");
+  else setPreviewMode(mode);
+}));
+$("#toggle-stats").addEventListener("click", () => togglePanel("stats"));
+$("#menu-toggle-stats").addEventListener("click", () => isMobilePreview() ? setMobileTab("stats") : togglePanel("stats"));
 $("#menu-toggle-source-tab").addEventListener("click", () => {
+  if (isMobilePreview()) {
+    const opening = state.previewMode !== "source";
+    localStorage.setItem("fountain-publisher.source-tab", String(opening));
+    document.body.classList.toggle("source-tab-hidden", !opening);
+    $(".menu-check", $("#menu-toggle-source-tab")).textContent = opening ? "✓" : "";
+    setMobileTab(opening ? "source" : "preview");
+    closeMenus();
+    return;
+  }
   const enabled = !sourceTabEnabled();
   localStorage.setItem("fountain-publisher.source-tab", String(enabled));
   document.body.classList.toggle("source-tab-hidden", !enabled);
   $(".menu-check", $("#menu-toggle-source-tab")).textContent = enabled ? "✓" : "";
-  if (!enabled && state.previewMode === "source") void setPreviewMode("live");
+  if (!enabled && state.previewMode === "source") {
+    void setPreviewMode("live");
+  }
   closeMenus();
 });
 $("#undo").addEventListener("click", undoDocument); $("#redo").addEventListener("click", redoDocument);
@@ -3319,6 +3556,13 @@ $("#insert-scene").addEventListener("click", () => { appendToSource("INT. LOCATI
 $("#insert-dialogue").addEventListener("click", () => { appendToSource("CHARACTER\nDialogue here.\n\n"); });
 $("#insert-direction").addEventListener("click", () => { appendToSource("Action description.\n\n"); });
 $("#insert-pagebreak").addEventListener("click", () => { appendToSource("===\n\n"); });
+$("#beat-sheet-empty-state").addEventListener("click", (event) => {
+  const action = event.target.closest("[data-blank-insert]")?.dataset.blankInsert;
+  if (action === "title") openTitlePageDialog();
+  else if (action === "scene") appendToSource("INT. LOCATION - DAY\n\n");
+  else if (action === "dialogue") appendToSource("CHARACTER\nDialogue here.\n\n");
+  else if (action === "direction") appendToSource("Action description.\n\n");
+});
 $("#menu-insert-title-page").addEventListener("click", openTitlePageDialog);
 $("#menu-insert-scene").addEventListener("click", () => { appendToSource("INT. LOCATION - DAY\n\n"); });
 $("#menu-insert-dialogue").addEventListener("click", () => { appendToSource("CHARACTER\nDialogue here.\n\n"); });
@@ -3353,6 +3597,7 @@ function setMobileTab(panel) {
   localStorage.setItem("fountain-publisher.mobile-tab", panel);
   if (panel === "source" && isMobilePreview()) void setPreviewMode("source");
   else if (panel === "preview" && isMobilePreview() && state.previewMode !== "live") void setPreviewMode("live");
+  else if (panel === "beats" && isMobilePreview() && state.previewMode !== "beats") void setPreviewMode("beats");
   else if (panel === "preview" && state.previewMode === "pdf") refreshPdf();
   if (panel === "source") { renderEditorChrome(); scrollSourceTarget(currentPosition().line, "center"); }
   if (panel !== "stats" && state.insightLine !== null) requestAnimationFrame(() => jumpToLine(state.insightLine, false));
@@ -3360,9 +3605,11 @@ function setMobileTab(panel) {
 
 $$(".mobile-tab").forEach((tab) => tab.addEventListener("click", () => setMobileTab(tab.dataset.mobilePanel)));
 $("#preview-scroll").addEventListener("scroll", () => { hidePreviewContextMenu(); scheduleWorkspaceCache(); });
+$("#mobile-menu-toggle").addEventListener("click", () => setMobileMenu(!document.body.classList.contains("mobile-menu-open")));
+$("#mobile-menu-backdrop").addEventListener("click", () => setMobileMenu(false));
 
 toolbarMenus.forEach((menu) => menu.addEventListener("click", (event) => {
-  if (event.target.closest("button")) menu.open = false;
+  if (event.target.closest("button")) { menu.open = false; if (isMobilePreview()) setMobileMenu(false); }
   else if (event.target.closest("summary")) closeMenus(menu);
 }));
 document.addEventListener("pointerdown", (event) => toolbarMenus.forEach((menu) => {
@@ -3374,6 +3621,7 @@ document.addEventListener("pointerdown", (event) => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !$("#preview-context-menu").hidden) hidePreviewContextMenu();
+  else if (event.key === "Escape" && document.body.classList.contains("mobile-menu-open")) setMobileMenu(false);
   else if (event.key === "Escape" && toolbarMenus.some((menu) => menu.open)) { closeMenus(); }
   else if ((source === document.activeElement || page.contains(document.activeElement)) && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redoDocument() : undoDocument(); }
   else if ((source === document.activeElement || page.contains(document.activeElement)) && event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === "y") { event.preventDefault(); redoDocument(); }
@@ -3445,7 +3693,7 @@ async function initialize() {
   const enableWorkspaceCache = params.get("demo") !== "1";
   setDocument(text, name, !restore, restore ? cached.githubFile || null : null);
   void refreshGithubSession();
-  const storedMobileTab = localStorage.getItem("fountain-publisher.mobile-tab") || "source";
+  const storedMobileTab = localStorage.getItem("fountain-publisher.mobile-tab") || "beats";
   const initialMobileTab = !showSourceTab && storedMobileTab === "source" ? "preview" : storedMobileTab;
   setMobileTab(initialMobileTab);
   if (restore && ["fit", "70", "85", "100", "115", "130", "150", "175", "200"].includes(String(cached.zoom))) {
@@ -3454,8 +3702,9 @@ async function initialize() {
   }
   applyZoom();
   const restoredMode = ["source", "live", "pdf", "beats"].includes(cached?.previewMode) ? cached.previewMode : "live";
-  const requestedMode = restore ? restoredMode : localStorage.getItem("fountain-publisher.preview") || "live";
-  await setPreviewMode(isMobilePreview() ? (initialMobileTab === "source" ? "source" : "live") : requestedMode);
+  const requestedMode = restore ? restoredMode : localStorage.getItem("fountain-publisher.preview") || "beats";
+  const initialMobileMode = initialMobileTab === "source" ? "source" : initialMobileTab === "beats" ? "beats" : "live";
+  await setPreviewMode(isMobilePreview() ? initialMobileMode : requestedMode);
   if (restore) requestAnimationFrame(() => {
     const start = Math.min(Number(cached.selectionStart) || 0, source.value.length);
     const end = Math.min(Number(cached.selectionEnd) || start, source.value.length);

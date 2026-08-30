@@ -221,6 +221,7 @@ test("spellcheck exposes native replacement suggestions", async () => {
   assert.match(html, /Right-click spelling for suggestions/);
   assert.match(html, /aria-describedby="editor-status spellcheck-help"/);
   assert.match(app, /setAttribute\("spellcheck", String\(enabled\)\)/);
+  assert.match(app, /type === "character" \? ` spellcheck="false"`/);
   assert.match(app, /source\.blur\(\); source\.focus\(\)/);
 });
 
@@ -284,6 +285,10 @@ test("new documents open to a blank canvas with starter helpers", async () => {
   assert.match(html, /id="insert-title-page"/);
   assert.match(html, /id="insert-scene"/);
   assert.match(html, /id="insert-dialogue"/);
+  assert.match(html, /id="beat-sheet-empty-state"[\s\S]*Map the story before/);
+  assert.match(html, /data-blank-insert="title"[\s\S]*data-blank-insert="scene"[\s\S]*data-blank-insert="dialogue"[\s\S]*data-blank-insert="direction"/);
+  assert.match(app, /localStorage\.getItem\("fountain-publisher\.preview"\) \|\| "beats"/);
+  assert.match(app, /beat-sheet-empty-state[^\n]*hidden = hasBeatSheet/);
 });
 
 test("the browser continuously restores a separate local recovery workspace", async () => {
@@ -394,6 +399,7 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.match(html, /class="character-analytics-button"[^>]*data-character-analytics>Character Analytics/);
   assert.match(css, /\.character-analytics-button, \.character-csv-button\s*\{[^}]*width:\s*100%;[^}]*text-align:\s*center;/s);
   assert.match(html, /id="character-analytics-chart"/);
+  assert.match(html, /id="character-analytics-back"[^>]*>← All scenes</);
   assert.match(html, /id="copy-character-lines"[^>]*>Copy line usage CSV/);
   assert.match(app, /navigator\.clipboard\.writeText\(characterLineUsageCsv\(\)\)/);
   assert.match(app, /characters\.map\(\(character\) => `\$\{character\.name\}, \$\{character\.lines\}`\)/);
@@ -408,6 +414,10 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.doesNotMatch(app, /table\.style\.width/);
   assert.match(app, /maxLines === minLines \? 1 : 0\.25 \+ 0\.75/);
   assert.match(app, /canvasColor\("--syntax-character", "#7c3aed"\)/);
+  assert.match(app, /function sceneCharacterWordSegments\(sceneIndex\)[\s\S]*segments\.push\(\{ character: active, start: position, words \}\)/);
+  assert.match(app, /function renderSceneCharacterAnalytics\(sceneIndex\)[\s\S]*segment\.start \/ total[\s\S]*segment\.words \/ total/);
+  assert.match(app, /state\.metadata\.scenes\.length === 1 \? 0 : null/);
+  assert.match(app, /character-analytics-chart"\)\.addEventListener\("click"[\s\S]*sceneIndex[\s\S]*renderCharacterAnalytics\(\)/);
   assert.match(app, /return String\(sceneInAct\)/);
   assert.match(app, /fillRect\(0, y, labelWidth \+ scenes\.length \* sceneWidth, rowHeight\)/);
   assert.doesNotMatch(app, /moveTo\(0, y \+ rowHeight \+ 0\.5\)/);
@@ -457,7 +467,11 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.doesNotMatch(html, /beat-sheet-insight|id="beat-sheet-summary"|id="open-beat-sheet"/);
   assert.match(html, /id="beat-sheet-panel"[\s\S]*id="beat-premise"[\s\S]*id="beat-list"[^>]*beat-flow-editor/);
+  assert.match(html, /id="beat-progress-graph"[^>]*aria-label="Beat pacing by cumulative screenplay words"/);
+  assert.match(html, /id="view-beat-progress"[^>]*>View pacing graph</);
+  assert.match(html, /id="beat-progress-dialog"[\s\S]*id="save-beat-progress"[^>]*>Save PNG</);
   assert.match(html, /id="menu-toggle-beat-guide"[\s\S]*id="beat-guide-layer"/);
+  assert.match(app, /data-assign-beat-area>Assign \+ Next</);
   assert.match(app, /MANAGED_NOTE_RE = \/[\s\S]*BEATS/);
   assert.match(app, /function managedBeatSheetSource\(premise, beats\)/);
   assert.match(app, /Next Beat:[\s\S]*data-assign-beat-area[\s\S]*data-next-beat/);
@@ -473,6 +487,11 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /event\.key !== "Enter" \|\| !event\.target\.matches\("\.beat-text"\)[\s\S]*nextElementSibling[\s\S]*\.focus\(\)/);
   assert.match(app, /function persistBeatSheet\(\)[\s\S]*function scheduleBeatSheetSave\(\)/);
   assert.match(css, /#beat-sheet-panel\s*\{[\s\S]*\.beat-card\s*\{[\s\S]*\.beat-flow-editor[\s\S]*\.beat-graph-node[\s\S]*\.beat-guide-layer\s*\{[\s\S]*\.script-line\.beat-area/);
+  assert.match(app, /beat-list"\)\.addEventListener\("pointerdown"[\s\S]*setPointerCapture[\s\S]*addEventListener\("pointermove"[\s\S]*finishPointerBeatDrag/);
+  assert.match(app, /function renderBeatProgressGraph\(beats = currentBeatCards\(\)\)[\s\S]*beforeValue[\s\S]*afterValue[\s\S]*beat-plot-point/);
+  assert.match(app, /function saveBeatProgressPng\(\)[\s\S]*XMLSerializer[\s\S]*canvas\.toBlob[\s\S]*beat-pacing\.png/);
+  assert.match(css, /\.beat-progress-line\s*\{[^}]*stroke:/s);
+  assert.match(css, /\.beat-drag\s*\{[^}]*touch-action:\s*none;[^}]*user-select:\s*none;/s);
   assert.match(css, /#source-panel \.panel-title\s*\{[^}]*justify-content:\s*flex-start;[^}]*gap:\s*16px;/s);
 });
 
@@ -599,23 +618,25 @@ test("scene numbers default to margin, support act format, and apply to PDF", as
   assert.match(html, /id="scene-num-format"/);
 });
 
-test("mobile shows one panel at a time via tab bar", async () => {
+test("mobile shows one panel at a time through the View menu", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
-  // Tab bar exists in HTML
-  assert.match(html, /class="mobile-panel-tabs"/);
-  assert.match(html, /data-mobile-panel="source"/);
-  assert.match(html, /data-mobile-panel="preview"/);
-  assert.match(html, /data-mobile-panel="stats"/);
-  // Mobile media query hides non-active panels
+  assert.doesNotMatch(html, /class="mobile-panel-tabs"/);
+  assert.match(html, /class="toolbar-menu view-menu"/);
+  assert.match(html, /id="menu-toggle-source-tab"/);
+  assert.match(html, /id="menu-toggle-stats"/);
+  // Mobile view state hides non-active panels without consuming a tab row.
   assert.match(css, /\.mobile-panel-tabs\s*\{\s*display:\s*none;/);
+  assert.match(css, /--mobile-tabs-h:\s*0px;/);
   assert.match(css, /max-width:\s*640px/);
   assert.match(css, /body\[data-mobile-tab="source"\] #source-panel\s*\{\s*display:\s*flex;/);
   assert.match(css, /body\[data-mobile-tab="preview"\] \.preview-panel\s*\{\s*display:\s*flex;/);
+  assert.match(css, /body\[data-mobile-tab="beats"\] #beat-sheet-panel\s*\{\s*display:\s*flex;/);
   assert.match(css, /body\[data-mobile-tab="stats"\] #stats-panel\s*\{\s*display:\s*flex/);
-  // JS function exists and persists choice
+  // View-menu routing persists the selected mobile workspace.
   assert.match(app, /function setMobileTab\(/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.mobile-tab"/);
   assert.match(app, /dataset\.mobileTab = panel/);
+  assert.match(app, /isMobilePreview\(\)[\s\S]*const opening = state\.previewMode !== "source";[\s\S]*setMobileTab\(opening \? "source" : "preview"\)/);
 });
 
 test("character completions appear in preview regardless of line position", async () => {
@@ -628,13 +649,14 @@ test("character completions appear in preview regardless of line position", asyn
   assert.match(fnMatch[0], /\/\^\[A-Z\]/);
 });
 
-test("mobile preview is live-only, reflows horizontally, and retains zoom controls", async () => {
+test("mobile preview excludes PDF, supports Beat Sheet, and reflows horizontally", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.view-switcher\s*\{\s*display:\s*none;/);
   assert.match(css, /\.preview-scroll\s*\{[^}]*overflow-x:\s*hidden;/s);
   assert.match(css, /\.screenplay-page\s*\{[^}]*width:\s*100%;[^}]*font-size:\s*calc\(16px \* var\(--mobile-preview-zoom,\s*1\)\);/s);
   assert.match(css, /body\.scene-nums-margin \.screenplay-page\s*\{[^}]*padding-left:\s*calc\(54px \* var\(--mobile-preview-zoom,\s*1\)\);/s);
-  assert.match(app, /isMobilePreview\(\) && \['pdf', 'beats'\]\.includes\(mode\)/);
+  assert.match(app, /isMobilePreview\(\) && mode === "pdf"/);
+  assert.match(app, /panel === "beats"[\s\S]*setPreviewMode\("beats"\)/);
   assert.match(html, /class="view-switcher"[\s\S]*data-preview-mode="live"[\s\S]*data-preview-mode="pdf"/);
   assert.match(html, /class="preview-actions workspace-zoom-actions"[\s\S]*id="zoom-out"[\s\S]*id="zoom"[\s\S]*id="zoom-in"[\s\S]*id="zoom-fit"/);
 });
@@ -743,18 +765,26 @@ test("mobile page count is preserved across source edits", async () => {
   assert.match(app, /const pageCount = state\.metadata\?\.pageCount \?\? null/);
 });
 
-test("mobile toolbar compresses the about menu and fixes popover visibility", async () => {
-  const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
+test("mobile toolbar keeps View available and fixes popover visibility", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   // HTML: about-menu text wrapped in a class so it can be hidden on mobile
   assert.match(html, /class="about-label"/);
   // HTML: toolbar menus have individual classes
   assert.match(html, /class="toolbar-menu file-menu"/);
   assert.match(html, /class="toolbar-menu view-menu"/);
   assert.match(html, /class="toolbar-menu help-menu"/);
-  // CSS: view-menu and help-menu are hidden on mobile
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.view-menu,\s*\.help-menu\s*\{\s*display:\s*none;/s);
+  assert.match(html, /id="mobile-menu-toggle"[^>]*aria-controls="global-actions"/);
+  assert.match(html, /id="mobile-menu-backdrop"/);
+  // CSS: View and Help remain available; PDF preview stays out of the compact mobile menu.
+  assert.doesNotMatch(css, /@media\s*\(max-width:\s*640px\)[^@]*\.help-menu\s*\{\s*display:\s*none;/s);
+  assert.match(css, /\.view-menu \[data-preview-mode="pdf"\]\s*\{\s*display:\s*none;/);
   // CSS: popovers use position:fixed on mobile so they are always in-viewport
   assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.toolbar-popover\s*\{[^}]*position:\s*fixed;/s);
+  assert.match(css, /body\.mobile-menu-open \.global-actions\s*\{\s*transform:\s*translateX\(0\);/);
+  assert.match(css, /\.app-toolbar\s*\{[^}]*z-index:\s*30;/s);
+  assert.match(css, /\.mobile-menu-backdrop\s*\{[^}]*z-index:\s*29;/s);
+  assert.match(css, /\.global-actions \.toolbar-menu > summary\s*\{[^}]*height:\s*44px;/s);
+  assert.match(app, /function setMobileMenu\(open\)[\s\S]*mobile-menu-open[\s\S]*aria-expanded/);
   // CSS: about label is hidden on mobile
   assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.about-label\s*\{\s*display:\s*none;/s);
 });
@@ -762,7 +792,6 @@ test("mobile toolbar compresses the about menu and fixes popover visibility", as
 test("mobile top bars stay pinned during focus, zoom, and viewport scrolling", async () => {
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.app-toolbar\s*\{[^}]*position:\s*fixed;[^}]*top:\s*var\(--visual-viewport-top\);/s);
-  assert.match(css, /\.mobile-panel-tabs\s*\{[^}]*position:\s*fixed;[^}]*top:\s*calc\(var\(--visual-viewport-top\) \+ var\(--toolbar-h\)\);/s);
   assert.match(css, /#workspace\s*\{[^}]*position:\s*fixed;[^}]*height:\s*calc\(var\(--visual-viewport-height\) - var\(--toolbar-h\) - var\(--mobile-tabs-h\)\);/s);
   assert.match(app, /function updateMobileViewport\(\)[\s\S]*visualViewport[\s\S]*--visual-viewport-top[\s\S]*--visual-viewport-height/);
   assert.match(app, /visualViewport\?\.addEventListener\("resize", scheduleMobileViewportUpdate\)/);
