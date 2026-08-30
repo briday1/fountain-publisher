@@ -183,8 +183,7 @@
               </div>
             </div>
             <label class="premise-field"><span>Premise</span><textarea id="beat-premise" rows="3" placeholder="What is this story really about?"></textarea></label>
-            <div class="beat-sheet-title"><div><small>STORY FLOW</small><h3>Beats and assignments</h3></div><button id="add-beat" type="button">+ Add beat</button></div>
-            <section id="beat-progress-graph" class="beat-progress-graph" aria-label="Beat pacing by cumulative screenplay words"></section>
+            <div class="beat-sheet-title"><div><small>STORY FLOW</small><h3>Beats and assignments</h3></div><div><button id="view-beat-progress" type="button">View pacing graph</button><button id="add-beat" type="button">+ Add beat</button></div></div>
             <ol id="beat-list" class="beat-list beat-flow-editor"></ol>
           </div>
           <footer class="beat-sheet-actions"><span>Changes save automatically. Drag or use arrows to reorder the story.</span></footer>
@@ -305,6 +304,18 @@
         <footer class="analytics-actions">
           <button class="primary" id="save-character-analytics" type="button">Save PNG</button>
         </footer>
+      </article>
+    </dialog>
+
+    <dialog id="beat-progress-dialog" aria-labelledby="beat-progress-title">
+      <article class="analytics-shell beat-progress-shell">
+        <header class="analytics-header">
+          <div><small>STORY MAP</small><h2 id="beat-progress-title">Pacing Graph</h2></div>
+          <button id="close-beat-progress" type="button" aria-label="Close pacing graph">×</button>
+        </header>
+        <p>Cumulative screenplay words at each beat. Grey circles estimate the position of beats not yet assigned.</p>
+        <div class="analytics-content-scroll"><section id="beat-progress-graph" class="beat-progress-graph" aria-label="Beat pacing by cumulative screenplay words"></section></div>
+        <footer class="analytics-actions"><button class="primary" id="save-beat-progress" type="button">Save PNG</button></footer>
       </article>
     </dialog>
 

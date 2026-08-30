@@ -2396,6 +2396,45 @@ function renderBeatProgressGraph(beats = currentBeatCards()) {
   graph.innerHTML = `<header><strong>Pacing</strong><span>Cumulative screenplay words at each beat</span><small><i></i> Assigned <i></i> Unassigned estimate</small></header><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Beat pacing graph"><line class="beat-ideal-line" x1="${left}" y1="${y(0)}" x2="${width - right}" y2="${y(total)}"/><line class="beat-grid-line" x1="${left}" y1="${y(midpoint)}" x2="${width - right}" y2="${y(midpoint)}"/><text class="beat-axis-label" x="${left - 7}" y="${y(total) + 3}" text-anchor="end">${total.toLocaleString()}</text><text class="beat-axis-label" x="${left - 7}" y="${y(midpoint) + 3}" text-anchor="end">${midpoint.toLocaleString()}</text><text class="beat-axis-label" x="${left - 7}" y="${y(0) + 3}" text-anchor="end">0</text><polyline class="beat-progress-line" points="${points}"/>${circles}</svg>`;
 }
 
+function openBeatProgressGraph() {
+  renderBeatProgressGraph();
+  $("#beat-progress-dialog").showModal();
+}
+
+async function saveBeatProgressPng() {
+  renderBeatProgressGraph();
+  const sourceSvg = $("#beat-progress-graph svg");
+  if (!sourceSvg) { toast("Add a beat before saving the pacing graph"); return; }
+  const clone = sourceSvg.cloneNode(true);
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  const paper = canvasColor("--surface", "#fff");
+  const ink = canvasColor("--ink", "#202124");
+  const muted = canvasColor("--muted", "#6b7280");
+  const accent = canvasColor("--metric-scenes-ink", "#0284c7");
+  clone.querySelector(".beat-ideal-line")?.setAttribute("style", `stroke:${muted};stroke-opacity:.35;stroke-width:1;stroke-dasharray:4 5`);
+  clone.querySelector(".beat-grid-line")?.setAttribute("style", `stroke:${muted};stroke-opacity:.18;stroke-width:1`);
+  clone.querySelector(".beat-progress-line")?.setAttribute("style", `fill:none;stroke:${accent};stroke-width:2;stroke-linejoin:round`);
+  clone.querySelectorAll(".beat-plot-point.assigned circle").forEach((circle) => circle.setAttribute("style", `fill:${accent};stroke:${paper};stroke-width:2`));
+  clone.querySelectorAll(".beat-plot-point.unassigned circle").forEach((circle) => circle.setAttribute("style", `fill:${paper};stroke:#92979f;stroke-width:2`));
+  clone.querySelectorAll("text").forEach((text) => text.setAttribute("style", `fill:${muted};font:8px ui-monospace,monospace`));
+  const svgBlob = new Blob([new XMLSerializer().serializeToString(clone)], { type: "image/svg+xml" });
+  const image = new Image();
+  const url = URL.createObjectURL(svgBlob);
+  await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject; image.src = url; });
+  URL.revokeObjectURL(url);
+  const canvas = document.createElement("canvas");
+  canvas.width = 1440; canvas.height = 440;
+  const context = canvas.getContext("2d");
+  context.fillStyle = paper; context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = ink; context.font = "700 28px -apple-system, BlinkMacSystemFont, sans-serif"; context.fillText("Beat Pacing", 36, 40);
+  context.fillStyle = muted; context.font = "18px -apple-system, BlinkMacSystemFont, sans-serif"; context.fillText("Cumulative screenplay words at each beat", 36, 68);
+  context.drawImage(image, 0, 60, 1440, 380);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (!blob) { toast("Could not create pacing graph image"); return; }
+  await download(blob, normalizedFilename("beat-pacing.png"));
+  toast("Beat pacing PNG saved");
+}
+
 function renumberBeatCards() {
   $$(".beat-card", $("#beat-list")).forEach((card, index) => { $(".beat-number", card).textContent = index + 1; });
   renderBeatProgressGraph();
@@ -3049,6 +3088,9 @@ $("#add-beat").addEventListener("click", () => {
   $("#beat-list").insertAdjacentHTML("beforeend", beatCard()); renumberBeatCards();
   $("#beat-list .beat-card:last-child .beat-text").focus();
 });
+$("#view-beat-progress").addEventListener("click", openBeatProgressGraph);
+$("#close-beat-progress").addEventListener("click", () => $("#beat-progress-dialog").close());
+$("#save-beat-progress").addEventListener("click", saveBeatProgressPng);
 $("#beat-list").addEventListener("click", (event) => {
   const card = event.target.closest(".beat-card");
   if (!card) return;

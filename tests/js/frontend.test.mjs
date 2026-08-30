@@ -463,6 +463,8 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.doesNotMatch(html, /beat-sheet-insight|id="beat-sheet-summary"|id="open-beat-sheet"/);
   assert.match(html, /id="beat-sheet-panel"[\s\S]*id="beat-premise"[\s\S]*id="beat-list"[^>]*beat-flow-editor/);
   assert.match(html, /id="beat-progress-graph"[^>]*aria-label="Beat pacing by cumulative screenplay words"/);
+  assert.match(html, /id="view-beat-progress"[^>]*>View pacing graph</);
+  assert.match(html, /id="beat-progress-dialog"[\s\S]*id="save-beat-progress"[^>]*>Save PNG</);
   assert.match(html, /id="menu-toggle-beat-guide"[\s\S]*id="beat-guide-layer"/);
   assert.match(app, /data-assign-beat-area>Assign \+ Next</);
   assert.match(app, /MANAGED_NOTE_RE = \/[\s\S]*BEATS/);
@@ -482,6 +484,7 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(css, /#beat-sheet-panel\s*\{[\s\S]*\.beat-card\s*\{[\s\S]*\.beat-flow-editor[\s\S]*\.beat-graph-node[\s\S]*\.beat-guide-layer\s*\{[\s\S]*\.script-line\.beat-area/);
   assert.match(app, /beat-list"\)\.addEventListener\("pointerdown"[\s\S]*setPointerCapture[\s\S]*addEventListener\("pointermove"[\s\S]*finishPointerBeatDrag/);
   assert.match(app, /function renderBeatProgressGraph\(beats = currentBeatCards\(\)\)[\s\S]*beforeValue[\s\S]*afterValue[\s\S]*beat-plot-point/);
+  assert.match(app, /function saveBeatProgressPng\(\)[\s\S]*XMLSerializer[\s\S]*canvas\.toBlob[\s\S]*beat-pacing\.png/);
   assert.match(css, /\.beat-progress-line\s*\{[^}]*stroke:/s);
   assert.match(css, /\.beat-drag\s*\{[^}]*touch-action:\s*none;[^}]*user-select:\s*none;/s);
   assert.match(css, /#source-panel \.panel-title\s*\{[^}]*justify-content:\s*flex-start;[^}]*gap:\s*16px;/s);
