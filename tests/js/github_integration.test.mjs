@@ -24,6 +24,10 @@ test("app exposes a credentialed GitHub repository browser", async () => {
   assert.match(html, /id="github-save-status" role="status"/);
   assert.match(app, /credentials: "include"/);
   assert.match(app, /window\.open\(url, "fountain-publisher-github"/);
+  assert.match(app, /async function waitForGithubPopup\(popup\)/);
+  assert.match(app, /while \(popup && !popup\.closed[\s\S]*setTimeout\(resolve, 400\)/);
+  assert.match(app, /Cross-Origin-Opener-Policy[\s\S]*refreshGithubSession\(\{ notify: true \}\)[\s\S]*openGithubBrowser\(\)/);
+  assert.match(app, /if \(popup\) void waitForGithubPopup\(popup\)/);
   assert.match(app, /event\.origin !== GITHUB_API/);
   assert.match(app, /confirmDiscard\(\)/);
   assert.match(app, /githubFile: state\.githubFile/);

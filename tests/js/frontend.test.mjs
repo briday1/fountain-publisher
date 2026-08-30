@@ -533,6 +533,8 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /beat-unassign[\s\S]*beatCard\(\{ \.\.\.beat, range: null \}\)[\s\S]*persistBeatSheet\(\)/);
   assert.match(app, /event\.key !== "Enter" \|\| !event\.target\.matches\("\.beat-text"\)[\s\S]*nextElementSibling[\s\S]*\.focus\(\)/);
   assert.match(app, /function persistBeatSheet\(\)[\s\S]*function scheduleBeatSheetSave\(\)/);
+  assert.match(app, /beat-list"\)\.innerHTML = sheet\.beats\.map\(beatCard\)\.join\(""\)/);
+  assert.doesNotMatch(app, /if \(!\$\("\.beat-card"[\s\S]*insertAdjacentHTML\("beforeend", beatCard\(\)\)/);
   assert.match(css, /#beat-sheet-panel\s*\{[\s\S]*\.beat-card\s*\{[\s\S]*\.beat-flow-editor[\s\S]*\.beat-graph-node[\s\S]*\.beat-guide-layer\s*\{[\s\S]*\.script-line\.beat-area/);
   assert.match(app, /beat-list"\)\.addEventListener\("pointerdown"[\s\S]*setPointerCapture[\s\S]*addEventListener\("pointermove"[\s\S]*finishPointerBeatDrag/);
   assert.match(app, /function renderBeatProgressGraph\(beats = currentBeatCards\(\)\)[\s\S]*beforeValue[\s\S]*afterValue[\s\S]*beat-plot-point/);
