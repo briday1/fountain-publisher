@@ -722,7 +722,8 @@ test("preview background popup supports blank and adjustable dots", async () => 
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-background", event\.target\.value\)/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-dot-radius", event\.target\.value\)/);
   assert.match(app, /hidden = pattern !== "dots"/);
-  assert.match(app, /open-background-dialog[\s\S]*setMobileMenu\(false\)[\s\S]*requestAnimationFrame\(\(\) => \$\("#background-dialog"\)\.showModal\(\)\)/);
+  assert.match(app, /open-background-dialog[\s\S]*requestAnimationFrame\(\(\) => \{[\s\S]*setMobileMenu\(false\);[\s\S]*\$\("#background-dialog"\)\.showModal\(\)/);
+  assert.match(app, /event\.target\.closest\("button, a"\)[\s\S]*requestAnimationFrame\(\(\) => \{[\s\S]*menu\.open = false;[\s\S]*setMobileMenu\(false\)/);
 });
 
 test("mobile PDF export path remains accessible via toolbar File menu", async () => {

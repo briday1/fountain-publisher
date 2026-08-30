@@ -3471,8 +3471,10 @@ $("#clear-workspace-on-exit").addEventListener("change", (event) => {
 });
 $("#open-background-dialog").addEventListener("click", () => {
   if (isMobilePreview()) {
-    setMobileMenu(false);
-    requestAnimationFrame(() => $("#background-dialog").showModal());
+    requestAnimationFrame(() => {
+      setMobileMenu(false);
+      $("#background-dialog").showModal();
+    });
   } else $("#background-dialog").showModal();
 });
 $("#preview-background").addEventListener("change", (event) => {
@@ -3658,7 +3660,14 @@ $("#mobile-menu-toggle").addEventListener("click", () => setMobileMenu(!document
 $("#mobile-menu-backdrop").addEventListener("click", () => setMobileMenu(false));
 
 toolbarMenus.forEach((menu) => menu.addEventListener("click", (event) => {
-  if (event.target.closest("button")) { menu.open = false; if (isMobilePreview()) setMobileMenu(false); }
+  if (event.target.closest("button, a")) {
+    // Let the tapped control finish dispatching before hiding its details/drawer.
+    // Closing synchronously can cancel the action in mobile WebKit.
+    requestAnimationFrame(() => {
+      menu.open = false;
+      if (isMobilePreview()) setMobileMenu(false);
+    });
+  }
   else if (event.target.closest("summary")) {
     event.preventDefault();
     const willOpen = !menu.open;
