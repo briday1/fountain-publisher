@@ -26,6 +26,8 @@ test("desktop panel headers share a height and preview controls follow its title
   assert.match(css, /\.panel-title\s*\{[^}]*min-height:\s*58px;/s);
   assert.match(css, /\.preview-toolbar\s*\{[^}]*min-height:\s*58px;/s);
   assert.match(css, /\.preview-title, #source-panel \.panel-title > div:first-child, \.beat-sheet-header > div:first-child\s*\{[^}]*flex:\s*0 0 96px;[^}]*width:\s*96px;/s);
+  assert.match(css, /\.beat-sheet-header h2\s*\{[^}]*font-size:\s*16px;[^}]*line-height:\s*1\.1;/s);
+  assert.match(css, /\.beat-sheet-header small\s*\{[^}]*font-size:\s*9px;[^}]*font-weight:\s*700;[^}]*letter-spacing:\s*\.12em;/s);
 });
 
 test("browser page-count compilation only updates metrics present in the document", async () => {
