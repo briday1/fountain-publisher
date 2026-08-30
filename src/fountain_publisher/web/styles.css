@@ -477,6 +477,10 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-node-box:hover > .beat-remove, .beat-node-box:focus-within > .beat-remove { opacity: 1; }
 .beat-graph-node.assigned .beat-node-box { border-color: color-mix(in srgb, var(--metric-scenes-ink) 55%, var(--border)); box-shadow: inset 3px 0 color-mix(in srgb, var(--metric-scenes-ink) 72%, transparent), 0 2px 5px rgb(0 0 0 / 6%); }
 .beat-assignment { width: 100%; min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 7px; overflow: hidden; border: 0; padding: 3px 1px; background: transparent; color: var(--muted); font-size: 9px; text-align: left; }
+.beat-assignment-wrap { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 22px; gap: 3px; align-items: center; }
+.beat-assignment-wrap:not(:has(.beat-unassign)) { grid-template-columns: minmax(0, 1fr); }
+.beat-unassign { width: 22px; height: 22px; border: 0; border-radius: 4px; padding: 0; background: transparent; color: var(--muted); font-size: 15px; }
+.beat-unassign:hover { background: color-mix(in srgb, var(--metric-scenes-ink) 12%, transparent); color: var(--metric-scenes-ink); }
 .beat-assignment span { flex: 0 0 auto; border-radius: 9px; padding: 2px 6px; background: var(--surface-2); color: var(--muted); font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
 .beat-assignment small, .beat-assignment em { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .beat-assignment small { align-self: center; }
@@ -642,7 +646,7 @@ button:disabled { cursor: default; opacity: .45; }
   .beat-card { grid-template-columns: 22px minmax(0, 1fr) 22px; gap: 5px; padding: 7px; }
   .beat-graph-node { grid-template-columns: 28px 20px 18px minmax(0, 1fr); }
   .beat-node-box { grid-template-columns: minmax(0, 1fr) 22px; }
-  .beat-node-box .beat-assignment { grid-column: 1; }
+  .beat-node-box .beat-assignment-wrap { grid-column: 1; }
   .beat-card-fields label { align-items: flex-start; flex-direction: column; }
   .beat-card-fields select { width: 100%; max-width: none; }
   .beat-sheet-actions span { display: none; }

@@ -2330,7 +2330,7 @@ function beatCard(beat = { text: "" }) {
   const excerpt = beat.range
     ? sourceLines().slice(beat.range.startLine, beat.range.endLine + 1).filter((line) => line.trim() && !managedNote(line)).join(" ").slice(0, 130)
     : "Select screenplay text in Preview, then assign it from the Beat runner.";
-  return `<li class="beat-card beat-graph-node${beat.range ? " assigned" : ""}" data-start-line="${range.startLine ?? ""}" data-end-line="${range.endLine ?? ""}"><span class="beat-number"></span><button class="beat-drag" draggable="true" type="button" aria-label="Drag to reorder" title="Drag to reorder">⠿</button><div class="beat-shift"><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">↑</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">↓</button></div><div class="beat-node-box"><div class="beat-card-fields"><input class="beat-text" type="text" placeholder="What happens in this beat?" value="${escapeHtml(beat.text)}" /></div><button class="beat-assignment" type="button" ${beat.range ? "data-beat-jump" : "disabled"}><span>${beat.range ? "Assigned" : "Unassigned"}</span><small>${escapeHtml(assignment)}</small><em>${escapeHtml(excerpt)}</em></button><button class="beat-remove" type="button" aria-label="Remove beat" title="Remove beat">×</button></div></li>`;
+  return `<li class="beat-card beat-graph-node${beat.range ? " assigned" : ""}" data-start-line="${range.startLine ?? ""}" data-end-line="${range.endLine ?? ""}"><span class="beat-number"></span><button class="beat-drag" draggable="true" type="button" aria-label="Drag to reorder" title="Drag to reorder">⠿</button><div class="beat-shift"><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">↑</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">↓</button></div><div class="beat-node-box"><div class="beat-card-fields"><input class="beat-text" type="text" placeholder="What happens in this beat?" value="${escapeHtml(beat.text)}" /></div><div class="beat-assignment-wrap"><button class="beat-assignment" type="button" ${beat.range ? "data-beat-jump" : "disabled"}><span>${beat.range ? "Assigned" : "Unassigned"}</span><small>${escapeHtml(assignment)}</small><em>${escapeHtml(excerpt)}</em></button>${beat.range ? `<button class="beat-unassign" type="button" aria-label="Unassign beat from screenplay" title="Unassign from screenplay">×</button>` : ""}</div><button class="beat-remove" type="button" aria-label="Remove beat" title="Delete beat">×</button></div></li>`;
 }
 
 function renumberBeatCards() {
@@ -2982,6 +2982,13 @@ $("#beat-list").addEventListener("click", (event) => {
   if (event.target.closest(".beat-up") && card.previousElementSibling) card.parentElement.insertBefore(card, card.previousElementSibling);
   else if (event.target.closest(".beat-down") && card.nextElementSibling) card.parentElement.insertBefore(card.nextElementSibling, card);
   else if (event.target.closest(".beat-remove")) card.remove();
+  else if (event.target.closest(".beat-unassign")) {
+    const beat = currentBeatCards()[$$(".beat-card", $("#beat-list")).indexOf(card)];
+    card.outerHTML = beatCard({ ...beat, range: null });
+    renumberBeatCards();
+    persistBeatSheet();
+    return;
+  }
   else if (event.target.closest("[data-beat-jump]")) {
     const beat = currentBeatCards()[$$(".beat-card", $("#beat-list")).indexOf(card)];
     persistBeatSheet();
