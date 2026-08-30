@@ -2011,7 +2011,7 @@ async function openGithubBrowser(mode = "open") {
     $("#github-filename").value = normalizedFilename("fountain");
     $("#github-save-status").textContent = "";
   }
-  $("#github-save-details").open = mode === "save" && !matchMedia("(max-width: 640px)").matches;
+  $("#github-save-details").open = mode === "save" && !matchMedia("(max-width: 820px)").matches;
   $("#github-dialog").showModal();
   try { await loadGithubRepositories(); } catch (error) { toast(error.message); }
 }
@@ -2106,7 +2106,7 @@ async function download(blob, filename) {
 async function shareOrDownload(blob, filename) {
   const file = new File([blob], filename, { type: blob.type });
   const shareData = { files: [file], title: filename };
-  if (matchMedia("(max-width: 640px)").matches && navigator.share && navigator.canShare?.(shareData)) {
+  if (matchMedia("(max-width: 820px)").matches && navigator.share && navigator.canShare?.(shareData)) {
     await navigator.share(shareData);
     return;
   }
@@ -2354,7 +2354,11 @@ function openExport(format) {
 }
 
 function isMobilePreview() {
-  return matchMedia("(max-width: 640px)").matches;
+  return matchMedia("(max-width: 820px)").matches;
+}
+
+function shouldAutofocusSource() {
+  return navigator.maxTouchPoints === 0;
 }
 
 async function setPreviewMode(mode) {
@@ -2377,7 +2381,10 @@ async function setPreviewMode(mode) {
   renderBeatGuide();
   requestAnimationFrame(applyZoom);
   scheduleWorkspaceCache();
-  if (mode === "source") { renderEditorChrome(); source.focus(); }
+  if (mode === "source") {
+    renderEditorChrome();
+    if (shouldAutofocusSource()) source.focus({ preventScroll: true });
+  }
   if (mode === "beats") renderBeatSheetView();
   if (mode === "pdf") await refreshPdf();
   else if (returnToLive) requestAnimationFrame(() => requestAnimationFrame(() => {
