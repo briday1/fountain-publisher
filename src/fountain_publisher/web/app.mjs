@@ -2127,7 +2127,8 @@ function isMobilePreview() {
 }
 
 async function setPreviewMode(mode) {
-  if (isMobilePreview()) mode = "live";
+  if (!['source', 'live', 'pdf', 'beats'].includes(mode)) mode = "live";
+  if (isMobilePreview() && ['pdf', 'beats'].includes(mode)) mode = "live";
   const preview = $("#preview-scroll");
   const returnToLive = state.previewMode === "pdf" && mode === "live";
   if (state.previewMode === "live" && mode === "pdf") {
@@ -2136,10 +2137,15 @@ async function setPreviewMode(mode) {
   }
   state.previewMode = mode; localStorage.setItem("fountain-publisher.preview", mode);
   $$('[data-preview-mode]').forEach((button) => { button.classList.toggle("active", button.dataset.previewMode === mode); const check = $(".menu-check", button); if (check) check.textContent = button.dataset.previewMode === mode ? "✓" : ""; });
+  $("#source-panel").hidden = mode !== "source";
+  $(".preview-panel").hidden = !["live", "pdf"].includes(mode);
+  $("#beat-sheet-panel").hidden = mode !== "beats";
   $("#preview-page-stage").hidden = mode !== "live"; page.hidden = mode !== "live"; $("#empty-state").hidden = mode !== "live" || Boolean(source.value.trim()); $("#pdf-view").hidden = mode !== "pdf";
   $("#preview-scroll").classList.toggle("pdf-mode", mode === "pdf");
   renderBeatGuide();
   scheduleWorkspaceCache();
+  if (mode === "source") { renderEditorChrome(); source.focus(); }
+  if (mode === "beats") renderBeatSheetView();
   if (mode === "pdf") await refreshPdf();
   else if (returnToLive) requestAnimationFrame(() => requestAnimationFrame(() => {
     preview.scrollTop = state.livePreviewScrollTop;
@@ -2313,15 +2319,38 @@ function beatCard(beat = { text: "" }) {
 
 function renumberBeatCards() {
   $$(".beat-card", $("#beat-list")).forEach((card, index) => { $(".beat-number", card).textContent = index + 1; });
+  renderBeatFlow();
 }
 
-function openBeatSheet() {
+function currentBeatCards() {
+  return $$(".beat-card", $("#beat-list")).map((card) => {
+    const startLine = card.dataset.startLine === "" ? null : Number(card.dataset.startLine);
+    const endLine = card.dataset.endLine === "" ? null : Number(card.dataset.endLine);
+    return { text: $("textarea", card).value.trim(), range: startLine === null || endLine === null ? null : { startLine, endLine } };
+  });
+}
+
+function renderBeatFlow() {
+  const flow = $("#beat-flow");
+  if (!flow) return;
+  const beats = currentBeatCards().filter((beat) => beat.text);
+  const sceneFor = (beat) => {
+    if (!beat.range) return "Unassigned";
+    const scene = [...(state.metadata.scenes || [])].reverse().find((item) => item.line <= beat.range.startLine);
+    return scene ? `Scene ${scene.number} · ${scene.heading}` : `Lines ${beat.range.startLine + 1}–${beat.range.endLine + 1}`;
+  };
+  flow.innerHTML = beats.length ? beats.map((beat, index) => `<button type="button" data-beat-flow-index="${index}" class="beat-flow-node${beat.range ? " assigned" : ""}${index === state.activeBeat ? " active" : ""}"><header><b>${index + 1}</b><small>${beat.range ? `Lines ${beat.range.startLine + 1}–${beat.range.endLine + 1}` : "Unassigned"}</small></header><p>${escapeHtml(beat.text)}</p><em>${escapeHtml(sceneFor(beat))}</em></button>`).join("") : `<p class="beat-flow-empty">Add beats below to build the story flow.</p>`;
+}
+
+function renderBeatSheetView() {
   const sheet = state.metadata.beatSheet || { premise: "", beats: [] };
   $("#beat-premise").value = sheet.premise || "";
   $("#beat-list").innerHTML = (sheet.beats.length ? sheet.beats : [""]).map(beatCard).join("");
   renumberBeatCards();
-  $("#beat-sheet-dialog").showModal();
-  setTimeout(() => (sheet.premise ? $("#beat-list textarea") : $("#beat-premise")).focus(), 0);
+}
+
+function openBeatSheet() {
+  void setPreviewMode("beats");
 }
 
 function openAnnotationEditor(line = null, insertAfter = null) {
@@ -2941,7 +2970,6 @@ $("#beat-guide-layer").addEventListener("click", (event) => {
     state.activeBeat = Math.min((state.metadata.beatSheet?.beats.length || 1) - 1, state.activeBeat + 1); renderBeatGuide(); return;
   }
 });
-$("#close-beat-sheet").addEventListener("click", () => $("#beat-sheet-dialog").close());
 $("#add-beat").addEventListener("click", () => {
   $("#beat-list").insertAdjacentHTML("beforeend", beatCard()); renumberBeatCards();
   $("#beat-list .beat-card:last-child textarea").focus();
@@ -2967,15 +2995,21 @@ $("#beat-list").addEventListener("dragover", (event) => {
   const after = event.clientY > target.getBoundingClientRect().top + target.offsetHeight / 2;
   target.parentElement.insertBefore(draggedBeat, after ? target.nextSibling : target);
 });
+$("#beat-list").addEventListener("input", renderBeatFlow);
+$("#beat-flow").addEventListener("click", async (event) => {
+  const node = event.target.closest("[data-beat-flow-index]");
+  if (!node) return;
+  const index = Number(node.dataset.beatFlowIndex);
+  const beat = currentBeatCards().filter((item) => item.text)[index];
+  state.activeBeat = index;
+  if (!beat?.range) { renderBeatFlow(); return; }
+  await setPreviewMode("live");
+  requestAnimationFrame(() => jumpToLine(beat.range.startLine + 1, false));
+});
 $("#beat-sheet-form").addEventListener("submit", (event) => {
-  if (event.submitter?.value !== "default") return;
   event.preventDefault();
   const premise = $("#beat-premise").value.trim();
-  const beats = $$(".beat-card", $("#beat-list")).map((card) => {
-    const startLine = card.dataset.startLine === "" ? null : Number(card.dataset.startLine);
-    const endLine = card.dataset.endLine === "" ? null : Number(card.dataset.endLine);
-    return { text: $("textarea", card).value.trim(), range: startLine === null || endLine === null ? null : { startLine, endLine } };
-  }).filter((beat) => beat.text);
+  const beats = currentBeatCards().filter((beat) => beat.text);
   const existingLine = state.metadata.beatSheet?.line;
   if (!premise && !beats.length) deleteNoteLine(existingLine);
   else {
@@ -2983,7 +3017,7 @@ $("#beat-sheet-form").addEventListener("submit", (event) => {
     if (existingLine === null || existingLine === undefined) appendManagedNote(value);
     else { const lines = sourceLines(); lines[existingLine] = value; setSourceLines(lines); }
   }
-  $("#beat-sheet-dialog").close();
+  toast("Beat Sheet saved");
 });
 
 $("#annotation-form").addEventListener("submit", (event) => {
@@ -3133,7 +3167,6 @@ $("#preview-dot-radius").addEventListener("input", (event) => {
 });
 $("#page-size").addEventListener("change", () => { scheduleCompile(0); if (state.previewMode === "pdf") refreshPdf(); });
 $$('[data-preview-mode]').forEach((button) => button.addEventListener("click", () => setPreviewMode(button.dataset.previewMode)));
-$("#toggle-source").addEventListener("click", () => togglePanel("source")); $("#menu-toggle-source").addEventListener("click", () => togglePanel("source"));
 $("#toggle-stats").addEventListener("click", () => togglePanel("stats")); $("#menu-toggle-stats").addEventListener("click", () => togglePanel("stats"));
 $("#undo").addEventListener("click", undoDocument); $("#redo").addEventListener("click", redoDocument);
 $("#zoom").addEventListener("change", () => { state.previewZoom = $("#zoom").value; applyZoom(); }); $("#zoom-out").addEventListener("click", () => stepZoom(-1)); $("#zoom-in").addEventListener("click", () => stepZoom(1)); $("#zoom-fit").addEventListener("click", () => { state.previewZoom = "fit"; applyZoom(); });
@@ -3266,7 +3299,8 @@ function setMobileTab(panel) {
   document.body.dataset.mobileTab = panel;
   $$(".mobile-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.mobilePanel === panel));
   localStorage.setItem("fountain-publisher.mobile-tab", panel);
-  if (panel === "preview" && isMobilePreview() && state.previewMode !== "live") void setPreviewMode("live");
+  if (panel === "source" && isMobilePreview()) void setPreviewMode("source");
+  else if (panel === "preview" && isMobilePreview() && state.previewMode !== "live") void setPreviewMode("live");
   else if (panel === "preview" && state.previewMode === "pdf") refreshPdf();
   if (panel === "source") { renderEditorChrome(); scrollSourceTarget(currentPosition().line, "center"); }
   if (panel !== "stats" && state.insightLine !== null) requestAnimationFrame(() => jumpToLine(state.insightLine, false));
@@ -3339,10 +3373,10 @@ async function initialize() {
   updateVimUi();
   $("#clear-workspace-on-exit").checked = clearWorkspaceOnExit();
   document.body.classList.add(`scene-nums-${docSettings.sceneNumbers}`);
-  const sourceWidth = Number(localStorage.getItem("fountain-publisher.--source-w")); const statsWidth = Number(localStorage.getItem("fountain-publisher.--stats-w"));
-  if (sourceWidth) document.documentElement.style.setProperty("--source-w", `${sourceWidth}px`); if (statsWidth) document.documentElement.style.setProperty("--stats-w", `${statsWidth}px`);
-  togglePanel("source", localStorage.getItem("fountain-publisher.source-collapsed") === "true"); togglePanel("stats", localStorage.getItem("fountain-publisher.stats-collapsed") === "true");
-  installResizer($("#source-resizer"), "--source-w", 1, 250, 650); installResizer($("#stats-resizer"), "--stats-w", -1, 240, 520);
+  const statsWidth = Number(localStorage.getItem("fountain-publisher.--stats-w"));
+  if (statsWidth) document.documentElement.style.setProperty("--stats-w", `${statsWidth}px`);
+  togglePanel("stats", localStorage.getItem("fountain-publisher.stats-collapsed") === "true");
+  installResizer($("#stats-resizer"), "--stats-w", -1, 240, 520);
   const params = new URLSearchParams(location.search);
   const cached = params.get("demo") === "1" ? null : readWorkspaceCache();
   let text = params.get("demo") === "1" ? SAMPLE : BLANK_TEMPLATE;
@@ -3355,14 +3389,16 @@ async function initialize() {
   const enableWorkspaceCache = params.get("demo") !== "1";
   setDocument(text, name, !restore, restore ? cached.githubFile || null : null);
   void refreshGithubSession();
-  setMobileTab(localStorage.getItem("fountain-publisher.mobile-tab") || "source");
+  const initialMobileTab = localStorage.getItem("fountain-publisher.mobile-tab") || "source";
+  setMobileTab(initialMobileTab);
   if (restore && ["fit", "70", "85", "100", "115", "130", "150", "175", "200"].includes(String(cached.zoom))) {
     state.previewZoom = String(cached.zoom);
     if (cached.zoom !== "fit") $("#zoom").value = String(cached.zoom);
   }
   applyZoom();
-  const restoredMode = ["live", "pdf"].includes(cached?.previewMode) ? cached.previewMode : "live";
-  await setPreviewMode(restore ? restoredMode : localStorage.getItem("fountain-publisher.preview") || "live");
+  const restoredMode = ["source", "live", "pdf", "beats"].includes(cached?.previewMode) ? cached.previewMode : "live";
+  const requestedMode = restore ? restoredMode : localStorage.getItem("fountain-publisher.preview") || "live";
+  await setPreviewMode(isMobilePreview() ? (initialMobileTab === "source" ? "source" : "live") : requestedMode);
   if (restore) requestAnimationFrame(() => {
     const start = Math.min(Number(cached.selectionStart) || 0, source.value.length);
     const end = Math.min(Number(cached.selectionEnd) || start, source.value.length);

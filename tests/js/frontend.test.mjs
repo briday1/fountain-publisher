@@ -45,19 +45,20 @@ test("live compilation cancels stale requests and HTML export is absent", async 
   assert.doesNotMatch(app, /includeHtml:\s*true|compileWithBrowserScreenplain\("html"/);
 });
 
-test("workspace regions keep their grid columns when sidebars collapse", async () => {
+test("Source, Preview, PDF, and Beat Sheet share the main workspace", async () => {
+  const html = await readFile(htmlPath, "utf8");
   const css = await readFile(cssPath, "utf8");
-  assert.match(css, /\.preview-panel\s*\{\s*grid-column:\s*4;/);
-  assert.match(css, /#stats-panel\s*\{\s*grid-column:\s*7;/);
+  assert.match(html, /data-preview-mode="source"[\s\S]*data-preview-mode="live"[\s\S]*data-preview-mode="pdf"[\s\S]*data-preview-mode="beats"/);
+  assert.match(css, /#source-panel, \.preview-panel, #beat-sheet-panel\s*\{\s*grid-column:\s*1;/);
+  assert.match(css, /#stats-panel\s*\{\s*grid-column:\s*4;/);
   assert.match(css, /grid-template-rows:\s*minmax\(0,\s*1fr\)/);
 });
 
-test("side panels use one control and center collapsed labels", async () => {
+test("Insights remains independently collapsible without a Source sidebar", async () => {
   const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.doesNotMatch(html, /class="panel-close"/);
-  assert.match(html, /class="panel-toggle source-toggle"[^>]*><span>‹<\/span><b>Source<\/b>/);
+  assert.doesNotMatch(html, /class="panel-toggle source-toggle"/);
   assert.match(html, /class="panel-toggle stats-toggle"[^>]*><span>›<\/span><b>Insights<\/b>/);
-  assert.match(css, /source-collapsed \.source-toggle\s*\{[^}]*justify-content:\s*center;[^}]*gap:\s*8px;/s);
   assert.match(css, /stats-collapsed \.stats-toggle\s*\{[^}]*justify-content:\s*center;[^}]*gap:\s*8px;/s);
 });
 
@@ -354,7 +355,6 @@ test("preview toolbar and rotating arrows stay compact", async () => {
   assert.doesNotMatch(html, /id="preview-percent"/);
   assert.doesNotMatch(css, /\.preview-status/);
   assert.doesNotMatch(app, /function updatePreviewStatus\(/);
-  assert.match(css, /source-collapsed \.source-toggle span\s*\{\s*transform:\s*rotate\(180deg\)/);
   assert.match(css, /stats-collapsed \.stats-toggle span\s*\{\s*transform:\s*rotate\(180deg\)/);
 });
 
@@ -447,7 +447,7 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
 test("Beat Sheet provides a source-backed draggable story map and Preview guide", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /summary>Beat Sheet <small id="beat-count">/);
-  assert.match(html, /id="beat-sheet-dialog"[\s\S]*id="beat-premise"[\s\S]*id="beat-list"/);
+  assert.match(html, /id="beat-sheet-panel"[\s\S]*id="beat-premise"[\s\S]*id="beat-flow"[\s\S]*id="beat-list"/);
   assert.match(html, /id="menu-toggle-beat-guide"[\s\S]*id="beat-guide-layer"/);
   assert.match(app, /MANAGED_NOTE_RE = \/[\s\S]*BEATS/);
   assert.match(app, /function managedBeatSheetSource\(premise, beats\)/);
@@ -457,7 +457,8 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.doesNotMatch(app, /Place at scene/);
   assert.match(app, /addEventListener\("dragover"[\s\S]*insertBefore\(draggedBeat/);
   assert.match(app, /function renderBeatGuide\(\)[\s\S]*beat-guide-layer/);
-  assert.match(css, /#beat-sheet-dialog\s*\{[\s\S]*\.beat-card\s*\{[\s\S]*\.beat-guide-layer\s*\{[\s\S]*\.beat-runner-progress[\s\S]*\.script-line\.beat-area/);
+  assert.match(app, /function renderBeatFlow\(\)[\s\S]*beat-flow-node[\s\S]*data-beat-flow-index/);
+  assert.match(css, /#beat-sheet-panel\s*\{[\s\S]*\.beat-card\s*\{[\s\S]*\.beat-flow-node[\s\S]*\.beat-guide-layer\s*\{[\s\S]*\.script-line\.beat-area/);
 });
 
 test("mobile preview clipboard actions preserve selections and avoid covering them", async () => {
@@ -499,7 +500,6 @@ test("source word wrap defaults on and preserves logical line numbers", async ()
   assert.match(app, /gutter\.scrollTop = source\.scrollTop/);
   assert.match(app, /const newline = index < lines\.length - 1 \? "\\n" : "";/);
   assert.match(app, />\$\{value\}\$\{newline\}<\/span>`;\s*\}\)\.join\(""\)/);
-  assert.match(app, /variable === "--source-w"\) renderEditorChrome\(\)/);
   assert.match(css, /body\.source-wrap #source/);
   assert.match(css, /\.line-number\s*\{[^}]*position:\s*absolute;[^}]*right:\s*9px;/s);
   assert.match(css, /\.line-number-spacer\s*\{[^}]*visibility:\s*hidden;/s);
@@ -619,7 +619,7 @@ test("mobile preview is live-only, reflows horizontally, and retains zoom contro
   assert.match(css, /\.preview-scroll\s*\{[^}]*overflow-x:\s*hidden;/s);
   assert.match(css, /\.screenplay-page\s*\{[^}]*width:\s*100%;[^}]*font-size:\s*calc\(16px \* var\(--mobile-preview-zoom,\s*1\)\);/s);
   assert.match(css, /body\.scene-nums-margin \.screenplay-page\s*\{[^}]*padding-left:\s*calc\(54px \* var\(--mobile-preview-zoom,\s*1\)\);/s);
-  assert.match(app, /if \(isMobilePreview\(\)\) mode = "live";/);
+  assert.match(app, /isMobilePreview\(\) && \['pdf', 'beats'\]\.includes\(mode\)/);
   assert.match(html, /class="view-switcher"[\s\S]*data-preview-mode="live"[\s\S]*data-preview-mode="pdf"/);
   assert.match(html, /class="preview-actions"[\s\S]*id="zoom-out"[\s\S]*id="zoom"[\s\S]*id="zoom-in"[\s\S]*id="zoom-fit"/);
 });
