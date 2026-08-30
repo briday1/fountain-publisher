@@ -95,7 +95,7 @@ test("toolbar menus use Pugflow-style popup interaction", async () => {
   assert.match(css, /\.toolbar-menu\s*\{[^}]*height:\s*30px;/s);
   assert.match(css, /\.toolbar-popover\s*\{[^}]*position:\s*absolute;[^}]*width:\s*210px;/s);
   assert.match(app, /document\.addEventListener\("pointerdown"/);
-  assert.match(app, /event\.target\.closest\("summary"\)\) closeMenus\(menu\)/);
+  assert.match(app, /event\.target\.closest\("summary"\)[\s\S]*event\.preventDefault\(\)[\s\S]*const willOpen = !menu\.open;[\s\S]*closeMenus\(\);[\s\S]*menu\.open = willOpen/);
 });
 
 test("app info uses one understated GitHub link", async () => {
@@ -722,7 +722,7 @@ test("preview background popup supports blank and adjustable dots", async () => 
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-background", event\.target\.value\)/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-dot-radius", event\.target\.value\)/);
   assert.match(app, /hidden = pattern !== "dots"/);
-  assert.match(app, /#background-dialog"\)\.showModal\(\)/);
+  assert.match(app, /open-background-dialog[\s\S]*setMobileMenu\(false\)[\s\S]*requestAnimationFrame\(\(\) => \$\("#background-dialog"\)\.showModal\(\)\)/);
 });
 
 test("mobile PDF export path remains accessible via toolbar File menu", async () => {

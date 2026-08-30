@@ -3469,7 +3469,12 @@ $("#clear-workspace-on-exit").addEventListener("change", (event) => {
   if (event.target.checked) clearWorkspaceCache();
   else scheduleWorkspaceCache();
 });
-$("#open-background-dialog").addEventListener("click", () => $("#background-dialog").showModal());
+$("#open-background-dialog").addEventListener("click", () => {
+  if (isMobilePreview()) {
+    setMobileMenu(false);
+    requestAnimationFrame(() => $("#background-dialog").showModal());
+  } else $("#background-dialog").showModal();
+});
 $("#preview-background").addEventListener("change", (event) => {
   localStorage.setItem("fountain-publisher.preview-background", event.target.value);
   applyPreviewBackground();
@@ -3654,7 +3659,12 @@ $("#mobile-menu-backdrop").addEventListener("click", () => setMobileMenu(false))
 
 toolbarMenus.forEach((menu) => menu.addEventListener("click", (event) => {
   if (event.target.closest("button")) { menu.open = false; if (isMobilePreview()) setMobileMenu(false); }
-  else if (event.target.closest("summary")) closeMenus(menu);
+  else if (event.target.closest("summary")) {
+    event.preventDefault();
+    const willOpen = !menu.open;
+    closeMenus();
+    menu.open = willOpen;
+  }
 }));
 document.addEventListener("pointerdown", (event) => toolbarMenus.forEach((menu) => {
   if (menu.open && !menu.contains(event.target)) menu.open = false;
