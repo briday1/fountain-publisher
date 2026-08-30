@@ -334,13 +334,15 @@ function stopRainBackground() {
 function startRainBackground() {
   stopRainBackground();
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const storedSpeed = Number(localStorage.getItem("fountain-publisher.preview-rain-speed"));
+  const speed = storedSpeed >= 10 && storedSpeed <= 100 ? storedSpeed / 100 : .25;
   const color = document.documentElement.dataset.effectiveTheme === "dark" ? "#b8d7ed" : "#60788b";
   rainLayers = [$(".preview-panel"), $("#source-panel"), $("#beat-sheet-panel")].map((surface) => {
     const canvas = document.createElement("canvas");
     canvas.className = "rain-background-canvas";
     canvas.setAttribute("aria-hidden", "true");
     surface.prepend(canvas);
-    return { surface, canvas, context: canvas.getContext("2d"), engine: new RainEngine(1400, { ...RAIN_PRESETS.drizzle, density: 1.35, wind: 32, blurStrength: 0.025, color }), width: 0, height: 0 };
+    return { surface, canvas, context: canvas.getContext("2d"), engine: new RainEngine(1400, { ...RAIN_PRESETS.drizzle, gravity: 520, density: 2.2, wind: 8, maxSpeed: 480, blurStrength: .14, splashBounce: 0, color }), width: 0, height: 0 };
   });
   rainLastFrame = performance.now();
   const animate = (time) => {
@@ -359,8 +361,12 @@ function startRainBackground() {
       layer.context.setTransform(1, 0, 0, 1, 0, 0);
       layer.context.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
       layer.context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-      layer.engine.spawn(dt, width, height);
-      layer.engine.updateAndDraw(layer.context, dt, width, height);
+      const rainDt = dt * speed;
+      // Put the impact plane below the pane so drops read as water tracking
+      // down glass instead of weather falling through open space.
+      layer.engine.config.floorY = height + 180;
+      layer.engine.spawn(rainDt, width, height);
+      layer.engine.updateAndDraw(layer.context, rainDt, width, height);
     });
     rainAnimationFrame = requestAnimationFrame(animate);
   };
@@ -372,6 +378,8 @@ function applyPreviewBackground() {
   const pattern = ["blank", "dots", "rain"].includes(storedPattern) ? storedPattern : "dots";
   const storedRadius = Number(localStorage.getItem("fountain-publisher.preview-dot-radius"));
   const radius = storedRadius >= .6 && storedRadius <= 1.8 ? storedRadius : 1;
+  const storedRainSpeed = Number(localStorage.getItem("fountain-publisher.preview-rain-speed"));
+  const rainSpeed = storedRainSpeed >= 10 && storedRainSpeed <= 100 ? storedRainSpeed : 25;
   const preview = $("#preview-scroll");
   [preview, $("#source-panel"), $("#beat-sheet-panel")].forEach((surface) => {
     surface.dataset.background = pattern;
@@ -381,6 +389,9 @@ function applyPreviewBackground() {
   $("#preview-dot-radius").value = String(radius);
   $("#preview-dot-radius-value").textContent = `${radius.toFixed(1)}px`;
   $("#preview-dot-radius-row").hidden = pattern !== "dots";
+  $("#preview-rain-speed").value = String(rainSpeed);
+  $("#preview-rain-speed-value").textContent = `${rainSpeed}%`;
+  $("#preview-rain-speed-row").hidden = pattern !== "rain";
   if (pattern === "rain") startRainBackground(); else stopRainBackground();
 }
 
@@ -3483,6 +3494,10 @@ $("#preview-background").addEventListener("change", (event) => {
 });
 $("#preview-dot-radius").addEventListener("input", (event) => {
   localStorage.setItem("fountain-publisher.preview-dot-radius", event.target.value);
+  applyPreviewBackground();
+});
+$("#preview-rain-speed").addEventListener("input", (event) => {
+  localStorage.setItem("fountain-publisher.preview-rain-speed", event.target.value);
   applyPreviewBackground();
 });
 $("#page-size").addEventListener("change", () => { scheduleCompile(0); if (state.previewMode === "pdf") refreshPdf(); });
