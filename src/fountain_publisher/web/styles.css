@@ -430,7 +430,7 @@ button:disabled { cursor: default; opacity: .45; }
 .analytics-gradient-legend[hidden] { display: none; }
 .analytics-gradient-legend i { width: 140px; height: 8px; border-radius: 5px; background: linear-gradient(90deg, color-mix(in srgb, var(--syntax-character) 25%, var(--surface)), var(--syntax-character)); }
 .analytics-content-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; background: var(--surface-2); padding: 16px; }
-.analytics-chart-scroll { max-width: 100%; overflow: auto; overscroll-behavior-x: contain; }
+.analytics-chart-scroll { box-sizing: border-box; width: 100%; max-width: 100%; overflow: auto; overscroll-behavior-x: contain; }
 #character-analytics-chart { display: block; background: var(--surface); box-shadow: 0 1px 4px rgb(0 0 0 / 10%); }
 .analytics-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
 .analytics-actions button { border: 1px solid var(--border); border-radius: 5px; background: var(--surface); padding: 7px 14px; }

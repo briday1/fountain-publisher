@@ -1333,11 +1333,14 @@ function sceneCharacterWordSegments(sceneIndex) {
 
 function renderSceneCharacterAnalytics(sceneIndex) {
   const canvas = $("#character-analytics-chart");
+  const chartViewport = $(".analytics-chart-scroll", $("#character-analytics-dialog"));
   const scene = state.metadata.scenes[sceneIndex];
   const { segments, total } = sceneCharacterWordSegments(sceneIndex);
   const characters = [...new Set(segments.map((segment) => segment.character))];
   const scale = Math.min(window.devicePixelRatio || 1, 2);
-  const labelWidth = 150; const plotWidth = 760; const headerHeight = 58; const rowHeight = 38;
+  const labelWidth = 150;
+  const plotWidth = Math.max(760, chartViewport.clientWidth - labelWidth);
+  const headerHeight = 58; const rowHeight = 38;
   const width = labelWidth + plotWidth; const height = headerHeight + Math.max(characters.length, 1) * rowHeight;
   canvas.width = Math.ceil(width * scale); canvas.height = Math.ceil(height * scale);
   canvas.style.width = `${width}px`; canvas.style.height = `${height}px`; canvas.style.cursor = "default";
@@ -1503,8 +1506,8 @@ function characterLineUsageCsv() {
 
 function openCharacterAnalytics() {
   state.characterAnalyticsScene = state.metadata.scenes.length === 1 ? 0 : null;
-  renderCharacterAnalytics();
   $("#character-analytics-dialog").showModal();
+  renderCharacterAnalytics();
 }
 
 async function copyCharacterLineUsage() {
@@ -3868,6 +3871,7 @@ window.addEventListener("resize", () => {
   if (isMobilePreview() && state.previewMode === "pdf") void setPreviewMode("live");
   applyZoom();
   updateVimUi();
+  if ($("#character-analytics-dialog").open) renderCharacterAnalytics();
 });
 
 function registerAppServiceWorker() {
