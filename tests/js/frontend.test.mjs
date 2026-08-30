@@ -116,21 +116,9 @@ test("third-party license notices accompany local and static distributions", asy
   ]);
   assert.doesNotMatch(html, />Third-party notices<\/a>/);
   assert.match(readme, /\[Third-party notices\]\(src\/fountain_publisher\/web\/THIRD_PARTY_NOTICES\.md\)/);
-  assert.match(notices, /@zakkster\/lite-rain 1\.4\.0[\s\S]*Copyright \(c\) Zahary Shinikchiev[\s\S]*MIT License Text/);
   assert.match(notices, /Pyodide 314\.0\.6[\s\S]*Mozilla Public License 2\.0/);
   assert.match(notices, /Screenplain 0\.12\.0[\s\S]*ReportLab 5\.0\.1[\s\S]*Courier Prime/);
   assert.match(build, /THIRD_PARTY_NOTICES\.md/);
-});
-
-test("browser source uses a locally served rain module", async () => {
-  const [app, rain] = await Promise.all([
-    readFile(appPath, "utf8"),
-    readFile(new URL("../../src/fountain_publisher/web/vendor/lite-rain.mjs", import.meta.url), "utf8"),
-  ]);
-  assert.match(app, /from "\.\/vendor\/lite-rain\.mjs"/);
-  assert.doesNotMatch(app, /from "@zakkster\/lite-rain"/);
-  assert.match(rain, /RainEngine/);
-  assert.doesNotMatch(rain, /from\s+["']@zakkster\//);
 });
 
 test("source and preview share syntax, cursor synchronization, and character completion behavior", async () => {
@@ -721,25 +709,18 @@ test("preview background popup supports blank and adjustable dots", async () => 
   const settingsMenu = html.match(/<details class="toolbar-menu settings-menu">([\s\S]*?)<\/details>/)?.[1] || "";
   assert.match(settingsMenu, /id="open-background-dialog"[^>]*>Background…<\/button>/);
   assert.match(html, /<dialog id="background-dialog"/);
-  assert.match(html, /id="preview-background"[\s\S]*value="blank">Blank[\s\S]*value="dots" selected>Dots[\s\S]*value="rain">Raindrops/);
+  assert.match(html, /id="preview-background"[\s\S]*value="blank">Blank[\s\S]*value="dots" selected>Dots/);
+  assert.doesNotMatch(html, /value="rain"|Raindrops|preview-rain-speed/);
   assert.doesNotMatch(html, /Damascus|value="damascus"/);
   assert.match(html, /id="preview-dot-radius" type="range" min="0\.6" max="1\.8" step="0\.1" value="1"/);
-  assert.match(html, /id="preview-rain-speed" type="range" min="10" max="100" step="5" value="25"/);
   assert.match(css, /\.preview-scroll\[data-background="dots"\][^}]*radial-gradient[^}]*background-size:\s*16px 16px;/s);
   assert.doesNotMatch(css, /data-background="damascus"|repeating-radial-gradient/);
   assert.match(css, /#background-dialog\s*\{[^}]*width:\s*min\(390px,/s);
   assert.doesNotMatch(css, /\.preview-scroll\s*\{[^}]*background-color:/s);
   assert.match(app, /function applyPreviewBackground\(\)/);
-  assert.match(app, /import \{ RainEngine, RAIN_PRESETS \} from "\.\/vendor\/lite-rain\.mjs"/);
-  assert.match(app, /function startRainBackground\(\)[\s\S]*RAIN_PRESETS\.drizzle[\s\S]*engine\.spawn[\s\S]*engine\.updateAndDraw/);
-  assert.match(app, /preview-rain-speed[\s\S]*rainDt = dt \* speed[\s\S]*floorY = height \+ 180/);
-  assert.match(app, /prefers-reduced-motion: reduce/);
-  assert.match(css, /\.rain-background-canvas\s*\{[^}]*position:\s*absolute;[^}]*pointer-events:\s*none;/s);
-  assert.doesNotMatch(css, /> :not\(\.rain-background-canvas\)[^{]*\{[^}]*position:\s*relative/s);
   assert.match(css, /\.beat-guide-layer\s*\{[^}]*position:\s*absolute;/s);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-background", event\.target\.value\)/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-dot-radius", event\.target\.value\)/);
-  assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-rain-speed", event\.target\.value\)/);
   assert.match(app, /hidden = pattern !== "dots"/);
   assert.match(app, /open-background-dialog[\s\S]*requestAnimationFrame\(\(\) => \{[\s\S]*setMobileMenu\(false\);[\s\S]*\$\("#background-dialog"\)\.showModal\(\)/);
   assert.match(app, /event\.target\.closest\("button, a"\)[\s\S]*requestAnimationFrame\(\(\) => \{[\s\S]*menu\.open = false;[\s\S]*setMobileMenu\(false\)/);
