@@ -54,7 +54,7 @@ test("app exposes a credentialed GitHub repository browser", async () => {
   assert.match(app, /const location = \{ repository: repository\.fullName, branch, path: state\.githubPath \}/);
   assert.match(app, /loadGithubBranches\(restoreLocation\?\.path \|\| "", restoreLocation\?\.branch \|\| ""\)/);
   assert.match(app, /\[rememberedBranch, repository\.defaultBranch, result\.defaultBranch, "main"\]/);
-  assert.match(app, /\$\("#github-save-details"\)\.open = mode === "save" && !matchMedia\("\(max-width: 640px\)"\)\.matches/);
+  assert.match(app, /\$\("#github-save-details"\)\.open = mode === "save" && !matchMedia\("\(max-width: 820px\)"\)\.matches/);
   assert.match(app, /openGithubFile\(entry\.dataset\.githubEntry, entry\)/);
   assert.match(app, /sha: body\.sha|JSON\.stringify\(\{ content: source\.value, message:/);
 });

@@ -64,9 +64,9 @@ test("tablet landscape keeps document identity clear of history controls", async
   assert.doesNotMatch(app, /updateToolbarIdentityLayout|scheduleToolbarIdentityLayout/);
   assert.match(css, /@media\s*\(max-width:\s*900px\)[\s\S]*\.about-label\s*\{\s*display:\s*none;/s);
   assert.match(html, /<\/nav>\s*<div class="history-actions"[^>]*>[\s\S]*id="undo"[\s\S]*id="redo"/);
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.app-toolbar::after\s*\{\s*display:\s*none;/s);
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.document-identity\s*\{[^}]*position:\s*relative;[^}]*flex:\s*1 1 auto;/s);
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.history-actions \.toolbar-divider\s*\{\s*display:\s*none;/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.app-toolbar::after\s*\{\s*display:\s*none;/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.document-identity\s*\{[^}]*position:\s*relative;[^}]*display:\s*flex !important;[^}]*flex:\s*1 1 auto;/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.history-actions \.toolbar-divider\s*\{\s*display:\s*none;/s);
   assert.doesNotMatch(css, /#undo, #redo\s*\{\s*display:\s*none;/);
   assert.match(app, /function shouldAutofocusSource\(\)\s*\{[\s\S]*navigator\.maxTouchPoints === 0/);
   assert.match(app, /mode === "source"[\s\S]*shouldAutofocusSource\(\)[\s\S]*source\.focus\(\{ preventScroll: true \}\)/);
@@ -525,11 +525,13 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(app, /const candidates = \$\$\("\.script-line\[data-display\]"/);
   assert.match(app, /\["dialogue", "parenthetical", "note"\]\.includes/);
   assert.match(css, /\.annotation-orb\s*\{/);
+  assert.match(css, /--annotation-accent:\s*#9b5c72;/);
+  assert.match(css, /\.annotation-orb\s*\{[^}]*background:\s*var\(--annotation-accent\)/s);
   assert.match(css, /\.annotation-orb\s*\{[^}]*top:\s*1px;/s);
   assert.match(app, /function alignAnnotationOrbs\(\)[\s\S]*marginCenterX[\s\S]*orb\.offsetWidth \* scale \* \.5[\s\S]*orb\.style\.left/);
   assert.match(app, /requestAnimationFrame\(alignAnnotationOrbs\)/);
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*padding:\s*48px max\(28px, 7vw\) 72px;/s);
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.annotation-orb\s*\{[^}]*width:\s*16px;[^}]*height:\s*16px;/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*padding:\s*48px max\(28px, 7vw\) 72px;/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.annotation-orb\s*\{[^}]*width:\s*16px;[^}]*height:\s*16px;/s);
   assert.match(css, /\.annotation-orb::after\s*\{[^}]*inset:\s*-8px;/s);
   assert.match(app, /page\.addEventListener\("pointerdown"[\s\S]*previewTouchMenuTimer = setTimeout[\s\S]*showPreviewContextMenu[\s\S]*420/);
   assert.match(app, /page\.addEventListener\("pointermove"[\s\S]*Math\.hypot[\s\S]*cancelPreviewTouchMenu/);
@@ -589,7 +591,7 @@ test("insight colors coordinate with the source palette", async () => {
   assert.match(css, /\.metric-grid div:nth-child\(2\)\s*\{\s*color:\s*var\(--metric-scenes-ink\);\s*\}/s);
   assert.match(css, /\.metric-grid div:nth-child\(3\)\s*\{\s*color:\s*var\(--metric-words-ink\);\s*\}/s);
   assert.doesNotMatch(css, /\.metric-grid div:nth-child\([123]\)[^}]*background:/s);
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.metric-grid\s*\{\s*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.metric-grid\s*\{\s*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);/s);
 });
 
 test("source backgrounds are neutral and character analytics canvas hugs its table", async () => {
@@ -651,7 +653,7 @@ test("desktop Vim mode is persistent and shared by Source and Preview", async ()
   assert.match(app, /function moveVimHalfPage\(command, previewFocus, visual = false\)[\s\S]*viewportHeight \/ lineHeight \/ 2[\s\S]*previewWrappedRowOffset[\s\S]*sourceWrappedRowOffset/);
   assert.match(app, /event\.ctrlKey && \["d", "u"\]\.includes\(event\.key\.toLowerCase\(\)\)[\s\S]*moveVimHalfPage/);
   assert.match(css, /\.vim-status\[data-mode="normal"\][^}]*var\(--metric-pages-ink\)[\s\S]*\.vim-status\[data-mode="insert"\][^}]*var\(--metric-words-ink\)[\s\S]*\.vim-status\[data-mode="visual"\][^}]*var\(--metric-scenes-ink\)/);
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.desktop-setting, \.vim-status\s*\{\s*display:\s*none !important;/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.desktop-setting, \.vim-status\s*\{\s*display:\s*none !important;/s);
 });
 
 test("dual dialogue renders concurrently in the live screenplay", async () => {
@@ -704,7 +706,7 @@ test("mobile shows one panel at a time through the View menu", async () => {
   // Mobile view state hides non-active panels without consuming a tab row.
   assert.match(css, /\.mobile-panel-tabs\s*\{\s*display:\s*none;/);
   assert.match(css, /--mobile-tabs-h:\s*0px;/);
-  assert.match(css, /max-width:\s*640px/);
+  assert.match(css, /max-width:\s*820px/);
   assert.match(css, /body\[data-mobile-tab="source"\] #source-panel\s*\{\s*display:\s*flex;/);
   assert.match(css, /body\[data-mobile-tab="preview"\] \.preview-panel\s*\{\s*display:\s*flex;/);
   assert.match(css, /body\[data-mobile-tab="beats"\] #beat-sheet-panel\s*\{\s*display:\s*flex;/);
@@ -728,7 +730,7 @@ test("character completions appear in preview regardless of line position", asyn
 
 test("mobile preview excludes PDF, supports Beat Sheet, and reflows horizontally", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.view-switcher\s*\{\s*display:\s*none;/);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.view-switcher\s*\{\s*display:\s*none;/);
   assert.match(css, /\.preview-scroll\s*\{[^}]*overflow-x:\s*hidden;/s);
   assert.match(css, /\.screenplay-page\s*\{[^}]*width:\s*100%;[^}]*font-size:\s*calc\(16px \* var\(--mobile-preview-zoom,\s*1\)\);/s);
   assert.match(css, /body\.scene-nums-margin \.screenplay-page\s*\{[^}]*padding-left:\s*calc\(54px \* var\(--mobile-preview-zoom,\s*1\)\);/s);
@@ -809,7 +811,7 @@ test("mobile PDF export path remains accessible via toolbar File menu", async ()
 test("mobile Insights layout has responsive wrapping rules", async () => {
   const css = await readFile(cssPath, "utf8");
   // Inside the mobile media query: scene list buttons wrap text
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.scene-list button\s*\{[^}]*white-space:\s*normal;/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[^@]*\.scene-list button\s*\{[^}]*white-space:\s*normal;/s);
 });
 
 test("line numbers are correct before the source panel is interacted with", async () => {
@@ -865,22 +867,22 @@ test("mobile toolbar keeps View available and fixes popover visibility", async (
   assert.match(html, /id="mobile-menu-toggle"[^>]*aria-controls="global-actions"/);
   assert.match(html, /id="mobile-menu-backdrop"/);
   // CSS: View and Help remain available; PDF preview stays out of the compact mobile menu.
-  assert.doesNotMatch(css, /@media\s*\(max-width:\s*640px\)[^@]*\.help-menu\s*\{\s*display:\s*none;/s);
+  assert.doesNotMatch(css, /@media\s*\(max-width:\s*820px\)[^@]*\.help-menu\s*\{\s*display:\s*none;/s);
   assert.match(css, /\.view-menu \[data-preview-mode="pdf"\]\s*\{\s*display:\s*none;/);
   // CSS: popovers use position:fixed on mobile so they are always in-viewport
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.toolbar-popover\s*\{[^}]*position:\s*fixed;/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[^@]*\.toolbar-popover\s*\{[^}]*position:\s*fixed;/s);
   assert.match(css, /body\.mobile-menu-open \.global-actions\s*\{\s*transform:\s*translateX\(0\);/);
   assert.match(css, /\.app-toolbar\s*\{[^}]*z-index:\s*30;/s);
   assert.match(css, /\.mobile-menu-backdrop\s*\{[^}]*z-index:\s*29;/s);
   assert.match(css, /\.global-actions \.toolbar-menu > summary\s*\{[^}]*height:\s*44px;/s);
   assert.match(app, /function setMobileMenu\(open\)[\s\S]*mobile-menu-open[\s\S]*aria-expanded/);
   // CSS: about label is hidden on mobile
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.about-label\s*\{\s*display:\s*none;/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[^@]*\.about-label\s*\{\s*display:\s*none;/s);
 });
 
 test("mobile top bars stay pinned during focus, zoom, and viewport scrolling", async () => {
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.app-toolbar\s*\{[^}]*position:\s*fixed;[^}]*top:\s*var\(--visual-viewport-top\);/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.app-toolbar\s*\{[^}]*position:\s*fixed;[^}]*top:\s*var\(--visual-viewport-top\);/s);
   assert.match(css, /#workspace\s*\{[^}]*position:\s*fixed;[^}]*height:\s*calc\(var\(--visual-viewport-height\) - var\(--toolbar-h\) - var\(--mobile-tabs-h\)\);/s);
   assert.match(app, /function updateMobileViewport\(\)[\s\S]*visualViewport[\s\S]*--visual-viewport-top[\s\S]*--visual-viewport-height/);
   assert.match(app, /visualViewport\?\.addEventListener\("resize", scheduleMobileViewportUpdate\)/);
