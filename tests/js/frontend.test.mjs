@@ -773,6 +773,8 @@ test("mobile toolbar keeps View available and fixes popover visibility", async (
   // CSS: popovers use position:fixed on mobile so they are always in-viewport
   assert.match(css, /@media\s*\(max-width:\s*640px\)[^@]*\.toolbar-popover\s*\{[^}]*position:\s*fixed;/s);
   assert.match(css, /body\.mobile-menu-open \.global-actions\s*\{\s*transform:\s*translateX\(0\);/);
+  assert.match(css, /\.app-toolbar\s*\{[^}]*z-index:\s*30;/s);
+  assert.match(css, /\.mobile-menu-backdrop\s*\{[^}]*z-index:\s*29;/s);
   assert.match(css, /\.global-actions \.toolbar-menu > summary\s*\{[^}]*height:\s*44px;/s);
   assert.match(app, /function setMobileMenu\(open\)[\s\S]*mobile-menu-open[\s\S]*aria-expanded/);
   // CSS: about label is hidden on mobile
