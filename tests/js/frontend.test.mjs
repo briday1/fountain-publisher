@@ -603,25 +603,25 @@ test("scene numbers default to margin, support act format, and apply to PDF", as
   assert.match(html, /id="scene-num-format"/);
 });
 
-test("mobile shows one panel at a time via tab bar", async () => {
+test("mobile shows one panel at a time through the View menu", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
-  // Tab bar exists in HTML
-  assert.match(html, /class="mobile-panel-tabs"/);
-  assert.match(html, /data-mobile-panel="source"/);
-  assert.match(html, /data-mobile-panel="preview"/);
-  assert.match(html, /data-mobile-panel="beats"/);
-  assert.match(html, /data-mobile-panel="stats"/);
-  // Mobile media query hides non-active panels
+  assert.doesNotMatch(html, /class="mobile-panel-tabs"/);
+  assert.match(html, /class="toolbar-menu view-menu"/);
+  assert.match(html, /id="menu-toggle-source-tab"/);
+  assert.match(html, /id="menu-toggle-stats"/);
+  // Mobile view state hides non-active panels without consuming a tab row.
   assert.match(css, /\.mobile-panel-tabs\s*\{\s*display:\s*none;/);
+  assert.match(css, /--mobile-tabs-h:\s*0px;/);
   assert.match(css, /max-width:\s*640px/);
   assert.match(css, /body\[data-mobile-tab="source"\] #source-panel\s*\{\s*display:\s*flex;/);
   assert.match(css, /body\[data-mobile-tab="preview"\] \.preview-panel\s*\{\s*display:\s*flex;/);
   assert.match(css, /body\[data-mobile-tab="beats"\] #beat-sheet-panel\s*\{\s*display:\s*flex;/);
   assert.match(css, /body\[data-mobile-tab="stats"\] #stats-panel\s*\{\s*display:\s*flex/);
-  // JS function exists and persists choice
+  // View-menu routing persists the selected mobile workspace.
   assert.match(app, /function setMobileTab\(/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.mobile-tab"/);
   assert.match(app, /dataset\.mobileTab = panel/);
+  assert.match(app, /isMobilePreview\(\)[\s\S]*const opening = state\.previewMode !== "source";[\s\S]*setMobileTab\(opening \? "source" : "preview"\)/);
 });
 
 test("character completions appear in preview regardless of line position", async () => {
@@ -770,7 +770,6 @@ test("mobile toolbar keeps View available and fixes popover visibility", async (
 test("mobile top bars stay pinned during focus, zoom, and viewport scrolling", async () => {
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.app-toolbar\s*\{[^}]*position:\s*fixed;[^}]*top:\s*var\(--visual-viewport-top\);/s);
-  assert.match(css, /\.mobile-panel-tabs\s*\{[^}]*position:\s*fixed;[^}]*top:\s*calc\(var\(--visual-viewport-top\) \+ var\(--toolbar-h\)\);/s);
   assert.match(css, /#workspace\s*\{[^}]*position:\s*fixed;[^}]*height:\s*calc\(var\(--visual-viewport-height\) - var\(--toolbar-h\) - var\(--mobile-tabs-h\)\);/s);
   assert.match(app, /function updateMobileViewport\(\)[\s\S]*visualViewport[\s\S]*--visual-viewport-top[\s\S]*--visual-viewport-height/);
   assert.match(app, /visualViewport\?\.addEventListener\("resize", scheduleMobileViewportUpdate\)/);

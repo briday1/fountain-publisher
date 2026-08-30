@@ -580,18 +580,10 @@ button:disabled { cursor: default; opacity: .45; }
 
 /* Mobile — single-panel tab layout */
 @media (max-width: 640px) {
-  :root { --mobile-tabs-h: 44px; }
+  :root { --mobile-tabs-h: 0px; }
   .desktop-setting, .vim-status { display: none !important; }
 
-  .mobile-panel-tabs {
-    display: flex; height: var(--mobile-tabs-h);
-    background: var(--panel); border-bottom: 1px solid var(--border);
-    position: fixed;
-    top: calc(var(--visual-viewport-top) + var(--toolbar-h));
-    left: var(--visual-viewport-left);
-    width: var(--visual-viewport-width);
-    z-index: 20;
-  }
+  .mobile-panel-tabs { display: none; }
   .mobile-tab {
     flex: 1; border: 0; border-right: 1px solid var(--border); border-radius: 0;
     background: transparent; color: var(--muted);

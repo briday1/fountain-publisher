@@ -3218,13 +3218,21 @@ $$('[data-preview-mode]').forEach((button) => button.addEventListener("click", (
 $("#toggle-stats").addEventListener("click", () => togglePanel("stats"));
 $("#menu-toggle-stats").addEventListener("click", () => isMobilePreview() ? setMobileTab("stats") : togglePanel("stats"));
 $("#menu-toggle-source-tab").addEventListener("click", () => {
+  if (isMobilePreview()) {
+    const opening = state.previewMode !== "source";
+    localStorage.setItem("fountain-publisher.source-tab", String(opening));
+    document.body.classList.toggle("source-tab-hidden", !opening);
+    $(".menu-check", $("#menu-toggle-source-tab")).textContent = opening ? "✓" : "";
+    setMobileTab(opening ? "source" : "preview");
+    closeMenus();
+    return;
+  }
   const enabled = !sourceTabEnabled();
   localStorage.setItem("fountain-publisher.source-tab", String(enabled));
   document.body.classList.toggle("source-tab-hidden", !enabled);
   $(".menu-check", $("#menu-toggle-source-tab")).textContent = enabled ? "✓" : "";
   if (!enabled && state.previewMode === "source") {
-    if (isMobilePreview()) setMobileTab("preview");
-    else void setPreviewMode("live");
+    void setPreviewMode("live");
   }
   closeMenus();
 });
