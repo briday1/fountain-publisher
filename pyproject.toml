@@ -33,4 +33,4 @@ where = ["src"]
 include = ["fountain_publisher*"]
 
 [tool.setuptools.package-data]
-fountain_publisher = ["web/*", "web/fonts/*", "web/vendor/*"]
+fountain_publisher = ["web/*", "web/fonts/*", "web/icons/*", "web/vendor/*"]

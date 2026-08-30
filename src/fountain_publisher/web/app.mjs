@@ -208,6 +208,7 @@ const WORKSPACE_CACHE_KEY = "fountain-publisher.workspace.v1";
 const GITHUB_BROWSER_KEY = "fountain-publisher.github-browser.v1";
 const GITHUB_API = "https://api.fountain-publisher.com";
 let STATIC_HOST = location.hostname.endsWith(".github.io") || new URLSearchParams(location.search).get("static") === "1";
+let installPrompt = null;
 const docSettings = {
   sceneNumbers: localStorage.getItem("fountain-publisher.scene-numbers") ?? "margin",
   sceneNumberFormat: localStorage.getItem("fountain-publisher.scene-number-format") ?? "sequential",
@@ -318,13 +319,90 @@ function clearWorkspaceCache() {
   localStorage.removeItem(WORKSPACE_CACHE_KEY);
 }
 
+const DOT_DIRECTIONS = {
+  up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0],
+  "up-left": [-Math.SQRT1_2, -Math.SQRT1_2], "up-right": [Math.SQRT1_2, -Math.SQRT1_2],
+  "down-left": [-Math.SQRT1_2, Math.SQRT1_2], "down-right": [Math.SQRT1_2, Math.SQRT1_2],
+};
+let dotMotionFrame = 0;
+let dotMotionLastTime = 0;
+let dotRandomChangedAt = 0;
+let dotMotionVector = [0, 0];
+let dotMotionTarget = [0, 0];
+let dotOffset = [0, 0];
+let dotMotionDirection = "still";
+let dotMotionSpeed = 20;
+
+function backgroundSurfaces() {
+  return [$("#preview-scroll"), $("#source-panel"), $("#beat-sheet-panel"), $("#background-pattern-preview")];
+}
+
+function chooseRandomDotDirection() {
+  const directions = Object.values(DOT_DIRECTIONS);
+  let next = directions[Math.floor(Math.random() * directions.length)];
+  if (directions.length > 1) while (next === dotMotionTarget) next = directions[Math.floor(Math.random() * directions.length)];
+  dotMotionTarget = next;
+}
+
+function stopDotMotion(reset = false) {
+  cancelAnimationFrame(dotMotionFrame);
+  dotMotionFrame = 0;
+  dotMotionLastTime = 0;
+  if (reset) {
+    dotOffset = [0, 0];
+    backgroundSurfaces().forEach((surface) => {
+      surface.style.setProperty("--preview-dot-x", "0px");
+      surface.style.setProperty("--preview-dot-y", "0px");
+    });
+  }
+}
+
+function startDotMotion(direction, speed) {
+  dotMotionSpeed = speed;
+  if (dotMotionFrame && direction === dotMotionDirection) return;
+  stopDotMotion(direction === "still");
+  dotMotionDirection = direction;
+  if (direction === "still" || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (direction === "random") {
+    chooseRandomDotDirection();
+    dotMotionVector = [...dotMotionTarget];
+    dotRandomChangedAt = performance.now();
+  } else {
+    dotMotionTarget = DOT_DIRECTIONS[direction] || DOT_DIRECTIONS.down;
+    dotMotionVector = [...dotMotionTarget];
+  }
+  const animate = (time) => {
+    if (!dotMotionLastTime) dotMotionLastTime = time;
+    const dt = Math.min((time - dotMotionLastTime) / 1000, .1);
+    dotMotionLastTime = time;
+    if (direction === "random") {
+      if (time - dotRandomChangedAt >= 60000) { chooseRandomDotDirection(); dotRandomChangedAt = time; }
+      const ease = 1 - Math.exp(-dt / 6);
+      dotMotionVector[0] += (dotMotionTarget[0] - dotMotionVector[0]) * ease;
+      dotMotionVector[1] += (dotMotionTarget[1] - dotMotionVector[1]) * ease;
+    }
+    const pixelsPerSecond = dotMotionSpeed * .25;
+    dotOffset[0] = (dotOffset[0] + dotMotionVector[0] * pixelsPerSecond * dt) % 16;
+    dotOffset[1] = (dotOffset[1] + dotMotionVector[1] * pixelsPerSecond * dt) % 16;
+    backgroundSurfaces().forEach((surface) => {
+      surface.style.setProperty("--preview-dot-x", `${dotOffset[0].toFixed(2)}px`);
+      surface.style.setProperty("--preview-dot-y", `${dotOffset[1].toFixed(2)}px`);
+    });
+    dotMotionFrame = requestAnimationFrame(animate);
+  };
+  dotMotionFrame = requestAnimationFrame(animate);
+}
+
 function applyPreviewBackground() {
   const storedPattern = localStorage.getItem("fountain-publisher.preview-background") || "dots";
   const pattern = ["blank", "dots"].includes(storedPattern) ? storedPattern : "dots";
   const storedRadius = Number(localStorage.getItem("fountain-publisher.preview-dot-radius"));
   const radius = storedRadius >= .6 && storedRadius <= 1.8 ? storedRadius : 1;
-  const preview = $("#preview-scroll");
-  [preview, $("#source-panel"), $("#beat-sheet-panel")].forEach((surface) => {
+  const storedDirection = localStorage.getItem("fountain-publisher.preview-dot-direction") || "still";
+  const direction = storedDirection === "random" || storedDirection === "still" || DOT_DIRECTIONS[storedDirection] ? storedDirection : "still";
+  const storedSpeed = Number(localStorage.getItem("fountain-publisher.preview-dot-speed"));
+  const speed = storedSpeed >= 1 && storedSpeed <= 100 ? storedSpeed : 20;
+  backgroundSurfaces().forEach((surface) => {
     surface.dataset.background = pattern;
     surface.style.setProperty("--preview-dot-radius", `${radius}px`);
   });
@@ -332,6 +410,12 @@ function applyPreviewBackground() {
   $("#preview-dot-radius").value = String(radius);
   $("#preview-dot-radius-value").textContent = `${radius.toFixed(1)}px`;
   $("#preview-dot-radius-row").hidden = pattern !== "dots";
+  $("#preview-dot-direction").value = direction;
+  $("#preview-dot-speed").value = String(speed);
+  $("#preview-dot-speed-value").textContent = String(speed);
+  $("#preview-dot-direction-row").hidden = pattern !== "dots";
+  $("#preview-dot-speed-row").hidden = pattern !== "dots";
+  if (pattern === "dots") startDotMotion(direction, speed); else stopDotMotion(true);
 }
 
 function escapeHtml(value) {
@@ -595,6 +679,23 @@ function renderPreviewLines(lines) {
   return output.join("");
 }
 
+function alignAnnotationOrbs() {
+  const orbs = $$(".annotation-orb", page);
+  if (!orbs.length || page.hidden) return;
+  const pageRect = page.getBoundingClientRect();
+  if (!pageRect.width) return;
+  const scale = pageRect.width / page.offsetWidth || 1;
+  const paddingRight = parseFloat(getComputedStyle(page).paddingRight) || 0;
+  const targetX = isMobilePreview()
+    ? pageRect.right - paddingRight * scale * .5
+    : pageRect.right - paddingRight * scale + 24 * scale;
+  orbs.forEach((orb) => {
+    const line = orb.closest(".script-line");
+    if (!line) return;
+    orb.style.left = `${(targetX - line.getBoundingClientRect().left) / scale}px`;
+  });
+}
+
 function renderPreview({ focusLine = null, focusOffset = null } = {}) {
   const lines = classifyLines(source.value);
   const previewScroll = $("#preview-scroll");
@@ -625,6 +726,7 @@ function renderPreview({ focusLine = null, focusOffset = null } = {}) {
   });
   updatePreviewCursor();
   applyZoom();
+  requestAnimationFrame(alignAnnotationOrbs);
 }
 
 function placeCaretAtOffset(element, offset) {
@@ -2253,6 +2355,7 @@ function setTheme(theme) {
   if (theme === "system") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = theme;
   const effective = theme === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : theme;
   document.documentElement.dataset.effectiveTheme = effective;
+  $("#app-theme-color").content = effective === "dark" ? "#17191b" : "#f4f4f2";
   $("#theme-value").textContent = effective[0].toUpperCase() + effective.slice(1);
   $("#theme").title = `Switch to ${effective === "dark" ? "light" : "dark"} mode`;
 }
@@ -2261,6 +2364,37 @@ function cycleTheme() {
   const effective = document.documentElement.dataset.effectiveTheme || "light";
   setTheme(effective === "dark" ? "light" : "dark");
 }
+
+function isStandaloneApp() {
+  return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+}
+
+function updateAppWindowControls() {
+  const fullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+  const fullscreenButton = $("#toggle-fullscreen");
+  const fullscreenSupported = Boolean(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+  fullscreenButton.hidden = isStandaloneApp() || !fullscreenSupported;
+  fullscreenButton.textContent = fullscreen ? "Exit full screen" : "Enter full screen";
+  $("#install-app").hidden = !installPrompt || isStandaloneApp();
+}
+
+async function toggleFullscreen() {
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    await (document.exitFullscreen?.() || document.webkitExitFullscreen?.());
+  } else {
+    await (document.documentElement.requestFullscreen?.({ navigationUI: "hide" }) || document.documentElement.webkitRequestFullscreen?.());
+  }
+  updateAppWindowControls();
+}
+
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  installPrompt = event;
+  updateAppWindowControls();
+});
+window.addEventListener("appinstalled", () => { installPrompt = null; updateAppWindowControls(); });
+document.addEventListener("fullscreenchange", updateAppWindowControls);
+document.addEventListener("webkitfullscreenchange", updateAppWindowControls);
 
 function togglePanel(panel, force) {
   const collapsed = force ?? !document.body.classList.contains(`${panel}-collapsed`);
@@ -2300,7 +2434,7 @@ function applyZoom() {
     $("#preview-page-stage").style.removeProperty("width");
     $("#preview-page-stage").style.removeProperty("min-height");
     page.style.setProperty("--mobile-preview-zoom", scale);
-    requestAnimationFrame(() => clampPreviewScroll());
+    requestAnimationFrame(() => { clampPreviewScroll(); alignAnnotationOrbs(); });
     scheduleWorkspaceCache();
     return;
   }
@@ -2332,6 +2466,7 @@ function applyZoom() {
   requestAnimationFrame(() => {
     preview.scrollLeft = Math.max(0, (preview.scrollWidth - preview.clientWidth) / 2);
     clampPreviewScroll(preview);
+    alignAnnotationOrbs();
   });
   scheduleWorkspaceCache();
 }
@@ -3100,7 +3235,38 @@ page.addEventListener("keyup", (event) => {
   const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); const edit = previewSelection(line); if (edit) setSourceSelectionFromPreview(edit);
 });
 page.addEventListener("focusout", () => setTimeout(() => { if (!$("#preview-completion-menu").matches(":hover")) hidePreviewCompletions(); }, 0));
+let previewTouchMenuTimer = 0;
+let previewTouchStart = null;
+let suppressPreviewClickUntil = 0;
+function cancelPreviewTouchMenu() {
+  clearTimeout(previewTouchMenuTimer);
+  previewTouchMenuTimer = 0;
+  previewTouchStart = null;
+}
+page.addEventListener("pointerdown", (event) => {
+  if (event.pointerType === "mouse" || event.target.closest(".annotation-orb")) return;
+  const line = event.target.closest(".script-line");
+  if (!line) return;
+  cancelPreviewTouchMenu();
+  previewTouchStart = { x: event.clientX, y: event.clientY };
+  previewTouchMenuTimer = setTimeout(() => {
+    previewTouchMenuTimer = 0;
+    if (!line.isConnected) return;
+    suppressPreviewClickUntil = Date.now() + 900;
+    hidePreviewCompletions();
+    placePreviewCaretFromPoint(line, event.clientX, event.clientY);
+    showPreviewContextMenu(line, event.clientX + 12, event.clientY + 12);
+    navigator.vibrate?.(8);
+  }, 420);
+});
+page.addEventListener("pointermove", (event) => {
+  if (!previewTouchStart || Math.hypot(event.clientX - previewTouchStart.x, event.clientY - previewTouchStart.y) <= 10) return;
+  cancelPreviewTouchMenu();
+});
+page.addEventListener("pointerup", cancelPreviewTouchMenu);
+page.addEventListener("pointercancel", cancelPreviewTouchMenu);
 page.addEventListener("contextmenu", (event) => {
+  if (Date.now() < suppressPreviewClickUntil) { event.preventDefault(); return; }
   const line = event.target.closest(".script-line");
   if (!line || event.target.closest(".annotation-orb")) return;
   event.preventDefault();
@@ -3110,6 +3276,7 @@ page.addEventListener("contextmenu", (event) => {
   showPreviewContextMenu(line, event.clientX, event.clientY);
 });
 page.addEventListener("click", (event) => {
+  if (Date.now() < suppressPreviewClickUntil) { event.preventDefault(); return; }
   hidePreviewContextMenu();
   const orb = event.target.closest(".annotation-orb");
   if (orb) { event.preventDefault(); openAnnotationEditor(Number(orb.dataset.annotationLine)); }
@@ -3418,13 +3585,28 @@ $("#clear-workspace-on-exit").addEventListener("change", (event) => {
   if (event.target.checked) clearWorkspaceCache();
   else scheduleWorkspaceCache();
 });
-$("#open-background-dialog").addEventListener("click", () => $("#background-dialog").showModal());
+$("#open-background-dialog").addEventListener("click", () => {
+  if (isMobilePreview()) {
+    requestAnimationFrame(() => {
+      setMobileMenu(false);
+      $("#background-dialog").showModal();
+    });
+  } else $("#background-dialog").showModal();
+});
 $("#preview-background").addEventListener("change", (event) => {
   localStorage.setItem("fountain-publisher.preview-background", event.target.value);
   applyPreviewBackground();
 });
 $("#preview-dot-radius").addEventListener("input", (event) => {
   localStorage.setItem("fountain-publisher.preview-dot-radius", event.target.value);
+  applyPreviewBackground();
+});
+$("#preview-dot-direction").addEventListener("change", (event) => {
+  localStorage.setItem("fountain-publisher.preview-dot-direction", event.target.value);
+  applyPreviewBackground();
+});
+$("#preview-dot-speed").addEventListener("input", (event) => {
+  localStorage.setItem("fountain-publisher.preview-dot-speed", event.target.value);
   applyPreviewBackground();
 });
 $("#page-size").addEventListener("change", () => { scheduleCompile(0); if (state.previewMode === "pdf") refreshPdf(); });
@@ -3453,6 +3635,14 @@ $("#menu-toggle-source-tab").addEventListener("click", () => {
     void setPreviewMode("live");
   }
   closeMenus();
+});
+$("#toggle-fullscreen").addEventListener("click", () => { void toggleFullscreen(); });
+$("#install-app").addEventListener("click", async () => {
+  if (!installPrompt) return;
+  await installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  updateAppWindowControls();
 });
 $("#undo").addEventListener("click", undoDocument); $("#redo").addEventListener("click", redoDocument);
 $$('[data-workspace-zoom]').forEach((control) => control.addEventListener("change", () => { state.previewZoom = control.value; applyZoom(); }));
@@ -3556,13 +3746,6 @@ $("#insert-scene").addEventListener("click", () => { appendToSource("INT. LOCATI
 $("#insert-dialogue").addEventListener("click", () => { appendToSource("CHARACTER\nDialogue here.\n\n"); });
 $("#insert-direction").addEventListener("click", () => { appendToSource("Action description.\n\n"); });
 $("#insert-pagebreak").addEventListener("click", () => { appendToSource("===\n\n"); });
-$("#beat-sheet-empty-state").addEventListener("click", (event) => {
-  const action = event.target.closest("[data-blank-insert]")?.dataset.blankInsert;
-  if (action === "title") openTitlePageDialog();
-  else if (action === "scene") appendToSource("INT. LOCATION - DAY\n\n");
-  else if (action === "dialogue") appendToSource("CHARACTER\nDialogue here.\n\n");
-  else if (action === "direction") appendToSource("Action description.\n\n");
-});
 $("#menu-insert-title-page").addEventListener("click", openTitlePageDialog);
 $("#menu-insert-scene").addEventListener("click", () => { appendToSource("INT. LOCATION - DAY\n\n"); });
 $("#menu-insert-dialogue").addEventListener("click", () => { appendToSource("CHARACTER\nDialogue here.\n\n"); });
@@ -3609,8 +3792,17 @@ $("#mobile-menu-toggle").addEventListener("click", () => setMobileMenu(!document
 $("#mobile-menu-backdrop").addEventListener("click", () => setMobileMenu(false));
 
 toolbarMenus.forEach((menu) => menu.addEventListener("click", (event) => {
-  if (event.target.closest("button")) { menu.open = false; if (isMobilePreview()) setMobileMenu(false); }
-  else if (event.target.closest("summary")) closeMenus(menu);
+  if (event.target.closest("button, a")) {
+    // Let the tapped control finish dispatching before hiding its details/drawer.
+    // Closing synchronously can cancel the action in mobile WebKit.
+    requestAnimationFrame(() => {
+      menu.open = false;
+      if (isMobilePreview()) setMobileMenu(false);
+    });
+  }
+}));
+toolbarMenus.forEach((menu) => menu.addEventListener("toggle", () => {
+  if (menu.open) closeMenus(menu);
 }));
 document.addEventListener("pointerdown", (event) => toolbarMenus.forEach((menu) => {
   if (menu.open && !menu.contains(event.target)) menu.open = false;
@@ -3661,9 +3853,17 @@ window.addEventListener("resize", () => {
   updateVimUi();
 });
 
+function registerAppServiceWorker() {
+  const localHost = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
+  if (!("serviceWorker" in navigator) || location.protocol !== "https:" || localHost) return;
+  navigator.serviceWorker.register("./service-worker.js").catch(() => { /* Online use remains available if registration is blocked. */ });
+}
+
 async function initialize() {
   updateMobileViewport();
   setTheme(state.theme);
+  updateAppWindowControls();
+  registerAppServiceWorker();
   const showSourceTab = sourceTabEnabled();
   document.body.classList.toggle("source-tab-hidden", !showSourceTab);
   $(".menu-check", $("#menu-toggle-source-tab")).textContent = showSourceTab ? "✓" : "";

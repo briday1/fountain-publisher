@@ -20,6 +20,31 @@ test("application shell exposes editing, preview, and insights regions", async (
   assert.match(html, /id="export-pdf"/);
 });
 
+test("app installs as a standalone PWA and offers desktop window controls", async () => {
+  const [html, app, manifestText, worker, build, pyproject] = await Promise.all([
+    readFile(htmlPath, "utf8"),
+    readFile(appPath, "utf8"),
+    readFile(new URL("../../src/fountain_publisher/web/app.webmanifest", import.meta.url), "utf8"),
+    readFile(new URL("../../src/fountain_publisher/web/service-worker.js", import.meta.url), "utf8"),
+    readFile(new URL("../../scripts/build-web.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../pyproject.toml", import.meta.url), "utf8"),
+  ]);
+  const manifest = JSON.parse(manifestText);
+  assert.equal(manifest.display, "standalone");
+  assert.deepEqual(manifest.display_override, ["standalone"]);
+  assert.match(html, /apple-mobile-web-app-capable" content="yes"/);
+  assert.match(html, /rel="apple-touch-icon" href="icons\/apple-touch-icon\.png"/);
+  assert.match(html, /rel="manifest" href="app\.webmanifest"/);
+  assert.match(html, /id="install-app"/);
+  assert.match(html, /id="toggle-fullscreen"/);
+  assert.match(app, /beforeinstallprompt/);
+  assert.match(app, /requestFullscreen/);
+  assert.match(app, /navigator\.serviceWorker\.register\("\.\/service-worker\.js"\)/);
+  assert.match(worker, /CACHE_NAME[\s\S]*request\.mode === "navigate"[\s\S]*caches\.match/);
+  assert.match(build, /app\.webmanifest[\s\S]*service-worker\.js[\s\S]*icons/);
+  assert.match(pyproject, /web\/icons\/\*/);
+});
+
 test("desktop panel headers share a height and preview controls follow its title", async () => {
   const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /class="preview-heading"[\s\S]*<small>SCREENPLAY<\/small><h2>Preview<\/h2>[\s\S]*class="view-switcher"/);
@@ -95,7 +120,8 @@ test("toolbar menus use Pugflow-style popup interaction", async () => {
   assert.match(css, /\.toolbar-menu\s*\{[^}]*height:\s*30px;/s);
   assert.match(css, /\.toolbar-popover\s*\{[^}]*position:\s*absolute;[^}]*width:\s*210px;/s);
   assert.match(app, /document\.addEventListener\("pointerdown"/);
-  assert.match(app, /event\.target\.closest\("summary"\)\) closeMenus\(menu\)/);
+  assert.doesNotMatch(app, /event\.target\.closest\("summary"\)[\s\S]*event\.preventDefault\(\)/);
+  assert.match(app, /menu\.addEventListener\("toggle", \(\) => \{[\s\S]*if \(menu\.open\) closeMenus\(menu\)/);
 });
 
 test("app info uses one understated GitHub link", async () => {
@@ -104,6 +130,20 @@ test("app info uses one understated GitHub link", async () => {
   assert.doesNotMatch(html, /href="https:\/\/github\.com\/vilcans\/screenplain"/);
   assert.match(html, />View on GitHub<\/a>/);
   assert.match(css, /\.about-popover a\s*\{[^}]*color:\s*var\(--ink\);[^}]*font-weight:\s*700;/s);
+});
+
+test("third-party license notices accompany local and static distributions", async () => {
+  const [html, readme, notices, build] = await Promise.all([
+    readFile(htmlPath, "utf8"),
+    readFile(new URL("../../README.md", import.meta.url), "utf8"),
+    readFile(new URL("../../src/fountain_publisher/web/THIRD_PARTY_NOTICES.md", import.meta.url), "utf8"),
+    readFile(new URL("../../scripts/build-web.mjs", import.meta.url), "utf8"),
+  ]);
+  assert.doesNotMatch(html, />Third-party notices<\/a>/);
+  assert.match(readme, /\[Third-party notices\]\(src\/fountain_publisher\/web\/THIRD_PARTY_NOTICES\.md\)/);
+  assert.match(notices, /Pyodide 314\.0\.6[\s\S]*Mozilla Public License 2\.0/);
+  assert.match(notices, /Screenplain 0\.12\.0[\s\S]*ReportLab 5\.0\.1[\s\S]*Courier Prime/);
+  assert.match(build, /THIRD_PARTY_NOTICES\.md/);
 });
 
 test("source and preview share syntax, cursor synchronization, and character completion behavior", async () => {
@@ -286,7 +326,7 @@ test("new documents open to a blank canvas with starter helpers", async () => {
   assert.match(html, /id="insert-scene"/);
   assert.match(html, /id="insert-dialogue"/);
   assert.match(html, /id="beat-sheet-empty-state"[\s\S]*Map the story before/);
-  assert.match(html, /data-blank-insert="title"[\s\S]*data-blank-insert="scene"[\s\S]*data-blank-insert="dialogue"[\s\S]*data-blank-insert="direction"/);
+  assert.doesNotMatch(html, /data-blank-insert/);
   assert.match(app, /localStorage\.getItem\("fountain-publisher\.preview"\) \|\| "beats"/);
   assert.match(app, /beat-sheet-empty-state[^\n]*hidden = hasBeatSheet/);
 });
@@ -458,7 +498,14 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(app, /\["dialogue", "parenthetical", "note"\]\.includes/);
   assert.match(css, /\.annotation-orb\s*\{/);
   assert.match(css, /\.annotation-orb\s*\{[^}]*top:\s*1px;/s);
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.annotation-orb\s*\{\s*left:\s*calc\(100% \+ 4px\);/s);
+  assert.match(app, /function alignAnnotationOrbs\(\)[\s\S]*targetX[\s\S]*orb\.style\.left/);
+  assert.match(app, /requestAnimationFrame\(alignAnnotationOrbs\)/);
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*padding:\s*48px max\(28px, 7vw\) 72px;/s);
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.annotation-orb\s*\{[^}]*width:\s*16px;[^}]*height:\s*16px;/s);
+  assert.match(css, /\.annotation-orb::after\s*\{[^}]*inset:\s*-8px;/s);
+  assert.match(app, /page\.addEventListener\("pointerdown"[\s\S]*previewTouchMenuTimer = setTimeout[\s\S]*showPreviewContextMenu[\s\S]*420/);
+  assert.match(app, /page\.addEventListener\("pointermove"[\s\S]*Math\.hypot[\s\S]*cancelPreviewTouchMenu/);
+  assert.match(css, /\.preview-context-menu button\s*\{[^}]*min-height:\s*44px;/s);
   assert.match(css, /\.preview-context-menu\s*\{/);
   assert.match(css, /\.general-notes\s*\{/);
 });
@@ -689,23 +736,35 @@ test("preview zoom clamps scaled bounds and reports the calculated fit percentag
   assert.match(css, /\.preview-page-stage\s*\{[^}]*margin:\s*0 auto;/s);
 });
 
-test("preview background popup supports blank and adjustable dots", async () => {
+test("preview background popup supports themed, directional dot motion", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   const settingsMenu = html.match(/<details class="toolbar-menu settings-menu">([\s\S]*?)<\/details>/)?.[1] || "";
   assert.match(settingsMenu, /id="open-background-dialog"[^>]*>Background…<\/button>/);
   assert.match(html, /<dialog id="background-dialog"/);
   assert.match(html, /id="preview-background"[\s\S]*value="blank">Blank[\s\S]*value="dots" selected>Dots/);
+  assert.doesNotMatch(html, /value="rain"|Raindrops|preview-rain-speed/);
   assert.doesNotMatch(html, /Damascus|value="damascus"/);
   assert.match(html, /id="preview-dot-radius" type="range" min="0\.6" max="1\.8" step="0\.1" value="1"/);
+  assert.match(html, /id="background-pattern-preview"[^>]*data-background="dots"/);
+  assert.match(html, /id="preview-dot-direction"[\s\S]*value="up"[\s\S]*value="down"[\s\S]*value="left"[\s\S]*value="right"[\s\S]*value="up-left"[\s\S]*value="up-right"[\s\S]*value="down-left"[\s\S]*value="down-right"[\s\S]*value="random"/);
+  assert.match(html, /id="preview-dot-speed" type="range" min="1" max="100" step="1" value="20"/);
   assert.match(css, /\.preview-scroll\[data-background="dots"\][^}]*radial-gradient[^}]*background-size:\s*16px 16px;/s);
+  assert.match(css, /\.background-pattern-preview\s*\{[^}]*background-color:\s*var\(--bg\);/s);
+  assert.match(css, /background-position:\s*var\(--preview-dot-x, 0px\) var\(--preview-dot-y, 0px\)/);
   assert.doesNotMatch(css, /data-background="damascus"|repeating-radial-gradient/);
   assert.match(css, /#background-dialog\s*\{[^}]*width:\s*min\(390px,/s);
   assert.doesNotMatch(css, /\.preview-scroll\s*\{[^}]*background-color:/s);
   assert.match(app, /function applyPreviewBackground\(\)/);
+  assert.match(css, /\.beat-guide-layer\s*\{[^}]*position:\s*absolute;/s);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-background", event\.target\.value\)/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-dot-radius", event\.target\.value\)/);
+  assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-dot-direction", event\.target\.value\)/);
+  assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-dot-speed", event\.target\.value\)/);
+  assert.match(app, /time - dotRandomChangedAt >= 60000/);
+  assert.match(app, /1 - Math\.exp\(-dt \/ 6\)/);
   assert.match(app, /hidden = pattern !== "dots"/);
-  assert.match(app, /#background-dialog"\)\.showModal\(\)/);
+  assert.match(app, /open-background-dialog[\s\S]*requestAnimationFrame\(\(\) => \{[\s\S]*setMobileMenu\(false\);[\s\S]*\$\("#background-dialog"\)\.showModal\(\)/);
+  assert.match(app, /event\.target\.closest\("button, a"\)[\s\S]*requestAnimationFrame\(\(\) => \{[\s\S]*menu\.open = false;[\s\S]*setMobileMenu\(false\)/);
 });
 
 test("mobile PDF export path remains accessible via toolbar File menu", async () => {

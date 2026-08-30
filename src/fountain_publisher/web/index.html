@@ -4,8 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Write, preview, and publish Fountain screenplays." />
+    <meta name="theme-color" id="app-theme-color" content="#f4f4f2" />
+    <meta name="application-name" content="Fountain Publisher" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Fountain Publisher" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:; worker-src 'self' blob:; connect-src 'self' https://api.fountain-publisher.com" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23000'/><text x='16' y='23' text-anchor='middle' font-family='Georgia,serif' font-weight='700' font-size='20' fill='%23fff'>F</text></svg>" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <link rel="manifest" href="app.webmanifest" />
     <title>Fountain Publisher</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -52,6 +59,10 @@
             <button data-preview-mode="beats" type="button">Beat Sheet <span class="menu-check"></span></button>
             <button data-preview-mode="pdf" type="button">Exact PDF preview <span class="menu-check"></span></button>
             <button id="menu-toggle-beat-guide" type="button">Beat guide <span class="menu-check"></span></button>
+            <span class="menu-separator"></span>
+            <strong>APP</strong>
+            <button id="install-app" type="button" hidden>Install app…</button>
+            <button id="toggle-fullscreen" type="button">Enter full screen</button>
           </div>
         </details>
         <details class="toolbar-menu document-menu">
@@ -175,12 +186,6 @@
             <div id="beat-sheet-empty-state" class="beat-sheet-empty-state">
               <strong>Map the story before—or while—you write.</strong>
               <span>Start with the premise, then add each story beat below. Press Enter to move to the next beat. Later, use the Beat guide in Preview to connect screenplay passages to this map.</span>
-              <div class="empty-actions" aria-label="Start the screenplay">
-                <button type="button" data-blank-insert="title">Add title page</button>
-                <button type="button" data-blank-insert="scene">Add scene</button>
-                <button type="button" data-blank-insert="dialogue">Add dialogue</button>
-                <button type="button" data-blank-insert="direction">Add direction</button>
-              </div>
             </div>
             <label class="premise-field"><span>Premise</span><textarea id="beat-premise" rows="3" placeholder="What is this story really about?"></textarea></label>
             <div class="beat-sheet-title"><div><small>STORY FLOW</small><h3>Beats and assignments</h3></div><div><button id="view-beat-progress" type="button">View pacing graph</button><button id="add-beat" type="button">+ Add beat</button></div></div>
@@ -280,8 +285,11 @@
     <dialog id="background-dialog" aria-labelledby="background-dialog-title">
       <form method="dialog" id="background-form">
         <div class="dialog-heading"><small>APPEARANCE</small><h2 id="background-dialog-title">Preview background</h2></div>
+        <div id="background-pattern-preview" class="background-pattern-preview" data-background="dots" aria-hidden="true"><span></span></div>
         <label>Pattern<select id="preview-background"><option value="blank">Blank</option><option value="dots" selected>Dots</option></select></label>
         <label id="preview-dot-radius-row">Dot radius<span class="range-setting"><input id="preview-dot-radius" type="range" min="0.6" max="1.8" step="0.1" value="1" /><output id="preview-dot-radius-value">1.0px</output></span></label>
+        <label id="preview-dot-direction-row">Direction<select id="preview-dot-direction"><option value="still" selected>Still</option><option value="up">Up</option><option value="down">Down</option><option value="left">Left</option><option value="right">Right</option><option value="up-left">Up-left</option><option value="up-right">Up-right</option><option value="down-left">Down-left</option><option value="down-right">Down-right</option><option value="random">Random</option></select></label>
+        <label id="preview-dot-speed-row">Speed<span class="range-setting"><input id="preview-dot-speed" type="range" min="1" max="100" step="1" value="20" /><output id="preview-dot-speed-value">20</output></span></label>
         <div class="dialog-actions"><button value="default">Done</button></div>
       </form>
     </dialog>
