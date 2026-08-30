@@ -3556,13 +3556,6 @@ $("#insert-scene").addEventListener("click", () => { appendToSource("INT. LOCATI
 $("#insert-dialogue").addEventListener("click", () => { appendToSource("CHARACTER\nDialogue here.\n\n"); });
 $("#insert-direction").addEventListener("click", () => { appendToSource("Action description.\n\n"); });
 $("#insert-pagebreak").addEventListener("click", () => { appendToSource("===\n\n"); });
-$("#beat-sheet-empty-state").addEventListener("click", (event) => {
-  const action = event.target.closest("[data-blank-insert]")?.dataset.blankInsert;
-  if (action === "title") openTitlePageDialog();
-  else if (action === "scene") appendToSource("INT. LOCATION - DAY\n\n");
-  else if (action === "dialogue") appendToSource("CHARACTER\nDialogue here.\n\n");
-  else if (action === "direction") appendToSource("Action description.\n\n");
-});
 $("#menu-insert-title-page").addEventListener("click", openTitlePageDialog);
 $("#menu-insert-scene").addEventListener("click", () => { appendToSource("INT. LOCATION - DAY\n\n"); });
 $("#menu-insert-dialogue").addEventListener("click", () => { appendToSource("CHARACTER\nDialogue here.\n\n"); });

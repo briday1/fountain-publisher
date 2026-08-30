@@ -286,7 +286,7 @@ test("new documents open to a blank canvas with starter helpers", async () => {
   assert.match(html, /id="insert-scene"/);
   assert.match(html, /id="insert-dialogue"/);
   assert.match(html, /id="beat-sheet-empty-state"[\s\S]*Map the story before/);
-  assert.match(html, /data-blank-insert="title"[\s\S]*data-blank-insert="scene"[\s\S]*data-blank-insert="dialogue"[\s\S]*data-blank-insert="direction"/);
+  assert.doesNotMatch(html, /data-blank-insert/);
   assert.match(app, /localStorage\.getItem\("fountain-publisher\.preview"\) \|\| "beats"/);
   assert.match(app, /beat-sheet-empty-state[^\n]*hidden = hasBeatSheet/);
 });
