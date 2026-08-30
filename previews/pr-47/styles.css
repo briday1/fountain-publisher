@@ -438,7 +438,7 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-sheet-header { min-height: 58px; display: flex; align-items: center; justify-content: flex-start; gap: 16px; padding: 6px 12px 6px 15px; border-bottom: 1px solid var(--border); background: var(--panel); }
 .beat-sheet-header small, .beat-sheet-title small { color: var(--metric-scenes-ink); font-size: 9px; font-weight: 800; letter-spacing: .13em; }
 .beat-sheet-header h2, .beat-sheet-title h3 { margin: 1px 0 0; }
-.beat-sheet-workspace { width: min(816px, calc(100% - 40px)); flex: 1; min-height: 0; overflow: auto; margin: 34px auto 0; padding: 28px; border: 1px solid var(--border); border-bottom: 0; border-radius: 4px 4px 0 0; background: var(--surface); box-shadow: var(--shadow); }
+.beat-sheet-workspace { width: min(816px, calc(100% - 40px)); flex: 1; min-height: 0; overflow: auto; margin: 34px auto 0; padding: 28px; border: 1px solid var(--border); border-bottom: 0; border-radius: 4px 4px 0 0; background: var(--paper); color: var(--paper-ink); box-shadow: var(--shadow); }
 .premise-field { display: block; max-width: 760px; margin: 0 auto 22px; }
 .premise-field > span { display: block; margin-bottom: 7px; color: var(--metric-scenes-ink); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
 .premise-field textarea, .beat-text { box-sizing: border-box; width: 100%; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--ink); font: 13px/1.45 var(--sans); }
@@ -465,7 +465,7 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-remove svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .beat-card:hover > .beat-remove, .beat-card:focus-within > .beat-remove { opacity: 1; }
 .beat-remove:hover { background: color-mix(in srgb, #dc2626 10%, transparent); color: #dc2626; }
-.beat-sheet-actions { width: min(816px, calc(100% - 40px)); display: flex; align-items: center; gap: 8px; margin: 0 auto 34px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 0 0 4px 4px; background: var(--surface); box-shadow: 0 12px 24px rgb(20 24 28 / 8%); }
+.beat-sheet-actions { width: min(816px, calc(100% - 40px)); display: flex; align-items: center; gap: 8px; margin: 0 auto 34px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 0 0 4px 4px; background: var(--paper); color: var(--paper-ink); box-shadow: 0 12px 24px rgb(20 24 28 / 8%); }
 .beat-sheet-actions span { flex: 1; color: var(--muted); font-size: 10px; }
 .beat-sheet-actions button { border: 1px solid var(--border); border-radius: 5px; padding: 7px 13px; background: var(--surface); color: var(--ink); }
 .beat-sheet-actions .primary { border-color: var(--accent); background: var(--accent); color: white; }
