@@ -462,7 +462,7 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-card:hover .beat-card-moves, .beat-card:focus-within .beat-card-moves { opacity: 1; }
 .beat-card-moves button, .beat-remove { width: 22px; height: 21px; min-height: 0; border: 0; border-radius: 3px; padding: 0; background: transparent; color: var(--muted); line-height: 1; }
 .beat-card-moves button:hover { background: var(--surface-2); color: var(--ink); }
-.beat-drag { cursor: grab; font-size: 14px; }
+.beat-drag { cursor: grab; touch-action: none; user-select: none; font-size: 14px; }
 .beat-number { display: grid; place-items: center; width: 21px; height: 21px; margin-bottom: 2px; border-radius: 50%; background: var(--metric-pages-bg); color: var(--metric-pages-ink); font: 800 9px var(--mono); }
 .beat-card-fields { min-width: 0; }
 .beat-text { height: 34px; padding: 6px 9px; outline: 0; }
@@ -486,6 +486,7 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-graph-node > .beat-number { position: relative; z-index: 1; width: 27px; height: 27px; margin: 0; border: 2px solid var(--surface-2); border-radius: 50%; }
 .beat-graph-node > .beat-drag { width: 20px; height: 28px; border: 0; border-radius: 4px; padding: 0; background: transparent; color: var(--muted); cursor: grab; font-size: 15px; }
 .beat-graph-node > .beat-drag:hover, .beat-shift button:hover { background: var(--surface); color: var(--ink); }
+.beat-card.touch-dragging { opacity: .72; }
 .beat-shift { display: flex; flex-direction: column; gap: 1px; }
 .beat-shift button { width: 18px; height: 14px; border: 0; border-radius: 3px; padding: 0; background: transparent; color: var(--muted); font-size: 9px; line-height: 1; }
 .beat-node-box { min-width: 0; display: grid; grid-template-columns: minmax(190px, 1fr) minmax(230px, .85fr) 24px; gap: 8px; align-items: center; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 5%); }

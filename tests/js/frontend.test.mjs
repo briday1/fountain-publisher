@@ -479,6 +479,8 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /event\.key !== "Enter" \|\| !event\.target\.matches\("\.beat-text"\)[\s\S]*nextElementSibling[\s\S]*\.focus\(\)/);
   assert.match(app, /function persistBeatSheet\(\)[\s\S]*function scheduleBeatSheetSave\(\)/);
   assert.match(css, /#beat-sheet-panel\s*\{[\s\S]*\.beat-card\s*\{[\s\S]*\.beat-flow-editor[\s\S]*\.beat-graph-node[\s\S]*\.beat-guide-layer\s*\{[\s\S]*\.script-line\.beat-area/);
+  assert.match(app, /beat-list"\)\.addEventListener\("pointerdown"[\s\S]*setPointerCapture[\s\S]*addEventListener\("pointermove"[\s\S]*finishPointerBeatDrag/);
+  assert.match(css, /\.beat-drag\s*\{[^}]*touch-action:\s*none;[^}]*user-select:\s*none;/s);
   assert.match(css, /#source-panel \.panel-title\s*\{[^}]*justify-content:\s*flex-start;[^}]*gap:\s*16px;/s);
 });
 

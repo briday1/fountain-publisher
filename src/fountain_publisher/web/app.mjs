@@ -3032,6 +3032,39 @@ $("#beat-list").addEventListener("dragover", (event) => {
   const after = event.clientY > target.getBoundingClientRect().top + target.offsetHeight / 2;
   target.parentElement.insertBefore(draggedBeat, after ? target.nextSibling : target);
 });
+let pointerDraggedBeat = null;
+let beatDragPointerId = null;
+$("#beat-list").addEventListener("pointerdown", (event) => {
+  if (event.pointerType === "mouse") return;
+  const handle = event.target.closest(".beat-drag");
+  if (!handle) return;
+  pointerDraggedBeat = handle.closest(".beat-card");
+  beatDragPointerId = event.pointerId;
+  handle.setPointerCapture?.(event.pointerId);
+  pointerDraggedBeat?.classList.add("dragging", "touch-dragging");
+  event.preventDefault();
+});
+$("#beat-list").addEventListener("pointermove", (event) => {
+  if (!pointerDraggedBeat || event.pointerId !== beatDragPointerId) return;
+  event.preventDefault();
+  const siblings = $$(".beat-card", $("#beat-list")).filter((card) => card !== pointerDraggedBeat);
+  const before = siblings.find((card) => event.clientY < card.getBoundingClientRect().top + card.offsetHeight / 2);
+  $("#beat-list").insertBefore(pointerDraggedBeat, before || null);
+  const scrollArea = $(".beat-sheet-workspace");
+  const bounds = scrollArea.getBoundingClientRect();
+  if (event.clientY < bounds.top + 48) scrollArea.scrollTop -= 14;
+  else if (event.clientY > bounds.bottom - 48) scrollArea.scrollTop += 14;
+});
+function finishPointerBeatDrag(event) {
+  if (!pointerDraggedBeat || event.pointerId !== beatDragPointerId) return;
+  pointerDraggedBeat.classList.remove("dragging", "touch-dragging");
+  pointerDraggedBeat = null;
+  beatDragPointerId = null;
+  renumberBeatCards();
+  scheduleBeatSheetSave();
+}
+$("#beat-list").addEventListener("pointerup", finishPointerBeatDrag);
+$("#beat-list").addEventListener("pointercancel", finishPointerBeatDrag);
 $("#beat-list").addEventListener("keydown", (event) => {
   if (event.key !== "Enter" || !event.target.matches(".beat-text")) return;
   event.preventDefault();
