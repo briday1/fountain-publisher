@@ -735,6 +735,8 @@ test("preview background popup supports blank and adjustable dots", async () => 
   assert.match(app, /preview-rain-speed[\s\S]*rainDt = dt \* speed[\s\S]*floorY = height \+ 180/);
   assert.match(app, /prefers-reduced-motion: reduce/);
   assert.match(css, /\.rain-background-canvas\s*\{[^}]*position:\s*absolute;[^}]*pointer-events:\s*none;/s);
+  assert.doesNotMatch(css, /> :not\(\.rain-background-canvas\)[^{]*\{[^}]*position:\s*relative/s);
+  assert.match(css, /\.beat-guide-layer\s*\{[^}]*position:\s*absolute;/s);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-background", event\.target\.value\)/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-dot-radius", event\.target\.value\)/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-rain-speed", event\.target\.value\)/);
