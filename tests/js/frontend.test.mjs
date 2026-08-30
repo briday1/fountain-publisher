@@ -55,6 +55,14 @@ test("desktop panel headers share a height and preview controls follow its title
   assert.match(css, /\.beat-sheet-header small\s*\{[^}]*font-size:\s*9px;[^}]*font-weight:\s*700;[^}]*letter-spacing:\s*\.12em;/s);
 });
 
+test("tablet landscape keeps document identity clear of history controls", async () => {
+  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(css, /@media\s*\(min-width:\s*901px\) and \(max-width:\s*1180px\)[\s\S]*\.global-actions::after\s*\{[^}]*flex:\s*0 0 190px;/s);
+  assert.match(css, /@media\s*\(min-width:\s*901px\) and \(max-width:\s*1180px\)[\s\S]*\.document-identity\s*\{[^}]*right:\s*12px;[^}]*width:\s*174px;/s);
+  assert.match(app, /function shouldAutofocusSource\(\)\s*\{[\s\S]*navigator\.maxTouchPoints === 0/);
+  assert.match(app, /mode === "source"[\s\S]*shouldAutofocusSource\(\)[\s\S]*source\.focus\(\{ preventScroll: true \}\)/);
+});
+
 test("browser page-count compilation only updates metrics present in the document", async () => {
   const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
   assert.doesNotMatch(html, /id="stat-runtime"/);

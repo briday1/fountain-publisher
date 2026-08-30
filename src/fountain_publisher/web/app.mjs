@@ -2357,6 +2357,10 @@ function isMobilePreview() {
   return matchMedia("(max-width: 640px)").matches;
 }
 
+function shouldAutofocusSource() {
+  return navigator.maxTouchPoints === 0;
+}
+
 async function setPreviewMode(mode) {
   if (!['source', 'live', 'pdf', 'beats'].includes(mode)) mode = "live";
   if (mode === "source" && !sourceTabEnabled()) mode = "live";
@@ -2377,7 +2381,10 @@ async function setPreviewMode(mode) {
   renderBeatGuide();
   requestAnimationFrame(applyZoom);
   scheduleWorkspaceCache();
-  if (mode === "source") { renderEditorChrome(); source.focus(); }
+  if (mode === "source") {
+    renderEditorChrome();
+    if (shouldAutofocusSource()) source.focus({ preventScroll: true });
+  }
   if (mode === "beats") renderBeatSheetView();
   if (mode === "pdf") await refreshPdf();
   else if (returnToLive) requestAnimationFrame(() => requestAnimationFrame(() => {
