@@ -1354,7 +1354,12 @@ function renderSceneCharacterAnalytics(sceneIndex) {
   const chartViewport = $(".analytics-chart-scroll", $("#character-analytics-dialog"));
   const scene = state.metadata.scenes[sceneIndex];
   const { segments, total } = sceneCharacterWordSegments(sceneIndex);
-  const characters = [...new Set(segments.map((segment) => segment.character))];
+  const presentCharacters = new Set(segments.map((segment) => segment.character));
+  const rollupOrder = (state.metadata.characters || []).map((character) => character.name);
+  const characters = [
+    ...rollupOrder.filter((character) => presentCharacters.has(character)),
+    ...[...presentCharacters].filter((character) => !rollupOrder.includes(character)),
+  ];
   const scale = Math.min(window.devicePixelRatio || 1, 2);
   const labelWidth = 150;
   const plotWidth = Math.max(760, chartViewport.clientWidth - labelWidth);
