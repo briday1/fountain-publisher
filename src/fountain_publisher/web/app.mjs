@@ -1778,6 +1778,7 @@ function setDocument(text, filename, saved = false, githubFile = null) {
   source.value = text; state.history = [text]; state.historyIndex = 0; state.filename = filename || "Untitled.fountain"; if (saved) state.savedSource = text;
   state.githubFile = githubFile;
   $("#filename").textContent = state.filename; document.title = `${state.filename} — Fountain Publisher`; sourceChanged();
+  requestAnimationFrame(updateToolbarIdentityLayout);
 }
 
 async function saveFile(saveAs = false) {
@@ -2359,6 +2360,16 @@ function isMobilePreview() {
 
 function shouldAutofocusSource() {
   return navigator.maxTouchPoints === 0;
+}
+
+function updateToolbarIdentityLayout() {
+  const toolbar = $(".app-toolbar");
+  const identity = $(".document-identity");
+  if (isMobilePreview()) { toolbar.classList.remove("title-right"); return; }
+  const wasRight = toolbar.classList.contains("title-right");
+  toolbar.classList.remove("title-right");
+  const centeredGap = identity.getBoundingClientRect().left - $("#redo").getBoundingClientRect().right;
+  toolbar.classList.toggle("title-right", centeredGap < (wasRight ? 80 : 48));
 }
 
 async function setPreviewMode(mode) {
@@ -3902,6 +3913,7 @@ window.addEventListener("resize", () => {
   if (isMobilePreview() && state.previewMode === "pdf") void setPreviewMode("live");
   applyZoom();
   updateVimUi();
+  updateToolbarIdentityLayout();
   if ($("#character-analytics-dialog").open) renderCharacterAnalytics();
 });
 
