@@ -609,12 +609,14 @@ test("mobile shows one panel at a time via tab bar", async () => {
   assert.match(html, /class="mobile-panel-tabs"/);
   assert.match(html, /data-mobile-panel="source"/);
   assert.match(html, /data-mobile-panel="preview"/);
+  assert.match(html, /data-mobile-panel="beats"/);
   assert.match(html, /data-mobile-panel="stats"/);
   // Mobile media query hides non-active panels
   assert.match(css, /\.mobile-panel-tabs\s*\{\s*display:\s*none;/);
   assert.match(css, /max-width:\s*640px/);
   assert.match(css, /body\[data-mobile-tab="source"\] #source-panel\s*\{\s*display:\s*flex;/);
   assert.match(css, /body\[data-mobile-tab="preview"\] \.preview-panel\s*\{\s*display:\s*flex;/);
+  assert.match(css, /body\[data-mobile-tab="beats"\] #beat-sheet-panel\s*\{\s*display:\s*flex;/);
   assert.match(css, /body\[data-mobile-tab="stats"\] #stats-panel\s*\{\s*display:\s*flex/);
   // JS function exists and persists choice
   assert.match(app, /function setMobileTab\(/);
@@ -632,13 +634,14 @@ test("character completions appear in preview regardless of line position", asyn
   assert.match(fnMatch[0], /\/\^\[A-Z\]/);
 });
 
-test("mobile preview is live-only, reflows horizontally, and retains zoom controls", async () => {
+test("mobile preview excludes PDF, supports Beat Sheet, and reflows horizontally", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.view-switcher\s*\{\s*display:\s*none;/);
   assert.match(css, /\.preview-scroll\s*\{[^}]*overflow-x:\s*hidden;/s);
   assert.match(css, /\.screenplay-page\s*\{[^}]*width:\s*100%;[^}]*font-size:\s*calc\(16px \* var\(--mobile-preview-zoom,\s*1\)\);/s);
   assert.match(css, /body\.scene-nums-margin \.screenplay-page\s*\{[^}]*padding-left:\s*calc\(54px \* var\(--mobile-preview-zoom,\s*1\)\);/s);
-  assert.match(app, /isMobilePreview\(\) && \['pdf', 'beats'\]\.includes\(mode\)/);
+  assert.match(app, /isMobilePreview\(\) && mode === "pdf"/);
+  assert.match(app, /panel === "beats"[\s\S]*setPreviewMode\("beats"\)/);
   assert.match(html, /class="view-switcher"[\s\S]*data-preview-mode="live"[\s\S]*data-preview-mode="pdf"/);
   assert.match(html, /class="preview-actions workspace-zoom-actions"[\s\S]*id="zoom-out"[\s\S]*id="zoom"[\s\S]*id="zoom-in"[\s\S]*id="zoom-fit"/);
 });

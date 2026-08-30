@@ -637,6 +637,11 @@ button:disabled { cursor: default; opacity: .45; }
   body[data-mobile-tab="preview"] #beat-sheet-panel,
   body[data-mobile-tab="preview"] #stats-panel { display: none !important; }
 
+  body[data-mobile-tab="beats"] #beat-sheet-panel { display: flex; }
+  body[data-mobile-tab="beats"] #source-panel,
+  body[data-mobile-tab="beats"] .preview-panel,
+  body[data-mobile-tab="beats"] #stats-panel { display: none !important; }
+
   body[data-mobile-tab="stats"] #stats-panel { display: flex !important; }
   body[data-mobile-tab="stats"] #source-panel,
   body[data-mobile-tab="stats"] #beat-sheet-panel,

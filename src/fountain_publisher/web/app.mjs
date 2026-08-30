@@ -2137,7 +2137,7 @@ function isMobilePreview() {
 async function setPreviewMode(mode) {
   if (!['source', 'live', 'pdf', 'beats'].includes(mode)) mode = "live";
   if (mode === "source" && !sourceTabEnabled()) mode = "live";
-  if (isMobilePreview() && ['pdf', 'beats'].includes(mode)) mode = "live";
+  if (isMobilePreview() && mode === "pdf") mode = "live";
   const preview = $("#preview-scroll");
   const returnToLive = state.previewMode === "pdf" && mode === "live";
   if (state.previewMode === "live" && mode === "pdf") {
@@ -3362,6 +3362,7 @@ function setMobileTab(panel) {
   localStorage.setItem("fountain-publisher.mobile-tab", panel);
   if (panel === "source" && isMobilePreview()) void setPreviewMode("source");
   else if (panel === "preview" && isMobilePreview() && state.previewMode !== "live") void setPreviewMode("live");
+  else if (panel === "beats" && isMobilePreview() && state.previewMode !== "beats") void setPreviewMode("beats");
   else if (panel === "preview" && state.previewMode === "pdf") refreshPdf();
   if (panel === "source") { renderEditorChrome(); scrollSourceTarget(currentPosition().line, "center"); }
   if (panel !== "stats" && state.insightLine !== null) requestAnimationFrame(() => jumpToLine(state.insightLine, false));
@@ -3454,7 +3455,7 @@ async function initialize() {
   const enableWorkspaceCache = params.get("demo") !== "1";
   setDocument(text, name, !restore, restore ? cached.githubFile || null : null);
   void refreshGithubSession();
-  const storedMobileTab = localStorage.getItem("fountain-publisher.mobile-tab") || "source";
+  const storedMobileTab = localStorage.getItem("fountain-publisher.mobile-tab") || "beats";
   const initialMobileTab = !showSourceTab && storedMobileTab === "source" ? "preview" : storedMobileTab;
   setMobileTab(initialMobileTab);
   if (restore && ["fit", "70", "85", "100", "115", "130", "150", "175", "200"].includes(String(cached.zoom))) {
@@ -3464,7 +3465,8 @@ async function initialize() {
   applyZoom();
   const restoredMode = ["source", "live", "pdf", "beats"].includes(cached?.previewMode) ? cached.previewMode : "live";
   const requestedMode = restore ? restoredMode : localStorage.getItem("fountain-publisher.preview") || "beats";
-  await setPreviewMode(isMobilePreview() ? (initialMobileTab === "source" ? "source" : "live") : requestedMode);
+  const initialMobileMode = initialMobileTab === "source" ? "source" : initialMobileTab === "beats" ? "beats" : "live";
+  await setPreviewMode(isMobilePreview() ? initialMobileMode : requestedMode);
   if (restore) requestAnimationFrame(() => {
     const start = Math.min(Number(cached.selectionStart) || 0, source.value.length);
     const end = Math.min(Number(cached.selectionEnd) || start, source.value.length);
