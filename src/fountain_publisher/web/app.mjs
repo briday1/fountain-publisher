@@ -686,12 +686,13 @@ function alignAnnotationOrbs() {
   if (!pageRect.width) return;
   const scale = pageRect.width / page.offsetWidth || 1;
   const paddingRight = parseFloat(getComputedStyle(page).paddingRight) || 0;
-  const targetX = isMobilePreview()
-    ? pageRect.right - paddingRight * scale * .5
-    : pageRect.right - paddingRight * scale + 24 * scale;
+  const mobile = isMobilePreview();
+  const marginCenterX = pageRect.right - paddingRight * scale * .5;
+  const desktopX = pageRect.right - paddingRight * scale + 24 * scale;
   orbs.forEach((orb) => {
     const line = orb.closest(".script-line");
     if (!line) return;
+    const targetX = mobile ? marginCenterX - orb.offsetWidth * scale * .5 : desktopX;
     orb.style.left = `${(targetX - line.getBoundingClientRect().left) / scale}px`;
   });
 }

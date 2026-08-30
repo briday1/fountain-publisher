@@ -509,7 +509,7 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(app, /\["dialogue", "parenthetical", "note"\]\.includes/);
   assert.match(css, /\.annotation-orb\s*\{/);
   assert.match(css, /\.annotation-orb\s*\{[^}]*top:\s*1px;/s);
-  assert.match(app, /function alignAnnotationOrbs\(\)[\s\S]*targetX[\s\S]*orb\.style\.left/);
+  assert.match(app, /function alignAnnotationOrbs\(\)[\s\S]*marginCenterX[\s\S]*orb\.offsetWidth \* scale \* \.5[\s\S]*orb\.style\.left/);
   assert.match(app, /requestAnimationFrame\(alignAnnotationOrbs\)/);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*padding:\s*48px max\(28px, 7vw\) 72px;/s);
   assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.annotation-orb\s*\{[^}]*width:\s*16px;[^}]*height:\s*16px;/s);
