@@ -32,6 +32,14 @@
   --syntax-transition: #b45309;
   --syntax-structure: #0369a1;
   --syntax-ignored: #be123c;
+  --character-chart-1: #0072b2;
+  --character-chart-2: #c65d00;
+  --character-chart-3: #00845f;
+  --character-chart-4: #b43c20;
+  --character-chart-5: #6653b8;
+  --character-chart-6: #a43f83;
+  --character-chart-7: #397b32;
+  --character-chart-8: #716400;
   --metric-pages-bg: #dce7ee;
   --metric-pages-ink: #3f596b;
   --metric-scenes-bg: #e8dfea;
@@ -70,6 +78,14 @@
   --syntax-transition: #fbbf24;
   --syntax-structure: #7dd3fc;
   --syntax-ignored: #fb7185;
+  --character-chart-1: #56b4e9;
+  --character-chart-2: #e69f00;
+  --character-chart-3: #42c99a;
+  --character-chart-4: #f0785a;
+  --character-chart-5: #a99af5;
+  --character-chart-6: #e88bc3;
+  --character-chart-7: #8bcb65;
+  --character-chart-8: #d7c75b;
   --metric-pages-bg: #2b3944;
   --metric-pages-ink: #c2d3df;
   --metric-scenes-bg: #392f3d;
@@ -91,6 +107,8 @@
     --source-bg: #111315; --source-gutter-bg: #181a1c; --source-ink: #cbd5e1; --source-muted: #64748b;
     --syntax-title: #c4b5fd; --syntax-scene: #38bdf8; --syntax-character: #c4b5fd;
     --syntax-parenthetical: #7c8ba1; --syntax-transition: #fbbf24; --syntax-structure: #7dd3fc; --syntax-ignored: #fb7185;
+    --character-chart-1: #56b4e9; --character-chart-2: #e69f00; --character-chart-3: #42c99a; --character-chart-4: #f0785a;
+    --character-chart-5: #a99af5; --character-chart-6: #e88bc3; --character-chart-7: #8bcb65; --character-chart-8: #d7c75b;
     --metric-pages-bg: #2b3944; --metric-pages-ink: #c2d3df;
     --metric-scenes-bg: #392f3d; --metric-scenes-ink: #d7c1da;
     --metric-words-bg: #313a2c; --metric-words-ink: #c8d4bb;

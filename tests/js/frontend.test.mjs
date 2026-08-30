@@ -452,8 +452,11 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.match(html, /id="character-line-table"/);
   assert.match(html, /id="character-line-table" class="character-line-table"/);
   assert.doesNotMatch(app, /table\.style\.width/);
-  assert.match(app, /maxLines === minLines \? 1 : 0\.25 \+ 0\.75/);
-  assert.match(app, /canvasColor\("--syntax-character", "#7c3aed"\)/);
+  assert.match(app, /function characterChartColor\(name\)[\s\S]*findIndex[\s\S]*--character-chart-/);
+  assert.match(app, /function chartLabelColor\(color\)[\s\S]*luminance/);
+  assert.match(app, /renderSceneCharacterAnalytics[\s\S]*characterChartColor\(character\)/);
+  assert.match(app, /renderCharacterAnalytics[\s\S]*characterChartColor\(character\.name\)/);
+  assert.doesNotMatch(app, /context\.globalAlpha = intensity/);
   assert.match(app, /function sceneCharacterWordSegments\(sceneIndex\)[\s\S]*segments\.push\(\{ character: active, start: position, words \}\)/);
   assert.match(app, /function renderSceneCharacterAnalytics\(sceneIndex\)[\s\S]*segment\.start \/ total[\s\S]*segment\.words \/ total/);
   assert.match(app, /state\.metadata\.scenes\.length === 1 \? 0 : null/);
@@ -463,7 +466,8 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.match(app, /return String\(sceneInAct\)/);
   assert.match(app, /fillRect\(0, y, labelWidth \+ scenes\.length \* sceneWidth, rowHeight\)/);
   assert.doesNotMatch(app, /moveTo\(0, y \+ rowHeight \+ 0\.5\)/);
-  assert.match(css, /\.analytics-gradient-legend i\s*\{[^}]*var\(--syntax-character\)[^}]*var\(--syntax-character\)/s);
+  assert.match(css, /--character-chart-1:\s*#0072b2;[\s\S]*--character-chart-8:\s*#716400;/);
+  assert.match(css, /:root\[data-theme="dark"\][\s\S]*--character-chart-1:\s*#56b4e9;[\s\S]*--character-chart-8:\s*#d7c75b;/);
 });
 
 test("source-backed annotations and notes expose preview and sidebar CRUD", async () => {
