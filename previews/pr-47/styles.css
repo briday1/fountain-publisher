@@ -465,12 +465,17 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-sheet-actions button { border: 1px solid var(--border); border-radius: 5px; padding: 7px 13px; background: var(--surface); color: var(--ink); }
 .beat-sheet-actions .primary { border-color: var(--accent); background: var(--accent); color: white; }
 .beat-flow-editor { position: relative; padding-bottom: 20px; }
-.beat-flow-editor::before { content: ""; position: absolute; top: 18px; bottom: 24px; left: 18px; width: 2px; background: color-mix(in srgb, var(--metric-scenes-ink) 38%, var(--border)); }
-.beat-graph-node { position: relative; grid-template-columns: 52px minmax(190px, 1fr) minmax(230px, .85fr) 24px; gap: 8px; align-items: center; margin-bottom: 6px; padding: 6px 8px 6px 5px; border-radius: 8px; }
-.beat-graph-node.assigned { border-color: color-mix(in srgb, var(--metric-scenes-ink) 55%, var(--border)); box-shadow: inset 3px 0 color-mix(in srgb, var(--metric-scenes-ink) 72%, transparent), 0 2px 5px rgb(0 0 0 / 6%); }
-.beat-graph-node .beat-card-moves { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(3, 16px); gap: 1px; padding: 2px; background: var(--surface); border-radius: 8px; }
-.beat-graph-node .beat-number { grid-column: 1 / -1; width: 48px; height: 16px; margin: 0; border-radius: 5px; }
-.beat-graph-node .beat-card-moves button { width: 16px; height: 16px; font-size: 10px; }
+.beat-flow-editor::before { content: ""; position: absolute; top: 20px; bottom: 24px; left: 13px; width: 2px; background: color-mix(in srgb, var(--metric-scenes-ink) 38%, var(--border)); }
+.beat-graph-node { position: relative; display: grid; grid-template-columns: 28px 20px 18px minmax(0, 1fr); gap: 5px; align-items: center; margin-bottom: 5px; padding: 2px 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.beat-graph-node.assigned { border: 0; background: transparent; box-shadow: none; }
+.beat-graph-node > .beat-number { position: relative; z-index: 1; width: 27px; height: 27px; margin: 0; border: 2px solid var(--surface-2); border-radius: 50%; }
+.beat-graph-node > .beat-drag { width: 20px; height: 28px; border: 0; border-radius: 4px; padding: 0; background: transparent; color: var(--muted); cursor: grab; font-size: 15px; }
+.beat-graph-node > .beat-drag:hover, .beat-shift button:hover { background: var(--surface); color: var(--ink); }
+.beat-shift { display: flex; flex-direction: column; gap: 1px; }
+.beat-shift button { width: 18px; height: 14px; border: 0; border-radius: 3px; padding: 0; background: transparent; color: var(--muted); font-size: 9px; line-height: 1; }
+.beat-node-box { min-width: 0; display: grid; grid-template-columns: minmax(190px, 1fr) minmax(230px, .85fr) 24px; gap: 8px; align-items: center; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 5%); }
+.beat-node-box:hover > .beat-remove, .beat-node-box:focus-within > .beat-remove { opacity: 1; }
+.beat-graph-node.assigned .beat-node-box { border-color: color-mix(in srgb, var(--metric-scenes-ink) 55%, var(--border)); box-shadow: inset 3px 0 color-mix(in srgb, var(--metric-scenes-ink) 72%, transparent), 0 2px 5px rgb(0 0 0 / 6%); }
 .beat-assignment { width: 100%; min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 7px; overflow: hidden; border: 0; padding: 3px 1px; background: transparent; color: var(--muted); font-size: 9px; text-align: left; }
 .beat-assignment span { flex: 0 0 auto; border-radius: 9px; padding: 2px 6px; background: var(--surface-2); color: var(--muted); font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
 .beat-assignment small, .beat-assignment em { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -635,8 +640,9 @@ button:disabled { cursor: default; opacity: .45; }
   #beat-sheet-panel { grid-column: 1; }
   .beat-sheet-workspace { padding: 12px; }
   .beat-card { grid-template-columns: 22px minmax(0, 1fr) 22px; gap: 5px; padding: 7px; }
-  .beat-graph-node { grid-template-columns: 52px minmax(0, 1fr) 22px; }
-  .beat-graph-node .beat-assignment { grid-column: 2; }
+  .beat-graph-node { grid-template-columns: 28px 20px 18px minmax(0, 1fr); }
+  .beat-node-box { grid-template-columns: minmax(0, 1fr) 22px; }
+  .beat-node-box .beat-assignment { grid-column: 1; }
   .beat-card-fields label { align-items: flex-start; flex-direction: column; }
   .beat-card-fields select { width: 100%; max-width: none; }
   .beat-sheet-actions span { display: none; }
