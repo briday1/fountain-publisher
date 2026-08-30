@@ -320,7 +320,14 @@ def analyze_source(source: str) -> dict[str, Any]:
                         "line": index,
                         "premise": str(value.get("premise", "")),
                         "beats": [
-                            {"text": str(beat.get("text", ""))}
+                            {
+                                "text": str(beat.get("text", "")),
+                                "range": beat.get("range") if (
+                                    isinstance(beat.get("range"), dict)
+                                    and isinstance(beat["range"].get("startLine"), int)
+                                    and isinstance(beat["range"].get("endLine"), int)
+                                ) else None,
+                            }
                             if isinstance(beat, dict) else {"text": str(beat)}
                             for beat in beats
                             if (isinstance(beat, dict) and beat.get("text")) or (not isinstance(beat, dict) and beat)

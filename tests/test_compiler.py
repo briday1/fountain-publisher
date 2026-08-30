@@ -70,7 +70,7 @@ Third line.
         source = SOURCE + (
             "\n[[FP-GENERAL:Check%20the%20third%20act.]]"
             "\n[[FP-CHARACTER:MAYA:Her%20goal%20changes%0Aafter%20the%20reveal.]]"
-            "\n[[FP-BEATS:%7B%22premise%22%3A%22Truth%20has%20a%20cost.%22%2C%22beats%22%3A%5B%7B%22text%22%3A%22Maya%20opens%20the%20door.%22%2C%22scene%22%3A%22INT.%2520LAB%2520-%2520NIGHT%3A1%22%7D%5D%7D]]\n"
+            "\n[[FP-BEATS:%7B%22premise%22%3A%22Truth%20has%20a%20cost.%22%2C%22beats%22%3A%5B%7B%22text%22%3A%22Maya%20opens%20the%20door.%22%2C%22range%22%3A%7B%22startLine%22%3A2%2C%22endLine%22%3A4%7D%7D%5D%7D]]\n"
         )
         result = analyze_source(source)
         self.assertEqual([{"line": 13, "text": "Check the third act."}], result["generalNotes"])
@@ -80,6 +80,7 @@ Third line.
         )
         self.assertEqual("Truth has a cost.", result["beatSheet"]["premise"])
         self.assertEqual("Maya opens the door.", result["beatSheet"]["beats"][0]["text"])
+        self.assertEqual({"startLine": 2, "endLine": 4}, result["beatSheet"]["beats"][0]["range"])
         self.assertEqual(analyze_source(SOURCE)["wordCount"], result["wordCount"])
 
     def test_managed_note_markers_inside_boneyards_are_ignored(self):

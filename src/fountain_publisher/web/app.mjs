@@ -349,7 +349,12 @@ function managedNote(line) {
   if (match[1] === "BEATS") {
     try {
       const value = JSON.parse(decodeNotePart(match[2]));
-      const beats = Array.isArray(value.beats) ? value.beats.map((beat) => ({ text: typeof beat === "string" ? beat : String(beat.text || "") })).filter((beat) => beat.text) : [];
+      const beats = Array.isArray(value.beats) ? value.beats.map((beat) => {
+        const range = typeof beat === "object" && Number.isInteger(beat.range?.startLine) && Number.isInteger(beat.range?.endLine)
+          ? { startLine: Math.max(0, beat.range.startLine), endLine: Math.max(beat.range.startLine, beat.range.endLine) }
+          : null;
+        return { text: typeof beat === "string" ? beat : String(beat.text || ""), range };
+      }).filter((beat) => beat.text) : [];
       return { kind: "beats", premise: String(value.premise || ""), beats };
     } catch { return { kind: "beats", premise: "", beats: [] }; }
   }
@@ -1122,12 +1127,44 @@ function renderBeatGuide() {
   const button = $("#menu-toggle-beat-guide");
   const beats = state.metadata.beatSheet?.beats || [];
   const enabled = state.beatGuide && state.previewMode === "live";
-  layer.hidden = !enabled;
-  $(".menu-check", button).textContent = state.beatGuide ? "✓" : "";
-  if (!enabled) { layer.innerHTML = ""; return; }
   state.activeBeat = Math.max(0, Math.min(state.activeBeat, Math.max(0, beats.length - 1)));
-  const premise = state.metadata.beatSheet?.premise || "";
-  layer.innerHTML = `<header><div><small>STORY GUIDE</small><strong>Beat Sheet</strong></div><button type="button" data-close-beat-guide aria-label="Hide Beat guide">×</button></header>${premise ? `<p>${escapeHtml(premise)}</p>` : ""}<ol>${beats.map((beat, index) => `<li class="${index === state.activeBeat ? "active" : ""}${index === state.activeBeat + 1 ? " next" : ""}"><button type="button" data-beat-index="${index}"><b>${index + 1}</b><span>${escapeHtml(beat.text)}</span>${index === state.activeBeat ? `<em>Writing now</em>` : index === state.activeBeat + 1 ? `<em>Up next</em>` : ""}</button></li>`).join("")}</ol><footer><button type="button" data-open-beat-sheet>Edit Beat Sheet</button><button type="button" data-next-beat${beats.length ? "" : " disabled"}>Next beat →</button></footer>`;
+  layer.hidden = !enabled;
+  $(".preview-panel").classList.toggle("beat-runner-on", enabled);
+  $(".menu-check", button).textContent = state.beatGuide ? "✓" : "";
+  $$(".script-line.beat-area", page).forEach((line) => line.classList.remove("beat-area", "active-beat-area"));
+  if (!enabled) { layer.innerHTML = ""; return; }
+  beats.forEach((beat, index) => {
+    if (!beat.range) return;
+    for (let line = beat.range.startLine; line <= beat.range.endLine; line += 1) {
+      const target = $(`[data-line="${line}"]`, page);
+      target?.classList.add("beat-area");
+      if (index === state.activeBeat) target?.classList.add("active-beat-area");
+    }
+  });
+  const beat = beats[state.activeBeat];
+  layer.innerHTML = beat
+    ? `<div class="beat-runner-progress"><small>${state.activeBeat + 1}/${beats.length}</small><strong>Next Beat:</strong><span>${escapeHtml(beat.text)}</span>${beat.range ? `<em>Lines ${beat.range.startLine + 1}–${beat.range.endLine + 1}</em>` : ""}</div><div class="beat-runner-actions"><button type="button" data-previous-beat aria-label="Previous beat"${state.activeBeat ? "" : " disabled"}>←</button><button type="button" data-open-beat-sheet>Edit</button><button class="assign-beat-area" type="button" data-assign-beat-area>Assign selection &amp; next</button><button type="button" data-next-beat aria-label="Next beat"${state.activeBeat < beats.length - 1 ? "" : " disabled"}>→</button><button type="button" data-close-beat-guide aria-label="Hide Beat guide">×</button></div>`
+    : `<div class="beat-runner-progress"><strong>Beat Sheet</strong><span>Add beats to start the writing runner.</span></div><div class="beat-runner-actions"><button type="button" data-open-beat-sheet>Edit Beat Sheet</button><button type="button" data-close-beat-guide aria-label="Hide Beat guide">×</button></div>`;
+}
+
+function selectedBeatArea() {
+  const startOffset = source.selectionStart;
+  const endOffset = source.selectionEnd;
+  const lineAt = (offset) => source.value.slice(0, offset).split("\n").length - 1;
+  const startLine = lineAt(startOffset);
+  const endLine = lineAt(Math.max(startOffset, endOffset - (endOffset > startOffset ? 1 : 0)));
+  return { startLine, endLine: Math.max(startLine, endLine) };
+}
+
+function assignCurrentBeatArea() {
+  const sheet = state.metadata.beatSheet;
+  if (!sheet?.beats?.[state.activeBeat] || sheet.line === null || sheet.line === undefined) return;
+  const beats = sheet.beats.map((beat, index) => index === state.activeBeat ? { ...beat, range: selectedBeatArea() } : beat);
+  const lines = sourceLines();
+  lines[sheet.line] = managedBeatSheetSource(sheet.premise || "", beats);
+  state.activeBeat = Math.min(beats.length - 1, state.activeBeat + 1);
+  setSourceLines(lines);
+  toast("Beat area assigned");
 }
 
 function outlineSceneRow(scene, label = scene.number) {
@@ -2270,7 +2307,8 @@ function managedBeatSheetSource(premise, beats) {
 
 function beatCard(beat = { text: "" }) {
   if (typeof beat === "string") beat = { text: beat };
-  return `<li class="beat-card"><div class="beat-card-moves"><span class="beat-number"></span><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">↑</button><button class="beat-drag" draggable="true" type="button" aria-label="Drag to reorder" title="Drag to reorder">⠿</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">↓</button></div><div class="beat-card-fields"><textarea rows="2" placeholder="What happens in this beat?">${escapeHtml(beat.text)}</textarea></div><button class="beat-remove" type="button" aria-label="Remove beat" title="Remove beat">×</button></li>`;
+  const range = beat.range || {};
+  return `<li class="beat-card" data-start-line="${range.startLine ?? ""}" data-end-line="${range.endLine ?? ""}"><div class="beat-card-moves"><span class="beat-number"></span><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">↑</button><button class="beat-drag" draggable="true" type="button" aria-label="Drag to reorder" title="Drag to reorder">⠿</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">↓</button></div><div class="beat-card-fields"><textarea rows="2" placeholder="What happens in this beat?">${escapeHtml(beat.text)}</textarea>${beat.range ? `<small class="beat-range-label">Screenplay lines ${beat.range.startLine + 1}–${beat.range.endLine + 1}</small>` : ""}</div><button class="beat-remove" type="button" aria-label="Remove beat" title="Remove beat">×</button></li>`;
 }
 
 function renumberBeatCards() {
@@ -2895,11 +2933,13 @@ $("#beat-guide-layer").addEventListener("click", (event) => {
     state.beatGuide = false; localStorage.setItem("fountain-publisher.beat-guide", "false"); renderBeatGuide(); return;
   }
   if (event.target.closest("[data-open-beat-sheet]")) { openBeatSheet(); return; }
+  if (event.target.closest("[data-assign-beat-area]")) { assignCurrentBeatArea(); return; }
+  if (event.target.closest("[data-previous-beat]")) {
+    state.activeBeat = Math.max(0, state.activeBeat - 1); renderBeatGuide(); return;
+  }
   if (event.target.closest("[data-next-beat]")) {
     state.activeBeat = Math.min((state.metadata.beatSheet?.beats.length || 1) - 1, state.activeBeat + 1); renderBeatGuide(); return;
   }
-  const beat = event.target.closest("[data-beat-index]");
-  if (beat) { state.activeBeat = Number(beat.dataset.beatIndex); renderBeatGuide(); }
 });
 $("#close-beat-sheet").addEventListener("click", () => $("#beat-sheet-dialog").close());
 $("#add-beat").addEventListener("click", () => {
@@ -2931,7 +2971,11 @@ $("#beat-sheet-form").addEventListener("submit", (event) => {
   if (event.submitter?.value !== "default") return;
   event.preventDefault();
   const premise = $("#beat-premise").value.trim();
-  const beats = $$(".beat-card", $("#beat-list")).map((card) => ({ text: $("textarea", card).value.trim() })).filter((beat) => beat.text);
+  const beats = $$(".beat-card", $("#beat-list")).map((card) => {
+    const startLine = card.dataset.startLine === "" ? null : Number(card.dataset.startLine);
+    const endLine = card.dataset.endLine === "" ? null : Number(card.dataset.endLine);
+    return { text: $("textarea", card).value.trim(), range: startLine === null || endLine === null ? null : { startLine, endLine } };
+  }).filter((beat) => beat.text);
   const existingLine = state.metadata.beatSheet?.line;
   if (!premise && !beats.length) deleteNoteLine(existingLine);
   else {

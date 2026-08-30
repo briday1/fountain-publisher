@@ -451,13 +451,13 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(html, /id="menu-toggle-beat-guide"[\s\S]*id="beat-guide-layer"/);
   assert.match(app, /MANAGED_NOTE_RE = \/[\s\S]*BEATS/);
   assert.match(app, /function managedBeatSheetSource\(premise, beats\)/);
-  assert.match(app, /STORY GUIDE[\s\S]*Writing now[\s\S]*Up next/);
-  assert.match(app, /data-next-beat[\s\S]*state\.activeBeat/);
+  assert.match(app, /Next Beat:[\s\S]*data-assign-beat-area[\s\S]*data-next-beat/);
+  assert.match(app, /function selectedBeatArea\(\)[\s\S]*function assignCurrentBeatArea\(\)/);
   assert.doesNotMatch(app, /beatSceneEntries|Connect to scene/);
   assert.doesNotMatch(app, /Place at scene/);
   assert.match(app, /addEventListener\("dragover"[\s\S]*insertBefore\(draggedBeat/);
   assert.match(app, /function renderBeatGuide\(\)[\s\S]*beat-guide-layer/);
-  assert.match(css, /#beat-sheet-dialog\s*\{[\s\S]*\.beat-card\s*\{[\s\S]*\.beat-guide-layer\s*\{/);
+  assert.match(css, /#beat-sheet-dialog\s*\{[\s\S]*\.beat-card\s*\{[\s\S]*\.beat-guide-layer\s*\{[\s\S]*\.beat-runner-progress[\s\S]*\.script-line\.beat-area/);
 });
 
 test("mobile preview clipboard actions preserve selections and avoid covering them", async () => {
