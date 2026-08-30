@@ -446,7 +446,7 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
 
 test("Beat Sheet provides a source-backed draggable story map and Preview guide", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
-  assert.match(html, /summary>Beat Sheet <small id="beat-count">/);
+  assert.doesNotMatch(html, /beat-sheet-insight|id="beat-sheet-summary"|id="open-beat-sheet"/);
   assert.match(html, /id="beat-sheet-panel"[\s\S]*id="beat-premise"[\s\S]*id="beat-list"[^>]*beat-flow-editor/);
   assert.match(html, /id="menu-toggle-beat-guide"[\s\S]*id="beat-guide-layer"/);
   assert.match(app, /MANAGED_NOTE_RE = \/[\s\S]*BEATS/);

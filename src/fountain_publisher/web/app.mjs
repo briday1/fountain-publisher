@@ -1085,7 +1085,6 @@ function renderInsights(metadata) {
   $("#scene-list").innerHTML = renderOutline(metadata);
   renderCharacterTable();
   renderGeneralNotes();
-  renderBeatSheetSummary();
   renderBeatGuide();
   const contentWords = metadata.dialogueWords + metadata.actionWords;
   const dialoguePercent = contentWords ? Math.round(metadata.dialogueWords / contentWords * 100) : 0;
@@ -1112,14 +1111,6 @@ function renderGeneralNotes() {
   $("#general-notes").innerHTML = notes.length
     ? notes.map((note) => `<button type="button" data-general-note-line="${note.line}"><span>${escapeHtml(note.text)}</span><small>Edit</small></button>`).join("")
     : `<div class="empty-list">No general notes yet.</div>`;
-}
-
-function renderBeatSheetSummary() {
-  const sheet = state.metadata.beatSheet || { premise: "", beats: [] };
-  $("#beat-count").textContent = sheet.beats.length;
-  $("#beat-sheet-summary").innerHTML = sheet.premise || sheet.beats.length
-    ? `${sheet.premise ? `<p>${escapeHtml(sheet.premise)}</p>` : ""}<ol>${sheet.beats.slice(0, 4).map((beat) => `<li>${escapeHtml(beat.text)}</li>`).join("")}</ol>${sheet.beats.length > 4 ? `<small>+${sheet.beats.length - 4} more</small>` : ""}`
-    : `<div class="empty-list">Map the premise and major story beats.</div>`;
 }
 
 function renderBeatGuide() {
@@ -2960,7 +2951,6 @@ $("#general-notes").addEventListener("click", (event) => {
   if (button) openGeneralNoteEditor(Number(button.dataset.generalNoteLine));
 });
 $("#add-general-note").addEventListener("click", () => openGeneralNoteEditor());
-$("#open-beat-sheet").addEventListener("click", openBeatSheet);
 $("#menu-toggle-beat-guide").addEventListener("click", () => {
   state.beatGuide = !state.beatGuide;
   localStorage.setItem("fountain-publisher.beat-guide", String(state.beatGuide));
