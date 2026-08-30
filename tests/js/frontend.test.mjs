@@ -20,6 +20,31 @@ test("application shell exposes editing, preview, and insights regions", async (
   assert.match(html, /id="export-pdf"/);
 });
 
+test("app installs as a standalone PWA and offers desktop window controls", async () => {
+  const [html, app, manifestText, worker, build, pyproject] = await Promise.all([
+    readFile(htmlPath, "utf8"),
+    readFile(appPath, "utf8"),
+    readFile(new URL("../../src/fountain_publisher/web/app.webmanifest", import.meta.url), "utf8"),
+    readFile(new URL("../../src/fountain_publisher/web/service-worker.js", import.meta.url), "utf8"),
+    readFile(new URL("../../scripts/build-web.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../pyproject.toml", import.meta.url), "utf8"),
+  ]);
+  const manifest = JSON.parse(manifestText);
+  assert.equal(manifest.display, "standalone");
+  assert.deepEqual(manifest.display_override, ["standalone"]);
+  assert.match(html, /apple-mobile-web-app-capable" content="yes"/);
+  assert.match(html, /rel="apple-touch-icon" href="icons\/apple-touch-icon\.png"/);
+  assert.match(html, /rel="manifest" href="app\.webmanifest"/);
+  assert.match(html, /id="install-app"/);
+  assert.match(html, /id="toggle-fullscreen"/);
+  assert.match(app, /beforeinstallprompt/);
+  assert.match(app, /requestFullscreen/);
+  assert.match(app, /navigator\.serviceWorker\.register\("\.\/service-worker\.js"\)/);
+  assert.match(worker, /CACHE_NAME[\s\S]*request\.mode === "navigate"[\s\S]*caches\.match/);
+  assert.match(build, /app\.webmanifest[\s\S]*service-worker\.js[\s\S]*icons/);
+  assert.match(pyproject, /web\/icons\/\*/);
+});
+
 test("desktop panel headers share a height and preview controls follow its title", async () => {
   const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /class="preview-heading"[\s\S]*<small>SCREENPLAY<\/small><h2>Preview<\/h2>[\s\S]*class="view-switcher"/);

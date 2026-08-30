@@ -208,6 +208,7 @@ const WORKSPACE_CACHE_KEY = "fountain-publisher.workspace.v1";
 const GITHUB_BROWSER_KEY = "fountain-publisher.github-browser.v1";
 const GITHUB_API = "https://api.fountain-publisher.com";
 let STATIC_HOST = location.hostname.endsWith(".github.io") || new URLSearchParams(location.search).get("static") === "1";
+let installPrompt = null;
 const docSettings = {
   sceneNumbers: localStorage.getItem("fountain-publisher.scene-numbers") ?? "margin",
   sceneNumberFormat: localStorage.getItem("fountain-publisher.scene-number-format") ?? "sequential",
@@ -2336,6 +2337,7 @@ function setTheme(theme) {
   if (theme === "system") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = theme;
   const effective = theme === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : theme;
   document.documentElement.dataset.effectiveTheme = effective;
+  $("#app-theme-color").content = effective === "dark" ? "#17191b" : "#f4f4f2";
   $("#theme-value").textContent = effective[0].toUpperCase() + effective.slice(1);
   $("#theme").title = `Switch to ${effective === "dark" ? "light" : "dark"} mode`;
 }
@@ -2344,6 +2346,37 @@ function cycleTheme() {
   const effective = document.documentElement.dataset.effectiveTheme || "light";
   setTheme(effective === "dark" ? "light" : "dark");
 }
+
+function isStandaloneApp() {
+  return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+}
+
+function updateAppWindowControls() {
+  const fullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+  const fullscreenButton = $("#toggle-fullscreen");
+  const fullscreenSupported = Boolean(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+  fullscreenButton.hidden = isStandaloneApp() || !fullscreenSupported;
+  fullscreenButton.textContent = fullscreen ? "Exit full screen" : "Enter full screen";
+  $("#install-app").hidden = !installPrompt || isStandaloneApp();
+}
+
+async function toggleFullscreen() {
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    await (document.exitFullscreen?.() || document.webkitExitFullscreen?.());
+  } else {
+    await (document.documentElement.requestFullscreen?.({ navigationUI: "hide" }) || document.documentElement.webkitRequestFullscreen?.());
+  }
+  updateAppWindowControls();
+}
+
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  installPrompt = event;
+  updateAppWindowControls();
+});
+window.addEventListener("appinstalled", () => { installPrompt = null; updateAppWindowControls(); });
+document.addEventListener("fullscreenchange", updateAppWindowControls);
+document.addEventListener("webkitfullscreenchange", updateAppWindowControls);
 
 function togglePanel(panel, force) {
   const collapsed = force ?? !document.body.classList.contains(`${panel}-collapsed`);
@@ -3552,6 +3585,14 @@ $("#menu-toggle-source-tab").addEventListener("click", () => {
   }
   closeMenus();
 });
+$("#toggle-fullscreen").addEventListener("click", () => { void toggleFullscreen(); });
+$("#install-app").addEventListener("click", async () => {
+  if (!installPrompt) return;
+  await installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  updateAppWindowControls();
+});
 $("#undo").addEventListener("click", undoDocument); $("#redo").addEventListener("click", redoDocument);
 $$('[data-workspace-zoom]').forEach((control) => control.addEventListener("change", () => { state.previewZoom = control.value; applyZoom(); }));
 $$('[data-zoom-out]').forEach((button) => button.addEventListener("click", () => stepZoom(-1)));
@@ -3761,9 +3802,17 @@ window.addEventListener("resize", () => {
   updateVimUi();
 });
 
+function registerAppServiceWorker() {
+  const localHost = ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
+  if (!("serviceWorker" in navigator) || location.protocol !== "https:" || localHost) return;
+  navigator.serviceWorker.register("./service-worker.js").catch(() => { /* Online use remains available if registration is blocked. */ });
+}
+
 async function initialize() {
   updateMobileViewport();
   setTheme(state.theme);
+  updateAppWindowControls();
+  registerAppServiceWorker();
   const showSourceTab = sourceTabEnabled();
   document.body.classList.toggle("source-tab-hidden", !showSourceTab);
   $(".menu-check", $("#menu-toggle-source-tab")).textContent = showSourceTab ? "✓" : "";

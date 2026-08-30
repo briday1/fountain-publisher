@@ -126,6 +126,10 @@ fountain-publisher screenplay.fountain --page-size a4 --output screenplay.pdf
 - The **Documentation** shortcuts table shows only the shortcuts for your operating system (macOS or Windows/Linux).
 - Scene numbers appear in the left margin by default. Use **Settings → Scene Numbers** to change the placement (Margin/Inline/Off) or format (Sequential 1 2 3 vs Act-prefixed A1S1 A1S2). Act prefixes are derived from top-level `# Act` section headings. Both the live preview and exported PDF respect these settings.
 
+## App-style installation
+
+The published site is an installable web app. On iPad, open it in Safari and choose **Share → Add to Home Screen** to launch Fountain Publisher in its own standalone window. Supporting desktop browsers expose **View → Install app**, and **View → Enter full screen** is available without installing. The installed app keeps the same private local workspace recovery behavior as the website.
+
 ## Tests
 
 ```shell
