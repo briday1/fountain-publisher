@@ -608,7 +608,7 @@ button:disabled { cursor: default; opacity: .45; }
 :root[data-os="win"] .shortcut-mac { display: none; }
 
 /* Compact desktop/tablet landscape — reserve a fixed lane for the document title. */
-@media (min-width: 901px) and (max-width: 1180px) {
+@media (min-width: 641px) and (max-width: 1180px) {
   .global-actions::after { content: ""; flex: 0 0 190px; }
   .document-identity { left: auto; right: 12px; width: 174px; max-width: 174px; transform: none; justify-content: flex-end; }
   .document-identity .compile-status { display: none; }
@@ -619,7 +619,6 @@ button:disabled { cursor: default; opacity: .45; }
   #workspace { grid-template-columns: minmax(280px, 1fr) 0 0 0; }
   #stats-panel, #stats-resizer, .stats-toggle { display: none; }
   .screenplay-page { transform: scale(.78); }
-  .document-identity { display: none; }
   .docs-layout { grid-template-columns: 1fr; }
   .docs-layout > nav { display: none; }
   .docs-content { padding-inline: 20px; }
@@ -633,6 +632,7 @@ button:disabled { cursor: default; opacity: .45; }
 @media (max-width: 640px) {
   :root { --mobile-tabs-h: 0px; }
   .desktop-setting, .vim-status { display: none !important; }
+  .document-identity { display: none; }
 
   .mobile-panel-tabs { display: none; }
   .mobile-tab {
