@@ -56,16 +56,18 @@ test("desktop panel headers share a height and preview controls follow its title
 });
 
 test("tablet landscape keeps document identity clear of history controls", async () => {
-  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
-  assert.match(css, /\.app-toolbar\.title-right \.global-actions::after\s*\{[^}]*flex:\s*0 0 246px;/s);
-  assert.match(css, /\.app-toolbar\.title-right \.document-identity\s*\{[^}]*right:\s*12px;[^}]*width:\s*230px;/s);
-  assert.doesNotMatch(css, /title-right[^}]*compile-status[^}]*display:\s*none/);
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(css, /\.app-toolbar::after\s*\{[^}]*flex:\s*0 0 246px;/s);
+  assert.match(css, /\.document-identity\s*\{[^}]*right:\s*12px;[^}]*width:\s*230px;/s);
   assert.match(css, /#filename\s*\{[^}]*flex:\s*1 1 auto;/s);
   assert.match(css, /\.compile-status\s*\{[^}]*flex:\s*0 0 auto;[^}]*white-space:\s*nowrap;/s);
-  assert.match(app, /function updateToolbarIdentityLayout\(\)[\s\S]*centeredGap[\s\S]*wasRight \? 180 : 140/);
-  assert.match(app, /"ResizeObserver" in window[\s\S]*new ResizeObserver\(scheduleToolbarIdentityLayout\)\.observe\(\$\("\.app-toolbar"\)\)/);
-  assert.match(app, /window\.addEventListener\("resize"[\s\S]*updateToolbarIdentityLayout\(\)/);
-  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.document-identity\s*\{\s*display:\s*none;/s);
+  assert.doesNotMatch(app, /updateToolbarIdentityLayout|scheduleToolbarIdentityLayout/);
+  assert.match(css, /@media\s*\(max-width:\s*900px\)[\s\S]*\.about-label\s*\{\s*display:\s*none;/s);
+  assert.match(html, /<\/nav>\s*<div class="history-actions"[^>]*>[\s\S]*id="undo"[\s\S]*id="redo"/);
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.app-toolbar::after\s*\{\s*display:\s*none;/s);
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.document-identity\s*\{[^}]*position:\s*relative;[^}]*flex:\s*1 1 auto;/s);
+  assert.match(css, /@media\s*\(max-width:\s*640px\)[\s\S]*\.history-actions \.toolbar-divider\s*\{\s*display:\s*none;/s);
+  assert.doesNotMatch(css, /#undo, #redo\s*\{\s*display:\s*none;/);
   assert.match(app, /function shouldAutofocusSource\(\)\s*\{[\s\S]*navigator\.maxTouchPoints === 0/);
   assert.match(app, /mode === "source"[\s\S]*shouldAutofocusSource\(\)[\s\S]*source\.focus\(\{ preventScroll: true \}\)/);
 });

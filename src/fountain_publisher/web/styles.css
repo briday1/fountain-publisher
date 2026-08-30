@@ -165,12 +165,12 @@ kbd { border: 0; background: none; color: var(--faint); font: 11px var(--mono); 
 :root[data-effective-theme="dark"] .theme-sun { display: none; }
 :root[data-effective-theme="dark"] .theme-moon { display: block; }
 .toolbar-divider { height: 20px; margin: auto 5px; border-left: 1px solid var(--border); }
+.history-actions { display: flex; align-items: center; gap: 2px; }
 .icon-tool { width: 30px; margin: 6px 1px; border-radius: 4px; font-size: 18px; color: var(--muted); }
 .icon-tool:hover { background: var(--surface-2); color: var(--ink); }
 .icon-tool svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.document-identity { position: absolute; left: 50%; transform: translateX(-50%); top: 0; height: 100%; display: flex; align-items: center; gap: 6px; max-width: 34vw; }
-.app-toolbar.title-right .global-actions::after { content: ""; flex: 0 0 246px; }
-.app-toolbar.title-right .document-identity { left: auto; right: 12px; width: 230px; max-width: 230px; transform: none; justify-content: flex-end; }
+.app-toolbar::after { content: ""; flex: 0 0 246px; }
+.document-identity { position: absolute; left: auto; right: 12px; top: 0; width: 230px; max-width: 230px; height: 100%; display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 #filename { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 #dirty-dot { flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; background: transparent; }
 body.dirty #dirty-dot { background: var(--accent); }
@@ -614,6 +614,9 @@ button:disabled { cursor: default; opacity: .45; }
   #workspace { grid-template-columns: minmax(280px, 1fr) 0 0 0; }
   #stats-panel, #stats-resizer, .stats-toggle { display: none; }
   .screenplay-page { transform: scale(.78); }
+  .about-menu { padding-right: 4px; margin-right: 0; }
+  .about-menu > summary { padding: 0 6px; }
+  .about-label { display: none; }
   .docs-layout { grid-template-columns: 1fr; }
   .docs-layout > nav { display: none; }
   .docs-content { padding-inline: 20px; }
@@ -627,7 +630,8 @@ button:disabled { cursor: default; opacity: .45; }
 @media (max-width: 640px) {
   :root { --mobile-tabs-h: 0px; }
   .desktop-setting, .vim-status { display: none !important; }
-  .document-identity { display: none; }
+  .app-toolbar::after { display: none; }
+  .document-identity { position: relative; inset: auto; width: auto; max-width: none; height: 100%; flex: 1 1 auto; justify-content: flex-end; }
 
   .mobile-panel-tabs { display: none; }
   .mobile-tab {
@@ -764,7 +768,7 @@ button:disabled { cursor: default; opacity: .45; }
     padding: 0 6px;
   }
   .mobile-menu-toggle {
-    position: relative; z-index: 82; width: 38px; height: 38px; display: grid; align-content: center; gap: 4px; margin-left: auto; padding: 0 10px; border-radius: 6px;
+    position: relative; z-index: 82; flex: 0 0 38px; width: 38px; height: 38px; display: grid; align-content: center; gap: 4px; margin-left: 0; padding: 0 10px; border-radius: 6px;
   }
   .mobile-menu-toggle span { display: block; width: 18px; height: 2px; border-radius: 2px; background: var(--ink); transition: transform .16s, opacity .16s; }
   body.mobile-menu-open .mobile-menu-toggle span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
@@ -786,8 +790,8 @@ button:disabled { cursor: default; opacity: .45; }
   .about-label { display: none; }
   /* View and Help remain available; exact PDF preview stays out of the mobile view picker. */
   .view-menu [data-preview-mode="pdf"] { display: none; }
-  /* Hide undo/redo icon buttons and the divider to save space */
-  .toolbar-divider, #undo, #redo { display: none; }
+  .history-actions .toolbar-divider { display: none; }
+  .history-actions { margin-left: 1px; }
   /* Fix popovers: pin to the top of the screen so they're always fully visible
      regardless of which menu triggered them or how far right it sits */
   .toolbar-popover {
