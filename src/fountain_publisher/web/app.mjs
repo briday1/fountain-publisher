@@ -319,8 +319,10 @@ function applyPreviewBackground() {
   const storedRadius = Number(localStorage.getItem("fountain-publisher.preview-dot-radius"));
   const radius = storedRadius >= .6 && storedRadius <= 1.8 ? storedRadius : 1;
   const preview = $("#preview-scroll");
-  preview.dataset.background = pattern;
-  preview.style.setProperty("--preview-dot-radius", `${radius}px`);
+  [preview, $("#source-panel"), $("#beat-sheet-panel")].forEach((surface) => {
+    surface.dataset.background = pattern;
+    surface.style.setProperty("--preview-dot-radius", `${radius}px`);
+  });
   $("#preview-background").value = pattern;
   $("#preview-dot-radius").value = String(radius);
   $("#preview-dot-radius-value").textContent = `${radius.toFixed(1)}px`;

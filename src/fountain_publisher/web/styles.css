@@ -167,6 +167,7 @@ body.dirty #dirty-dot { background: var(--accent); }
 #stats-panel { grid-column: 4; }
 #workspace > * { grid-row: 1; }
 #source-panel, #stats-panel { min-width: 0; background: var(--panel); display: flex; flex-direction: column; overflow: hidden; }
+#source-panel { background-color: var(--bg); }
 #stats-panel { border-left: 1px solid var(--border); }
 .panel-title { min-height: 58px; display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 9px 15px; border-bottom: 1px solid var(--border); }
 #source-panel .panel-title { justify-content: flex-start; gap: 16px; padding-block: 6px; }
@@ -190,6 +191,8 @@ body.stats-collapsed .stats-toggle span { transform: rotate(180deg); }
 body.stats-collapsed #workspace { grid-template-columns: minmax(320px, 1fr) 0 22px 0; }
 
 .editor-shell { flex: 1; min-height: 0; position: relative; display: grid; grid-template-columns: 43px 1fr; overflow: hidden; background: var(--source-bg); }
+#source-panel .editor-shell { width: min(816px, calc(100% - 40px)); margin: 34px auto 0; border: 1px solid var(--border); border-bottom: 0; border-radius: 4px 4px 0 0; box-shadow: var(--shadow); }
+#source-panel .editor-footer { width: min(816px, calc(100% - 40px)); margin: 0 auto 34px; border: 1px solid var(--border); border-top: 1px solid var(--border); border-radius: 0 0 4px 4px; background: var(--source-bg); box-shadow: 0 12px 24px rgb(20 24 28 / 8%); }
 .line-numbers { grid-column: 1; overflow: hidden; padding: 14px 9px 90px 0; text-align: right; color: var(--source-muted); background: var(--source-gutter-bg); border-right: 1px solid var(--border); font: 13px/1.55 var(--mono); user-select: none; }
 .line-number { position: absolute; right: 9px; display: block; height: 1.55em; line-height: 1.55; }
 .line-number-spacer { display: block; width: 1px; visibility: hidden; pointer-events: none; }
@@ -244,7 +247,7 @@ body.source-tab-hidden [data-preview-mode="source"], body.source-tab-hidden [dat
 .preview-actions .zoom-fit[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .preview-actions select { width: 66px; }
 .preview-scroll { --preview-dot-radius: 1px; flex: 1 1 0; min-height: 0; overflow: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 34px 20px; }
-.preview-scroll[data-background="dots"] { background-image: radial-gradient(color-mix(in srgb, var(--ink) 14%, transparent) var(--preview-dot-radius), transparent var(--preview-dot-radius)); background-size: 16px 16px; }
+.preview-scroll[data-background="dots"], #source-panel[data-background="dots"], #beat-sheet-panel[data-background="dots"] { background-image: radial-gradient(color-mix(in srgb, var(--ink) 14%, transparent) var(--preview-dot-radius), transparent var(--preview-dot-radius)); background-size: 16px 16px; }
 .preview-scroll.pdf-mode { padding: 0; overflow: hidden; }
 .preview-page-stage { position: relative; width: 816px; min-height: 1056px; margin: 0 auto; }
 .screenplay-page {
@@ -430,12 +433,12 @@ button:disabled { cursor: default; opacity: .45; }
 .note-form .dialog-actions span { flex: 1; }
 .dialog-actions .danger { border-color: color-mix(in srgb, #dc2626 45%, var(--border)); color: #dc2626; }
 
-#beat-sheet-panel { min-width: 0; min-height: 0; overflow: hidden; background: var(--surface-2); color: var(--ink); }
+#beat-sheet-panel { min-width: 0; min-height: 0; overflow: hidden; background-color: var(--bg); color: var(--ink); }
 .beat-sheet-shell { height: 100%; min-height: 0; display: flex; flex-direction: column; }
 .beat-sheet-header { min-height: 58px; display: flex; align-items: center; justify-content: flex-start; gap: 16px; padding: 6px 12px 6px 15px; border-bottom: 1px solid var(--border); background: var(--panel); }
 .beat-sheet-header small, .beat-sheet-title small { color: var(--metric-scenes-ink); font-size: 9px; font-weight: 800; letter-spacing: .13em; }
 .beat-sheet-header h2, .beat-sheet-title h3 { margin: 1px 0 0; }
-.beat-sheet-workspace { flex: 1; min-height: 0; overflow: auto; padding: 20px; background: var(--surface-2); }
+.beat-sheet-workspace { width: min(816px, calc(100% - 40px)); flex: 1; min-height: 0; overflow: auto; margin: 34px auto 0; padding: 28px; border: 1px solid var(--border); border-bottom: 0; border-radius: 4px 4px 0 0; background: var(--surface); box-shadow: var(--shadow); }
 .premise-field { display: block; max-width: 760px; margin: 0 auto 22px; }
 .premise-field > span { display: block; margin-bottom: 7px; color: var(--metric-scenes-ink); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
 .premise-field textarea, .beat-text { box-sizing: border-box; width: 100%; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--ink); font: 13px/1.45 var(--sans); }
@@ -462,7 +465,7 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-remove svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .beat-card:hover > .beat-remove, .beat-card:focus-within > .beat-remove { opacity: 1; }
 .beat-remove:hover { background: color-mix(in srgb, #dc2626 10%, transparent); color: #dc2626; }
-.beat-sheet-actions { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
+.beat-sheet-actions { width: min(816px, calc(100% - 40px)); display: flex; align-items: center; gap: 8px; margin: 0 auto 34px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 0 0 4px 4px; background: var(--surface); box-shadow: 0 12px 24px rgb(20 24 28 / 8%); }
 .beat-sheet-actions span { flex: 1; color: var(--muted); font-size: 10px; }
 .beat-sheet-actions button { border: 1px solid var(--border); border-radius: 5px; padding: 7px 13px; background: var(--surface); color: var(--ink); }
 .beat-sheet-actions .primary { border-color: var(--accent); background: var(--accent); color: white; }
@@ -632,6 +635,8 @@ button:disabled { cursor: default; opacity: .45; }
   /* Mobile preview reflows to the viewport instead of scaling a fixed paper sheet */
   .view-switcher { display: none; }
   .preview-scroll { padding: 0; overflow-x: hidden; scrollbar-gutter: auto; }
+  #source-panel { background: var(--source-bg); }
+  #source-panel .editor-shell, #source-panel .editor-footer { width: 100%; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
   .preview-panel.beat-runner-on .preview-scroll { padding-top: 44px; }
   .preview-page-stage { width: 100% !important; min-height: 100% !important; }
   .screenplay-page {
@@ -644,7 +649,8 @@ button:disabled { cursor: default; opacity: .45; }
   .beat-runner-actions button[data-open-beat-sheet] { display: none; }
   .beat-runner-actions .assign-beat-area { max-width: 90px; line-height: 1.05; }
   #beat-sheet-panel { grid-column: 1; }
-  .beat-sheet-workspace { padding: 12px; }
+  .beat-sheet-workspace { width: 100%; margin: 0; padding: 12px; border: 0; border-radius: 0; box-shadow: none; }
+  .beat-sheet-actions { width: 100%; margin: 0; border-inline: 0; border-bottom: 0; border-radius: 0; box-shadow: none; }
   .beat-card { grid-template-columns: 22px minmax(0, 1fr) 22px; gap: 5px; padding: 7px; }
   .beat-graph-node { grid-template-columns: 28px 20px 18px minmax(0, 1fr); }
   .beat-node-box { grid-template-columns: minmax(0, 1fr) 22px; }

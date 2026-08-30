@@ -49,8 +49,8 @@
             <span class="menu-separator"></span>
             <strong>PREVIEW</strong>
             <button data-preview-mode="live" type="button">Live screenplay <span class="menu-check">✓</span></button>
-            <button data-preview-mode="pdf" type="button">Exact PDF preview <span class="menu-check"></span></button>
             <button data-preview-mode="beats" type="button">Beat Sheet <span class="menu-check"></span></button>
+            <button data-preview-mode="pdf" type="button">Exact PDF preview <span class="menu-check"></span></button>
             <button id="menu-toggle-beat-guide" type="button">Beat guide <span class="menu-check"></span></button>
           </div>
         </details>
@@ -118,7 +118,7 @@
         <div class="panel-title">
           <div><small>SOURCE</small><h1>Fountain</h1></div>
           <div class="view-switcher" role="group" aria-label="Workspace view">
-            <button class="active" data-preview-mode="source" type="button">Source</button><button data-preview-mode="live" type="button">Preview</button><button data-preview-mode="pdf" type="button">PDF</button><button data-preview-mode="beats" type="button">Beat Sheet</button>
+            <button class="active" data-preview-mode="source" type="button">Source</button><button data-preview-mode="live" type="button">Preview</button><button data-preview-mode="beats" type="button">Beat Sheet</button><button data-preview-mode="pdf" type="button">PDF</button>
           </div>
         </div>
         <div class="editor-shell">
@@ -139,7 +139,7 @@
           <div class="preview-heading">
             <div class="preview-title"><small>SCREENPLAY</small><h2>Preview</h2></div>
             <div class="view-switcher" role="group" aria-label="Workspace view">
-              <button data-preview-mode="source" type="button">Source</button><button class="active" data-preview-mode="live" type="button">Preview</button><button data-preview-mode="pdf" type="button">PDF</button><button data-preview-mode="beats" type="button">Beat Sheet</button>
+              <button data-preview-mode="source" type="button">Source</button><button class="active" data-preview-mode="live" type="button">Preview</button><button data-preview-mode="beats" type="button">Beat Sheet</button><button data-preview-mode="pdf" type="button">PDF</button>
             </div>
           </div>
           <div class="preview-actions">
@@ -173,7 +173,7 @@
 
       <section id="beat-sheet-panel" aria-labelledby="beat-sheet-heading" hidden>
         <form id="beat-sheet-form" class="beat-sheet-shell">
-          <header class="beat-sheet-header"><div><small>STORY MAP</small><h2 id="beat-sheet-heading">Beat Sheet</h2></div><div class="view-switcher" role="group" aria-label="Workspace view"><button data-preview-mode="source" type="button">Source</button><button data-preview-mode="live" type="button">Preview</button><button data-preview-mode="pdf" type="button">PDF</button><button class="active" data-preview-mode="beats" type="button">Beat Sheet</button></div></header>
+          <header class="beat-sheet-header"><div><small>STORY MAP</small><h2 id="beat-sheet-heading">Beat Sheet</h2></div><div class="view-switcher" role="group" aria-label="Workspace view"><button data-preview-mode="source" type="button">Source</button><button data-preview-mode="live" type="button">Preview</button><button class="active" data-preview-mode="beats" type="button">Beat Sheet</button><button data-preview-mode="pdf" type="button">PDF</button></div></header>
           <div class="beat-sheet-workspace">
             <label class="premise-field"><span>Premise</span><textarea id="beat-premise" rows="3" placeholder="What is this story really about?"></textarea></label>
             <div class="beat-sheet-title"><div><small>STORY FLOW</small><h3>Beats and assignments</h3></div><button id="add-beat" type="button">+ Add beat</button></div>
