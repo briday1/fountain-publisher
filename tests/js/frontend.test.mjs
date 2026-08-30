@@ -460,6 +460,9 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.match(app, /intensity >= 0\.62 \? chartLabelColor\(characterColor\) : ink/);
   assert.match(app, /function sceneCharacterWordSegments\(sceneIndex\)[\s\S]*segments\.push\(\{ character: active, start: position, words \}\)/);
   assert.match(app, /function renderSceneCharacterAnalytics\(sceneIndex\)[\s\S]*segment\.start \/ total[\s\S]*segment\.words \/ total/);
+  const sceneGantt = app.slice(app.indexOf("function renderSceneCharacterAnalytics"), app.indexOf("function renderCharacterAnalytics"));
+  assert.doesNotMatch(sceneGantt, /fillText\(String\(segment\.words\)/);
+  assert.match(app, /fillText\(String\(lineCount\)/);
   assert.match(app, /state\.metadata\.scenes\.length === 1 \? 0 : null/);
   assert.match(app, /character-analytics-chart"\)\.addEventListener\("click"[\s\S]*sceneIndex[\s\S]*renderCharacterAnalytics\(\)/);
   assert.match(app, /function renderSceneCharacterAnalytics\(sceneIndex\)[\s\S]*chartViewport\.clientWidth - labelWidth/);

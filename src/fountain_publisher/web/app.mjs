@@ -1390,7 +1390,6 @@ function renderSceneCharacterAnalytics(sceneIndex) {
       const x = labelWidth + (total ? segment.start / total : 0) * plotWidth;
       const segmentWidth = Math.max(2, (total ? segment.words / total : 0) * plotWidth);
       context.fillStyle = characterColor; context.fillRect(x, y + 8, segmentWidth, rowHeight - 16);
-      if (segmentWidth >= 24) { context.fillStyle = chartLabelColor(characterColor); context.textAlign = "center"; context.fillText(String(segment.words), x + segmentWidth / 2, y + rowHeight / 2); }
     });
   });
   if (!characters.length) { context.fillStyle = muted; context.textAlign = "center"; context.fillText("No character dialogue in this scene.", width / 2, headerHeight + rowHeight / 2); }
