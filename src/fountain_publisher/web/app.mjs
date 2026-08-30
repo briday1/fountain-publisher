@@ -2351,8 +2351,54 @@ function beatCard(beat = { text: "" }) {
   return `<li class="beat-card beat-graph-node${beat.range ? " assigned" : ""}" data-start-line="${range.startLine ?? ""}" data-end-line="${range.endLine ?? ""}"><span class="beat-number"></span><button class="beat-drag" draggable="true" type="button" aria-label="Drag to reorder" title="Drag to reorder">⠿</button><div class="beat-shift"><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">↑</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">↓</button></div><div class="beat-node-box"><div class="beat-card-fields"><input class="beat-text" type="text" placeholder="What happens in this beat?" value="${escapeHtml(beat.text)}" /></div><div class="beat-assignment-wrap"><button class="beat-assignment" type="button" ${beat.range ? "data-beat-jump" : "disabled"}><span>${beat.range ? "Assigned" : "Unassigned"}</span><small>${escapeHtml(assignment)}</small><em>${escapeHtml(excerpt)}</em></button>${beat.range ? `<button class="beat-unassign" type="button" aria-label="Unassign beat from screenplay" title="Unassign from screenplay">×</button>` : ""}</div><button class="beat-remove" type="button" aria-label="Delete beat" title="Delete beat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></div></li>`;
 }
 
+function screenplayWordProgress() {
+  const ignored = new Set(["empty", "parenthetical", "section", "synopsis", "note", "boneyard", "title-value", "title-value title", "character", "scene", "page-break"]);
+  const progress = [0];
+  let total = 0;
+  classifyLines(source.value).forEach((line) => {
+    if (!ignored.has(line.type)) total += (line.display.match(/[\p{L}\p{N}'’-]+/gu) || []).length;
+    progress.push(total);
+  });
+  return { progress, total };
+}
+
+function renderBeatProgressGraph(beats = currentBeatCards()) {
+  const graph = $("#beat-progress-graph");
+  if (!graph) return;
+  const count = beats.length;
+  if (!count) { graph.innerHTML = ""; graph.hidden = true; return; }
+  graph.hidden = false;
+  const { progress, total } = screenplayWordProgress();
+  const values = beats.map((beat) => beat.range ? progress[Math.max(0, Math.min(progress.length - 1, beat.range.startLine))] : null);
+  const plotted = values.map((value, index) => {
+    if (value !== null) return value;
+    let before = index - 1;
+    while (before >= 0 && values[before] === null) before -= 1;
+    let after = index + 1;
+    while (after < count && values[after] === null) after += 1;
+    const beforeIndex = before >= 0 ? before : -1;
+    const beforeValue = before >= 0 ? values[before] : 0;
+    const afterIndex = after < count ? after : count;
+    const afterValue = after < count ? values[after] : total;
+    return Math.round(beforeValue + (afterValue - beforeValue) * ((index - beforeIndex) / (afterIndex - beforeIndex)));
+  });
+  const width = 720; const height = 190; const left = 48; const right = 18; const top = 18; const bottom = 32;
+  const x = (index) => left + (width - left - right) * ((index + 1) / (count + 1));
+  const y = (words) => height - bottom - (height - top - bottom) * (total ? words / total : 0);
+  const points = [`${left},${y(0)}`, ...plotted.map((words, index) => `${x(index)},${y(words)}`), `${width - right},${y(total)}`].join(" ");
+  const circles = beats.map((beat, index) => {
+    const assigned = values[index] !== null;
+    const words = plotted[index];
+    const label = beat.text || `Beat ${index + 1}`;
+    return `<g class="beat-plot-point ${assigned ? "assigned" : "unassigned"}"><circle cx="${x(index)}" cy="${y(words)}" r="5"><title>Beat ${index + 1}: ${escapeHtml(label)} · ${words.toLocaleString()} words${assigned ? "" : " (estimated)"}</title></circle><text x="${x(index)}" y="${height - 11}" text-anchor="middle">${index + 1}</text></g>`;
+  }).join("");
+  const midpoint = Math.round(total / 2);
+  graph.innerHTML = `<header><strong>Pacing</strong><span>Cumulative screenplay words at each beat</span><small><i></i> Assigned <i></i> Unassigned estimate</small></header><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Beat pacing graph"><line class="beat-ideal-line" x1="${left}" y1="${y(0)}" x2="${width - right}" y2="${y(total)}"/><line class="beat-grid-line" x1="${left}" y1="${y(midpoint)}" x2="${width - right}" y2="${y(midpoint)}"/><text class="beat-axis-label" x="${left - 7}" y="${y(total) + 3}" text-anchor="end">${total.toLocaleString()}</text><text class="beat-axis-label" x="${left - 7}" y="${y(midpoint) + 3}" text-anchor="end">${midpoint.toLocaleString()}</text><text class="beat-axis-label" x="${left - 7}" y="${y(0) + 3}" text-anchor="end">0</text><polyline class="beat-progress-line" points="${points}"/>${circles}</svg>`;
+}
+
 function renumberBeatCards() {
   $$(".beat-card", $("#beat-list")).forEach((card, index) => { $(".beat-number", card).textContent = index + 1; });
+  renderBeatProgressGraph();
 }
 
 function currentBeatCards() {
@@ -3101,7 +3147,7 @@ function scheduleBeatSheetSave() {
   beatSheetSaveTimer = setTimeout(persistBeatSheet, 300);
 }
 $("#beat-sheet-form").addEventListener("submit", (event) => event.preventDefault());
-$("#beat-sheet-form").addEventListener("input", scheduleBeatSheetSave);
+$("#beat-sheet-form").addEventListener("input", () => { renderBeatProgressGraph(); scheduleBeatSheetSave(); });
 $("#beat-sheet-form").addEventListener("change", scheduleBeatSheetSave);
 
 $("#annotation-form").addEventListener("submit", (event) => {
