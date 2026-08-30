@@ -235,6 +235,7 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .view-switcher { display: flex; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); }
 .view-switcher button { border: 0; border-radius: 4px; padding: 5px 12px; background: transparent; color: var(--muted); }
 .view-switcher button.active { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / 10%); }
+body.source-tab-hidden [data-preview-mode="source"], body.source-tab-hidden [data-mobile-panel="source"] { display: none !important; }
 .preview-actions { display: flex; align-items: center; gap: 4px; color: var(--muted); }
 .preview-actions > span { margin-right: 8px; font-size: 11px; }
 .preview-actions button, .preview-actions select { height: 27px; border: 1px solid var(--border); background: var(--surface); }
