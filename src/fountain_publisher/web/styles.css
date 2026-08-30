@@ -189,7 +189,7 @@ body.dirty #dirty-dot { background: var(--accent); }
 #source-panel { background-color: var(--bg); }
 #stats-panel { border-left: 1px solid var(--border); }
 .panel-title { min-height: 58px; display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 9px 15px; border-bottom: 1px solid var(--border); }
-#source-panel .panel-title { justify-content: flex-start; gap: 16px; padding-block: 6px; }
+#source-panel .panel-title { justify-content: flex-start; gap: 16px; padding-block: 6px; background: var(--panel); }
 .preview-title, #source-panel .panel-title > div:first-child, .beat-sheet-header > div:first-child { flex: 0 0 96px; width: 96px; }
 .panel-title small, .preview-title small, .dialog-heading small { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .12em; }
 .panel-title h1, .panel-title h2, .preview-title h2 { margin: 1px 0 0; font-size: 16px; line-height: 1.1; }

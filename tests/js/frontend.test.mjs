@@ -552,7 +552,7 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /function saveBeatProgressPng\(\)[\s\S]*XMLSerializer[\s\S]*canvas\.toBlob[\s\S]*beat-pacing\.png/);
   assert.match(css, /\.beat-progress-line\s*\{[^}]*stroke:/s);
   assert.match(css, /\.beat-drag\s*\{[^}]*touch-action:\s*none;[^}]*user-select:\s*none;/s);
-  assert.match(css, /#source-panel \.panel-title\s*\{[^}]*justify-content:\s*flex-start;[^}]*gap:\s*16px;/s);
+  assert.match(css, /#source-panel \.panel-title\s*\{[^}]*justify-content:\s*flex-start;[^}]*gap:\s*16px;[^}]*background:\s*var\(--panel\);/s);
 });
 
 test("mobile preview clipboard actions preserve selections and avoid covering them", async () => {
