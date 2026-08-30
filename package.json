@@ -20,6 +20,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@zakkster/lite-rain": "^1.4.0",
     "pyodide": "314.0.6"
   }
 }

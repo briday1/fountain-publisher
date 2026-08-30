@@ -1,3 +1,5 @@
+import { RainEngine, RAIN_PRESETS } from "@zakkster/lite-rain";
+
 const SAMPLE = `Title: The Last Light
 Credit: Written by
 Author: Avery Stone
@@ -318,9 +320,56 @@ function clearWorkspaceCache() {
   localStorage.removeItem(WORKSPACE_CACHE_KEY);
 }
 
+let rainLayers = [];
+let rainAnimationFrame = 0;
+let rainLastFrame = 0;
+
+function stopRainBackground() {
+  cancelAnimationFrame(rainAnimationFrame);
+  rainAnimationFrame = 0;
+  rainLayers.forEach(({ canvas, engine }) => { engine.destroy(); canvas.remove(); });
+  rainLayers = [];
+}
+
+function startRainBackground() {
+  stopRainBackground();
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const color = document.documentElement.dataset.effectiveTheme === "dark" ? "#b8d7ed" : "#60788b";
+  rainLayers = [$(".preview-panel"), $("#source-panel"), $("#beat-sheet-panel")].map((surface) => {
+    const canvas = document.createElement("canvas");
+    canvas.className = "rain-background-canvas";
+    canvas.setAttribute("aria-hidden", "true");
+    surface.prepend(canvas);
+    return { surface, canvas, context: canvas.getContext("2d"), engine: new RainEngine(1400, { ...RAIN_PRESETS.drizzle, density: 1.35, wind: 32, blurStrength: 0.025, color }), width: 0, height: 0 };
+  });
+  rainLastFrame = performance.now();
+  const animate = (time) => {
+    const dt = Math.min((time - rainLastFrame) / 1000, 0.1);
+    rainLastFrame = time;
+    if (!document.hidden) rainLayers.forEach((layer) => {
+      if (layer.surface.hidden || !layer.surface.getClientRects().length) return;
+      const width = layer.surface.clientWidth; const height = layer.surface.clientHeight;
+      if (!width || !height) return;
+      const pixelRatio = Math.min(devicePixelRatio || 1, 1.5);
+      if (layer.width !== width || layer.height !== height || layer.canvas.width !== Math.round(width * pixelRatio)) {
+        layer.width = width; layer.height = height;
+        layer.canvas.width = Math.round(width * pixelRatio); layer.canvas.height = Math.round(height * pixelRatio);
+        layer.canvas.style.width = `${width}px`; layer.canvas.style.height = `${height}px`;
+      }
+      layer.context.setTransform(1, 0, 0, 1, 0, 0);
+      layer.context.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+      layer.context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      layer.engine.spawn(dt, width, height);
+      layer.engine.updateAndDraw(layer.context, dt, width, height);
+    });
+    rainAnimationFrame = requestAnimationFrame(animate);
+  };
+  rainAnimationFrame = requestAnimationFrame(animate);
+}
+
 function applyPreviewBackground() {
   const storedPattern = localStorage.getItem("fountain-publisher.preview-background") || "dots";
-  const pattern = ["blank", "dots"].includes(storedPattern) ? storedPattern : "dots";
+  const pattern = ["blank", "dots", "rain"].includes(storedPattern) ? storedPattern : "dots";
   const storedRadius = Number(localStorage.getItem("fountain-publisher.preview-dot-radius"));
   const radius = storedRadius >= .6 && storedRadius <= 1.8 ? storedRadius : 1;
   const preview = $("#preview-scroll");
@@ -332,6 +381,7 @@ function applyPreviewBackground() {
   $("#preview-dot-radius").value = String(radius);
   $("#preview-dot-radius-value").textContent = `${radius.toFixed(1)}px`;
   $("#preview-dot-radius-row").hidden = pattern !== "dots";
+  if (pattern === "rain") startRainBackground(); else stopRainBackground();
 }
 
 function escapeHtml(value) {
@@ -2255,6 +2305,7 @@ function setTheme(theme) {
   document.documentElement.dataset.effectiveTheme = effective;
   $("#theme-value").textContent = effective[0].toUpperCase() + effective.slice(1);
   $("#theme").title = `Switch to ${effective === "dark" ? "light" : "dark"} mode`;
+  if (rainLayers.length && localStorage.getItem("fountain-publisher.preview-background") === "rain") startRainBackground();
 }
 
 function cycleTheme() {

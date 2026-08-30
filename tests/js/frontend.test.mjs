@@ -694,7 +694,7 @@ test("preview background popup supports blank and adjustable dots", async () => 
   const settingsMenu = html.match(/<details class="toolbar-menu settings-menu">([\s\S]*?)<\/details>/)?.[1] || "";
   assert.match(settingsMenu, /id="open-background-dialog"[^>]*>Background…<\/button>/);
   assert.match(html, /<dialog id="background-dialog"/);
-  assert.match(html, /id="preview-background"[\s\S]*value="blank">Blank[\s\S]*value="dots" selected>Dots/);
+  assert.match(html, /id="preview-background"[\s\S]*value="blank">Blank[\s\S]*value="dots" selected>Dots[\s\S]*value="rain">Raindrops/);
   assert.doesNotMatch(html, /Damascus|value="damascus"/);
   assert.match(html, /id="preview-dot-radius" type="range" min="0\.6" max="1\.8" step="0\.1" value="1"/);
   assert.match(css, /\.preview-scroll\[data-background="dots"\][^}]*radial-gradient[^}]*background-size:\s*16px 16px;/s);
@@ -702,6 +702,10 @@ test("preview background popup supports blank and adjustable dots", async () => 
   assert.match(css, /#background-dialog\s*\{[^}]*width:\s*min\(390px,/s);
   assert.doesNotMatch(css, /\.preview-scroll\s*\{[^}]*background-color:/s);
   assert.match(app, /function applyPreviewBackground\(\)/);
+  assert.match(app, /import \{ RainEngine, RAIN_PRESETS \} from "@zakkster\/lite-rain"/);
+  assert.match(app, /function startRainBackground\(\)[\s\S]*RAIN_PRESETS\.drizzle[\s\S]*engine\.spawn[\s\S]*engine\.updateAndDraw/);
+  assert.match(app, /prefers-reduced-motion: reduce/);
+  assert.match(css, /\.rain-background-canvas\s*\{[^}]*position:\s*absolute;[^}]*pointer-events:\s*none;/s);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-background", event\.target\.value\)/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-dot-radius", event\.target\.value\)/);
   assert.match(app, /hidden = pattern !== "dots"/);
