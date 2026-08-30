@@ -1778,7 +1778,7 @@ function setDocument(text, filename, saved = false, githubFile = null) {
   source.value = text; state.history = [text]; state.historyIndex = 0; state.filename = filename || "Untitled.fountain"; if (saved) state.savedSource = text;
   state.githubFile = githubFile;
   $("#filename").textContent = state.filename; document.title = `${state.filename} — Fountain Publisher`; sourceChanged();
-  requestAnimationFrame(updateToolbarIdentityLayout);
+  scheduleToolbarIdentityLayout();
 }
 
 async function saveFile(saveAs = false) {
@@ -2369,8 +2369,15 @@ function updateToolbarIdentityLayout() {
   const wasRight = toolbar.classList.contains("title-right");
   toolbar.classList.remove("title-right");
   const centeredGap = identity.getBoundingClientRect().left - $("#redo").getBoundingClientRect().right;
-  toolbar.classList.toggle("title-right", centeredGap < (wasRight ? 80 : 48));
+  toolbar.classList.toggle("title-right", centeredGap < (wasRight ? 180 : 140));
 }
+
+let toolbarLayoutFrame = 0;
+function scheduleToolbarIdentityLayout() {
+  if (toolbarLayoutFrame) return;
+  toolbarLayoutFrame = requestAnimationFrame(() => { toolbarLayoutFrame = 0; updateToolbarIdentityLayout(); });
+}
+if ("ResizeObserver" in window) new ResizeObserver(scheduleToolbarIdentityLayout).observe($(".app-toolbar"));
 
 async function setPreviewMode(mode) {
   if (!['source', 'live', 'pdf', 'beats'].includes(mode)) mode = "live";
