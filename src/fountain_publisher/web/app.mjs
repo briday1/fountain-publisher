@@ -3668,12 +3668,9 @@ toolbarMenus.forEach((menu) => menu.addEventListener("click", (event) => {
       if (isMobilePreview()) setMobileMenu(false);
     });
   }
-  else if (event.target.closest("summary")) {
-    event.preventDefault();
-    const willOpen = !menu.open;
-    closeMenus();
-    menu.open = willOpen;
-  }
+}));
+toolbarMenus.forEach((menu) => menu.addEventListener("toggle", () => {
+  if (menu.open) closeMenus(menu);
 }));
 document.addEventListener("pointerdown", (event) => toolbarMenus.forEach((menu) => {
   if (menu.open && !menu.contains(event.target)) menu.open = false;

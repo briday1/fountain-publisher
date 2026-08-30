@@ -95,7 +95,8 @@ test("toolbar menus use Pugflow-style popup interaction", async () => {
   assert.match(css, /\.toolbar-menu\s*\{[^}]*height:\s*30px;/s);
   assert.match(css, /\.toolbar-popover\s*\{[^}]*position:\s*absolute;[^}]*width:\s*210px;/s);
   assert.match(app, /document\.addEventListener\("pointerdown"/);
-  assert.match(app, /event\.target\.closest\("summary"\)[\s\S]*event\.preventDefault\(\)[\s\S]*const willOpen = !menu\.open;[\s\S]*closeMenus\(\);[\s\S]*menu\.open = willOpen/);
+  assert.doesNotMatch(app, /event\.target\.closest\("summary"\)[\s\S]*event\.preventDefault\(\)/);
+  assert.match(app, /menu\.addEventListener\("toggle", \(\) => \{[\s\S]*if \(menu\.open\) closeMenus\(menu\)/);
 });
 
 test("app info uses one understated GitHub link", async () => {
