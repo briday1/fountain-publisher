@@ -329,12 +329,6 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .general-notes > button span { flex: 1; overflow: hidden; white-space: pre-wrap; text-overflow: ellipsis; }
 .general-notes > button small { color: var(--muted); }
 .add-note-button { width: calc(100% - 20px); margin: 0 10px 11px; border: 1px solid var(--border); border-radius: 5px; padding: 7px; background: var(--surface); color: var(--muted); }
-.beat-sheet-summary { padding: 0 10px 3px; }
-.beat-sheet-summary p { margin: 0 0 8px; padding: 9px; border-left: 3px solid var(--metric-scenes-ink); border-radius: 4px; background: var(--surface-2); font-size: 11px; line-height: 1.4; }
-.beat-sheet-summary ol { margin: 0; padding: 0; list-style: none; counter-reset: beat; }
-.beat-sheet-summary li { display: grid; grid-template-columns: 19px 1fr; gap: 5px; padding: 5px 2px; border-bottom: 1px solid var(--border); font-size: 10px; line-height: 1.35; }
-.beat-sheet-summary li::before { counter-increment: beat; content: counter(beat); color: var(--metric-pages-ink); font: 700 9px var(--mono); }
-.beat-sheet-summary > small { display: block; padding: 6px 2px; color: var(--muted); }
 .scene-list { counter-reset: scene; }
 .scene-list li { display: grid; grid-template-columns: 29px 1fr; padding: 7px 5px; border-top: 1px solid var(--border); }
 .scene-list li.empty-list { display: block; }
