@@ -46,11 +46,13 @@ test("live compilation cancels stale requests and HTML export is absent", async 
 });
 
 test("Source, Preview, PDF, and Beat Sheet share the main workspace", async () => {
-  const html = await readFile(htmlPath, "utf8");
-  const css = await readFile(cssPath, "utf8");
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /data-preview-mode="source"[\s\S]*data-preview-mode="live"[\s\S]*data-preview-mode="pdf"[\s\S]*data-preview-mode="beats"/);
   assert.match(css, /#source-panel, \.preview-panel, #beat-sheet-panel\s*\{\s*grid-column:\s*1;/);
   assert.match(css, /#stats-panel\s*\{\s*grid-column:\s*4;/);
+  assert.match(html, /id="menu-toggle-source-tab"[^>]*>Show Source tab/);
+  assert.match(app, /function sourceTabEnabled\(\)[\s\S]*source-tab-hidden[\s\S]*state\.previewMode === "source"/);
+  assert.match(css, /body\.source-tab-hidden \[data-preview-mode="source"\]/);
   assert.match(css, /grid-template-rows:\s*minmax\(0,\s*1fr\)/);
 });
 

@@ -213,6 +213,7 @@ const docSettings = {
   sceneNumberFormat: localStorage.getItem("fountain-publisher.scene-number-format") ?? "sequential",
 };
 function setDocSetting(key, value) { docSettings[key] = value; localStorage.setItem(`fountain-publisher.${key}`, value); }
+function sourceTabEnabled() { return localStorage.getItem("fountain-publisher.source-tab") !== "false"; }
 const state = {
   filename: "Untitled.fountain",
   handle: null,
@@ -2129,6 +2130,7 @@ function isMobilePreview() {
 
 async function setPreviewMode(mode) {
   if (!['source', 'live', 'pdf', 'beats'].includes(mode)) mode = "live";
+  if (mode === "source" && !sourceTabEnabled()) mode = "live";
   if (isMobilePreview() && ['pdf', 'beats'].includes(mode)) mode = "live";
   const preview = $("#preview-scroll");
   const returnToLive = state.previewMode === "pdf" && mode === "live";
@@ -3192,6 +3194,14 @@ $("#preview-dot-radius").addEventListener("input", (event) => {
 $("#page-size").addEventListener("change", () => { scheduleCompile(0); if (state.previewMode === "pdf") refreshPdf(); });
 $$('[data-preview-mode]').forEach((button) => button.addEventListener("click", () => setPreviewMode(button.dataset.previewMode)));
 $("#toggle-stats").addEventListener("click", () => togglePanel("stats")); $("#menu-toggle-stats").addEventListener("click", () => togglePanel("stats"));
+$("#menu-toggle-source-tab").addEventListener("click", () => {
+  const enabled = !sourceTabEnabled();
+  localStorage.setItem("fountain-publisher.source-tab", String(enabled));
+  document.body.classList.toggle("source-tab-hidden", !enabled);
+  $(".menu-check", $("#menu-toggle-source-tab")).textContent = enabled ? "✓" : "";
+  if (!enabled && state.previewMode === "source") void setPreviewMode("live");
+  closeMenus();
+});
 $("#undo").addEventListener("click", undoDocument); $("#redo").addEventListener("click", redoDocument);
 $("#zoom").addEventListener("change", () => { state.previewZoom = $("#zoom").value; applyZoom(); }); $("#zoom-out").addEventListener("click", () => stepZoom(-1)); $("#zoom-in").addEventListener("click", () => stepZoom(1)); $("#zoom-fit").addEventListener("click", () => { state.previewZoom = "fit"; applyZoom(); });
 $("#open-docs").addEventListener("click", () => $("#docs-dialog").showModal());
@@ -3388,6 +3398,9 @@ window.addEventListener("resize", () => {
 async function initialize() {
   updateMobileViewport();
   setTheme(state.theme);
+  const showSourceTab = sourceTabEnabled();
+  document.body.classList.toggle("source-tab-hidden", !showSourceTab);
+  $(".menu-check", $("#menu-toggle-source-tab")).textContent = showSourceTab ? "✓" : "";
   applyPreviewBackground();
   const isMac = /Mac/i.test(navigator.platform) || /Mac/i.test(navigator.userAgentData?.platform || "");
   document.documentElement.dataset.os = isMac ? "mac" : "win";
@@ -3413,7 +3426,8 @@ async function initialize() {
   const enableWorkspaceCache = params.get("demo") !== "1";
   setDocument(text, name, !restore, restore ? cached.githubFile || null : null);
   void refreshGithubSession();
-  const initialMobileTab = localStorage.getItem("fountain-publisher.mobile-tab") || "source";
+  const storedMobileTab = localStorage.getItem("fountain-publisher.mobile-tab") || "source";
+  const initialMobileTab = !showSourceTab && storedMobileTab === "source" ? "preview" : storedMobileTab;
   setMobileTab(initialMobileTab);
   if (restore && ["fit", "70", "85", "100", "115", "130", "150", "175", "200"].includes(String(cached.zoom))) {
     state.previewZoom = String(cached.zoom);
