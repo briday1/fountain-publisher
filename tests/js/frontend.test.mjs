@@ -122,6 +122,17 @@ test("third-party license notices accompany local and static distributions", asy
   assert.match(build, /THIRD_PARTY_NOTICES\.md/);
 });
 
+test("browser source uses a locally served rain module", async () => {
+  const [app, rain] = await Promise.all([
+    readFile(appPath, "utf8"),
+    readFile(new URL("../../src/fountain_publisher/web/vendor/lite-rain.mjs", import.meta.url), "utf8"),
+  ]);
+  assert.match(app, /from "\.\/vendor\/lite-rain\.mjs"/);
+  assert.doesNotMatch(app, /from "@zakkster\/lite-rain"/);
+  assert.match(rain, /RainEngine/);
+  assert.doesNotMatch(rain, /from\s+["']@zakkster\//);
+});
+
 test("source and preview share syntax, cursor synchronization, and character completion behavior", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="source-highlight"/);
@@ -718,7 +729,7 @@ test("preview background popup supports blank and adjustable dots", async () => 
   assert.match(css, /#background-dialog\s*\{[^}]*width:\s*min\(390px,/s);
   assert.doesNotMatch(css, /\.preview-scroll\s*\{[^}]*background-color:/s);
   assert.match(app, /function applyPreviewBackground\(\)/);
-  assert.match(app, /import \{ RainEngine, RAIN_PRESETS \} from "@zakkster\/lite-rain"/);
+  assert.match(app, /import \{ RainEngine, RAIN_PRESETS \} from "\.\/vendor\/lite-rain\.mjs"/);
   assert.match(app, /function startRainBackground\(\)[\s\S]*RAIN_PRESETS\.drizzle[\s\S]*engine\.spawn[\s\S]*engine\.updateAndDraw/);
   assert.match(app, /prefers-reduced-motion: reduce/);
   assert.match(css, /\.rain-background-canvas\s*\{[^}]*position:\s*absolute;[^}]*pointer-events:\s*none;/s);

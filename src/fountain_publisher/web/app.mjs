@@ -1,4 +1,4 @@
-import { RainEngine, RAIN_PRESETS } from "@zakkster/lite-rain";
+import { RainEngine, RAIN_PRESETS } from "./vendor/lite-rain.mjs";
 
 const SAMPLE = `Title: The Last Light
 Credit: Written by
