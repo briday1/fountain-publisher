@@ -399,6 +399,7 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.match(html, /class="character-analytics-button"[^>]*data-character-analytics>Character Analytics/);
   assert.match(css, /\.character-analytics-button, \.character-csv-button\s*\{[^}]*width:\s*100%;[^}]*text-align:\s*center;/s);
   assert.match(html, /id="character-analytics-chart"/);
+  assert.match(html, /id="character-analytics-back"[^>]*>← All scenes</);
   assert.match(html, /id="copy-character-lines"[^>]*>Copy line usage CSV/);
   assert.match(app, /navigator\.clipboard\.writeText\(characterLineUsageCsv\(\)\)/);
   assert.match(app, /characters\.map\(\(character\) => `\$\{character\.name\}, \$\{character\.lines\}`\)/);
@@ -413,6 +414,10 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.doesNotMatch(app, /table\.style\.width/);
   assert.match(app, /maxLines === minLines \? 1 : 0\.25 \+ 0\.75/);
   assert.match(app, /canvasColor\("--syntax-character", "#7c3aed"\)/);
+  assert.match(app, /function sceneCharacterWordSegments\(sceneIndex\)[\s\S]*segments\.push\(\{ character: active, start: position, words \}\)/);
+  assert.match(app, /function renderSceneCharacterAnalytics\(sceneIndex\)[\s\S]*segment\.start \/ total[\s\S]*segment\.words \/ total/);
+  assert.match(app, /state\.metadata\.scenes\.length === 1 \? 0 : null/);
+  assert.match(app, /character-analytics-chart"\)\.addEventListener\("click"[\s\S]*sceneIndex[\s\S]*renderCharacterAnalytics\(\)/);
   assert.match(app, /return String\(sceneInAct\)/);
   assert.match(app, /fillRect\(0, y, labelWidth \+ scenes\.length \* sceneWidth, rowHeight\)/);
   assert.doesNotMatch(app, /moveTo\(0, y \+ rowHeight \+ 0\.5\)/);

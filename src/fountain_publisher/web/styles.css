@@ -418,6 +418,8 @@ button:disabled { cursor: default; opacity: .45; }
 .analytics-header h2 { margin: 1px 0 0; font-size: 18px; }
 .analytics-header button { width: 30px; height: 30px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: 22px; }
 .analytics-header button:hover { background: var(--surface-2); color: var(--ink); }
+.analytics-header-actions { display: flex; align-items: center; gap: 5px; }
+.analytics-header-actions #character-analytics-back { width: auto; padding: 0 9px; font-size: 10px; font-weight: 700; }
 .analytics-shell > p { margin: 0; padding: 12px 20px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; }
 .analytics-gradient-legend { display: flex; align-items: center; gap: 8px; padding: 8px 20px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 10px; }
 .analytics-gradient-legend[hidden] { display: none; }

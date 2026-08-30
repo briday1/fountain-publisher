@@ -267,6 +267,7 @@ const state = {
   vimYankLine: false,
   beatGuide: localStorage.getItem("fountain-publisher.beat-guide") === "true",
   activeBeat: 0,
+  characterAnalyticsScene: null,
 };
 
 function emptyMetadata() {
@@ -1208,7 +1209,76 @@ function fitCanvasText(context, value, width) {
   return clipped ? `${clipped}…` : "";
 }
 
+function sceneCharacterWordSegments(sceneIndex) {
+  const scenes = state.metadata.scenes || [];
+  const typed = classifyLines(source.value);
+  const start = Math.max(0, (scenes[sceneIndex]?.line || 1) - 1);
+  const end = sceneIndex + 1 < scenes.length ? Math.max(start, scenes[sceneIndex + 1].line - 1) : typed.length;
+  const segments = [];
+  let active = "";
+  let position = 0;
+  const ignored = new Set(["empty", "parenthetical", "section", "synopsis", "note", "boneyard", "title-value", "title-value title", "character", "scene", "page-break"]);
+  for (let index = start + 1; index < end; index += 1) {
+    const line = typed[index];
+    if (line.type === "character") { active = cleanCharacter(line.display); continue; }
+    const words = ignored.has(line.type) ? 0 : (line.display.match(/[\p{L}\p{N}'’-]+/gu) || []).length;
+    if (line.type === "dialogue" && active && words) segments.push({ character: active, start: position, words });
+    position += words;
+    if (!["dialogue", "parenthetical", "empty", "note"].includes(line.type)) active = "";
+  }
+  return { segments, total: position };
+}
+
+function renderSceneCharacterAnalytics(sceneIndex) {
+  const canvas = $("#character-analytics-chart");
+  const scene = state.metadata.scenes[sceneIndex];
+  const { segments, total } = sceneCharacterWordSegments(sceneIndex);
+  const characters = [...new Set(segments.map((segment) => segment.character))];
+  const scale = Math.min(window.devicePixelRatio || 1, 2);
+  const labelWidth = 150; const plotWidth = 760; const headerHeight = 58; const rowHeight = 38;
+  const width = labelWidth + plotWidth; const height = headerHeight + Math.max(characters.length, 1) * rowHeight;
+  canvas.width = Math.ceil(width * scale); canvas.height = Math.ceil(height * scale);
+  canvas.style.width = `${width}px`; canvas.style.height = `${height}px`; canvas.style.cursor = "default";
+  const context = canvas.getContext("2d"); context.scale(scale, scale);
+  const surface = canvasColor("--surface", "#fff"); const surface2 = canvasColor("--surface-2", "#f2f2f2");
+  const ink = canvasColor("--ink", "#202124"); const muted = canvasColor("--muted", "#6b7280");
+  const border = canvasColor("--border", "#d7d9dd"); const characterColor = canvasColor("--syntax-character", "#7c3aed");
+  context.fillStyle = surface; context.fillRect(0, 0, width, height);
+  context.fillStyle = surface2; context.fillRect(0, 0, width, headerHeight);
+  context.strokeStyle = border; context.lineWidth = 1; context.strokeRect(.5, .5, width - 1, headerHeight);
+  context.textBaseline = "middle"; context.textAlign = "left"; context.fillStyle = ink;
+  context.font = "600 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  context.fillText(fitCanvasText(context, scene?.heading || `Scene ${sceneIndex + 1}`, labelWidth - 20), 12, 20);
+  context.fillStyle = muted; context.font = "9px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  context.fillText(`${total.toLocaleString()} scene words`, 12, 40);
+  [0, .25, .5, .75, 1].forEach((ratio) => {
+    const x = labelWidth + plotWidth * ratio;
+    context.strokeStyle = border; context.beginPath(); context.moveTo(x + .5, headerHeight); context.lineTo(x + .5, height); context.stroke();
+    context.fillStyle = muted; context.textAlign = ratio === 0 ? "left" : ratio === 1 ? "right" : "center";
+    context.fillText(Math.round(total * ratio).toLocaleString(), x, 42);
+  });
+  characters.forEach((character, row) => {
+    const y = headerHeight + row * rowHeight;
+    if (row % 2 === 1) { context.fillStyle = surface2; context.fillRect(0, y, width, rowHeight); }
+    context.fillStyle = ink; context.textAlign = "left"; context.font = "600 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    context.fillText(fitCanvasText(context, character, labelWidth - 20), 12, y + rowHeight / 2);
+    segments.filter((segment) => segment.character === character).forEach((segment) => {
+      const x = labelWidth + (total ? segment.start / total : 0) * plotWidth;
+      const segmentWidth = Math.max(2, (total ? segment.words / total : 0) * plotWidth);
+      context.fillStyle = characterColor; context.fillRect(x, y + 8, segmentWidth, rowHeight - 16);
+      if (segmentWidth >= 24) { context.fillStyle = "#fff"; context.textAlign = "center"; context.fillText(String(segment.words), x + segmentWidth / 2, y + rowHeight / 2); }
+    });
+  });
+  if (!characters.length) { context.fillStyle = muted; context.textAlign = "center"; context.fillText("No character dialogue in this scene.", width / 2, headerHeight + rowHeight / 2); }
+  $("#character-analytics-title").textContent = `Scene ${sceneIndex + 1} Character Gantt`;
+  $("#character-analytics-description").textContent = `${scene?.heading || "Scene"} · Solid bars show dialogue word count and position within the scene.`;
+  $("#character-analytics-back").hidden = state.metadata.scenes.length <= 1;
+  $("#character-analytics-legend").hidden = true;
+  canvas.setAttribute("aria-label", `Character dialogue word-position Gantt for scene ${sceneIndex + 1}, ${scene?.heading || "scene"}, with ${total} words`);
+}
+
 function renderCharacterAnalytics() {
+  if (state.characterAnalyticsScene !== null && state.metadata.scenes[state.characterAnalyticsScene]) { renderSceneCharacterAnalytics(state.characterAnalyticsScene); return; }
   const canvas = $("#character-analytics-chart");
   const characters = state.metadata.characters;
   const scenes = state.metadata.scenes;
@@ -1226,6 +1296,10 @@ function renderCharacterAnalytics() {
   canvas.style.height = `${height}px`;
   const context = canvas.getContext("2d");
   context.scale(scale, scale);
+  canvas.style.cursor = scenes.length ? "pointer" : "default";
+  $("#character-analytics-title").textContent = "Character Analytics";
+  $("#character-analytics-description").textContent = "Dialogue lines by character across acts and scenes. Select a scene header for word-position detail.";
+  $("#character-analytics-back").hidden = true;
 
   const surface = canvasColor("--surface", "#fff");
   const surface2 = canvasColor("--surface-2", "#f2f2f2");
@@ -1326,6 +1400,7 @@ function characterLineUsageCsv() {
 }
 
 function openCharacterAnalytics() {
+  state.characterAnalyticsScene = state.metadata.scenes.length === 1 ? 0 : null;
   renderCharacterAnalytics();
   $("#character-analytics-dialog").showModal();
 }
@@ -3053,6 +3128,21 @@ $("#preview-completion-menu").addEventListener("mousedown", (event) => { const i
 $("#completion-menu").addEventListener("mousedown", (event) => { const item = event.target.closest(".completion-item"); if (item) { event.preventDefault(); acceptCompletion(Number(item.dataset.index)); } });
 $("[data-character-analytics]").addEventListener("click", openCharacterAnalytics);
 $("#close-character-analytics").addEventListener("click", () => $("#character-analytics-dialog").close());
+$("#character-analytics-back").addEventListener("click", () => { state.characterAnalyticsScene = null; renderCharacterAnalytics(); });
+$("#character-analytics-chart").addEventListener("click", (event) => {
+  if (state.characterAnalyticsScene !== null) return;
+  const scenes = state.metadata.scenes || [];
+  if (!scenes.length) return;
+  const canvas = event.currentTarget;
+  const bounds = canvas.getBoundingClientRect();
+  const x = (event.clientX - bounds.left) * (parseFloat(canvas.style.width) / bounds.width);
+  const y = (event.clientY - bounds.top) * (parseFloat(canvas.style.height) / bounds.height);
+  if (y < 28 || y > 82 || x < 150) return;
+  const sceneIndex = Math.floor((x - 150) / 92);
+  if (sceneIndex < 0 || sceneIndex >= scenes.length) return;
+  state.characterAnalyticsScene = sceneIndex;
+  renderCharacterAnalytics();
+});
 $("#copy-character-lines").addEventListener("click", copyCharacterLineUsage);
 $("#save-character-analytics").addEventListener("click", saveCharacterAnalyticsPng);
 $("#scene-list").addEventListener("click", (event) => { const button = event.target.closest("button[data-line]"); if (button) jumpToInsightScene(Number(button.dataset.line)); });
