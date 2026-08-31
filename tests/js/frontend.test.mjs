@@ -341,8 +341,8 @@ test("theme control uses Pugflow-style sun and moon icons", async () => {
 
 test("source editor uses neutral backgrounds with colored screenplay cues", async () => {
   const css = await readFile(cssPath, "utf8");
-  assert.match(css, /:root\s*\{[\s\S]*--source-bg:\s*#f6f6f5;[\s\S]*--source-ink:\s*#0f172a;[\s\S]*--syntax-scene:\s*#0284c7;[\s\S]*--syntax-character:\s*#7c3aed;[\s\S]*--syntax-transition:\s*#b45309;[\s\S]*--syntax-ignored:\s*#be123c;/);
-  assert.match(css, /:root\[data-theme="dark"\]\s*\{[\s\S]*--source-bg:\s*#111315;[\s\S]*--source-ink:\s*#cbd5e1;[\s\S]*--syntax-scene:\s*#38bdf8;[\s\S]*--syntax-character:\s*#c4b5fd;[\s\S]*--syntax-transition:\s*#fbbf24;[\s\S]*--syntax-ignored:\s*#fb7185;/);
+  assert.match(css, /:root\s*\{[\s\S]*--source-bg:\s*#f6f6f5;[\s\S]*--source-ink:\s*#0f172a;[\s\S]*--syntax-scene:\s*#0284c7;[\s\S]*--syntax-character:\s*#366fc2;[\s\S]*--syntax-transition:\s*#b45309;[\s\S]*--syntax-ignored:\s*#be123c;/);
+  assert.match(css, /:root\[data-theme="dark"\]\s*\{[\s\S]*--source-bg:\s*#111315;[\s\S]*--source-ink:\s*#cbd5e1;[\s\S]*--syntax-scene:\s*#38bdf8;[\s\S]*--syntax-character:\s*#e88bc3;[\s\S]*--syntax-transition:\s*#fbbf24;[\s\S]*--syntax-ignored:\s*#fb7185;/);
   assert.match(css, /\.editor-shell\s*\{[^}]*background:\s*var\(--source-bg\);/s);
   assert.match(css, /\.source-highlight\s*\{[^}]*color:\s*var\(--source-ink\);/s);
   assert.match(css, /\.line-numbers\s*\{[^}]*background:\s*var\(--source-gutter-bg\);/s);
@@ -576,7 +576,7 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(app, /const candidates = \$\$\("\.script-line\[data-display\]"/);
   assert.match(app, /\["dialogue", "parenthetical", "note"\]\.includes/);
   assert.match(css, /\.annotation-orb\s*\{/);
-  assert.match(css, /--annotation-accent:\s*var\(--metric-scenes-ink\);/);
+  assert.match(css, /--annotation-accent:\s*var\(--syntax-character\);/);
   assert.match(css, /\.annotation-orb\s*\{[^}]*appearance:\s*none;[^}]*-webkit-appearance:\s*none;[^}]*background-color:\s*var\(--annotation-accent\)/s);
   assert.match(worker, /fountain-publisher-shell-v2/);
   assert.match(worker, /\["styles\.css", "app\.mjs"\][\s\S]*fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);
@@ -584,7 +584,8 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(app, /function alignAnnotationOrbs\(\)[\s\S]*marginCenterX[\s\S]*orb\.offsetWidth \* scale \* \.5[\s\S]*orb\.style\.left/);
   assert.match(app, /requestAnimationFrame\(alignAnnotationOrbs\)/);
   assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*padding:\s*48px max\(28px, 7vw\) 72px;/s);
-  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.annotation-orb\s*\{[^}]*width:\s*16px;[^}]*height:\s*16px;/s);
+  assert.match(css, /\.annotation-orb\s*\{[^}]*width:\s*12px;[^}]*height:\s*12px;/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.annotation-orb\s*\{[^}]*width:\s*14px;[^}]*height:\s*14px;/s);
   assert.match(css, /\.annotation-orb::after\s*\{[^}]*inset:\s*-8px;/s);
   assert.match(app, /page\.addEventListener\("pointerdown"[\s\S]*previewTouchMenuTimer = setTimeout[\s\S]*showPreviewContextMenu[\s\S]*420/);
   assert.match(app, /page\.addEventListener\("pointermove"[\s\S]*Math\.hypot[\s\S]*cancelPreviewTouchMenu/);
