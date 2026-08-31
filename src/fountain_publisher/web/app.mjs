@@ -2513,7 +2513,7 @@ document.addEventListener("webkitfullscreenchange", updateAppWindowControls);
 function togglePanel(panel, force) {
   const collapsed = force ?? !document.body.classList.contains(`${panel}-collapsed`);
   document.body.classList.toggle(`${panel}-collapsed`, collapsed); localStorage.setItem(`fountain-publisher.${panel}-collapsed`, String(collapsed));
-  $(`#toggle-${panel}`).setAttribute("aria-expanded", String(!collapsed));
+  $$(`[data-toggle-${panel}]`).forEach((button) => button.setAttribute("aria-expanded", String(!collapsed)));
   $(`#menu-toggle-${panel}`).textContent = `${collapsed ? "Show" : "Hide"} ${panel === "stats" ? "Insights" : "Source"}`;
   if (state.previewZoom === "fit") requestAnimationFrame(applyZoom);
 }
@@ -2523,7 +2523,7 @@ function installResizer(element, variable, side, min, max) {
   const apply = (width) => { const next = Math.max(min, Math.min(max, width)); document.documentElement.style.setProperty(variable, `${next}px`); localStorage.setItem(`fountain-publisher.${variable}`, String(next)); element.setAttribute("aria-valuenow", String(Math.round(next))); if (variable === "--source-w") renderEditorChrome(); if (state.previewZoom === "fit") requestAnimationFrame(applyZoom); };
   element.addEventListener("pointerdown", (event) => { startX = event.clientX; startWidth = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(variable)); element.setPointerCapture(event.pointerId); });
   element.addEventListener("pointermove", (event) => { if (!element.hasPointerCapture(event.pointerId)) return; apply(startWidth + (event.clientX - startX) * side); });
-  element.addEventListener("dblclick", () => apply(variable === "--source-w" ? 370 : 310));
+  element.addEventListener("dblclick", () => apply(variable === "--source-w" ? 370 : 330));
   element.addEventListener("keydown", (event) => { if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return; event.preventDefault(); const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(variable)); if (event.key === "Home") apply(min); else if (event.key === "End") apply(max); else apply(current + (event.key === "ArrowRight" ? 1 : -1) * side * (event.shiftKey ? 30 : 10)); });
 }
 
@@ -3872,7 +3872,7 @@ $$('[data-preview-mode]').forEach((button) => button.addEventListener("click", (
   if (isMobilePreview()) setMobileTab(mode === "beats" ? "beats" : mode === "source" ? "source" : "preview");
   else setPreviewMode(mode);
 }));
-$("#toggle-stats").addEventListener("click", () => togglePanel("stats"));
+$$('[data-toggle-stats]').forEach((button) => button.addEventListener("click", () => togglePanel("stats")));
 $("#menu-toggle-stats").addEventListener("click", () => isMobilePreview() ? setMobileTab("stats") : togglePanel("stats"));
 $("#menu-toggle-source-tab").addEventListener("click", () => {
   if (isMobilePreview()) {

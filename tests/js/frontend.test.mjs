@@ -101,7 +101,7 @@ test("Source, Preview, PDF, and Beat Sheet share the main workspace", async () =
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /data-preview-mode="source"[\s\S]*data-preview-mode="live"[\s\S]*data-preview-mode="beats"[\s\S]*data-preview-mode="pdf"/);
   assert.match(css, /#source-panel, \.preview-panel, #beat-sheet-panel\s*\{\s*grid-column:\s*1;/);
-  assert.match(css, /#stats-panel\s*\{\s*grid-column:\s*4;/);
+  assert.match(css, /#stats-panel\s*\{\s*grid-column:\s*3;/);
   assert.match(html, /id="menu-toggle-source-tab"[^>]*>Show Source tab/);
   assert.match(app, /function sourceTabEnabled\(\)[\s\S]*source-tab-hidden[\s\S]*state\.previewMode === "source"/);
   assert.match(app, /function sourceTabEnabled\(\)[\s\S]*if \(stored !== null\) return stored === "true";[\s\S]*WORKSPACE_CACHE_KEY/);
@@ -113,18 +113,21 @@ test("Source, Preview, PDF, and Beat Sheet share the main workspace", async () =
 });
 
 test("Insights remains independently collapsible without a Source sidebar", async () => {
-  const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.doesNotMatch(html, /class="panel-close"/);
   assert.doesNotMatch(html, /class="panel-toggle source-toggle"/);
-  assert.match(html, /class="panel-toggle stats-toggle"[^>]*><span>›<\/span><b>Insights<\/b>/);
-  assert.match(css, /stats-collapsed \.stats-toggle\s*\{[^}]*justify-content:\s*center;[^}]*gap:\s*8px;/s);
+  assert.doesNotMatch(html, /class="panel-toggle stats-toggle"/);
+  assert.match(html, /class="insights-open-button" data-toggle-stats[^>]*>Insights <span>›<\/span>/);
+  assert.match(html, /class="insights-close-button" data-toggle-stats[^>]*>›<\/button>/);
+  assert.match(css, /grid-template-columns:\s*minmax\(360px, 1fr\) 4px var\(--stats-w\)/);
+  assert.match(css, /stats-collapsed \.insights-open-button\s*\{[^}]*display:\s*inline-flex/);
+  assert.match(app, /\$\$\('\[data-toggle-stats\]'\)\.forEach/);
 });
 
 test("desktop Insights has a roomier default width and legible title", async () => {
   const css = await readFile(cssPath, "utf8");
   assert.match(css, /--stats-w:\s*330px/);
   assert.match(css, /#stats-panel \.panel-title h2\s*\{[^}]*font-size:\s*18px;/);
-  assert.match(css, /\.panel-toggle b\s*\{[^}]*font-size:\s*11px;/);
 });
 
 test("live and PDF previews have bounded scrolling containers", async () => {
@@ -465,7 +468,7 @@ test("preview toolbar and rotating arrows stay compact", async () => {
   assert.doesNotMatch(html, /id="preview-percent"/);
   assert.doesNotMatch(css, /\.preview-status/);
   assert.doesNotMatch(app, /function updatePreviewStatus\(/);
-  assert.match(css, /stats-collapsed \.stats-toggle span\s*\{\s*transform:\s*rotate\(180deg\)/);
+  assert.match(css, /\.insights-open-button span\s*\{[^}]*font-size:\s*16px/);
 });
 
 test("document balance heading aligns with other insight labels", async () => {
