@@ -424,7 +424,7 @@ test("page totals come from the compiled Screenplain PDF", async () => {
   assert.match(app, /function renderPageMetric\(metadata\)/);
   assert.match(app, /1:\s*\[1, 8\][\s\S]*4:\s*\[1, 2\][\s\S]*7:\s*\[7, 8\]/);
   assert.match(app, /class="page-fraction"><sup>\$\{fraction\[0\]\}<\/sup><sub>\$\{fraction\[1\]\}<\/sub>/);
-  assert.match(css, /\.page-fraction\s*\{[^}]*display:\s*inline-grid;[^}]*height:\s*1em;[^}]*vertical-align:\s*middle;[^}]*translateY\(-\.03em\);/s);
+  assert.match(css, /\.page-fraction\s*\{[^}]*display:\s*inline-grid;[^}]*height:\s*1em;[^}]*vertical-align:\s*middle;[^}]*font-weight:\s*400;[^}]*translateY\(-\.03em\);/s);
   assert.match(css, /\.page-fraction::after\s*\{[^}]*top:\s*50%;[^}]*border-top:/s);
   assert.match(css, /\.page-fraction sup, \.page-fraction sub\s*\{[^}]*place-items:\s*center;[^}]*transform:\s*none;/s);
   assert.match(app, /function compileStaticPageCount/);
