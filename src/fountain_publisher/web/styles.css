@@ -412,7 +412,8 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 #export-form select { height: 35px; border: 1px solid var(--border); background: var(--surface); border-radius: 5px; padding: 0 8px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 .dialog-actions button { border: 1px solid var(--border); border-radius: 5px; background: var(--surface); padding: 7px 14px; }
-.dialog-actions .primary { border-color: var(--accent); background: var(--accent); color: white; }
+.dialog-actions .primary, .github-save-fields button.primary, .analytics-actions .primary, .beat-sheet-actions .primary { border-color: color-mix(in srgb, var(--accent) 52%, var(--border)); background: color-mix(in srgb, var(--accent) 11%, var(--surface)); color: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
+.dialog-actions .primary:hover, .github-save-fields button.primary:hover, .analytics-actions .primary:hover, .beat-sheet-actions .primary:hover { border-color: color-mix(in srgb, var(--accent) 65%, var(--border)); background: color-mix(in srgb, var(--accent) 17%, var(--surface)); color: color-mix(in srgb, var(--accent) 92%, var(--ink)); }
 
 #background-dialog { width: min(390px, calc(100vw - 30px)); border: 1px solid var(--border); border-radius: 9px; padding: 0; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 #background-dialog::backdrop { background: rgb(0 0 0 / 40%); backdrop-filter: blur(2px); }
@@ -454,7 +455,6 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .github-save-panel details > summary { display: none; }
 .github-save-fields { display: grid; grid-template-columns: minmax(140px, .8fr) minmax(180px, 1.2fr) auto; align-items: end; gap: 8px; padding: 9px 14px; }
 .github-save-panel details:not([open]) .github-save-fields { display: none; }
-.github-save-fields button.primary { border-color: var(--accent); background: var(--accent); color: white; }
 .github-save-fields #github-save-status { grid-column: 1 / -1; min-height: 17px; margin: 0; color: var(--muted); font-size: 11px; }
 #github-save-status.success, #github-save-status.success a { color: var(--accent); }
 #github-save-status.error { color: var(--danger); }
@@ -480,12 +480,12 @@ button:disabled { cursor: default; opacity: .45; }
 #character-analytics-chart { display: block; background: var(--surface); box-shadow: 0 1px 4px rgb(0 0 0 / 10%); }
 .analytics-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
 .analytics-actions button { border: 1px solid var(--border); border-radius: 5px; background: var(--surface); padding: 7px 14px; }
-.analytics-actions .primary { border-color: var(--accent); background: var(--accent); color: white; }
 
 #annotation-dialog, #character-note-dialog, #general-note-dialog { width: min(470px, calc(100vw - 30px)); border: 1px solid var(--border); border-radius: 9px; padding: 0; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 #annotation-dialog::backdrop, #character-note-dialog::backdrop, #general-note-dialog::backdrop { background: rgb(0 0 0 / 40%); backdrop-filter: blur(2px); }
 .note-form { padding: 20px; }
 .note-form > label { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; font-weight: 600; }
+.note-form > .annotation-field { margin-top: 0; }
 .note-form textarea { box-sizing: border-box; width: 100%; resize: vertical; border: 1px solid var(--border); border-radius: 5px; padding: 9px; background: var(--surface-2); color: var(--ink); font: 13px/1.45 var(--sans); }
 .note-form .dialog-actions { align-items: center; }
 .note-form .dialog-actions span { flex: 1; }
@@ -550,7 +550,6 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-sheet-actions { width: min(816px, calc(100% - 40px)); display: flex; align-items: center; gap: 8px; margin: 0 auto 34px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 0 0 4px 4px; background: var(--paper); color: var(--paper-ink); box-shadow: 0 12px 24px rgb(20 24 28 / 8%); }
 .beat-sheet-actions span { flex: 1; color: var(--muted); font-size: 10px; }
 .beat-sheet-actions button { border: 1px solid var(--border); border-radius: 5px; padding: 7px 13px; background: var(--surface); color: var(--ink); }
-.beat-sheet-actions .primary { border-color: var(--accent); background: var(--accent); color: white; }
 .beat-flow-editor { position: relative; padding-bottom: 20px; }
 .beat-flow-editor::before { content: ""; position: absolute; top: 20px; bottom: 24px; left: 13px; width: 2px; background: color-mix(in srgb, var(--metric-scenes-ink) 38%, var(--border)); }
 .beat-graph-node { position: relative; display: grid; grid-template-columns: 28px 20px 18px minmax(0, 1fr); gap: 5px; align-items: center; margin-bottom: 5px; padding: 2px 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }

@@ -2791,7 +2791,7 @@ function openBeatSheet() {
 function openAnnotationEditor(line = null, insertAfter = null) {
   const existing = line === null ? "" : annotationText(sourceLines()[line] || "");
   state.noteEditor = { kind: "annotation", line, insertAfter };
-  $("#annotation-heading").textContent = line === null ? "Add annotation" : "Edit annotation";
+  $("#annotation-heading").textContent = line === null ? "Add Annotation" : "Edit Annotation";
   $("#annotation-text").value = existing;
   $("#delete-annotation").hidden = line === null;
   $("#annotation-dialog").showModal();

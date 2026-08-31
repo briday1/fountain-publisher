@@ -602,6 +602,22 @@ test("annotation and note deletion uses a muted rose treatment", async () => {
   assert.match(css, /\.dialog-actions \.danger:hover\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--danger\) 17%, var\(--surface\)\);/s);
 });
 
+test("primary Save and export actions use a muted blue treatment", async () => {
+  const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(html, /class="primary" id="save-character-analytics"[^>]*>Save PNG/);
+  assert.match(html, /class="primary" id="save-beat-progress"[^>]*>Save PNG/);
+  assert.match(css, /\.dialog-actions \.primary, \.github-save-fields button\.primary, \.analytics-actions \.primary, \.beat-sheet-actions \.primary\s*\{[^}]*border-color:\s*color-mix\(in srgb, var\(--accent\) 52%, var\(--border\)\);[^}]*background:\s*color-mix\(in srgb, var\(--accent\) 11%, var\(--surface\)\);[^}]*color:/s);
+  assert.match(css, /\.dialog-actions \.primary:hover,[^}]*background:\s*color-mix\(in srgb, var\(--accent\) 17%, var\(--surface\)\);/s);
+});
+
+test("the annotation editor uses one compact field heading", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(html, /<label class="annotation-field"><span id="annotation-heading">Edit Annotation<\/span><textarea id="annotation-text"/);
+  assert.doesNotMatch(html, /<small>SCREENPLAY<\/small><h2 id="annotation-heading"/);
+  assert.match(app, /line === null \? "Add Annotation" : "Edit Annotation"/);
+  assert.match(css, /\.note-form > \.annotation-field\s*\{\s*margin-top:\s*0;/);
+});
+
 test("Beat Sheet provides a source-backed draggable story map and Preview guide", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.doesNotMatch(html, /beat-sheet-insight|id="beat-sheet-summary"|id="open-beat-sheet"/);
