@@ -423,11 +423,10 @@ test("page totals come from the compiled Screenplain PDF", async () => {
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(app, /function renderPageMetric\(metadata\)/);
   assert.match(app, /1:\s*\[1, 8\][\s\S]*4:\s*\[1, 2\][\s\S]*7:\s*\[7, 8\]/);
-  assert.match(app, /class="page-fraction"><sup>\$\{fraction\[0\]\}<\/sup><i>⁄<\/i><sub>\$\{fraction\[1\]\}<\/sub>/);
+  assert.match(app, /class="page-fraction"><sup>\$\{fraction\[0\]\}<\/sup><sub>\$\{fraction\[1\]\}<\/sub>/);
   assert.match(css, /\.page-fraction\s*\{[^}]*display:\s*inline-grid;[^}]*height:\s*1em;[^}]*font-size:\s*1em;/s);
-  assert.match(css, /\.page-fraction sup\s*\{[^}]*grid-area:\s*1 \/ 1;/s);
-  assert.match(css, /\.page-fraction sub\s*\{[^}]*grid-area:\s*2 \/ 3;/s);
-  assert.match(css, /\.page-fraction i\s*\{[^}]*grid-area:\s*1 \/ 2 \/ 3 \/ 3;[^}]*rotate\(4deg\)/s);
+  assert.match(css, /\.page-fraction::after\s*\{[^}]*top:\s*50%;[^}]*border-top:/s);
+  assert.match(css, /\.page-fraction sup, \.page-fraction sub\s*\{[^}]*place-items:\s*center;[^}]*transform:\s*none;/s);
   assert.match(app, /function compileStaticPageCount/);
   assert.match(app, /result\.pageCount == null[\s\S]*\/api\/render\/pdf/);
   assert.match(app, /function countPdfBlobPages/);
