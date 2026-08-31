@@ -587,6 +587,7 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(app, /\["dialogue", "parenthetical", "note"\]\.includes/);
   assert.match(css, /\.annotation-orb\s*\{/);
   assert.match(css, /--annotation-accent:\s*var\(--syntax-character\);/);
+  assert.match(css, /\.note-indicator\s*\{[^}]*color:\s*var\(--annotation-accent\);[^}]*text-shadow:[^;}]*var\(--annotation-accent\)/s);
   assert.match(css, /\.annotation-orb\s*\{[^}]*appearance:\s*none;[^}]*-webkit-appearance:\s*none;[^}]*background-color:\s*var\(--annotation-accent\)/s);
   assert.match(worker, /fountain-publisher-shell-v2/);
   assert.match(worker, /\["styles\.css", "app\.mjs"\][\s\S]*fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);
