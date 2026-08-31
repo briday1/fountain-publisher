@@ -576,9 +576,9 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-graph-node.assigned .beat-assignment span { background: var(--metric-scenes-bg); color: var(--metric-scenes-ink); }
 .beat-graph-node.assigned .beat-assignment:hover { text-decoration: underline; }
 
-.beat-guide-layer { position: absolute; z-index: 9; top: 58px; left: 0; right: 0; min-height: 42px; display: flex; align-items: stretch; justify-content: space-between; gap: 8px; padding: 6px 9px; border-bottom: 1px solid var(--border-strong); background: color-mix(in srgb, var(--panel) 96%, transparent); color: var(--ink); box-shadow: 0 3px 10px rgb(0 0 0 / 10%); backdrop-filter: blur(8px); }
+.beat-guide-layer { position: absolute; z-index: 9; top: 58px; left: 0; right: 0; min-height: 42px; display: flex; align-items: stretch; justify-content: space-between; gap: 8px; padding: 6px 9px; border-bottom: 1px solid color-mix(in srgb, var(--border-strong) 72%, transparent); background: color-mix(in srgb, var(--panel) 82%, transparent); color: var(--ink); box-shadow: inset 0 1px color-mix(in srgb, white 28%, transparent), 0 3px 12px rgb(0 0 0 / 10%); -webkit-backdrop-filter: blur(14px) saturate(125%); backdrop-filter: blur(14px) saturate(125%); }
 .beat-guide-layer[hidden] { display: none; }
-.preview-panel.beat-runner-on .preview-scroll { padding-top: 78px; }
+.preview-panel.beat-runner-on .preview-scroll { padding-top: 0; }
 .beat-runner-progress { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; padding-left: 3px; }
 .beat-runner-progress small { flex: 0 0 auto; color: var(--metric-pages-ink); font: 800 9px var(--mono); }
 .beat-runner-progress strong { flex: 0 0 auto; color: var(--metric-scenes-ink); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
@@ -723,7 +723,7 @@ button:disabled { cursor: default; opacity: .45; }
   #preview-scroll, #source-panel, #beat-sheet-panel { background-image: none !important; }
   #source-panel { background: var(--source-bg); }
   #source-panel .editor-shell, #source-panel .editor-footer { width: 100%; margin: 0; border: 0; border-radius: 0; box-shadow: none; zoom: 1; }
-  .preview-panel.beat-runner-on .preview-scroll { padding-top: 44px; }
+  .preview-panel.beat-runner-on .preview-scroll { padding-top: 0; }
   .preview-page-stage { width: 100% !important; min-height: 100% !important; }
   .screenplay-page {
     position: relative; inset: auto; width: 100%; min-height: 100%; margin: 0; padding: 48px max(28px, 7vw) 72px;

@@ -1152,12 +1152,15 @@ function currentPosition() {
 
 function scrollPreviewTarget(target, block = "nearest") {
   const previewScroll = $("#preview-scroll");
+  const beatGuide = $("#beat-guide-layer");
   const targetRect = target.getBoundingClientRect();
   const scrollRect = previewScroll.getBoundingClientRect();
+  const coveredTop = scrollRect.top + (beatGuide.hidden ? 0 : beatGuide.getBoundingClientRect().height);
+  const visibleHeight = scrollRect.bottom - coveredTop;
   let top = previewScroll.scrollTop;
   let left = previewScroll.scrollLeft;
-  if (block === "center") top += targetRect.top - scrollRect.top - (previewScroll.clientHeight - targetRect.height) / 2;
-  else if (targetRect.top < scrollRect.top) top += targetRect.top - scrollRect.top;
+  if (block === "center") top += targetRect.top - coveredTop - (visibleHeight - targetRect.height) / 2;
+  else if (targetRect.top < coveredTop) top += targetRect.top - coveredTop;
   else if (targetRect.bottom > scrollRect.bottom) top += targetRect.bottom - scrollRect.bottom;
   if (targetRect.left < scrollRect.left) left += targetRect.left - scrollRect.left;
   else if (targetRect.right > scrollRect.right) left += targetRect.right - scrollRect.right;
