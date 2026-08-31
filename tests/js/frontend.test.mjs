@@ -117,8 +117,8 @@ test("Insights remains independently collapsible without a Source sidebar", asyn
   assert.doesNotMatch(html, /class="panel-close"/);
   assert.doesNotMatch(html, /class="panel-toggle source-toggle"/);
   assert.doesNotMatch(html, /class="panel-toggle stats-toggle"/);
-  assert.match(html, /class="insights-open-button" data-toggle-stats[^>]*>Insights <span>›<\/span>/);
-  assert.match(html, /class="insights-close-button" data-toggle-stats[^>]*>›<\/button>/);
+  assert.match(html, /class="insights-open-button" data-toggle-stats[^>]*><i aria-hidden="true"><\/i><b>Insights<\/b><span>‹<\/span>/);
+  assert.match(html, /panel-title[\s\S]*class="insights-close-button" data-toggle-stats[^>]*>›<\/button>\s*<div><small>DOCUMENT<\/small><h2>Insights<\/h2><\/div>/);
   assert.match(css, /grid-template-columns:\s*minmax\(360px, 1fr\) 4px var\(--stats-w\)/);
   assert.match(css, /stats-collapsed \.insights-open-button\s*\{[^}]*display:\s*inline-flex/);
   assert.match(app, /\$\$\('\[data-toggle-stats\]'\)\.forEach/);
@@ -468,7 +468,7 @@ test("preview toolbar and rotating arrows stay compact", async () => {
   assert.doesNotMatch(html, /id="preview-percent"/);
   assert.doesNotMatch(css, /\.preview-status/);
   assert.doesNotMatch(app, /function updatePreviewStatus\(/);
-  assert.match(css, /\.insights-open-button span\s*\{[^}]*font-size:\s*16px/);
+  assert.match(css, /\.insights-open-button i::after\s*\{[^}]*border-left:/);
 });
 
 test("document balance heading aligns with other insight labels", async () => {
