@@ -129,7 +129,7 @@
           <div class="view-switcher" role="group" aria-label="Workspace view">
             <button class="active" data-preview-mode="source" type="button">Source</button><button data-preview-mode="live" type="button">Preview</button><button data-preview-mode="beats" type="button">Beat Sheet</button><button data-preview-mode="pdf" type="button">PDF</button>
           </div>
-          <div class="preview-actions workspace-zoom-actions"><button data-zoom-out type="button" aria-label="Zoom out">−</button><select data-workspace-zoom aria-label="Workspace zoom"><option value="fit" hidden>100%</option><option value="70">70%</option><option value="85">85%</option><option value="100" selected>100%</option><option value="115">115%</option><option value="130">130%</option><option value="150">150%</option><option value="175">175%</option><option value="200">200%</option></select><button data-zoom-in type="button" aria-label="Zoom in">+</button><button class="zoom-fit" data-zoom-fit type="button" aria-label="Fit workspace to pane width" aria-pressed="false">Fit</button><button class="insights-open-button" data-toggle-stats type="button" aria-label="Open Insights panel" aria-controls="stats-panel" aria-expanded="false"><i aria-hidden="true"></i><b>Insights</b><span>‹</span></button></div>
+          <div class="preview-actions workspace-zoom-actions"><b id="vim-source-status" class="vim-status" hidden>NORMAL</b><button data-zoom-out type="button" aria-label="Zoom out">−</button><select data-workspace-zoom aria-label="Workspace zoom"><option value="fit" hidden>100%</option><option value="70">70%</option><option value="85">85%</option><option value="100" selected>100%</option><option value="115">115%</option><option value="130">130%</option><option value="150">150%</option><option value="175">175%</option><option value="200">200%</option></select><button data-zoom-in type="button" aria-label="Zoom in">+</button><button class="zoom-fit" data-zoom-fit type="button" aria-label="Fit workspace to pane width" aria-pressed="false">Fit</button><button class="insights-open-button" data-toggle-stats type="button" aria-label="Open Insights panel" aria-controls="stats-panel" aria-expanded="false"><i aria-hidden="true"></i><b>Insights</b><span>‹</span></button></div>
         </div>
         <div class="editor-shell">
           <div id="current-line" class="current-line" aria-hidden="true"></div>
@@ -139,7 +139,7 @@
           <div id="completion-menu" class="completion-menu" role="listbox" aria-label="Fountain suggestions" hidden></div>
         </div>
         <footer class="editor-footer">
-          <span class="editor-mode"><b id="vim-source-status" class="vim-status" hidden>NORMAL</b><span id="editor-status">Action</span></span>
+          <span id="editor-status">Action</span>
           <span><span id="spellcheck-help">Right-click spelling for suggestions</span> · <kbd>⌃</kbd><kbd>Space</kbd> Complete · <span id="cursor-position">Ln 1, Col 1</span></span>
         </footer>
       </aside>

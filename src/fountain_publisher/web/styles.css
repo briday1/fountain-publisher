@@ -269,7 +269,6 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .context-spelling small { display: block; padding: 6px 8px; color: var(--muted); font-size: 10px; }
 .editor-footer { min-height: 31px; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 5px 10px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
 .editor-footer > span:last-child { white-space: nowrap; }
-.editor-mode { display: inline-flex; align-items: center; gap: 7px; }
 .vim-status { padding: 2px 5px; border-radius: 3px; background: color-mix(in srgb, currentColor 12%, transparent); font: 700 9px/1.2 var(--mono); letter-spacing: .06em; }
 .vim-status[data-mode="normal"] { color: var(--metric-pages-ink); }
 .vim-status[data-mode="insert"] { color: var(--metric-words-ink); }

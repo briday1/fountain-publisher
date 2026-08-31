@@ -731,6 +731,8 @@ test("desktop Vim mode is persistent and shared by Source and Preview", async ()
   assert.match(html, /class="setting-row desktop-setting"[^>]*>[\s\S]*Vim mode[\s\S]*id="vim-mode"/);
   assert.match(html, /id="vim-source-status"[^>]*hidden>NORMAL/);
   assert.match(html, /id="vim-preview-status"[^>]*hidden>NORMAL/);
+  assert.match(html, /id="source-panel"[\s\S]*class="preview-actions workspace-zoom-actions"><b id="vim-source-status" class="vim-status" hidden>NORMAL<\/b><button data-zoom-out/);
+  assert.doesNotMatch(html, /class="editor-mode"><b id="vim-source-status"/);
   assert.match(html, /<h4>Vim mode<\/h4>[\s\S]*Visual mode[\s\S]*<kbd>dd<\/kbd>[\s\S]*<kbd>yy<\/kbd>/);
   assert.match(app, /vimEnabled:\s*localStorage\.getItem\("fountain-publisher\.vim-mode"\) === "true"/);
   assert.match(app, /function handleVimKey\(event, surface\)/);
