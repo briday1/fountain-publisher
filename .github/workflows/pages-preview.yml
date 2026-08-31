@@ -13,7 +13,9 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: pages
+  # Keep PR preview/cleanup runs serialized, but never let a PR-close run replace
+  # a pending production deployment after merge.
+  group: pages-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:

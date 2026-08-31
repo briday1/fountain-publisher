@@ -46,6 +46,11 @@ test("app installs as a standalone PWA and offers desktop window controls", asyn
   assert.match(pyproject, /web\/icons\/\*/);
 });
 
+test("production deployment cannot be displaced by PR cleanup", async () => {
+  const workflow = await readFile(new URL("../../.github/workflows/pages-preview.yml", import.meta.url), "utf8");
+  assert.match(workflow, /concurrency:[\s\S]*group:\s*pages-\$\{\{ github\.event_name \}\}[\s\S]*cancel-in-progress:\s*false/);
+});
+
 test("desktop panel headers share a height and preview controls follow its title", async () => {
   const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /class="preview-heading"[\s\S]*<small>SCREENPLAY<\/small><h2>Preview<\/h2>[\s\S]*class="view-switcher"/);
