@@ -628,7 +628,7 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
 
 test("the Preview beat guide alone uses a subtle frosted surface", async () => {
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
-  assert.match(css, /\.beat-guide-layer\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--panel\) 82%, transparent\);[^}]*-webkit-backdrop-filter:\s*blur\(14px\) saturate\(125%\);[^}]*backdrop-filter:\s*blur\(14px\) saturate\(125%\);/s);
+  assert.match(css, /\.beat-guide-layer\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--panel\) 66%, transparent\);[^}]*-webkit-backdrop-filter:\s*blur\(14px\) saturate\(125%\);[^}]*backdrop-filter:\s*blur\(14px\) saturate\(125%\);/s);
   assert.match(css, /\.preview-panel\.beat-runner-on \.preview-scroll\s*\{\s*padding-top:\s*0;/);
   assert.match(app, /function scrollPreviewTarget[\s\S]*coveredTop = scrollRect\.top \+ \(beatGuide\.hidden \? 0 : beatGuide\.getBoundingClientRect\(\)\.height\)[\s\S]*targetRect\.top < coveredTop/);
   assert.doesNotMatch(css, /\.beat-sheet-(?:panel|header|workspace)[^{]*\{[^}]*backdrop-filter:/s);
