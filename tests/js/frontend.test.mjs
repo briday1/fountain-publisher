@@ -148,6 +148,11 @@ test("toolbar menus use Pugflow-style popup interaction", async () => {
   assert.match(app, /menu\.addEventListener\("toggle", \(\) => \{[\s\S]*if \(menu\.open\) closeMenus\(menu\)/);
 });
 
+test("select controls keep the app shape instead of iPad bubble styling", async () => {
+  const css = await readFile(cssPath, "utf8");
+  assert.match(css, /select\s*\{[^}]*appearance:\s*none;[^}]*-webkit-appearance:\s*none;[^}]*border-radius:\s*4px;[^}]*background-image:/s);
+});
+
 test("app info uses one understated GitHub link", async () => {
   const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.doesNotMatch(html, /Compiled with <strong>Screenplain<\/strong>/);
