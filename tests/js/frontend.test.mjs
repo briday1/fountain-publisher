@@ -593,6 +593,15 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(css, /\.general-notes\s*\{/);
 });
 
+test("annotation and note deletion uses a muted rose treatment", async () => {
+  const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(html, /id="delete-annotation" class="danger"/);
+  assert.match(html, /id="delete-character-note" class="danger"/);
+  assert.match(html, /id="delete-general-note" class="danger"/);
+  assert.match(css, /\.dialog-actions \.danger\s*\{[^}]*border-color:\s*color-mix\(in srgb, var\(--danger\) 52%, var\(--border\)\);[^}]*background:\s*color-mix\(in srgb, var\(--danger\) 11%, var\(--surface\)\);[^}]*color:/s);
+  assert.match(css, /\.dialog-actions \.danger:hover\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--danger\) 17%, var\(--surface\)\);/s);
+});
+
 test("Beat Sheet provides a source-backed draggable story map and Preview guide", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.doesNotMatch(html, /beat-sheet-insight|id="beat-sheet-summary"|id="open-beat-sheet"/);
