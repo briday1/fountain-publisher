@@ -489,7 +489,8 @@ button:disabled { cursor: default; opacity: .45; }
 .note-form textarea { box-sizing: border-box; width: 100%; resize: vertical; border: 1px solid var(--border); border-radius: 5px; padding: 9px; background: var(--surface-2); color: var(--ink); font: 13px/1.45 var(--sans); }
 .note-form .dialog-actions { align-items: center; }
 .note-form .dialog-actions span { flex: 1; }
-.dialog-actions .danger { border-color: color-mix(in srgb, #dc2626 45%, var(--border)); color: #dc2626; }
+.dialog-actions .danger { border-color: color-mix(in srgb, var(--danger) 52%, var(--border)); background: color-mix(in srgb, var(--danger) 11%, var(--surface)); color: color-mix(in srgb, var(--danger) 86%, var(--ink)); }
+.dialog-actions .danger:hover { border-color: color-mix(in srgb, var(--danger) 65%, var(--border)); background: color-mix(in srgb, var(--danger) 17%, var(--surface)); color: color-mix(in srgb, var(--danger) 92%, var(--ink)); }
 
 #beat-sheet-panel { min-width: 0; min-height: 0; overflow: hidden; background-color: var(--bg); color: var(--ink); }
 .beat-sheet-shell { height: 100%; min-height: 0; display: flex; flex-direction: column; }
