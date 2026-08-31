@@ -381,10 +381,12 @@ test("the browser continuously restores a separate local recovery workspace", as
 });
 
 test("the active non-printing line remains visible as editor context", async () => {
-  const css = await readFile(cssPath, "utf8");
+  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(css, /\.script-line\.section\.source-current/);
   assert.match(css, /content:\s*"EDITOR ONLY/);
-  assert.match(css, /\.script-line\.empty\s*\{[^}]*display:\s*none;[^}]*\}[\s\S]*\.script-line\.empty\.source-current\s*\{[^}]*display:\s*block;/);
+  assert.match(css, /\.script-line\.empty\s*\{[^}]*display:\s*none;[^}]*\}[\s\S]*\.script-line\.empty\.source-current, \.script-line\.empty\.preview-empty-context\s*\{[^}]*display:\s*block;/);
+  assert.match(app, /function revealPreviewEmptyRun[\s\S]*lines\[start - 1\]\?\.type === "empty"[\s\S]*lines\[end \+ 1\]\?\.type === "empty"[\s\S]*preview-empty-context/);
+  assert.match(app, /target\?\.classList\.add\("source-current"\);\s*revealPreviewEmptyRun\(target\);\s*page\.focus/);
 });
 
 test("Preview action spacing follows Screenplain paragraph spacing", async () => {

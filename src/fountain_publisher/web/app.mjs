@@ -705,6 +705,19 @@ function alignAnnotationOrbs() {
   });
 }
 
+function revealPreviewEmptyRun(target) {
+  $$(".script-line.empty.preview-empty-context", page).forEach((line) => line.classList.remove("preview-empty-context"));
+  if (!target?.classList.contains("empty")) return;
+  const lines = classifyLines(source.value);
+  let start = Number(target.dataset.line);
+  let end = start;
+  while (start > 0 && lines[start - 1]?.type === "empty") start -= 1;
+  while (end + 1 < lines.length && lines[end + 1]?.type === "empty") end += 1;
+  for (let index = start; index <= end; index += 1) {
+    $(`.script-line.empty[data-line="${index}"]`, page)?.classList.add("preview-empty-context");
+  }
+}
+
 function renderPreview({ focusLine = null, focusOffset = null } = {}) {
   const lines = classifyLines(source.value);
   const previewScroll = $("#preview-scroll");
@@ -720,6 +733,8 @@ function renderPreview({ focusLine = null, focusOffset = null } = {}) {
   page.hidden = state.previewMode !== "live";
   if (focusLine !== null) {
     const target = $(`[data-line="${focusLine}"]`, page);
+    target?.classList.add("source-current");
+    revealPreviewEmptyRun(target);
     page.focus({ preventScroll: true });
     if (target) {
       const offset = focusOffset ?? target.textContent.length;
@@ -1175,6 +1190,7 @@ function updatePreviewCursor(scroll = false, scrollBlock = "nearest") {
   const target = $(`[data-line="${currentPosition().line}"]`, page);
   $$(".script-line.source-current", page).forEach((line) => line.classList.remove("source-current"));
   target?.classList.add("source-current");
+  revealPreviewEmptyRun(target);
   if (scroll && state.previewMode === "live" && target) scrollPreviewTarget(target, scrollBlock);
 }
 
