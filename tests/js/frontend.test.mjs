@@ -160,7 +160,14 @@ test("toolbar menus use Pugflow-style popup interaction", async () => {
 
 test("select controls keep the app shape instead of iPad bubble styling", async () => {
   const css = await readFile(cssPath, "utf8");
-  assert.match(css, /select\s*\{[^}]*appearance:\s*none;[^}]*-webkit-appearance:\s*none;[^}]*border-radius:\s*4px;[^}]*background-image:/s);
+  assert.match(css, /select\s*\{[^}]*appearance:\s*none;[^}]*-webkit-appearance:\s*none;[^}]*border-radius:\s*var\(--control-radius\);[^}]*background-image:/s);
+});
+
+test("interactive controls share one rounded shape", async () => {
+  const css = await readFile(cssPath, "utf8");
+  assert.match(css, /--control-radius:\s*6px/);
+  assert.match(css, /button:not\(\.annotation-orb\)[\s\S]*select,[\s\S]*input:not\(\[type="checkbox"\]\)[\s\S]*textarea,[\s\S]*\.toolbar-menu > summary,[\s\S]*\.setting-row\s*\{\s*border-radius:\s*var\(--control-radius\) !important;/);
+  assert.match(css, /\.github-files button:first-child\s*\{[^}]*var\(--control-radius\)/);
 });
 
 test("app info uses one understated GitHub link", async () => {
