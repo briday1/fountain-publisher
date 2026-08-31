@@ -13,6 +13,7 @@ from fountain_publisher.compiler import (
     render_fdx,
     render_html,
     render_pdf,
+    render_pdf_with_metrics,
 )
 
 
@@ -147,6 +148,22 @@ class ScreenplainIntegrationTests(unittest.TestCase):
     def test_title_page_consumes_one_sheet_without_a_redundant_blank(self):
         source = "Title: Test\nCredit: Written by\nAuthor: Writer\n\n===\n\nINT. ROOM - DAY\n\nAction.\n"
         self.assertEqual(2, count_pdf_pages(render_pdf(source)))
+
+    def test_pdf_reports_short_final_page_in_eighths(self):
+        payload, eighths = render_pdf_with_metrics("INT. ROOM - DAY\n\nAction.\n")
+        self.assertEqual(1, count_pdf_pages(payload))
+        self.assertEqual(1, eighths)
+
+    def test_title_page_is_not_measured_as_screenplay_occupancy(self):
+        _, eighths = render_pdf_with_metrics("Title: Test\nAuthor: Writer\n\nINT. ROOM - DAY\n\nAction.\n")
+        self.assertEqual(1, eighths)
+
+    def test_multi_page_occupancy_survives_reportlab_page_transitions(self):
+        source = "INT. ROOM - DAY\n\n" + "\n\n".join(f"Action line {index}." for index in range(90))
+        payload, eighths = render_pdf_with_metrics(source)
+        self.assertGreater(count_pdf_pages(payload), 1)
+        self.assertGreaterEqual(eighths, 1)
+        self.assertLessEqual(eighths, 8)
 
     def test_fdx_is_final_draft_xml(self):
         fdx = render_fdx(SOURCE)

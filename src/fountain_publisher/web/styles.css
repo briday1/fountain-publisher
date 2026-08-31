@@ -138,7 +138,7 @@ kbd { border: 0; background: none; color: var(--faint); font: 11px var(--mono); 
 .toolbar-menu > summary::-webkit-details-marker { display: none; }
 .toolbar-menu[open] > summary, .toolbar-menu > summary:hover { background: var(--surface-2); }
 .app-mark { display: inline-grid; place-items: center; width: 23px; height: 23px; border-radius: 5px; background: var(--ink); color: var(--surface); font: 700 14px Georgia, serif; }
-.global-actions { min-width: 0; flex: 1; display: flex; align-items: center; gap: 2px; }
+.global-actions { min-width: 0; flex: 0 1 auto; display: flex; align-items: center; gap: 2px; }
 .toolbar-popover {
   position: absolute; top: calc(100% + 4px); left: 0; z-index: 50; width: 210px; padding: 5px;
   background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; box-shadow: var(--shadow);
@@ -340,6 +340,11 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .metric-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
 .metric-grid div { display: flex; flex-direction: column; padding: 13px 15px; background: var(--surface); }
 .metric-grid strong { font-size: 20px; line-height: 1.1; font-weight: 550; }
+.page-fraction { position: relative; display: inline-grid; grid-template-rows: 1fr 1fr; width: .58em; height: 1em; margin-left: .03em; vertical-align: middle; white-space: nowrap; font-size: 1em; font-weight: 400; line-height: 1; transform: translateY(-.03em); }
+.page-fraction::after { content: ""; position: absolute; left: .04em; right: .04em; top: 50%; border-top: .045em solid currentColor; opacity: .65; }
+.page-fraction sup, .page-fraction sub { position: static; display: grid; place-items: center; padding: 0; font-size: .46em; line-height: 1; transform: none; }
+.page-fraction sup { grid-row: 1; }
+.page-fraction sub { grid-row: 2; }
 .metric-grid span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .metric-grid div:nth-child(1) { color: var(--metric-pages-ink); }
 .metric-grid div:nth-child(2) { color: var(--metric-scenes-ink); }

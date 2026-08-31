@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import quote, urlsplit
 
 from . import __version__
-from .compiler import CompileOptions, analyze_source, count_pdf_pages, render_fdx, render_pdf
+from .compiler import CompileOptions, analyze_source, count_pdf_pages, render_fdx, render_pdf, render_pdf_with_metrics
 
 STATIC_ROOT = Path(__file__).resolve().with_name("web")
 MAX_REQUEST_BYTES = 8 * 1024 * 1024
@@ -56,9 +56,11 @@ class FountainRequestHandler(SimpleHTTPRequestHandler):
             if path == "/api/export/fdx":
                 return self._send_bytes(render_fdx(source, options), "application/xml; charset=utf-8")
             payload = analyze_source(source)
-            physical_pages = count_pdf_pages(render_pdf(source, options))
+            pdf_payload, last_page_eighths = render_pdf_with_metrics(source, options)
+            physical_pages = count_pdf_pages(pdf_payload)
             screenplay_pages = max(0, physical_pages - (1 if payload["titleFields"] else 0))
             payload["pageCount"] = screenplay_pages
+            payload["lastPageEighths"] = last_page_eighths
             payload["estimatedSeconds"] = screenplay_pages * 60
             return self._send_json(payload)
         except Exception as error:

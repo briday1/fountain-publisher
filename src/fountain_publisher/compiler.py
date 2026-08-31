@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import math
 import re
 from urllib.parse import unquote
 from collections import defaultdict
@@ -181,7 +182,8 @@ def render_html(source: str, options: CompileOptions | None = None) -> str:
     return output.getvalue()
 
 
-def render_pdf(source: str, options: CompileOptions | None = None) -> bytes:
+def render_pdf_with_metrics(source: str, options: CompileOptions | None = None) -> tuple[bytes, int]:
+    """Render a PDF and report final screenplay-page occupancy in eighths."""
     screenplay = format_pdf_act_headings(number_screenplay_scenes(parse_screenplay(source), options))
     _, _, pdf, _ = _screenplain()
     options = options or CompileOptions()
@@ -227,6 +229,7 @@ def render_pdf(source: str, options: CompileOptions | None = None) -> bytes:
     settings.default_style.spaceAfter = -settings.line_height
     settings.contact_style.spaceAfter = -settings.line_height
     output = io.BytesIO()
+    usage = {"page": 0, "used": 0.0}
     class NumberedDocTemplate(pdf.DocTemplate):
         def handle_pageBegin(self) -> None:  # noqa: N802 - ReportLab callback name
             font_settings = getattr(self.settings, "font_settings", None)
@@ -244,8 +247,27 @@ def render_pdf(source: str, options: CompileOptions | None = None) -> bytes:
                 )
             self._handle_pageBegin()
 
+        def afterFlowable(self, flowable: Any) -> None:  # noqa: N802 - ReportLab callback name
+            title_pages = 1 if self.has_title_page else 0
+            content_page = self.page - title_pages
+            if content_page < 1 or type(flowable).__name__ in {"LCActionFlowable", "NextPageTemplate", "PageBreak"}:
+                return
+            frame = getattr(self, "frame", None)
+            if frame is None:
+                return
+            used = max(0.0, min(self.settings.frame_height, frame._y2 - frame._y))
+            if content_page > usage["page"]:
+                usage.update(page=content_page, used=used)
+            elif content_page == usage["page"]:
+                usage["used"] = max(usage["used"], used)
+
     pdf.to_pdf(screenplay, output, template_constructor=NumberedDocTemplate, settings=settings)
-    return output.getvalue()
+    eighths = min(8, max(1, math.ceil(usage["used"] / settings.frame_height * 8))) if usage["page"] else 0
+    return output.getvalue(), eighths
+
+
+def render_pdf(source: str, options: CompileOptions | None = None) -> bytes:
+    return render_pdf_with_metrics(source, options)[0]
 
 
 def count_pdf_pages(payload: bytes) -> int:

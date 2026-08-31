@@ -274,10 +274,11 @@ const state = {
   beatGuide: localStorage.getItem("fountain-publisher.beat-guide") === "true",
   activeBeat: 0,
   characterAnalyticsScene: null,
+  browserLastPageEighths: 0,
 };
 
 function emptyMetadata() {
-  return { lineCount: 1, wordCount: 0, dialogueWords: 0, actionWords: 0, estimatedSeconds: 0, characters: [], scenes: [], sections: [], locations: [], titleFields: [], generalNotes: [], characterNotes: {}, beatSheet: { line: null, premise: "", beats: [] } };
+  return { lineCount: 1, wordCount: 0, dialogueWords: 0, actionWords: 0, estimatedSeconds: 0, characters: [], scenes: [], sections: [], locations: [], titleFields: [], generalNotes: [], characterNotes: {}, beatSheet: { line: null, premise: "", beats: [] }, lastPageEighths: 0 };
 }
 
 function readWorkspaceCache() {
@@ -610,7 +611,8 @@ function analyzeLocally(text) {
   })).sort((a, b) => b.words - a.words || a.name.localeCompare(b.name));
   const wordCount = dialogueWords + actionWords;
   const pageCount = state.metadata?.pageCount ?? null;
-  return { lineCount: lines.length, wordCount, dialogueWords, actionWords, estimatedSeconds: pageCount == null ? 0 : pageCount * 60, characters: characterList, scenes, sections, locations: [...locations].sort(), titleFields, pageCount, ...notes };
+  const lastPageEighths = state.metadata?.lastPageEighths ?? 0;
+  return { lineCount: lines.length, wordCount, dialogueWords, actionWords, estimatedSeconds: pageCount == null ? 0 : pageCount * 60, characters: characterList, scenes, sections, locations: [...locations].sort(), titleFields, pageCount, lastPageEighths, ...notes };
 }
 
 function previewLineHtml(line, sceneLabel = null, annotation = null) {
@@ -1194,7 +1196,7 @@ function updateCursor({ scrollPreview = false, scrollBlock = "nearest" } = {}) {
 
 function renderInsights(metadata) {
   state.metadata = metadata;
-  $("#stat-pages").textContent = metadata.pageCount ?? "—";
+  renderPageMetric(metadata);
   $("#stat-scenes").textContent = metadata.scenes.length;
   $("#stat-words").textContent = metadata.wordCount.toLocaleString();
   $("#scene-count").textContent = metadata.scenes.length;
@@ -1209,6 +1211,14 @@ function renderInsights(metadata) {
   $("#dialogue-percent").textContent = `${dialoguePercent}%`;
   $("#action-percent").textContent = `${100 - dialoguePercent}%`;
   if ($("#character-analytics-dialog").open) renderCharacterAnalytics();
+}
+
+function renderPageMetric(metadata) {
+  const target = $("#stat-pages");
+  if (metadata.pageCount == null) { target.textContent = "—"; return; }
+  const fractions = { 1: [1, 8], 2: [1, 4], 3: [3, 8], 4: [1, 2], 5: [5, 8], 6: [3, 4], 7: [7, 8] };
+  const fraction = fractions[metadata.lastPageEighths];
+  target.innerHTML = `${metadata.pageCount}${fraction ? ` <small class="page-fraction"><sup>${fraction[0]}</sup><sub>${fraction[1]}</sub></small>` : ""}`;
 }
 
 function renderCharacterTable() {
@@ -1615,8 +1625,9 @@ async function compileStaticPageCount(revision) {
     const pageCount = screenplayPageCount(await countPdfBlobPages(blob));
     if (revision !== state.compileRevision) return;
     state.metadata.pageCount = pageCount;
+    state.metadata.lastPageEighths = state.browserLastPageEighths;
     state.metadata.estimatedSeconds = pageCount * 60;
-    $("#stat-pages").textContent = pageCount;
+    renderPageMetric(state.metadata);
     $("#compile-status").textContent = "Compiled";
   } catch (error) {
     if (revision !== state.compileRevision) return;
@@ -2158,6 +2169,7 @@ await micropip.install(_fp_screenplain_wheel, deps=False)
 `);
     pyodide.runPython(`
 import io
+import math
 import re
 from reportlab.lib.pagesizes import A4, letter
 from reportlab.pdfbase import pdfmetrics
@@ -2254,6 +2266,8 @@ def _fp_patch_scene_numbers_left_only():
 _fp_patch_scene_numbers_left_only()
 
 def _fp_compile(source, kind, page_size, scene_numbers="margin", scene_number_format="sequential"):
+    global _fp_last_page_eighths
+    _fp_last_page_eighths = 0
     screenplay = _fp_prepare_screenplay(source, scene_numbers, scene_number_format)
     font_family, regular_font, bold_font, italic_font, bold_italic_font = _fp_register_pdf_fonts()
     if kind == "pdf":
@@ -2283,6 +2297,7 @@ def _fp_compile(source, kind, page_size, scene_numbers="margin", scene_number_fo
             settings.default_style.spaceAfter = -settings.line_height
         if hasattr(settings, "contact_style"):
             settings.contact_style.spaceAfter = -settings.line_height
+        usage = {"page": 0, "used": 0.0}
         class NumberedDocTemplate(pdf.DocTemplate):
             def handle_pageBegin(self):
                 _font_settings = getattr(self.settings, "font_settings", None)
@@ -2291,7 +2306,21 @@ def _fp_compile(source, kind, page_size, scene_numbers="margin", scene_number_fo
                 if page >= 1:
                     self.canv.drawRightString(self.settings.left_margin + self.settings.frame_width, self.settings.page_height - 42, f"{page}.")
                 self._handle_pageBegin()
+            def afterFlowable(self, flowable):
+                title_pages = 1 if self.has_title_page else 0
+                content_page = self.page - title_pages
+                if content_page < 1 or type(flowable).__name__ in {"LCActionFlowable", "NextPageTemplate", "PageBreak"}:
+                    return
+                frame = getattr(self, "frame", None)
+                if frame is None:
+                    return
+                used = max(0.0, min(self.settings.frame_height, frame._y2 - frame._y))
+                if content_page > usage["page"]:
+                    usage.update(page=content_page, used=used)
+                elif content_page == usage["page"]:
+                    usage["used"] = max(usage["used"], used)
         pdf.to_pdf(screenplay, output, template_constructor=NumberedDocTemplate, settings=settings)
+        _fp_last_page_eighths = min(8, max(1, math.ceil(usage["used"] / settings.frame_height * 8))) if usage["page"] else 0
         return output.getvalue()
     if kind == "fdx":
         output = io.BytesIO()
@@ -2321,6 +2350,7 @@ async function compileWithBrowserScreenplain(kind, selectedPageSize) {
   pyodide.globals.set("_fp_scene_numbers", docSettings.sceneNumbers);
   pyodide.globals.set("_fp_scene_number_format", docSettings.sceneNumberFormat);
   const value = pyodide.runPython("_fp_compile(_fp_source, _fp_kind, _fp_page_size, _fp_scene_numbers, _fp_scene_number_format)");
+  state.browserLastPageEighths = Number(pyodide.globals.get("_fp_last_page_eighths")) || 0;
   const bytes = value instanceof Uint8Array ? value : value.toJs();
   value.destroy?.();
   const types = { pdf: "application/pdf", fdx: "application/xml;charset=utf-8" };

@@ -64,6 +64,7 @@ test("desktop panel headers share a height and preview controls follow its title
 test("tablet landscape keeps document identity clear of history controls", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(css, /\.app-toolbar::after\s*\{[^}]*flex:\s*0 0 246px;/s);
+  assert.match(css, /\.global-actions\s*\{[^}]*flex:\s*0 1 auto;/s);
   assert.match(css, /\.document-identity\s*\{[^}]*right:\s*12px;[^}]*width:\s*230px;/s);
   assert.match(css, /#filename\s*\{[^}]*flex:\s*1 1 auto;/s);
   assert.match(css, /\.compile-status\s*\{[^}]*flex:\s*0 0 auto;[^}]*white-space:\s*nowrap;/s);
@@ -419,12 +420,19 @@ test("live preview numbers scene headings via computed labels", async () => {
 });
 
 test("page totals come from the compiled Screenplain PDF", async () => {
-  const app = await readFile(appPath, "utf8");
-  assert.match(app, /metadata\.pageCount \?\? "—"/);
+  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(app, /function renderPageMetric\(metadata\)/);
+  assert.match(app, /1:\s*\[1, 8\][\s\S]*4:\s*\[1, 2\][\s\S]*7:\s*\[7, 8\]/);
+  assert.match(app, /class="page-fraction"><sup>\$\{fraction\[0\]\}<\/sup><sub>\$\{fraction\[1\]\}<\/sub>/);
+  assert.match(css, /\.page-fraction\s*\{[^}]*display:\s*inline-grid;[^}]*height:\s*1em;[^}]*vertical-align:\s*middle;[^}]*font-weight:\s*400;[^}]*translateY\(-\.03em\);/s);
+  assert.match(css, /\.page-fraction::after\s*\{[^}]*top:\s*50%;[^}]*border-top:/s);
+  assert.match(css, /\.page-fraction sup, \.page-fraction sub\s*\{[^}]*place-items:\s*center;[^}]*transform:\s*none;/s);
   assert.match(app, /function compileStaticPageCount/);
   assert.match(app, /result\.pageCount == null[\s\S]*\/api\/render\/pdf/);
   assert.match(app, /function countPdfBlobPages/);
   assert.match(app, /function screenplayPageCount\(physicalPages\)[\s\S]*titleFields/);
+  assert.match(app, /lastPageEighths/);
+  assert.match(app, /_fp_last_page_eighths/);
   assert.match(app, /estimatedSeconds = result\.pageCount \* 60/);
   assert.match(app, /_fp_prepare_screenplay[\s\S]*isinstance\(screenplay\.paragraphs\[0\], PageBreak\)/);
   assert.ok(app.includes('/Type\\s*\\/Page\\b'));
