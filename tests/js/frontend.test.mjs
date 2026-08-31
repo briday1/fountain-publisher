@@ -279,7 +279,7 @@ test("preview edits are source-backed and preserve the viewport", async () => {
   assert.match(app, /const focusLine = startIndex \+ displayLines\.length - 1/);
   assert.match(app, /function previewCaretIsOnVisualEdge\(line, edge\)/);
   assert.match(app, /event\.key === "ArrowUp" \? -1 : event\.key === "ArrowDown" \? 1 : 0/);
-  assert.match(app, /Number\(line\.dataset\.line\) \+ verticalDirection/);
+  assert.match(app, /adjacentPreviewEditableLine\(line, verticalDirection\)/);
 });
 
 test("top-level act headings are supported in the live editor", async () => {
@@ -409,6 +409,16 @@ test("the active non-printing line remains visible as editor context", async () 
   assert.match(css, /\.script-line\.empty\s*\{[^}]*display:\s*none;[^}]*\}[\s\S]*\.script-line\.empty\.source-current, \.script-line\.empty\.preview-empty-context\s*\{[^}]*display:\s*block;/);
   assert.match(app, /function revealPreviewEmptyRun[\s\S]*lines\[start - 1\]\?\.type === "empty"[\s\S]*lines\[end \+ 1\]\?\.type === "empty"[\s\S]*preview-empty-context/);
   assert.match(app, /target\?\.classList\.add\("source-current"\);\s*revealPreviewEmptyRun\(target\);\s*page\.focus/);
+});
+
+test("Preview navigation never enters editor-only source lines", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /function previewLineIsEditable[\s\S]*line\.classList\.contains\("section"\)[\s\S]*line\.classList\.contains\("act"\)[\s\S]*"synopsis", "note", "boneyard", "title-key", "page-break"/);
+  assert.match(app, /function adjacentPreviewEditableLine[\s\S]*filter\(previewLineIsEditable\)/);
+  assert.match(app, /const adjacent = adjacentPreviewEditableLine\(line, verticalDirection\)/);
+  assert.match(app, /const candidates = \$\$\("\.script-line\[data-display\]", page\)\.filter\(previewLineIsEditable\)/);
+  assert.match(app, /function vimPreviewTargetLine[\s\S]*previewLineIsEditable\(line\) && !line\.classList\.contains\("empty"\)/);
+  assert.match(app, /function vimPreviewEndpoint[\s\S]*if \(!previewLineIsEditable\(line\)\) return null/);
 });
 
 test("Preview action spacing follows Screenplain paragraph spacing", async () => {
