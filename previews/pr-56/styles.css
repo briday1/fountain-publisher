@@ -7,6 +7,7 @@
   --visual-viewport-left: 0px;
   --visual-viewport-width: 100vw;
   --visual-viewport-height: 100vh;
+  --control-radius: 6px;
   --source-w: 370px;
   --stats-w: 330px;
   --bg: #e8e9eb;
@@ -125,8 +126,14 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.4 -appl
 button, select, input, textarea { color: inherit; font: inherit; }
 button, summary, select { user-select: none; }
 button { cursor: pointer; }
+button:not(.annotation-orb):not(.character-analytics-button):not(.character-csv-button),
+select,
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+textarea,
+.toolbar-menu > summary,
+.setting-row { border-radius: var(--control-radius) !important; }
 select {
-  appearance: none; -webkit-appearance: none; border-radius: 4px; padding-right: 22px !important;
+  appearance: none; -webkit-appearance: none; border-radius: var(--control-radius); padding-right: 22px !important;
   background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%) !important;
   background-position: calc(100% - 10px) 50%, calc(100% - 6px) 50% !important;
   background-size: 4px 4px, 4px 4px !important; background-repeat: no-repeat !important;
@@ -436,10 +443,11 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .github-files { flex: 1; min-height: 0; display: flex; overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; scroll-snap-type: x proximity; background: var(--surface-2); }
 .github-column { flex: 0 0 240px; min-width: 0; height: 100%; overflow-y: auto; scrollbar-gutter: stable; padding: 7px; border-right: 2px solid var(--border-strong); box-shadow: 2px 0 5px rgb(20 24 28 / 5%); scroll-snap-align: start; }
 .github-files button { width: 100%; min-height: 42px; display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 7px; touch-action: manipulation; border: 0; border-bottom: 1px solid var(--border); background: var(--surface); padding: 8px 10px; color: var(--ink); text-align: left; }
+.github-files button { border-radius: 0 !important; }
 .github-files button:hover { background: var(--accent-soft); }
 .github-files button.selected { background: var(--accent-soft); color: var(--accent); }
-.github-files button:first-child { border-radius: 6px 6px 0 0; }
-.github-files button:last-child { border-bottom: 0; border-radius: 0 0 6px 6px; }
+.github-files button:first-child { border-radius: var(--control-radius) var(--control-radius) 0 0 !important; }
+.github-files button:last-child { border-bottom: 0; border-radius: 0 0 var(--control-radius) var(--control-radius) !important; }
 .github-files button small { color: var(--muted); }
 .github-files .github-empty { padding: 30px; color: var(--muted); text-align: center; }
 .github-save-panel { border-top: 1px solid var(--border); background: var(--panel); }
