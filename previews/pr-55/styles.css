@@ -340,7 +340,7 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .metric-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
 .metric-grid div { display: flex; flex-direction: column; padding: 13px 15px; background: var(--surface); }
 .metric-grid strong { font-size: 20px; line-height: 1.1; font-weight: 550; }
-.page-fraction { position: relative; display: inline-grid; grid-template-rows: 1fr 1fr; width: .58em; height: 1em; margin-left: .14em; vertical-align: -.08em; white-space: nowrap; font-size: 1em; line-height: 1; }
+.page-fraction { position: relative; display: inline-grid; grid-template-rows: 1fr 1fr; width: .58em; height: 1em; margin-left: .14em; vertical-align: middle; white-space: nowrap; font-size: 1em; line-height: 1; transform: translateY(-.03em); }
 .page-fraction::after { content: ""; position: absolute; left: .04em; right: .04em; top: 50%; border-top: .045em solid currentColor; opacity: .65; }
 .page-fraction sup, .page-fraction sub { position: static; display: grid; place-items: center; padding: 0; font-size: .46em; line-height: 1; transform: none; }
 .page-fraction sup { grid-row: 1; }
