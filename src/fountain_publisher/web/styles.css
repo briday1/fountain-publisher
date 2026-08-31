@@ -340,6 +340,7 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .metric-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
 .metric-grid div { display: flex; flex-direction: column; padding: 13px 15px; background: var(--surface); }
 .metric-grid strong { font-size: 20px; line-height: 1.1; font-weight: 550; }
+.metric-grid strong small { font-size: .55em; vertical-align: .35em; letter-spacing: -.04em; }
 .metric-grid span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .metric-grid div:nth-child(1) { color: var(--metric-pages-ink); }
 .metric-grid div:nth-child(2) { color: var(--metric-scenes-ink); }

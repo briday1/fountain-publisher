@@ -419,12 +419,17 @@ test("live preview numbers scene headings via computed labels", async () => {
 });
 
 test("page totals come from the compiled Screenplain PDF", async () => {
-  const app = await readFile(appPath, "utf8");
-  assert.match(app, /metadata\.pageCount \?\? "—"/);
+  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(app, /function renderPageMetric\(metadata\)/);
+  assert.match(app, /1:\s*"1\/8"[\s\S]*4:\s*"1\/2"[\s\S]*7:\s*"7\/8"/);
+  assert.match(app, /target\.innerHTML = `\$\{metadata\.pageCount\}\$\{fraction/);
+  assert.match(css, /\.metric-grid strong small\s*\{[^}]*font-size:\s*\.55em;[^}]*vertical-align:/s);
   assert.match(app, /function compileStaticPageCount/);
   assert.match(app, /result\.pageCount == null[\s\S]*\/api\/render\/pdf/);
   assert.match(app, /function countPdfBlobPages/);
   assert.match(app, /function screenplayPageCount\(physicalPages\)[\s\S]*titleFields/);
+  assert.match(app, /lastPageEighths/);
+  assert.match(app, /_fp_last_page_eighths/);
   assert.match(app, /estimatedSeconds = result\.pageCount \* 60/);
   assert.match(app, /_fp_prepare_screenplay[\s\S]*isinstance\(screenplay\.paragraphs\[0\], PageBreak\)/);
   assert.ok(app.includes('/Type\\s*\\/Page\\b'));

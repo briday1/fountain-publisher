@@ -56,6 +56,7 @@ class ServerTests(unittest.TestCase):
     def test_page_count_excludes_title_page(self):
         payload = self.compile(source="Title: Test\nAuthor: Writer\n\nINT. ROOM - DAY\n\nAction.\n")
         self.assertEqual(1, payload["pageCount"])
+        self.assertEqual(1, payload["lastPageEighths"])
         self.assertEqual(60, payload["estimatedSeconds"])
 
     def test_runtime_is_one_minute_per_page(self):
