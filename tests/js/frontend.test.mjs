@@ -476,6 +476,7 @@ test("preview toolbar and rotating arrows stay compact", async () => {
   assert.doesNotMatch(css, /\.preview-status/);
   assert.doesNotMatch(app, /function updatePreviewStatus\(/);
   assert.match(css, /\.insights-open-button i::after\s*\{[^}]*border-left:/);
+  assert.match(css, /\.preview-actions select\s*\{[^}]*width:\s*72px;[^}]*padding-left:\s*8px !important;[^}]*padding-right:\s*20px !important;[^}]*text-align:\s*center;[^}]*text-align-last:\s*center;/);
 });
 
 test("document balance heading aligns with other insight labels", async () => {
