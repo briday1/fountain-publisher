@@ -424,10 +424,10 @@ test("page totals come from the compiled Screenplain PDF", async () => {
   assert.match(app, /function renderPageMetric\(metadata\)/);
   assert.match(app, /1:\s*\[1, 8\][\s\S]*4:\s*\[1, 2\][\s\S]*7:\s*\[7, 8\]/);
   assert.match(app, /class="page-fraction"><sup>\$\{fraction\[0\]\}<\/sup><i>⁄<\/i><sub>\$\{fraction\[1\]\}<\/sub>/);
-  assert.match(css, /\.page-fraction\s*\{[^}]*display:\s*inline-flex;[^}]*align-items:\s*baseline;/s);
-  assert.match(css, /\.page-fraction sup\s*\{[^}]*translateY\(-\.38em\);/s);
-  assert.match(css, /\.page-fraction sub\s*\{[^}]*translateY\(\.22em\);/s);
-  assert.match(css, /\.page-fraction i\s*\{[^}]*margin:\s*0 \.06em;[^}]*rotate\(4deg\)/s);
+  assert.match(css, /\.page-fraction\s*\{[^}]*display:\s*inline-grid;[^}]*height:\s*1em;[^}]*font-size:\s*1em;/s);
+  assert.match(css, /\.page-fraction sup\s*\{[^}]*grid-area:\s*1 \/ 1;/s);
+  assert.match(css, /\.page-fraction sub\s*\{[^}]*grid-area:\s*2 \/ 3;/s);
+  assert.match(css, /\.page-fraction i\s*\{[^}]*grid-area:\s*1 \/ 2 \/ 3 \/ 3;[^}]*rotate\(4deg\)/s);
   assert.match(app, /function compileStaticPageCount/);
   assert.match(app, /result\.pageCount == null[\s\S]*\/api\/render\/pdf/);
   assert.match(app, /function countPdfBlobPages/);
