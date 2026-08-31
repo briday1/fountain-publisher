@@ -158,6 +158,13 @@ class ScreenplainIntegrationTests(unittest.TestCase):
         _, eighths = render_pdf_with_metrics("Title: Test\nAuthor: Writer\n\nINT. ROOM - DAY\n\nAction.\n")
         self.assertEqual(1, eighths)
 
+    def test_multi_page_occupancy_survives_reportlab_page_transitions(self):
+        source = "INT. ROOM - DAY\n\n" + "\n\n".join(f"Action line {index}." for index in range(90))
+        payload, eighths = render_pdf_with_metrics(source)
+        self.assertGreater(count_pdf_pages(payload), 1)
+        self.assertGreaterEqual(eighths, 1)
+        self.assertLessEqual(eighths, 8)
+
     def test_fdx_is_final_draft_xml(self):
         fdx = render_fdx(SOURCE)
         self.assertTrue(fdx.startswith(b"<?xml"))

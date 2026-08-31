@@ -2311,7 +2311,10 @@ def _fp_compile(source, kind, page_size, scene_numbers="margin", scene_number_fo
                 content_page = self.page - title_pages
                 if content_page < 1 or type(flowable).__name__ in {"LCActionFlowable", "NextPageTemplate", "PageBreak"}:
                     return
-                used = max(0.0, min(self.settings.frame_height, self.frame._y2 - self.frame._y))
+                frame = getattr(self, "frame", None)
+                if frame is None:
+                    return
+                used = max(0.0, min(self.settings.frame_height, frame._y2 - frame._y))
                 if content_page > usage["page"]:
                     usage.update(page=content_page, used=used)
                 elif content_page == usage["page"]:
