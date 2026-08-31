@@ -8,7 +8,7 @@
   --visual-viewport-width: 100vw;
   --visual-viewport-height: 100vh;
   --source-w: 370px;
-  --stats-w: 310px;
+  --stats-w: 330px;
   --bg: #e8e9eb;
   --panel: #f8f8f7;
   --surface: #ffffff;
@@ -203,9 +203,10 @@ body.dirty #dirty-dot { background: var(--accent); }
 .preview-title, #source-panel .panel-title > div:first-child, .beat-sheet-header > div:first-child { flex: 0 0 96px; width: 96px; }
 .panel-title small, .preview-title small, .dialog-heading small { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .12em; }
 .panel-title h1, .panel-title h2, .preview-title h2 { margin: 1px 0 0; font-size: 16px; line-height: 1.1; }
+#stats-panel .panel-title h2 { font-size: 18px; }
 .panel-toggle { border: 0; border-right: 1px solid var(--border); border-left: 1px solid var(--border); background: var(--panel); padding: 0; color: var(--muted); position: relative; z-index: 4; }
 .panel-toggle:hover { background: var(--surface-2); color: var(--ink); }
-.panel-toggle b { display: none; writing-mode: vertical-rl; font-size: 10px; text-transform: uppercase; letter-spacing: .12em; }
+.panel-toggle b { display: none; writing-mode: vertical-rl; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
 .panel-toggle span { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 18px; }
 .panel-toggle span { transition: transform .15s ease; }
 .panel-resizer { background: transparent; cursor: col-resize; position: relative; z-index: 5; }

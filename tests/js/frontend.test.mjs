@@ -120,6 +120,13 @@ test("Insights remains independently collapsible without a Source sidebar", asyn
   assert.match(css, /stats-collapsed \.stats-toggle\s*\{[^}]*justify-content:\s*center;[^}]*gap:\s*8px;/s);
 });
 
+test("desktop Insights has a roomier default width and legible title", async () => {
+  const css = await readFile(cssPath, "utf8");
+  assert.match(css, /--stats-w:\s*330px/);
+  assert.match(css, /#stats-panel \.panel-title h2\s*\{[^}]*font-size:\s*18px;/);
+  assert.match(css, /\.panel-toggle b\s*\{[^}]*font-size:\s*11px;/);
+});
+
 test("live and PDF previews have bounded scrolling containers", async () => {
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(css, /\.preview-scroll\s*\{[^}]*overflow:\s*auto;/s);
