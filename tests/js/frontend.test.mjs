@@ -64,6 +64,7 @@ test("desktop panel headers share a height and preview controls follow its title
 test("tablet landscape keeps document identity clear of history controls", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(css, /\.app-toolbar::after\s*\{[^}]*flex:\s*0 0 246px;/s);
+  assert.match(css, /\.global-actions\s*\{[^}]*flex:\s*0 1 auto;/s);
   assert.match(css, /\.document-identity\s*\{[^}]*right:\s*12px;[^}]*width:\s*230px;/s);
   assert.match(css, /#filename\s*\{[^}]*flex:\s*1 1 auto;/s);
   assert.match(css, /\.compile-status\s*\{[^}]*flex:\s*0 0 auto;[^}]*white-space:\s*nowrap;/s);
