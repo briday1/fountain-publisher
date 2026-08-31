@@ -342,7 +342,7 @@ test("theme control uses Pugflow-style sun and moon icons", async () => {
 test("source editor uses neutral backgrounds with colored screenplay cues", async () => {
   const css = await readFile(cssPath, "utf8");
   assert.match(css, /:root\s*\{[\s\S]*--source-bg:\s*#f6f6f5;[\s\S]*--source-ink:\s*#0f172a;[\s\S]*--syntax-scene:\s*#0284c7;[\s\S]*--syntax-character:\s*#366fc2;[\s\S]*--syntax-transition:\s*#b45309;[\s\S]*--syntax-ignored:\s*#be123c;/);
-  assert.match(css, /:root\[data-theme="dark"\]\s*\{[\s\S]*--source-bg:\s*#111315;[\s\S]*--source-ink:\s*#cbd5e1;[\s\S]*--syntax-scene:\s*#38bdf8;[\s\S]*--syntax-character:\s*#e88bc3;[\s\S]*--syntax-transition:\s*#fbbf24;[\s\S]*--syntax-ignored:\s*#fb7185;/);
+  assert.match(css, /:root\[data-theme="dark"\]\s*\{[\s\S]*--source-bg:\s*#111315;[\s\S]*--source-ink:\s*#cbd5e1;[\s\S]*--syntax-scene:\s*#38bdf8;[\s\S]*--syntax-character:\s*#d7c1da;[\s\S]*--syntax-transition:\s*#fbbf24;[\s\S]*--syntax-ignored:\s*#fb7185;/);
   assert.match(css, /\.editor-shell\s*\{[^}]*background:\s*var\(--source-bg\);/s);
   assert.match(css, /\.source-highlight\s*\{[^}]*color:\s*var\(--source-ink\);/s);
   assert.match(css, /\.line-numbers\s*\{[^}]*background:\s*var\(--source-gutter-bg\);/s);

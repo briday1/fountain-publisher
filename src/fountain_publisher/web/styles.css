@@ -75,7 +75,7 @@
   --source-muted: #64748b;
   --syntax-title: #c4b5fd;
   --syntax-scene: #38bdf8;
-  --syntax-character: #e88bc3;
+  --syntax-character: #d7c1da;
   --syntax-parenthetical: #7c8ba1;
   --syntax-transition: #fbbf24;
   --syntax-structure: #7dd3fc;
@@ -86,7 +86,7 @@
   --character-chart-3: #42c99a;
   --character-chart-4: #f0785a;
   --character-chart-5: #a99af5;
-  --character-chart-6: #e88bc3;
+  --character-chart-6: #d7c1da;
   --character-chart-7: #8bcb65;
   --character-chart-8: #d7c75b;
   --metric-pages-bg: #2b3944;
@@ -108,10 +108,10 @@
     --border-strong: #50555b; --accent: #75a8ed; --accent-soft: #263c59;
     --danger: #f08080; --paper: #17191b; --paper-ink: #f1f1ef;
     --source-bg: #111315; --source-gutter-bg: #181a1c; --source-ink: #cbd5e1; --source-muted: #64748b;
-    --syntax-title: #c4b5fd; --syntax-scene: #38bdf8; --syntax-character: #e88bc3;
+    --syntax-title: #c4b5fd; --syntax-scene: #38bdf8; --syntax-character: #d7c1da;
     --syntax-parenthetical: #7c8ba1; --syntax-transition: #fbbf24; --syntax-structure: #7dd3fc; --syntax-ignored: #fb7185; --annotation-accent: var(--syntax-character);
     --character-chart-1: #56b4e9; --character-chart-2: #e69f00; --character-chart-3: #42c99a; --character-chart-4: #f0785a;
-    --character-chart-5: #a99af5; --character-chart-6: #e88bc3; --character-chart-7: #8bcb65; --character-chart-8: #d7c75b;
+    --character-chart-5: #a99af5; --character-chart-6: #d7c1da; --character-chart-7: #8bcb65; --character-chart-8: #d7c75b;
     --metric-pages-bg: #2b3944; --metric-pages-ink: #c2d3df;
     --metric-scenes-bg: #392f3d; --metric-scenes-ink: #d7c1da;
     --metric-words-bg: #313a2c; --metric-words-ink: #c8d4bb;
