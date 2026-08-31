@@ -379,7 +379,7 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .character-line-table th { color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: .05em; }
 .character-line-table th:first-child, .character-line-table td:first-child { text-align: left; }
 .character-line-table td:first-child button { display: flex; align-items: center; gap: 5px; width: 100%; border: 0; padding: 0; background: transparent; color: var(--ink); text-align: left; }
-.note-indicator { color: var(--accent); font-size: 8px; text-shadow: 0 0 5px var(--accent); }
+.note-indicator { color: var(--annotation-accent); font-size: 8px; text-shadow: 0 0 5px var(--annotation-accent); }
 .general-notes { padding: 0 10px; }
 .general-notes > button { display: flex; align-items: flex-start; gap: 8px; width: 100%; border: 1px solid var(--border); border-radius: 5px; margin-bottom: 7px; padding: 8px; background: var(--surface); color: var(--ink); text-align: left; }
 .general-notes > button span { flex: 1; overflow: hidden; white-space: pre-wrap; text-overflow: ellipsis; }
