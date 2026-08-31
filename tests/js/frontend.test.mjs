@@ -101,7 +101,7 @@ test("Source, Preview, PDF, and Beat Sheet share the main workspace", async () =
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /data-preview-mode="source"[\s\S]*data-preview-mode="live"[\s\S]*data-preview-mode="beats"[\s\S]*data-preview-mode="pdf"/);
   assert.match(css, /#source-panel, \.preview-panel, #beat-sheet-panel\s*\{\s*grid-column:\s*1;/);
-  assert.match(css, /#stats-panel\s*\{\s*grid-column:\s*4;/);
+  assert.match(css, /#stats-panel\s*\{\s*grid-column:\s*3;/);
   assert.match(html, /id="menu-toggle-source-tab"[^>]*>Show Source tab/);
   assert.match(app, /function sourceTabEnabled\(\)[\s\S]*source-tab-hidden[\s\S]*state\.previewMode === "source"/);
   assert.match(app, /function sourceTabEnabled\(\)[\s\S]*if \(stored !== null\) return stored === "true";[\s\S]*WORKSPACE_CACHE_KEY/);
@@ -113,11 +113,21 @@ test("Source, Preview, PDF, and Beat Sheet share the main workspace", async () =
 });
 
 test("Insights remains independently collapsible without a Source sidebar", async () => {
-  const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.doesNotMatch(html, /class="panel-close"/);
   assert.doesNotMatch(html, /class="panel-toggle source-toggle"/);
-  assert.match(html, /class="panel-toggle stats-toggle"[^>]*><span>›<\/span><b>Insights<\/b>/);
-  assert.match(css, /stats-collapsed \.stats-toggle\s*\{[^}]*justify-content:\s*center;[^}]*gap:\s*8px;/s);
+  assert.doesNotMatch(html, /class="panel-toggle stats-toggle"/);
+  assert.match(html, /class="insights-open-button" data-toggle-stats[^>]*><i aria-hidden="true"><\/i><b>Insights<\/b><span>‹<\/span>/);
+  assert.match(html, /panel-title[\s\S]*class="insights-close-button" data-toggle-stats[^>]*>›<\/button>\s*<div><small>DOCUMENT<\/small><h2>Insights<\/h2><\/div>/);
+  assert.match(css, /grid-template-columns:\s*minmax\(360px, 1fr\) 4px var\(--stats-w\)/);
+  assert.match(css, /stats-collapsed \.insights-open-button\s*\{[^}]*display:\s*inline-flex/);
+  assert.match(app, /\$\$\('\[data-toggle-stats\]'\)\.forEach/);
+});
+
+test("desktop Insights has a roomier default width and legible title", async () => {
+  const css = await readFile(cssPath, "utf8");
+  assert.match(css, /--stats-w:\s*330px/);
+  assert.match(css, /#stats-panel \.panel-title h2\s*\{[^}]*font-size:\s*18px;/);
 });
 
 test("live and PDF previews have bounded scrolling containers", async () => {
@@ -146,6 +156,18 @@ test("toolbar menus use Pugflow-style popup interaction", async () => {
   assert.match(app, /document\.addEventListener\("pointerdown"/);
   assert.doesNotMatch(app, /event\.target\.closest\("summary"\)[\s\S]*event\.preventDefault\(\)/);
   assert.match(app, /menu\.addEventListener\("toggle", \(\) => \{[\s\S]*if \(menu\.open\) closeMenus\(menu\)/);
+});
+
+test("select controls keep the app shape instead of iPad bubble styling", async () => {
+  const css = await readFile(cssPath, "utf8");
+  assert.match(css, /select\s*\{[^}]*appearance:\s*none;[^}]*-webkit-appearance:\s*none;[^}]*border-radius:\s*var\(--control-radius\);[^}]*background-image:/s);
+});
+
+test("interactive controls share one rounded shape", async () => {
+  const css = await readFile(cssPath, "utf8");
+  assert.match(css, /--control-radius:\s*6px/);
+  assert.match(css, /button:not\(\.annotation-orb\)[\s\S]*select,[\s\S]*input:not\(\[type="checkbox"\]\)[\s\S]*textarea,[\s\S]*\.toolbar-menu > summary,[\s\S]*\.setting-row\s*\{\s*border-radius:\s*var\(--control-radius\) !important;/);
+  assert.match(css, /\.github-files button:first-child\s*\{[^}]*var\(--control-radius\)/);
 });
 
 test("app info uses one understated GitHub link", async () => {
@@ -208,6 +230,13 @@ test("preview edits keep the source cursor on the edited line", async () => {
   assert.match(app, /function setSourceCursorFromPreview[\s\S]*source\.setSelectionRange\(offset, offset\);[\s\S]*scrollSourceTarget\(index\)/);
   assert.match(app, /page\.addEventListener\("focusin"[\s\S]*setSourceCursorFromPreview\(line\)/);
   assert.doesNotMatch(app, /page\.addEventListener\("focusin"[^\n]*jumpToLine/);
+});
+
+test("iPad hardware Enter edits Preview directly without waiting for beforeinput", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /page\.addEventListener\("keydown"[\s\S]*event\.key === "Enter"[\s\S]*event\.preventDefault\(\);[\s\S]*replacePreviewSelection\(edit, "\\n"\)/);
+  assert.match(app, /if \(!fromPreview \|\| state\.previewMode === "source"\) renderEditorChrome\(\)/);
+  assert.match(app, /if \(fromPreview\) state\.insightTimer = setTimeout\(\(\) => renderInsights\(analyzeLocally\(source\.value\)\), 80\)/);
 });
 
 test("preview cursor synchronization highlights the active line", async () => {
@@ -374,10 +403,12 @@ test("the browser continuously restores a separate local recovery workspace", as
 });
 
 test("the active non-printing line remains visible as editor context", async () => {
-  const css = await readFile(cssPath, "utf8");
+  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(css, /\.script-line\.section\.source-current/);
   assert.match(css, /content:\s*"EDITOR ONLY/);
-  assert.match(css, /\.script-line\.empty\s*\{[^}]*display:\s*none;[^}]*\}[\s\S]*\.script-line\.empty\.source-current\s*\{[^}]*display:\s*block;/);
+  assert.match(css, /\.script-line\.empty\s*\{[^}]*display:\s*none;[^}]*\}[\s\S]*\.script-line\.empty\.source-current, \.script-line\.empty\.preview-empty-context\s*\{[^}]*display:\s*block;/);
+  assert.match(app, /function revealPreviewEmptyRun[\s\S]*lines\[start - 1\]\?\.type === "empty"[\s\S]*lines\[end \+ 1\]\?\.type === "empty"[\s\S]*preview-empty-context/);
+  assert.match(app, /target\?\.classList\.add\("source-current"\);\s*revealPreviewEmptyRun\(target\);\s*page\.focus/);
 });
 
 test("Preview action spacing follows Screenplain paragraph spacing", async () => {
@@ -444,7 +475,8 @@ test("preview toolbar and rotating arrows stay compact", async () => {
   assert.doesNotMatch(html, /id="preview-percent"/);
   assert.doesNotMatch(css, /\.preview-status/);
   assert.doesNotMatch(app, /function updatePreviewStatus\(/);
-  assert.match(css, /stats-collapsed \.stats-toggle span\s*\{\s*transform:\s*rotate\(180deg\)/);
+  assert.match(css, /\.insights-open-button i::after\s*\{[^}]*border-left:/);
+  assert.match(css, /\.preview-actions select\s*\{[^}]*width:\s*72px;[^}]*padding-left:\s*8px !important;[^}]*padding-right:\s*20px !important;[^}]*text-align:\s*center;[^}]*text-align-last:\s*center;/);
 });
 
 test("document balance heading aligns with other insight labels", async () => {
@@ -561,6 +593,31 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(css, /\.general-notes\s*\{/);
 });
 
+test("annotation and note deletion uses a muted rose treatment", async () => {
+  const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(html, /id="delete-annotation" class="danger"/);
+  assert.match(html, /id="delete-character-note" class="danger"/);
+  assert.match(html, /id="delete-general-note" class="danger"/);
+  assert.match(css, /\.dialog-actions \.danger\s*\{[^}]*border-color:\s*color-mix\(in srgb, var\(--danger\) 52%, var\(--border\)\);[^}]*background:\s*color-mix\(in srgb, var\(--danger\) 11%, var\(--surface\)\);[^}]*color:/s);
+  assert.match(css, /\.dialog-actions \.danger:hover\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--danger\) 17%, var\(--surface\)\);/s);
+});
+
+test("primary Save and export actions use a muted blue treatment", async () => {
+  const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(html, /class="primary" id="save-character-analytics"[^>]*>Save PNG/);
+  assert.match(html, /class="primary" id="save-beat-progress"[^>]*>Save PNG/);
+  assert.match(css, /\.dialog-actions \.primary, \.github-save-fields button\.primary, \.analytics-actions \.primary, \.beat-sheet-actions \.primary\s*\{[^}]*border-color:\s*color-mix\(in srgb, var\(--accent\) 52%, var\(--border\)\);[^}]*background:\s*color-mix\(in srgb, var\(--accent\) 11%, var\(--surface\)\);[^}]*color:/s);
+  assert.match(css, /\.dialog-actions \.primary:hover,[^}]*background:\s*color-mix\(in srgb, var\(--accent\) 17%, var\(--surface\)\);/s);
+});
+
+test("the annotation editor uses one compact field heading", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(html, /<label class="annotation-field"><span id="annotation-heading">Edit Annotation<\/span><textarea id="annotation-text"/);
+  assert.doesNotMatch(html, /<small>SCREENPLAY<\/small><h2 id="annotation-heading"/);
+  assert.match(app, /line === null \? "Add Annotation" : "Edit Annotation"/);
+  assert.match(css, /\.note-form > \.annotation-field\s*\{\s*margin-top:\s*0;/);
+});
+
 test("Beat Sheet provides a source-backed draggable story map and Preview guide", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.doesNotMatch(html, /beat-sheet-insight|id="beat-sheet-summary"|id="open-beat-sheet"/);
@@ -593,6 +650,14 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(css, /\.beat-progress-line\s*\{[^}]*stroke:/s);
   assert.match(css, /\.beat-drag\s*\{[^}]*touch-action:\s*none;[^}]*user-select:\s*none;/s);
   assert.match(css, /#source-panel \.panel-title\s*\{[^}]*justify-content:\s*flex-start;[^}]*gap:\s*16px;[^}]*background:\s*var\(--panel\);/s);
+});
+
+test("the Preview beat guide alone uses a subtle frosted surface", async () => {
+  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(css, /\.beat-guide-layer\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--panel\) 66%, transparent\);[^}]*-webkit-backdrop-filter:\s*blur\(14px\) saturate\(125%\);[^}]*backdrop-filter:\s*blur\(14px\) saturate\(125%\);/s);
+  assert.match(css, /\.preview-panel\.beat-runner-on \.preview-scroll\s*\{\s*padding-top:\s*0;/);
+  assert.match(app, /function scrollPreviewTarget[\s\S]*coveredTop = scrollRect\.top \+ \(beatGuide\.hidden \? 0 : beatGuide\.getBoundingClientRect\(\)\.height\)[\s\S]*targetRect\.top < coveredTop/);
+  assert.doesNotMatch(css, /\.beat-sheet-(?:panel|header|workspace)[^{]*\{[^}]*backdrop-filter:/s);
 });
 
 test("mobile preview clipboard actions preserve selections and avoid covering them", async () => {
@@ -809,7 +874,10 @@ test("preview background popup supports themed, directional dot motion", async (
   assert.match(css, /\.background-pattern-preview\s*\{[^}]*background-color:\s*var\(--bg\);/s);
   assert.match(css, /background-position:\s*var\(--preview-dot-x, 0px\) var\(--preview-dot-y, 0px\)/);
   assert.doesNotMatch(css, /data-background="damascus"|repeating-radial-gradient/);
-  assert.match(css, /#background-dialog\s*\{[^}]*width:\s*min\(390px,/s);
+  assert.match(css, /#background-dialog\s*\{[^}]*width:\s*min\(380px,/s);
+  assert.match(css, /#background-form > label\s*\{[^}]*flex-direction:\s*column;[^}]*gap:\s*5px;[^}]*margin:\s*13px 0;/s);
+  assert.match(css, /#background-form \.range-setting\s*\{[^}]*width:\s*100%;/);
+  assert.match(html, /id="background-form"[\s\S]*class="dialog-actions"><button class="primary" value="default">Done<\/button>/);
   assert.doesNotMatch(css, /\.preview-scroll\s*\{[^}]*background-color:/s);
   assert.match(app, /function applyPreviewBackground\(\)/);
   assert.match(app, /pattern === "dots" && !isMobilePreview\(\)/);

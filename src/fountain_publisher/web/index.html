@@ -129,7 +129,7 @@
           <div class="view-switcher" role="group" aria-label="Workspace view">
             <button class="active" data-preview-mode="source" type="button">Source</button><button data-preview-mode="live" type="button">Preview</button><button data-preview-mode="beats" type="button">Beat Sheet</button><button data-preview-mode="pdf" type="button">PDF</button>
           </div>
-          <div class="preview-actions workspace-zoom-actions"><button data-zoom-out type="button" aria-label="Zoom out">−</button><select data-workspace-zoom aria-label="Workspace zoom"><option value="fit" hidden>100%</option><option value="70">70%</option><option value="85">85%</option><option value="100" selected>100%</option><option value="115">115%</option><option value="130">130%</option><option value="150">150%</option><option value="175">175%</option><option value="200">200%</option></select><button data-zoom-in type="button" aria-label="Zoom in">+</button><button class="zoom-fit" data-zoom-fit type="button" aria-label="Fit workspace to pane width" aria-pressed="false">Fit</button></div>
+          <div class="preview-actions workspace-zoom-actions"><button data-zoom-out type="button" aria-label="Zoom out">−</button><select data-workspace-zoom aria-label="Workspace zoom"><option value="fit" hidden>100%</option><option value="70">70%</option><option value="85">85%</option><option value="100" selected>100%</option><option value="115">115%</option><option value="130">130%</option><option value="150">150%</option><option value="175">175%</option><option value="200">200%</option></select><button data-zoom-in type="button" aria-label="Zoom in">+</button><button class="zoom-fit" data-zoom-fit type="button" aria-label="Fit workspace to pane width" aria-pressed="false">Fit</button><button class="insights-open-button" data-toggle-stats type="button" aria-label="Open Insights panel" aria-controls="stats-panel" aria-expanded="false"><i aria-hidden="true"></i><b>Insights</b><span>‹</span></button></div>
         </div>
         <div class="editor-shell">
           <div id="current-line" class="current-line" aria-hidden="true"></div>
@@ -158,6 +158,7 @@
             <select id="zoom" data-workspace-zoom aria-label="Workspace zoom"><option id="zoom-fit-value" value="fit" hidden>100%</option><option value="70">70%</option><option value="85">85%</option><option value="100" selected>100%</option><option value="115">115%</option><option value="130">130%</option><option value="150">150%</option><option value="175">175%</option><option value="200">200%</option></select>
             <button id="zoom-in" data-zoom-in type="button" aria-label="Zoom in">+</button>
             <button id="zoom-fit" class="zoom-fit" data-zoom-fit type="button" aria-label="Fit workspace to pane width" aria-pressed="false">Fit</button>
+            <button class="insights-open-button" data-toggle-stats type="button" aria-label="Open Insights panel" aria-controls="stats-panel" aria-expanded="false"><i aria-hidden="true"></i><b>Insights</b><span>‹</span></button>
           </div>
         </header>
         <div id="preview-scroll" class="preview-scroll" data-background="dots">
@@ -190,7 +191,7 @@
 
       <section id="beat-sheet-panel" aria-labelledby="beat-sheet-heading" hidden>
         <form id="beat-sheet-form" class="beat-sheet-shell">
-          <header class="beat-sheet-header"><div><small>STORY MAP</small><h2 id="beat-sheet-heading">Beat Sheet</h2></div><div class="view-switcher" role="group" aria-label="Workspace view"><button data-preview-mode="source" type="button">Source</button><button data-preview-mode="live" type="button">Preview</button><button class="active" data-preview-mode="beats" type="button">Beat Sheet</button><button data-preview-mode="pdf" type="button">PDF</button></div><div class="preview-actions workspace-zoom-actions"><button data-zoom-out type="button" aria-label="Zoom out">−</button><select data-workspace-zoom aria-label="Workspace zoom"><option value="fit" hidden>100%</option><option value="70">70%</option><option value="85">85%</option><option value="100" selected>100%</option><option value="115">115%</option><option value="130">130%</option><option value="150">150%</option><option value="175">175%</option><option value="200">200%</option></select><button data-zoom-in type="button" aria-label="Zoom in">+</button><button class="zoom-fit" data-zoom-fit type="button" aria-label="Fit workspace to pane width" aria-pressed="false">Fit</button></div></header>
+          <header class="beat-sheet-header"><div><small>STORY MAP</small><h2 id="beat-sheet-heading">Beat Sheet</h2></div><div class="view-switcher" role="group" aria-label="Workspace view"><button data-preview-mode="source" type="button">Source</button><button data-preview-mode="live" type="button">Preview</button><button class="active" data-preview-mode="beats" type="button">Beat Sheet</button><button data-preview-mode="pdf" type="button">PDF</button></div><div class="preview-actions workspace-zoom-actions"><button data-zoom-out type="button" aria-label="Zoom out">−</button><select data-workspace-zoom aria-label="Workspace zoom"><option value="fit" hidden>100%</option><option value="70">70%</option><option value="85">85%</option><option value="100" selected>100%</option><option value="115">115%</option><option value="130">130%</option><option value="150">150%</option><option value="175">175%</option><option value="200">200%</option></select><button data-zoom-in type="button" aria-label="Zoom in">+</button><button class="zoom-fit" data-zoom-fit type="button" aria-label="Fit workspace to pane width" aria-pressed="false">Fit</button><button class="insights-open-button" data-toggle-stats type="button" aria-label="Open Insights panel" aria-controls="stats-panel" aria-expanded="false"><i aria-hidden="true"></i><b>Insights</b><span>‹</span></button></div></header>
           <div class="beat-sheet-workspace">
             <div id="beat-sheet-empty-state" class="beat-sheet-empty-state">
               <strong>Map the story before—or while—you write.</strong>
@@ -205,10 +206,9 @@
       </section>
 
       <div id="stats-resizer" class="panel-resizer stats-resizer" role="separator" aria-label="Resize insights panel" aria-controls="stats-panel" aria-orientation="vertical" tabindex="0"></div>
-      <button class="panel-toggle stats-toggle" id="toggle-stats" type="button" aria-label="Toggle insights panel" aria-controls="stats-panel" aria-expanded="true"><span>›</span><b>Insights</b></button>
-
       <aside id="stats-panel" aria-label="Screenplay insights">
         <div class="panel-title">
+          <button class="insights-close-button" data-toggle-stats type="button" aria-label="Close Insights" aria-controls="stats-panel" aria-expanded="true">›</button>
           <div><small>DOCUMENT</small><h2>Insights</h2></div>
         </div>
         <div class="insights-scroll">
@@ -299,7 +299,7 @@
         <label id="preview-dot-radius-row">Dot radius<span class="range-setting"><input id="preview-dot-radius" type="range" min="0.6" max="1.8" step="0.1" value="1" /><output id="preview-dot-radius-value">1.0px</output></span></label>
         <label id="preview-dot-direction-row">Direction<select id="preview-dot-direction"><option value="still" selected>Still</option><option value="up">Up</option><option value="down">Down</option><option value="left">Left</option><option value="right">Right</option><option value="up-left">Up-left</option><option value="up-right">Up-right</option><option value="down-left">Down-left</option><option value="down-right">Down-right</option><option value="random">Random</option></select></label>
         <label id="preview-dot-speed-row">Speed<span class="range-setting"><input id="preview-dot-speed" type="range" min="1" max="100" step="1" value="20" /><output id="preview-dot-speed-value">20</output></span></label>
-        <div class="dialog-actions"><button value="default">Done</button></div>
+        <div class="dialog-actions"><button class="primary" value="default">Done</button></div>
       </form>
     </dialog>
 
@@ -338,8 +338,7 @@
 
     <dialog id="annotation-dialog" aria-labelledby="annotation-heading">
       <form method="dialog" id="annotation-form" class="note-form">
-        <div class="dialog-heading"><small>SCREENPLAY</small><h2 id="annotation-heading">Annotation</h2></div>
-        <label>Note<textarea id="annotation-text" rows="6"></textarea></label>
+        <label class="annotation-field"><span id="annotation-heading">Edit Annotation</span><textarea id="annotation-text" rows="6"></textarea></label>
         <div class="dialog-actions"><button id="delete-annotation" class="danger" type="button">Delete</button><span></span><button value="cancel" formnovalidate>Cancel</button><button class="primary" value="default">Save</button></div>
       </form>
     </dialog>

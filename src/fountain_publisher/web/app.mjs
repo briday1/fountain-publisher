@@ -227,6 +227,7 @@ const state = {
   compileTimer: 0,
   compileRevision: 0,
   compileController: null,
+  insightTimer: 0,
   completionItems: [],
   completionIndex: 0,
   previewCompletionItems: [],
@@ -704,6 +705,19 @@ function alignAnnotationOrbs() {
   });
 }
 
+function revealPreviewEmptyRun(target) {
+  $$(".script-line.empty.preview-empty-context", page).forEach((line) => line.classList.remove("preview-empty-context"));
+  if (!target?.classList.contains("empty")) return;
+  const lines = classifyLines(source.value);
+  let start = Number(target.dataset.line);
+  let end = start;
+  while (start > 0 && lines[start - 1]?.type === "empty") start -= 1;
+  while (end + 1 < lines.length && lines[end + 1]?.type === "empty") end += 1;
+  for (let index = start; index <= end; index += 1) {
+    $(`.script-line.empty[data-line="${index}"]`, page)?.classList.add("preview-empty-context");
+  }
+}
+
 function renderPreview({ focusLine = null, focusOffset = null } = {}) {
   const lines = classifyLines(source.value);
   const previewScroll = $("#preview-scroll");
@@ -719,6 +733,8 @@ function renderPreview({ focusLine = null, focusOffset = null } = {}) {
   page.hidden = state.previewMode !== "live";
   if (focusLine !== null) {
     const target = $(`[data-line="${focusLine}"]`, page);
+    target?.classList.add("source-current");
+    revealPreviewEmptyRun(target);
     page.focus({ preventScroll: true });
     if (target) {
       const offset = focusOffset ?? target.textContent.length;
@@ -1136,12 +1152,15 @@ function currentPosition() {
 
 function scrollPreviewTarget(target, block = "nearest") {
   const previewScroll = $("#preview-scroll");
+  const beatGuide = $("#beat-guide-layer");
   const targetRect = target.getBoundingClientRect();
   const scrollRect = previewScroll.getBoundingClientRect();
+  const coveredTop = scrollRect.top + (beatGuide.hidden ? 0 : beatGuide.getBoundingClientRect().height);
+  const visibleHeight = scrollRect.bottom - coveredTop;
   let top = previewScroll.scrollTop;
   let left = previewScroll.scrollLeft;
-  if (block === "center") top += targetRect.top - scrollRect.top - (previewScroll.clientHeight - targetRect.height) / 2;
-  else if (targetRect.top < scrollRect.top) top += targetRect.top - scrollRect.top;
+  if (block === "center") top += targetRect.top - coveredTop - (visibleHeight - targetRect.height) / 2;
+  else if (targetRect.top < coveredTop) top += targetRect.top - coveredTop;
   else if (targetRect.bottom > scrollRect.bottom) top += targetRect.bottom - scrollRect.bottom;
   if (targetRect.left < scrollRect.left) left += targetRect.left - scrollRect.left;
   else if (targetRect.right > scrollRect.right) left += targetRect.right - scrollRect.right;
@@ -1174,6 +1193,7 @@ function updatePreviewCursor(scroll = false, scrollBlock = "nearest") {
   const target = $(`[data-line="${currentPosition().line}"]`, page);
   $$(".script-line.source-current", page).forEach((line) => line.classList.remove("source-current"));
   target?.classList.add("source-current");
+  revealPreviewEmptyRun(target);
   if (scroll && state.previewMode === "live" && target) scrollPreviewTarget(target, scrollBlock);
 }
 
@@ -1590,9 +1610,11 @@ function redoDocument() { restoreHistory(state.historyIndex + 1); }
 function sourceChanged({ fromPreview = false, record = true } = {}) {
   if (record) recordHistory();
   document.body.classList.toggle("dirty", source.value !== state.savedSource);
-  renderEditorChrome();
+  if (!fromPreview || state.previewMode === "source") renderEditorChrome();
   if (!fromPreview) renderPreview();
-  renderInsights(analyzeLocally(source.value));
+  clearTimeout(state.insightTimer);
+  if (fromPreview) state.insightTimer = setTimeout(() => renderInsights(analyzeLocally(source.value)), 80);
+  else renderInsights(analyzeLocally(source.value));
   scheduleCompile();
   scheduleWorkspaceCache();
 }
@@ -2494,7 +2516,7 @@ document.addEventListener("webkitfullscreenchange", updateAppWindowControls);
 function togglePanel(panel, force) {
   const collapsed = force ?? !document.body.classList.contains(`${panel}-collapsed`);
   document.body.classList.toggle(`${panel}-collapsed`, collapsed); localStorage.setItem(`fountain-publisher.${panel}-collapsed`, String(collapsed));
-  $(`#toggle-${panel}`).setAttribute("aria-expanded", String(!collapsed));
+  $$(`[data-toggle-${panel}]`).forEach((button) => button.setAttribute("aria-expanded", String(!collapsed)));
   $(`#menu-toggle-${panel}`).textContent = `${collapsed ? "Show" : "Hide"} ${panel === "stats" ? "Insights" : "Source"}`;
   if (state.previewZoom === "fit") requestAnimationFrame(applyZoom);
 }
@@ -2504,7 +2526,7 @@ function installResizer(element, variable, side, min, max) {
   const apply = (width) => { const next = Math.max(min, Math.min(max, width)); document.documentElement.style.setProperty(variable, `${next}px`); localStorage.setItem(`fountain-publisher.${variable}`, String(next)); element.setAttribute("aria-valuenow", String(Math.round(next))); if (variable === "--source-w") renderEditorChrome(); if (state.previewZoom === "fit") requestAnimationFrame(applyZoom); };
   element.addEventListener("pointerdown", (event) => { startX = event.clientX; startWidth = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(variable)); element.setPointerCapture(event.pointerId); });
   element.addEventListener("pointermove", (event) => { if (!element.hasPointerCapture(event.pointerId)) return; apply(startWidth + (event.clientX - startX) * side); });
-  element.addEventListener("dblclick", () => apply(variable === "--source-w" ? 370 : 310));
+  element.addEventListener("dblclick", () => apply(variable === "--source-w" ? 370 : 330));
   element.addEventListener("keydown", (event) => { if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return; event.preventDefault(); const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(variable)); if (event.key === "Home") apply(min); else if (event.key === "End") apply(max); else apply(current + (event.key === "ArrowRight" ? 1 : -1) * side * (event.shiftKey ? 30 : 10)); });
 }
 
@@ -2769,7 +2791,7 @@ function openBeatSheet() {
 function openAnnotationEditor(line = null, insertAfter = null) {
   const existing = line === null ? "" : annotationText(sourceLines()[line] || "");
   state.noteEditor = { kind: "annotation", line, insertAfter };
-  $("#annotation-heading").textContent = line === null ? "Add annotation" : "Edit annotation";
+  $("#annotation-heading").textContent = line === null ? "Add Annotation" : "Edit Annotation";
   $("#annotation-text").value = existing;
   $("#delete-annotation").hidden = line === null;
   $("#annotation-dialog").showModal();
@@ -3427,6 +3449,14 @@ page.addEventListener("keydown", (event) => {
     if (event.key === "Tab") { event.preventDefault(); acceptPreviewCharacterCompletion(); return; }
     if (event.key === "Escape") { event.preventDefault(); hidePreviewCompletions(); return; }
   }
+  if (event.key === "Enter" && !event.isComposing && !event.metaKey && !event.ctrlKey && !event.altKey) {
+    const edit = previewSelection(line);
+    if (!edit) return;
+    event.preventDefault();
+    hidePreviewCompletions();
+    replacePreviewSelection(edit, "\n");
+    return;
+  }
   const verticalDirection = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
   const atVerticalEdge = verticalDirection === -1
     ? previewCaretIsOnVisualEdge(line, "first")
@@ -3845,7 +3875,7 @@ $$('[data-preview-mode]').forEach((button) => button.addEventListener("click", (
   if (isMobilePreview()) setMobileTab(mode === "beats" ? "beats" : mode === "source" ? "source" : "preview");
   else setPreviewMode(mode);
 }));
-$("#toggle-stats").addEventListener("click", () => togglePanel("stats"));
+$$('[data-toggle-stats]').forEach((button) => button.addEventListener("click", () => togglePanel("stats")));
 $("#menu-toggle-stats").addEventListener("click", () => isMobilePreview() ? setMobileTab("stats") : togglePanel("stats"));
 $("#menu-toggle-source-tab").addEventListener("click", () => {
   if (isMobilePreview()) {
