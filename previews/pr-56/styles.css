@@ -203,10 +203,14 @@ body.dirty #dirty-dot { background: var(--accent); }
 .panel-title small, .preview-title small, .dialog-heading small { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .12em; }
 .panel-title h1, .panel-title h2, .preview-title h2 { margin: 1px 0 0; font-size: 16px; line-height: 1.1; }
 #stats-panel .panel-title h2 { font-size: 18px; }
-.insights-open-button { display: none; width: auto !important; padding: 0 8px; gap: 5px; color: var(--muted); font-size: 10px; }
+.insights-open-button { display: none; width: auto !important; padding: 0 7px; gap: 5px; border-color: var(--border-strong) !important; background: var(--surface-2) !important; color: var(--muted); font-size: 10px; }
+.insights-open-button b { font-size: 10px; font-weight: 650; }
+.insights-open-button i { position: relative; width: 12px; height: 11px; border: 1px solid currentColor; border-radius: 2px; }
+.insights-open-button i::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 3px; border-left: 1px solid currentColor; background: color-mix(in srgb, currentColor 12%, transparent); }
 .insights-open-button span { font-size: 16px; line-height: 1; }
 .insights-close-button { width: 28px; height: 28px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 20px; }
 .insights-close-button:hover, .insights-open-button:hover { background: var(--surface-2); color: var(--ink); }
+#stats-panel .panel-title > div { margin-left: auto; text-align: right; }
 .panel-resizer { background: transparent; cursor: col-resize; position: relative; z-index: 5; }
 .panel-resizer::after { content: ""; position: absolute; inset: 0 1px; background: var(--border); opacity: 0; transition: opacity .15s; }
 .panel-resizer:hover::after, .panel-resizer:focus::after { opacity: 1; }
