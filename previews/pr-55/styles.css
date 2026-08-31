@@ -340,7 +340,11 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .metric-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
 .metric-grid div { display: flex; flex-direction: column; padding: 13px 15px; background: var(--surface); }
 .metric-grid strong { font-size: 20px; line-height: 1.1; font-weight: 550; }
-.metric-grid strong small { font-size: .55em; vertical-align: .35em; letter-spacing: -.04em; }
+.page-fraction { position: relative; display: inline-block; width: .78em; height: 1.12em; margin-left: .08em; vertical-align: -.08em; font-size: .58em; line-height: 1; }
+.page-fraction sup, .page-fraction sub { position: absolute; font-size: .72em; line-height: 1; }
+.page-fraction sup { top: -.02em; left: 0; transform: translateX(-.04em); }
+.page-fraction sub { right: 0; bottom: -.02em; transform: translateX(.04em); }
+.page-fraction i { position: absolute; left: 50%; top: 50%; font-style: normal; font-weight: 400; transform: translate(-50%, -50%) rotate(9deg); opacity: .78; }
 .metric-grid span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .metric-grid div:nth-child(1) { color: var(--metric-pages-ink); }
 .metric-grid div:nth-child(2) { color: var(--metric-scenes-ink); }
