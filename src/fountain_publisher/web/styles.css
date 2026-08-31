@@ -701,6 +701,7 @@ button:disabled { cursor: default; opacity: .45; }
   .view-switcher { display: none; }
   .workspace-zoom-actions { display: none; }
   .preview-scroll { padding: 0; overflow-x: hidden; scrollbar-gutter: auto; }
+  #preview-scroll, #source-panel, #beat-sheet-panel { background-image: none !important; }
   #source-panel { background: var(--source-bg); }
   #source-panel .editor-shell, #source-panel .editor-footer { width: 100%; margin: 0; border: 0; border-radius: 0; box-shadow: none; zoom: 1; }
   .preview-panel.beat-runner-on .preview-scroll { padding-top: 44px; }
@@ -713,6 +714,7 @@ button:disabled { cursor: default; opacity: .45; }
   .beat-runner-progress strong { display: none; }
   .beat-runner-progress em { display: none; }
   .beat-runner-actions button[data-open-beat-sheet] { display: none; }
+  .beat-guide-layer.empty .beat-runner-actions .empty-beat-sheet-button { display: block; white-space: nowrap; }
   .beat-runner-actions .assign-beat-area { max-width: none; white-space: nowrap; line-height: 1.05; }
   #beat-sheet-panel { grid-column: 1; }
   .beat-sheet-workspace { width: 100%; margin: 0; padding: 12px; border: 0; border-radius: 0; box-shadow: none; zoom: 1; }
@@ -797,8 +799,9 @@ button:disabled { cursor: default; opacity: .45; }
   .about-label { display: none; }
   /* View and Help remain available; exact PDF preview stays out of the mobile view picker. */
   .view-menu [data-preview-mode="pdf"] { display: none; }
-  .global-actions .history-actions { width: 100%; display: flex; align-items: center; padding: 4px 8px; }
-  .global-actions .history-actions .toolbar-divider { display: none; }
+  .history-actions .toolbar-divider { display: none; }
+  .history-actions { position: relative; z-index: 81; display: flex !important; flex: 0 0 auto; margin-left: 1px; }
+  .history-actions #undo, .history-actions #redo { display: block !important; }
   /* Fix popovers: pin to the top of the screen so they're always fully visible
      regardless of which menu triggered them or how far right it sits */
   .toolbar-popover {

@@ -69,7 +69,7 @@ test("tablet landscape keeps document identity clear of history controls", async
   assert.match(css, /\.compile-status\s*\{[^}]*flex:\s*0 0 auto;[^}]*white-space:\s*nowrap;/s);
   assert.doesNotMatch(app, /updateToolbarIdentityLayout|scheduleToolbarIdentityLayout/);
   assert.match(css, /@media\s*\(max-width:\s*900px\)[\s\S]*\.about-label\s*\{\s*display:\s*none;/s);
-  assert.match(html, /class="[^"]*help-menu[^"]*"[\s\S]*<div class="history-actions"[^>]*>[\s\S]*id="undo"[\s\S]*id="redo"[\s\S]*<\/nav>/);
+  assert.match(html, /class="[^"]*help-menu[^"]*"[\s\S]*<\/nav>\s*<div class="history-actions"[^>]*>[\s\S]*id="undo"[\s\S]*id="redo"/);
   assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.app-toolbar::after\s*\{\s*display:\s*none;/s);
   assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.document-identity\s*\{[^}]*position:\s*relative;[^}]*display:\s*flex !important;[^}]*flex:\s*1 1 auto;/s);
   assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.history-actions \.toolbar-divider\s*\{\s*display:\s*none;/s);
@@ -424,6 +424,7 @@ test("page totals come from the compiled Screenplain PDF", async () => {
   assert.match(app, /function compileStaticPageCount/);
   assert.match(app, /result\.pageCount == null[\s\S]*\/api\/render\/pdf/);
   assert.match(app, /function countPdfBlobPages/);
+  assert.match(app, /function screenplayPageCount\(physicalPages\)[\s\S]*titleFields/);
   assert.match(app, /estimatedSeconds = result\.pageCount \* 60/);
   assert.match(app, /_fp_prepare_screenplay[\s\S]*isinstance\(screenplay\.paragraphs\[0\], PageBreak\)/);
   assert.ok(app.includes('/Type\\s*\\/Page\\b'));
@@ -723,9 +724,11 @@ test("mobile shows one panel at a time through the View menu", async () => {
   assert.match(css, /body\[data-mobile-tab="preview"\] \.preview-panel\s*\{\s*display:\s*flex;/);
   assert.match(css, /body\[data-mobile-tab="beats"\] #beat-sheet-panel\s*\{\s*display:\s*flex;/);
   assert.match(css, /body\[data-mobile-tab="stats"\] #stats-panel\s*\{\s*display:\s*flex/);
+  assert.match(css, /#preview-scroll, #source-panel, #beat-sheet-panel\s*\{\s*background-image:\s*none !important;/);
   // View-menu routing persists the selected mobile workspace.
   assert.match(app, /function setMobileTab\(/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.mobile-tab"/);
+  assert.match(app, /state\.previewMode = mode[\s\S]*document\.body\.dataset\.mobileTab = mobilePanel/);
   assert.match(app, /dataset\.mobileTab = panel/);
   assert.match(app, /isMobilePreview\(\)[\s\S]*const opening = state\.previewMode !== "source";[\s\S]*setMobileTab\(opening \? "source" : "preview"\)/);
 });
@@ -748,6 +751,8 @@ test("mobile preview excludes PDF, supports Beat Sheet, and reflows horizontally
   assert.match(css, /body\.scene-nums-margin \.screenplay-page\s*\{[^}]*padding-left:\s*calc\(54px \* var\(--mobile-preview-zoom,\s*1\)\);/s);
   assert.match(app, /isMobilePreview\(\) && mode === "pdf"/);
   assert.match(app, /panel === "beats"[\s\S]*setPreviewMode\("beats"\)/);
+  assert.match(app, /empty-beat-sheet-button[\s\S]*data-open-beat-sheet>Open Beat Sheet/);
+  assert.match(css, /\.beat-guide-layer\.empty \.beat-runner-actions \.empty-beat-sheet-button\s*\{[^}]*display:\s*block;/s);
   assert.match(html, /class="view-switcher"[\s\S]*data-preview-mode="live"[\s\S]*data-preview-mode="pdf"/);
   assert.match(html, /class="preview-actions workspace-zoom-actions"[\s\S]*id="zoom-out"[\s\S]*id="zoom"[\s\S]*id="zoom-in"[\s\S]*id="zoom-fit"/);
 });
@@ -799,6 +804,7 @@ test("preview background popup supports themed, directional dot motion", async (
   assert.match(css, /#background-dialog\s*\{[^}]*width:\s*min\(390px,/s);
   assert.doesNotMatch(css, /\.preview-scroll\s*\{[^}]*background-color:/s);
   assert.match(app, /function applyPreviewBackground\(\)/);
+  assert.match(app, /pattern === "dots" && !isMobilePreview\(\)/);
   assert.match(css, /\.beat-guide-layer\s*\{[^}]*position:\s*absolute;/s);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-background", event\.target\.value\)/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-dot-radius", event\.target\.value\)/);

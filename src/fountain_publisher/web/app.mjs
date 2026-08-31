@@ -420,7 +420,7 @@ function applyPreviewBackground() {
   $("#preview-dot-speed-value").textContent = String(speed);
   $("#preview-dot-direction-row").hidden = pattern !== "dots";
   $("#preview-dot-speed-row").hidden = pattern !== "dots";
-  if (pattern === "dots") startDotMotion(direction, speed); else stopDotMotion(true);
+  if (pattern === "dots" && !isMobilePreview()) startDotMotion(direction, speed); else stopDotMotion(true);
 }
 
 function escapeHtml(value) {
@@ -1237,6 +1237,7 @@ function renderBeatGuide() {
   const enabled = state.beatGuide && state.previewMode === "live";
   state.activeBeat = Math.max(0, Math.min(state.activeBeat, Math.max(0, beats.length - 1)));
   layer.hidden = !enabled;
+  layer.classList.toggle("empty", !beats.length);
   $(".preview-panel").classList.toggle("beat-runner-on", enabled);
   $(".menu-check", button).textContent = state.beatGuide ? "✓" : "";
   $$(".script-line.beat-area", page).forEach((line) => line.classList.remove("beat-area", "active-beat-area"));
@@ -1252,7 +1253,11 @@ function renderBeatGuide() {
   const beat = beats[state.activeBeat];
   layer.innerHTML = beat
     ? `<div class="beat-runner-progress"><small>${state.activeBeat + 1}/${beats.length}</small><strong>Next Beat:</strong><span>${escapeHtml(beat.text)}</span>${beat.range ? `<em>Lines ${beat.range.startLine + 1}–${beat.range.endLine + 1}</em>` : ""}</div><div class="beat-runner-actions"><button type="button" data-previous-beat aria-label="Previous beat"${state.activeBeat ? "" : " disabled"}>←</button><button type="button" data-open-beat-sheet>Edit</button><button class="assign-beat-area" type="button" data-assign-beat-area>Assign + Next</button><button type="button" data-next-beat aria-label="Next beat"${state.activeBeat < beats.length - 1 ? "" : " disabled"}>→</button><button type="button" data-close-beat-guide aria-label="Hide Beat guide">×</button></div>`
-    : `<div class="beat-runner-progress"><strong>Beat Sheet</strong><span>Add beats to start the writing runner.</span></div><div class="beat-runner-actions"><button type="button" data-open-beat-sheet>Edit Beat Sheet</button><button type="button" data-close-beat-guide aria-label="Hide Beat guide">×</button></div>`;
+    : `<div class="beat-runner-progress"><strong>Beat Sheet</strong><span>Add beats to start the writing runner.</span></div><div class="beat-runner-actions"><button class="empty-beat-sheet-button" type="button" data-open-beat-sheet>Open Beat Sheet</button><button type="button" data-close-beat-guide aria-label="Hide Beat guide">×</button></div>`;
+}
+
+function screenplayPageCount(physicalPages) {
+  return Math.max(0, physicalPages - (state.metadata.titleFields?.length ? 1 : 0));
 }
 
 function selectedBeatArea() {
@@ -1607,7 +1612,7 @@ async function compileStaticPageCount(revision) {
   $("#compile-status").textContent = "Compiling…";
   try {
     const blob = await compileWithBrowserScreenplain("pdf", $("#page-size").value);
-    const pageCount = await countPdfBlobPages(blob);
+    const pageCount = screenplayPageCount(await countPdfBlobPages(blob));
     if (revision !== state.compileRevision) return;
     state.metadata.pageCount = pageCount;
     state.metadata.estimatedSeconds = pageCount * 60;
@@ -1632,7 +1637,7 @@ async function compile(revision) {
     }
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Compilation failed");
-    if (result.pageCount == null) result.pageCount = await countPdfBlobPages(await requestBinary("/api/render/pdf"));
+    if (result.pageCount == null) result.pageCount = screenplayPageCount(await countPdfBlobPages(await requestBinary("/api/render/pdf")));
     result.estimatedSeconds = result.pageCount * 60;
     if (revision !== state.compileRevision) return;
     renderInsights(result);
@@ -2377,6 +2382,9 @@ async function setPreviewMode(mode) {
     state.livePreviewScrollLeft = preview.scrollLeft;
   }
   state.previewMode = mode; localStorage.setItem("fountain-publisher.preview", mode);
+  const mobilePanel = mode === "source" ? "source" : mode === "beats" ? "beats" : "preview";
+  document.body.dataset.mobileTab = mobilePanel;
+  localStorage.setItem("fountain-publisher.mobile-tab", mobilePanel);
   $$('[data-preview-mode]').forEach((button) => { button.classList.toggle("active", button.dataset.previewMode === mode); const check = $(".menu-check", button); if (check) check.textContent = button.dataset.previewMode === mode ? "✓" : ""; });
   $("#source-panel").hidden = mode !== "source";
   $(".preview-panel").hidden = !["live", "pdf"].includes(mode);
@@ -4041,6 +4049,7 @@ window.addEventListener("resize", () => {
   hidePreviewContextMenu();
   renderEditorChrome();
   if (isMobilePreview() && state.previewMode === "pdf") void setPreviewMode("live");
+  applyPreviewBackground();
   applyZoom();
   updateVimUi();
   if ($("#character-analytics-dialog").open) renderCharacterAnalytics();
