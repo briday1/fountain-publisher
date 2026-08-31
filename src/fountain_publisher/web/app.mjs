@@ -1131,11 +1131,10 @@ function fountainSyntaxHtml(value) {
 function renderSourceSyntax() {
   const classes = { scene: "scene", character: "character", dialogue: "dialogue", parenthetical: "parenthetical", transition: "transition", section: "section", synopsis: "synopsis", note: "note", boneyard: "boneyard", lyric: "lyric", "title-value": "title", "title-value title": "title" };
   const lines = classifyLines(source.value);
-  $("#source-highlight").innerHTML = lines.map((line, index) => {
+  $("#source-highlight").innerHTML = lines.map((line) => {
     const name = classes[line.type];
     const value = fountainSyntaxHtml(line.raw) || " ";
-    const newline = index < lines.length - 1 ? "\n" : "";
-    return `<span data-source-line="${line.index}"${name ? ` class="syntax-${name}"` : ""}>${value}${newline}</span>`;
+    return `<span data-source-line="${line.index}"${name ? ` class="syntax-${name}"` : ""}>${value}</span>`;
   }).join("");
 }
 
