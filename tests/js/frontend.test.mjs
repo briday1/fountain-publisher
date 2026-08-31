@@ -983,3 +983,14 @@ test("mobile top bars stay pinned during focus, zoom, and viewport scrolling", a
   assert.match(app, /visualViewport\?\.addEventListener\("scroll", scheduleMobileViewportUpdate\)/);
   assert.match(app, /document\.addEventListener\("focusin", scheduleMobileViewportUpdate\)/);
 });
+
+test("GitHub browser text fields accept iPad hardware-keyboard input", async () => {
+  const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
+  assert.match(html, /id="github-repository"[^>]*autocapitalize="off"[^>]*inputmode="text"/);
+  assert.match(html, /id="github-filename"[^>]*autocapitalize="off"[^>]*inputmode="text"/);
+  assert.match(app, /function prepareGithubKeyboardInputs[\s\S]*navigator\.maxTouchPoints > 0[\s\S]*removeAttribute\("list"\)/);
+  assert.match(app, /dialog\.addEventListener\("keydown", \(event\) => event\.stopPropagation\(\)\)/);
+  assert.match(app, /dialog\.addEventListener\("beforeinput", \(event\) => event\.stopPropagation\(\)\)/);
+  assert.match(app, /dialog\.addEventListener\("pointerup"[\s\S]*input\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(app, /openGithubBrowser[\s\S]*prepareGithubKeyboardInputs\(\)/);
+});

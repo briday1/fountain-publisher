@@ -2047,6 +2047,7 @@ async function loadGithubRepositories() {
 async function openGithubBrowser(mode = "open") {
   if (!state.githubConnected && !(await refreshGithubSession())) return connectGithub();
   closeMenus();
+  prepareGithubKeyboardInputs();
   state.githubBrowserMode = mode;
   $("#github-dialog-title").textContent = mode === "save" ? "Save to GitHub" : "Open from GitHub";
   $("#github-save-panel").hidden = mode !== "save";
@@ -2057,6 +2058,22 @@ async function openGithubBrowser(mode = "open") {
   $("#github-save-details").open = mode === "save" && !matchMedia("(max-width: 820px)").matches;
   $("#github-dialog").showModal();
   try { await loadGithubRepositories(); } catch (error) { toast(error.message); }
+}
+
+function prepareGithubKeyboardInputs() {
+  const dialog = $("#github-dialog");
+  if (navigator.maxTouchPoints > 0) {
+    [$("#github-repository"), $("#github-branch")].forEach((input) => input.removeAttribute("list"));
+  }
+  if (dialog.dataset.keyboardReady) return;
+  dialog.dataset.keyboardReady = "true";
+  dialog.addEventListener("keydown", (event) => event.stopPropagation());
+  dialog.addEventListener("beforeinput", (event) => event.stopPropagation());
+  dialog.addEventListener("pointerup", (event) => {
+    const input = event.target.closest("input, textarea");
+    if (!input || document.activeElement === input) return;
+    requestAnimationFrame(() => input.focus({ preventScroll: true }));
+  });
 }
 
 function decodeGithubContent(content) {

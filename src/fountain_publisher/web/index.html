@@ -256,12 +256,12 @@
         <div class="github-controls">
           <label class="github-repository-control">
             <span class="github-control-label">Repository</span>
-            <input id="github-repository" type="text" list="github-repositories" placeholder="Find repository…" autocomplete="off" />
+            <input id="github-repository" type="text" list="github-repositories" placeholder="Find repository…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text" />
             <datalist id="github-repositories"></datalist>
           </label>
           <label class="github-branch-control">
             <span class="github-control-label">Branch</span>
-            <input id="github-branch" type="text" list="github-branches" placeholder="Find branch…" autocomplete="off" />
+            <input id="github-branch" type="text" list="github-branches" placeholder="Find branch…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text" />
             <datalist id="github-branches"></datalist>
           </label>
         </div>
@@ -271,8 +271,8 @@
           <details id="github-save-details" open>
             <summary>Save to this folder</summary>
             <div class="github-save-fields">
-              <label>File name<input id="github-filename" type="text" value="Untitled.fountain" /></label>
-              <label>Commit message<input id="github-commit-message" type="text" value="Update screenplay" /></label>
+              <label>File name<input id="github-filename" type="text" value="Untitled.fountain" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text" /></label>
+              <label>Commit message<input id="github-commit-message" type="text" value="Update screenplay" inputmode="text" /></label>
               <button class="primary" id="github-save-here" type="button">Save here</button>
               <p id="github-save-status" role="status" aria-live="polite"></p>
             </div>
