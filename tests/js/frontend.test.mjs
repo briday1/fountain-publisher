@@ -69,7 +69,7 @@ test("tablet landscape keeps document identity clear of history controls", async
   assert.match(css, /\.compile-status\s*\{[^}]*flex:\s*0 0 auto;[^}]*white-space:\s*nowrap;/s);
   assert.doesNotMatch(app, /updateToolbarIdentityLayout|scheduleToolbarIdentityLayout/);
   assert.match(css, /@media\s*\(max-width:\s*900px\)[\s\S]*\.about-label\s*\{\s*display:\s*none;/s);
-  assert.match(html, /<\/nav>\s*<div class="history-actions"[^>]*>[\s\S]*id="undo"[\s\S]*id="redo"/);
+  assert.match(html, /class="[^"]*help-menu[^"]*"[\s\S]*<div class="history-actions"[^>]*>[\s\S]*id="undo"[\s\S]*id="redo"[\s\S]*<\/nav>/);
   assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.app-toolbar::after\s*\{\s*display:\s*none;/s);
   assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.document-identity\s*\{[^}]*position:\s*relative;[^}]*display:\s*flex !important;[^}]*flex:\s*1 1 auto;/s);
   assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.history-actions \.toolbar-divider\s*\{\s*display:\s*none;/s);
@@ -279,13 +279,16 @@ test("source completions wait for typing on a new line and support explicit char
   assert.match(css, /#completion-menu\s*\{[^}]*position:\s*fixed;/s);
 });
 
-test("spellcheck exposes native replacement suggestions", async () => {
+test("spellcheck exposes private local replacement suggestions in the unified editor menu", async () => {
   const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
   assert.match(html, /Right-click spelling for suggestions/);
   assert.match(html, /aria-describedby="editor-status spellcheck-help"/);
   assert.match(app, /setAttribute\("spellcheck", String\(enabled\)\)/);
   assert.match(app, /type === "character" \? ` spellcheck="false"`/);
-  assert.match(app, /source\.blur\(\); source\.focus\(\)/);
+  assert.match(app, /import\("\.\/vendor\/spellcheck\.mjs"\)/);
+  assert.match(app, /dictionary-en\.aff/);
+  assert.match(app, /candidate\.word === candidate\.word\.toUpperCase\(\)/);
+  assert.match(app, /checker\.suggest\(candidate\.word\)\.slice\(0, 5\)/);
 });
 
 test("dark mode inverts the screenplay page and toolbar uses SVG arrows", async () => {
@@ -507,12 +510,13 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(html, /id="general-note-dialog"/);
   assert.match(html, /summary>General notes/);
   assert.match(html, /id="preview-context-menu"/);
-  assert.match(html, /data-preview-menu-action="annotation"/);
-  assert.match(html, /data-preview-menu-action="copy"/);
-  assert.match(html, /data-preview-menu-action="cut"/);
-  assert.match(html, /data-preview-menu-action="paste"/);
+  assert.match(html, /data-context-action="annotation"/);
+  assert.match(html, /data-context-action="copy"/);
+  assert.match(html, /data-context-action="cut"/);
+  assert.match(html, /data-context-action="paste"/);
   assert.match(app, /MANAGED_NOTE_RE/);
   assert.match(app, /page\.addEventListener\("contextmenu"/);
+  assert.match(app, /source\.addEventListener\("contextmenu"/);
   assert.match(app, /function showPreviewContextMenu/);
   assert.match(app, /function runPreviewClipboardAction/);
   assert.match(app, /document\.execCommand\("copy"\)/);

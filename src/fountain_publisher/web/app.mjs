@@ -247,6 +247,11 @@ const state = {
   previewContextLine: null,
   previewContextEdit: null,
   previewContextText: "",
+  contextSurface: null,
+  contextSelection: null,
+  contextWord: null,
+  spellchecker: null,
+  spellcheckerPromise: null,
   githubConnected: false,
   githubInstallUrl: "",
   githubRepositories: [],
@@ -2739,6 +2744,71 @@ function hidePreviewContextMenu() {
   state.previewContextLine = null;
   state.previewContextEdit = null;
   state.previewContextText = "";
+  state.contextSurface = null;
+  state.contextSelection = null;
+  state.contextWord = null;
+}
+
+function sourceLineAtOffset(offset) {
+  return source.value.slice(0, offset).split("\n").length - 1;
+}
+
+function wordAtSourceOffset(offset) {
+  const lineStart = source.value.lastIndexOf("\n", Math.max(0, offset - 1)) + 1;
+  const lineEnd = source.value.indexOf("\n", offset);
+  const end = lineEnd < 0 ? source.value.length : lineEnd;
+  const text = source.value.slice(lineStart, end);
+  for (const match of text.matchAll(/[\p{L}][\p{L}'’-]*/gu)) {
+    const start = lineStart + match.index;
+    const finish = start + match[0].length;
+    if (offset >= start && offset <= finish) return { word: match[0], start, end: finish };
+  }
+  return null;
+}
+
+async function getSpellchecker() {
+  if (state.spellchecker) return state.spellchecker;
+  if (!state.spellcheckerPromise) state.spellcheckerPromise = Promise.all([
+    import("./vendor/spellcheck.mjs"),
+    fetch("./vendor/dictionary-en.aff").then((response) => response.text()),
+    fetch("./vendor/dictionary-en.dic").then((response) => response.text()),
+  ]).then(([module, aff, dic]) => (state.spellchecker = module.createSpellchecker(aff, dic)));
+  return state.spellcheckerPromise;
+}
+
+function positionContextMenu(clientX, clientY) {
+  const menu = $("#preview-context-menu");
+  menu.style.left = "0px";
+  menu.style.top = "0px";
+  const { width, height } = menu.getBoundingClientRect();
+  menu.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, clientX))}px`;
+  menu.style.top = `${Math.max(8, Math.min(window.innerHeight - height - 8, clientY))}px`;
+}
+
+async function renderContextSpelling(clientX, clientY) {
+  const container = $("#context-spelling");
+  container.hidden = true;
+  container.replaceChildren();
+  const candidate = state.contextWord;
+  if (!$("#spellcheck").checked || !candidate || candidate.word === candidate.word.toUpperCase() || candidate.word.length < 2) return;
+  try {
+    const checker = await getSpellchecker();
+    if (checker.correct(candidate.word) || state.contextWord !== candidate) return;
+    const suggestions = checker.suggest(candidate.word).slice(0, 5);
+    const label = document.createElement("small");
+    label.textContent = suggestions.length ? `Spelling: ${candidate.word}` : `No suggestions for ${candidate.word}`;
+    container.append(label);
+    suggestions.forEach((suggestion) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.role = "menuitem";
+      button.dataset.spellingSuggestion = suggestion;
+      button.textContent = suggestion;
+      container.append(button);
+    });
+    container.hidden = false;
+    positionContextMenu(clientX, clientY);
+  } catch { /* Keep editing actions available if the local dictionary cannot load. */ }
 }
 
 function previewLineForNode(node) {
@@ -2786,25 +2856,43 @@ function placePreviewCaretFromPoint(line, clientX, clientY) {
   setSourceCursorFromPreview(line);
 }
 
-function showPreviewContextMenu(line, clientX, clientY) {
+function showPreviewContextMenu(line, clientX, clientY, surface = "preview") {
   const menu = $("#preview-context-menu");
-  const selection = previewSelectionInPage();
-  state.previewContextLine = Number(line.dataset.line);
-  state.previewContextEdit = previewSelection(previewLineForNode(selection?.focusNode) || line);
-  state.previewContextText = selection?.toString() || "";
+  const selection = surface === "preview" ? previewSelectionInPage() : null;
+  state.contextSurface = surface;
+  state.previewContextLine = surface === "preview" ? Number(line.dataset.line) : sourceLineAtOffset(source.selectionStart);
+  state.previewContextEdit = surface === "preview" ? previewSelection(previewLineForNode(selection?.focusNode) || line) : null;
+  state.previewContextText = surface === "preview" ? selection?.toString() || "" : source.value.slice(source.selectionStart, source.selectionEnd);
+  state.contextSelection = { start: source.selectionStart, end: source.selectionEnd };
+  state.contextWord = wordAtSourceOffset(source.selectionStart);
   menu.hidden = false;
-  menu.style.left = "0px";
-  menu.style.top = "0px";
-  const { width, height } = menu.getBoundingClientRect();
-  menu.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, clientX))}px`;
   let top = clientY;
-  if (isMobilePreview() && state.previewContextText && selection.rangeCount) {
+  if (surface === "preview" && isMobilePreview() && state.previewContextText && selection?.rangeCount) {
     const selectionRect = selection.getRangeAt(0).getBoundingClientRect();
+    const height = menu.getBoundingClientRect().height;
     const below = selectionRect.bottom + 12;
     const above = selectionRect.top - height - 12;
     top = below + height <= window.innerHeight - 8 ? below : above;
   }
-  menu.style.top = `${Math.max(8, Math.min(window.innerHeight - height - 8, top))}px`;
+  positionContextMenu(clientX, top);
+  void renderContextSpelling(clientX, top);
+}
+
+async function runSourceContextAction(action, context) {
+  const { start, end } = context;
+  const text = source.value.slice(start, end);
+  if (action === "copy" || action === "cut") {
+    if (!text) return "Select text to copy";
+    try { await navigator.clipboard.writeText(text); } catch { return "Clipboard access was denied"; }
+    if (action === "cut") { source.setRangeText("", start, end, "end"); sourceChanged(); }
+    return "";
+  }
+  if (action === "paste") {
+    try { source.setRangeText(await navigator.clipboard.readText(), start, end, "end"); sourceChanged(); return ""; }
+    catch { return "Clipboard access was denied"; }
+  }
+  if (action === "select-all") { source.focus(); source.select(); return ""; }
+  return "";
 }
 
 async function runPreviewClipboardAction(action, lineNumber, context = {}) {
@@ -2844,6 +2932,15 @@ async function runPreviewClipboardAction(action, lineNumber, context = {}) {
       try { return document.execCommand("paste") ? "" : "Clipboard access was denied"; }
       catch { return "Clipboard access was denied"; }
     }
+  }
+  if (action === "select-all") {
+    const selection = getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(page);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    page.focus({ preventScroll: true });
+    return "";
   }
   return "Clipboard access was denied";
 }
@@ -3218,6 +3315,34 @@ source.addEventListener("scroll", () => { $("#line-numbers").scrollTop = source.
 source.addEventListener("click", () => { updateCursor({ scrollPreview: true }); hideCompletions(); scheduleWorkspaceCache(); });
 source.addEventListener("select", () => { updateCursor({ scrollPreview: true }); scheduleWorkspaceCache(); });
 source.addEventListener("keyup", (event) => { if (!["Enter", "Tab", "Escape"].includes(event.key)) updateCursor({ scrollPreview: true }); scheduleWorkspaceCache(); });
+let sourceTouchMenuTimer = 0;
+let sourceTouchStart = null;
+function cancelSourceTouchMenu() {
+  clearTimeout(sourceTouchMenuTimer);
+  sourceTouchMenuTimer = 0;
+  sourceTouchStart = null;
+}
+source.addEventListener("pointerdown", (event) => {
+  if (event.pointerType === "mouse") return;
+  cancelSourceTouchMenu();
+  sourceTouchStart = { x: event.clientX, y: event.clientY };
+  sourceTouchMenuTimer = setTimeout(() => {
+    sourceTouchMenuTimer = 0;
+    showPreviewContextMenu(null, event.clientX + 12, event.clientY + 12, "source");
+    navigator.vibrate?.(8);
+  }, 420);
+});
+source.addEventListener("pointermove", (event) => {
+  if (!sourceTouchStart || Math.hypot(event.clientX - sourceTouchStart.x, event.clientY - sourceTouchStart.y) <= 10) return;
+  cancelSourceTouchMenu();
+});
+source.addEventListener("pointerup", cancelSourceTouchMenu);
+source.addEventListener("pointercancel", cancelSourceTouchMenu);
+source.addEventListener("contextmenu", (event) => {
+  event.preventDefault();
+  hideCompletions();
+  showPreviewContextMenu(null, event.clientX, event.clientY, "source");
+});
 source.addEventListener("keydown", (event) => {
   if (handleVimKey(event, "source")) return;
   if (!$("#completion-menu").hidden) {
@@ -3318,10 +3443,10 @@ page.addEventListener("pointermove", (event) => {
 page.addEventListener("pointerup", cancelPreviewTouchMenu);
 page.addEventListener("pointercancel", cancelPreviewTouchMenu);
 page.addEventListener("contextmenu", (event) => {
-  if (Date.now() < suppressPreviewClickUntil) { event.preventDefault(); return; }
+  event.preventDefault();
+  if (Date.now() < suppressPreviewClickUntil) return;
   const line = event.target.closest(".script-line");
   if (!line || event.target.closest(".annotation-orb")) return;
-  event.preventDefault();
   hidePreviewCompletions();
   const selection = previewSelectionInPage();
   if (!selection || selection.isCollapsed) placePreviewCaretFromPoint(line, event.clientX, event.clientY);
@@ -3334,13 +3459,29 @@ page.addEventListener("click", (event) => {
   if (orb) { event.preventDefault(); openAnnotationEditor(Number(orb.dataset.annotationLine)); }
 });
 $("#preview-context-menu").addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-preview-menu-action]");
+  const suggestionButton = event.target.closest("[data-spelling-suggestion]");
+  if (suggestionButton) {
+    const candidate = state.contextWord;
+    const surface = state.contextSurface;
+    if (!candidate) return;
+    source.setRangeText(suggestionButton.dataset.spellingSuggestion, candidate.start, candidate.end, "end");
+    sourceChanged();
+    hidePreviewContextMenu();
+    if (surface === "preview") renderPreview({ focusLine: sourceLineAtOffset(candidate.start) });
+    else source.focus();
+    return;
+  }
+  const button = event.target.closest("[data-context-action]");
   if (!button) return;
-  const { previewContextLine, previewContextEdit: edit, previewContextText: text } = state;
-  const action = button.dataset.previewMenuAction;
+  const { previewContextLine, previewContextEdit: edit, previewContextText: text, contextSelection, contextSurface } = state;
+  const action = button.dataset.contextAction;
   hidePreviewContextMenu();
   if (action === "annotation") return openAnnotationEditor(null, previewContextLine);
-  const message = await runPreviewClipboardAction(action, previewContextLine, { edit, text });
+  if (action === "undo") { undoDocument(); return; }
+  if (action === "redo") { redoDocument(); return; }
+  const message = contextSurface === "source"
+    ? await runSourceContextAction(action, contextSelection)
+    : await runPreviewClipboardAction(action, previewContextLine, { edit, text });
   if (message) toast(message);
 });
 $("#preview-completion-menu").addEventListener("mousedown", (event) => { const item = event.target.closest(".completion-item"); if (item) { event.preventDefault(); acceptPreviewCharacterCompletion(Number(item.dataset.index)); } });

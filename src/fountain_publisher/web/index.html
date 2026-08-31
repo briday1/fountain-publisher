@@ -106,12 +106,12 @@
             <button id="open-docs" type="button">Documentation <kbd>?</kbd></button>
           </div>
         </details>
+        <div class="history-actions" aria-label="Editing history">
+          <span class="toolbar-divider"></span>
+          <button class="icon-tool" id="undo" type="button" aria-label="Undo" title="Undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5"></path><path d="M5 12h8a6 6 0 0 1 6 6"></path></svg></button>
+          <button class="icon-tool" id="redo" type="button" aria-label="Redo" title="Redo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5"></path><path d="M19 12h-8a6 6 0 0 0-6 6"></path></svg></button>
+        </div>
       </nav>
-      <div class="history-actions" aria-label="Editing history">
-        <span class="toolbar-divider"></span>
-        <button class="icon-tool" id="undo" type="button" aria-label="Undo" title="Undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5"></path><path d="M5 12h8a6 6 0 0 1 6 6"></path></svg></button>
-        <button class="icon-tool" id="redo" type="button" aria-label="Redo" title="Redo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5"></path><path d="M19 12h-8a6 6 0 0 0-6 6"></path></svg></button>
-      </div>
       <div class="document-identity">
         <span id="dirty-dot" aria-hidden="true"></span>
         <span id="filename">Untitled.fountain</span>
@@ -172,14 +172,21 @@
         </div>
         <aside id="beat-guide-layer" class="beat-guide-layer" aria-label="Beat guide" hidden></aside>
         <div id="preview-completion-menu" class="completion-menu preview-completion-menu" role="listbox" aria-label="Character suggestions" hidden></div>
-        <div id="preview-context-menu" class="preview-context-menu" role="menu" aria-label="Preview actions" hidden>
-          <button type="button" data-preview-menu-action="annotation" role="menuitem">Add annotation</button>
-          <button type="button" data-preview-menu-action="copy" role="menuitem">Copy</button>
-          <button type="button" data-preview-menu-action="cut" role="menuitem">Cut</button>
-          <button type="button" data-preview-menu-action="paste" role="menuitem">Paste</button>
-        </div>
         <div id="toast" class="toast" role="status" aria-live="polite"></div>
       </section>
+
+      <div id="preview-context-menu" class="preview-context-menu" role="menu" aria-label="Editing actions" hidden>
+        <div id="context-spelling" class="context-spelling" hidden></div>
+        <button type="button" data-context-action="annotation" role="menuitem">Add annotation</button>
+        <span class="context-menu-separator"></span>
+        <button type="button" data-context-action="undo" role="menuitem">Undo</button>
+        <button type="button" data-context-action="redo" role="menuitem">Redo</button>
+        <span class="context-menu-separator"></span>
+        <button type="button" data-context-action="copy" role="menuitem">Copy</button>
+        <button type="button" data-context-action="cut" role="menuitem">Cut</button>
+        <button type="button" data-context-action="paste" role="menuitem">Paste</button>
+        <button type="button" data-context-action="select-all" role="menuitem">Select all</button>
+      </div>
 
       <section id="beat-sheet-panel" aria-labelledby="beat-sheet-heading" hidden>
         <form id="beat-sheet-form" class="beat-sheet-shell">

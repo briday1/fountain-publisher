@@ -239,6 +239,7 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .current-line { position: absolute; left: 43px; right: 0; height: 20.15px; top: 14px; background: color-mix(in srgb, var(--syntax-scene) 8%, transparent); pointer-events: none; z-index: 0; }
 #source, .line-numbers { position: relative; z-index: 1; }
 #source { z-index: 2; }
+#source, #screenplay-page { -webkit-touch-callout: none; }
 .completion-menu { position: absolute; z-index: 10; left: 55px; bottom: 12px; min-width: 240px; max-width: calc(100% - 70px); max-height: 245px; overflow: auto; padding: 5px; border: 1px solid var(--border); background: var(--surface); border-radius: 6px; box-shadow: var(--shadow); }
 #completion-menu { position: fixed; right: auto; bottom: auto; width: min(310px, calc(100% - 16px)); }
 .completion-item { width: 100%; display: grid; grid-template-columns: 22px 1fr auto; gap: 7px; align-items: center; border: 0; border-radius: 4px; padding: 6px 8px; background: transparent; text-align: left; }
@@ -249,6 +250,9 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .preview-context-menu { position: fixed; z-index: 12; min-width: 180px; padding: 5px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); box-shadow: var(--shadow); }
 .preview-context-menu button { width: 100%; min-height: 32px; display: flex; align-items: center; border: 0; border-radius: 4px; padding: 7px 8px; background: transparent; text-align: left; font-size: 11px; }
 .preview-context-menu button:hover, .preview-context-menu button:focus-visible { background: var(--accent-soft); outline: none; }
+.context-menu-separator { display: block; margin: 4px 3px; border-top: 1px solid var(--border); }
+.context-spelling button { color: var(--metric-scenes-ink); font-weight: 700; }
+.context-spelling small { display: block; padding: 6px 8px; color: var(--muted); font-size: 10px; }
 .editor-footer { min-height: 31px; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 5px 10px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
 .editor-footer > span:last-child { white-space: nowrap; }
 .editor-mode { display: inline-flex; align-items: center; gap: 7px; }
@@ -793,9 +797,8 @@ button:disabled { cursor: default; opacity: .45; }
   .about-label { display: none; }
   /* View and Help remain available; exact PDF preview stays out of the mobile view picker. */
   .view-menu [data-preview-mode="pdf"] { display: none; }
-  .history-actions .toolbar-divider { display: none; }
-  .history-actions { position: relative; z-index: 81; display: flex !important; flex: 0 0 auto; margin-left: 1px; }
-  .history-actions #undo, .history-actions #redo { display: block !important; }
+  .global-actions .history-actions { width: 100%; display: flex; align-items: center; padding: 4px 8px; }
+  .global-actions .history-actions .toolbar-divider { display: none; }
   /* Fix popovers: pin to the top of the screen so they're always fully visible
      regardless of which menu triggered them or how far right it sits */
   .toolbar-popover {
