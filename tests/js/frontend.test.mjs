@@ -874,7 +874,10 @@ test("preview background popup supports themed, directional dot motion", async (
   assert.match(css, /\.background-pattern-preview\s*\{[^}]*background-color:\s*var\(--bg\);/s);
   assert.match(css, /background-position:\s*var\(--preview-dot-x, 0px\) var\(--preview-dot-y, 0px\)/);
   assert.doesNotMatch(css, /data-background="damascus"|repeating-radial-gradient/);
-  assert.match(css, /#background-dialog\s*\{[^}]*width:\s*min\(390px,/s);
+  assert.match(css, /#background-dialog\s*\{[^}]*width:\s*min\(380px,/s);
+  assert.match(css, /#background-form > label\s*\{[^}]*flex-direction:\s*column;[^}]*gap:\s*5px;[^}]*margin:\s*13px 0;/s);
+  assert.match(css, /#background-form \.range-setting\s*\{[^}]*width:\s*100%;/);
+  assert.match(html, /id="background-form"[\s\S]*class="dialog-actions"><button class="primary" value="default">Done<\/button>/);
   assert.doesNotMatch(css, /\.preview-scroll\s*\{[^}]*background-color:/s);
   assert.match(app, /function applyPreviewBackground\(\)/);
   assert.match(app, /pattern === "dots" && !isMobilePreview\(\)/);
