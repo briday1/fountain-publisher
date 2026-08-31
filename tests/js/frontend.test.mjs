@@ -708,9 +708,9 @@ test("source word wrap defaults on and preserves logical line numbers", async ()
   assert.match(app, /firstRect\.top - highlightRect\.top \+ highlight\.scrollTop/);
   assert.match(app, /class="line-number" style="top:/);
   assert.match(app, /gutter\.scrollTop = source\.scrollTop/);
-  assert.match(app, /const newline = index < lines\.length - 1 \? "\\n" : "";/);
-  assert.match(app, />\$\{value\}\$\{newline\}<\/span>`;\s*\}\)\.join\(""\)/);
+  assert.match(app, /lines\.map\(\(line\) => \{[\s\S]*<span data-source-line="\$\{line\.index\}"[\s\S]*>\$\{value\}<\/span>`;\s*\}\)\.join\(""\)/);
   assert.match(css, /body\.source-wrap #source/);
+  assert.match(css, /\.source-highlight > \[data-source-line\]\s*\{[^}]*display:\s*block;[^}]*min-height:\s*1\.55em;/);
   assert.match(css, /\.line-number\s*\{[^}]*position:\s*absolute;[^}]*right:\s*9px;/s);
   assert.match(css, /\.line-number-spacer\s*\{[^}]*visibility:\s*hidden;/s);
   assert.doesNotMatch(app, /function sourceVisualRows|function sourceWrapColumns/);
