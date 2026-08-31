@@ -172,14 +172,21 @@
         </div>
         <aside id="beat-guide-layer" class="beat-guide-layer" aria-label="Beat guide" hidden></aside>
         <div id="preview-completion-menu" class="completion-menu preview-completion-menu" role="listbox" aria-label="Character suggestions" hidden></div>
-        <div id="preview-context-menu" class="preview-context-menu" role="menu" aria-label="Preview actions" hidden>
-          <button type="button" data-preview-menu-action="annotation" role="menuitem">Add annotation</button>
-          <button type="button" data-preview-menu-action="copy" role="menuitem">Copy</button>
-          <button type="button" data-preview-menu-action="cut" role="menuitem">Cut</button>
-          <button type="button" data-preview-menu-action="paste" role="menuitem">Paste</button>
-        </div>
         <div id="toast" class="toast" role="status" aria-live="polite"></div>
       </section>
+
+      <div id="preview-context-menu" class="preview-context-menu" role="menu" aria-label="Editing actions" hidden>
+        <div id="context-spelling" class="context-spelling" hidden></div>
+        <button type="button" data-context-action="annotation" role="menuitem">Add annotation</button>
+        <span class="context-menu-separator"></span>
+        <button type="button" data-context-action="undo" role="menuitem">Undo</button>
+        <button type="button" data-context-action="redo" role="menuitem">Redo</button>
+        <span class="context-menu-separator"></span>
+        <button type="button" data-context-action="copy" role="menuitem">Copy</button>
+        <button type="button" data-context-action="cut" role="menuitem">Cut</button>
+        <button type="button" data-context-action="paste" role="menuitem">Paste</button>
+        <button type="button" data-context-action="select-all" role="menuitem">Select all</button>
+      </div>
 
       <section id="beat-sheet-panel" aria-labelledby="beat-sheet-heading" hidden>
         <form id="beat-sheet-form" class="beat-sheet-shell">

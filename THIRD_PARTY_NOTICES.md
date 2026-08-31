@@ -23,3 +23,12 @@ inside their `.dist-info` directory:
 Courier Prime font files distributed directly by Fountain Publisher are under
 the SIL Open Font License 1.1. The complete text accompanies them at
 `fonts/OFL.txt`.
+
+## Local Spellchecking
+
+- nspell 2.1.5 — MIT, Copyright 2016 Titus Wormer. Source and license:
+  https://github.com/wooorm/nspell
+- dictionary-en 4.0.0 — SCOWL English word lists and Ispell affix data under
+  their permissive MIT/BSD-style terms. Copyright 2000–2018 Kevin Atkinson;
+  portions Copyright 1993 Geoff Kuenning and other credited contributors.
+  Source and complete licensing details: https://github.com/wooorm/dictionaries
