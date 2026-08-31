@@ -1216,9 +1216,9 @@ function renderInsights(metadata) {
 function renderPageMetric(metadata) {
   const target = $("#stat-pages");
   if (metadata.pageCount == null) { target.textContent = "—"; return; }
-  const fractions = { 1: "1/8", 2: "1/4", 3: "3/8", 4: "1/2", 5: "5/8", 6: "3/4", 7: "7/8" };
+  const fractions = { 1: [1, 8], 2: [1, 4], 3: [3, 8], 4: [1, 2], 5: [5, 8], 6: [3, 4], 7: [7, 8] };
   const fraction = fractions[metadata.lastPageEighths];
-  target.innerHTML = `${metadata.pageCount}${fraction ? ` <small>${fraction}</small>` : ""}`;
+  target.innerHTML = `${metadata.pageCount}${fraction ? ` <small class="page-fraction"><sup>${fraction[0]}</sup><i>/</i><sub>${fraction[1]}</sub></small>` : ""}`;
 }
 
 function renderCharacterTable() {

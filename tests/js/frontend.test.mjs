@@ -422,9 +422,12 @@ test("live preview numbers scene headings via computed labels", async () => {
 test("page totals come from the compiled Screenplain PDF", async () => {
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(app, /function renderPageMetric\(metadata\)/);
-  assert.match(app, /1:\s*"1\/8"[\s\S]*4:\s*"1\/2"[\s\S]*7:\s*"7\/8"/);
-  assert.match(app, /target\.innerHTML = `\$\{metadata\.pageCount\}\$\{fraction/);
-  assert.match(css, /\.metric-grid strong small\s*\{[^}]*font-size:\s*\.55em;[^}]*vertical-align:/s);
+  assert.match(app, /1:\s*\[1, 8\][\s\S]*4:\s*\[1, 2\][\s\S]*7:\s*\[7, 8\]/);
+  assert.match(app, /class="page-fraction"><sup>\$\{fraction\[0\]\}<\/sup><i>\/<\/i><sub>\$\{fraction\[1\]\}<\/sub>/);
+  assert.match(css, /\.page-fraction\s*\{[^}]*height:\s*1\.12em;[^}]*vertical-align:/s);
+  assert.match(css, /\.page-fraction sup\s*\{[^}]*transform:\s*translateX\(-\.04em\);/s);
+  assert.match(css, /\.page-fraction sub\s*\{[^}]*transform:\s*translateX\(\.04em\);/s);
+  assert.match(css, /\.page-fraction i\s*\{[^}]*rotate\(9deg\)/s);
   assert.match(app, /function compileStaticPageCount/);
   assert.match(app, /result\.pageCount == null[\s\S]*\/api\/render\/pdf/);
   assert.match(app, /function countPdfBlobPages/);
