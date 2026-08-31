@@ -227,6 +227,7 @@ const state = {
   compileTimer: 0,
   compileRevision: 0,
   compileController: null,
+  insightTimer: 0,
   completionItems: [],
   completionIndex: 0,
   previewCompletionItems: [],
@@ -1590,9 +1591,11 @@ function redoDocument() { restoreHistory(state.historyIndex + 1); }
 function sourceChanged({ fromPreview = false, record = true } = {}) {
   if (record) recordHistory();
   document.body.classList.toggle("dirty", source.value !== state.savedSource);
-  renderEditorChrome();
+  if (!fromPreview || state.previewMode === "source") renderEditorChrome();
   if (!fromPreview) renderPreview();
-  renderInsights(analyzeLocally(source.value));
+  clearTimeout(state.insightTimer);
+  if (fromPreview) state.insightTimer = setTimeout(() => renderInsights(analyzeLocally(source.value)), 80);
+  else renderInsights(analyzeLocally(source.value));
   scheduleCompile();
   scheduleWorkspaceCache();
 }
@@ -3426,6 +3429,14 @@ page.addEventListener("keydown", (event) => {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); state.previewCompletionIndex = (state.previewCompletionIndex + (event.key === "ArrowDown" ? 1 : -1) + state.previewCompletionItems.length) % state.previewCompletionItems.length; renderPreviewCharacterCompletions(); return; }
     if (event.key === "Tab") { event.preventDefault(); acceptPreviewCharacterCompletion(); return; }
     if (event.key === "Escape") { event.preventDefault(); hidePreviewCompletions(); return; }
+  }
+  if (event.key === "Enter" && !event.isComposing && !event.metaKey && !event.ctrlKey && !event.altKey) {
+    const edit = previewSelection(line);
+    if (!edit) return;
+    event.preventDefault();
+    hidePreviewCompletions();
+    replacePreviewSelection(edit, "\n");
+    return;
   }
   const verticalDirection = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
   const atVerticalEdge = verticalDirection === -1

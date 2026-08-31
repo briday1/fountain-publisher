@@ -210,6 +210,13 @@ test("preview edits keep the source cursor on the edited line", async () => {
   assert.doesNotMatch(app, /page\.addEventListener\("focusin"[^\n]*jumpToLine/);
 });
 
+test("iPad hardware Enter edits Preview directly without waiting for beforeinput", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /page\.addEventListener\("keydown"[\s\S]*event\.key === "Enter"[\s\S]*event\.preventDefault\(\);[\s\S]*replacePreviewSelection\(edit, "\\n"\)/);
+  assert.match(app, /if \(!fromPreview \|\| state\.previewMode === "source"\) renderEditorChrome\(\)/);
+  assert.match(app, /if \(fromPreview\) state\.insightTimer = setTimeout\(\(\) => renderInsights\(analyzeLocally\(source\.value\)\), 80\)/);
+});
+
 test("preview cursor synchronization highlights the active line", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="screenplay-page"[^>]*contenteditable="plaintext-only"/);
