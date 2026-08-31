@@ -291,7 +291,7 @@ body.source-tab-hidden [data-preview-mode="source"], body.source-tab-hidden [dat
 .script-line.source-current { background: color-mix(in srgb, var(--syntax-scene) 10%, transparent); }
 .script-line.lyric { margin-left: 96px; font-style: italic; }
 .script-line.empty { display: none; height: 16px; }
-.script-line.empty.source-current { display: block; }
+.script-line.empty.source-current, .script-line.empty.preview-empty-context { display: block; }
 .script-line.title-key { display: none; }
 .script-line.title-value { text-align: center; margin: 16px 0; }
 .script-line.title-value.title { margin-top: 230px; }
