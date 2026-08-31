@@ -884,6 +884,18 @@ function previewSelection(line = previewLineForNode(getSelection()?.focusNode)) 
   };
 }
 
+function previewLineIsEditable(line) {
+  if (!line?.classList.contains("script-line")) return false;
+  if (line.classList.contains("section")) return line.classList.contains("act");
+  return !["synopsis", "note", "boneyard", "title-key", "page-break"].some((type) => line.classList.contains(type));
+}
+
+function adjacentPreviewEditableLine(line, direction) {
+  const candidates = $$(".script-line[data-line]", page).filter(previewLineIsEditable);
+  const current = candidates.indexOf(line);
+  return current < 0 ? null : candidates[current + direction] || null;
+}
+
 function previewCaretIsOnVisualEdge(line, edge) {
   const selection = getSelection();
   if (!selection?.rangeCount || !line.contains(selection.focusNode)) return false;
@@ -1012,7 +1024,7 @@ function previewDeleteSelection(edit, direction, byWord = false) {
     const length = byWord ? (after.match(/^\s*\S+/)?.[0].length || 1) : 1;
     edit.endOffset += length;
   } else {
-    const candidates = $$(".script-line[data-display]", page);
+    const candidates = $$(".script-line[data-display]", page).filter(previewLineIsEditable);
     const current = candidates.indexOf(line);
     const adjacent = candidates[current + (direction === "backward" ? -1 : 1)];
     if (!adjacent) return;
@@ -1119,11 +1131,10 @@ function fountainSyntaxHtml(value) {
 function renderSourceSyntax() {
   const classes = { scene: "scene", character: "character", dialogue: "dialogue", parenthetical: "parenthetical", transition: "transition", section: "section", synopsis: "synopsis", note: "note", boneyard: "boneyard", lyric: "lyric", "title-value": "title", "title-value title": "title" };
   const lines = classifyLines(source.value);
-  $("#source-highlight").innerHTML = lines.map((line, index) => {
+  $("#source-highlight").innerHTML = lines.map((line) => {
     const name = classes[line.type];
     const value = fountainSyntaxHtml(line.raw) || " ";
-    const newline = index < lines.length - 1 ? "\n" : "";
-    return `<span data-source-line="${line.index}"${name ? ` class="syntax-${name}"` : ""}>${value}${newline}</span>`;
+    return `<span data-source-line="${line.index}"${name ? ` class="syntax-${name}"` : ""}>${value}</span>`;
   }).join("");
 }
 
@@ -2047,6 +2058,7 @@ async function loadGithubRepositories() {
 async function openGithubBrowser(mode = "open") {
   if (!state.githubConnected && !(await refreshGithubSession())) return connectGithub();
   closeMenus();
+  prepareGithubKeyboardInputs();
   state.githubBrowserMode = mode;
   $("#github-dialog-title").textContent = mode === "save" ? "Save to GitHub" : "Open from GitHub";
   $("#github-save-panel").hidden = mode !== "save";
@@ -2057,6 +2069,22 @@ async function openGithubBrowser(mode = "open") {
   $("#github-save-details").open = mode === "save" && !matchMedia("(max-width: 820px)").matches;
   $("#github-dialog").showModal();
   try { await loadGithubRepositories(); } catch (error) { toast(error.message); }
+}
+
+function prepareGithubKeyboardInputs() {
+  const dialog = $("#github-dialog");
+  if (navigator.maxTouchPoints > 0) {
+    [$("#github-repository"), $("#github-branch")].forEach((input) => input.removeAttribute("list"));
+  }
+  if (dialog.dataset.keyboardReady) return;
+  dialog.dataset.keyboardReady = "true";
+  dialog.addEventListener("keydown", (event) => event.stopPropagation());
+  dialog.addEventListener("beforeinput", (event) => event.stopPropagation());
+  dialog.addEventListener("pointerup", (event) => {
+    const input = event.target.closest("input, textarea");
+    if (!input || document.activeElement === input) return;
+    requestAnimationFrame(() => input.focus({ preventScroll: true }));
+  });
 }
 
 function decodeGithubContent(content) {
@@ -3093,7 +3121,7 @@ function previewTextPoint(element, offset) {
 function vimPreviewEndpoint(offset) {
   const position = vimLinePosition(offset);
   const line = $(`[data-line="${position.line}"]`, page);
-  if (!line) return null;
+  if (!previewLineIsEditable(line)) return null;
   return { line, ...previewTextPoint(line, Math.min(position.column, line.textContent.length)) };
 }
 
@@ -3128,7 +3156,7 @@ function focusVimCursor(previewFocus, offset = source.selectionStart) {
     return;
   }
   const line = $(`[data-line="${position.line}"]`, page);
-  if (!line) return;
+  if (!previewLineIsEditable(line)) return;
   page.focus({ preventScroll: true });
   placeCaretAtOffset(line, Math.min(position.column, line.textContent.length));
   scrollPreviewTarget(line);
@@ -3150,7 +3178,7 @@ function syncVimPreviewPosition() {
 
 function vimPreviewTargetLine(currentLine, command) {
   const renderedLines = [...new Set($$(".script-line[data-line]", page)
-    .filter((line) => !line.classList.contains("empty"))
+    .filter((line) => previewLineIsEditable(line) && !line.classList.contains("empty"))
     .map((line) => Number(line.dataset.line))
     .filter(Number.isFinite))]
     .sort((left, right) => left - right);
@@ -3463,7 +3491,7 @@ page.addEventListener("keydown", (event) => {
     : verticalDirection === 1 && previewCaretIsOnVisualEdge(line, "last");
   if (verticalDirection && atVerticalEdge) {
     const edit = previewSelection(line);
-    const adjacent = $(`[data-line="${Number(line.dataset.line) + verticalDirection}"]`, page);
+    const adjacent = adjacentPreviewEditableLine(line, verticalDirection);
     if (edit && edit.startLine === edit.endLine && edit.startOffset === edit.endOffset && adjacent) {
       event.preventDefault();
       const offset = Math.min(edit.startOffset, adjacent.textContent.length);

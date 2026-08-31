@@ -279,7 +279,7 @@ test("preview edits are source-backed and preserve the viewport", async () => {
   assert.match(app, /const focusLine = startIndex \+ displayLines\.length - 1/);
   assert.match(app, /function previewCaretIsOnVisualEdge\(line, edge\)/);
   assert.match(app, /event\.key === "ArrowUp" \? -1 : event\.key === "ArrowDown" \? 1 : 0/);
-  assert.match(app, /Number\(line\.dataset\.line\) \+ verticalDirection/);
+  assert.match(app, /adjacentPreviewEditableLine\(line, verticalDirection\)/);
 });
 
 test("top-level act headings are supported in the live editor", async () => {
@@ -341,8 +341,8 @@ test("theme control uses Pugflow-style sun and moon icons", async () => {
 
 test("source editor uses neutral backgrounds with colored screenplay cues", async () => {
   const css = await readFile(cssPath, "utf8");
-  assert.match(css, /:root\s*\{[\s\S]*--source-bg:\s*#f6f6f5;[\s\S]*--source-ink:\s*#0f172a;[\s\S]*--syntax-scene:\s*#0284c7;[\s\S]*--syntax-character:\s*#7c3aed;[\s\S]*--syntax-transition:\s*#b45309;[\s\S]*--syntax-ignored:\s*#be123c;/);
-  assert.match(css, /:root\[data-theme="dark"\]\s*\{[\s\S]*--source-bg:\s*#111315;[\s\S]*--source-ink:\s*#cbd5e1;[\s\S]*--syntax-scene:\s*#38bdf8;[\s\S]*--syntax-character:\s*#c4b5fd;[\s\S]*--syntax-transition:\s*#fbbf24;[\s\S]*--syntax-ignored:\s*#fb7185;/);
+  assert.match(css, /:root\s*\{[\s\S]*--source-bg:\s*#f6f6f5;[\s\S]*--source-ink:\s*#0f172a;[\s\S]*--syntax-scene:\s*#0284c7;[\s\S]*--syntax-character:\s*#366fc2;[\s\S]*--syntax-transition:\s*#b45309;[\s\S]*--syntax-ignored:\s*#be123c;/);
+  assert.match(css, /:root\[data-theme="dark"\]\s*\{[\s\S]*--source-bg:\s*#111315;[\s\S]*--source-ink:\s*#cbd5e1;[\s\S]*--syntax-scene:\s*#38bdf8;[\s\S]*--syntax-character:\s*#d7c1da;[\s\S]*--syntax-transition:\s*#fbbf24;[\s\S]*--syntax-ignored:\s*#fb7185;/);
   assert.match(css, /\.editor-shell\s*\{[^}]*background:\s*var\(--source-bg\);/s);
   assert.match(css, /\.source-highlight\s*\{[^}]*color:\s*var\(--source-ink\);/s);
   assert.match(css, /\.line-numbers\s*\{[^}]*background:\s*var\(--source-gutter-bg\);/s);
@@ -409,6 +409,16 @@ test("the active non-printing line remains visible as editor context", async () 
   assert.match(css, /\.script-line\.empty\s*\{[^}]*display:\s*none;[^}]*\}[\s\S]*\.script-line\.empty\.source-current, \.script-line\.empty\.preview-empty-context\s*\{[^}]*display:\s*block;/);
   assert.match(app, /function revealPreviewEmptyRun[\s\S]*lines\[start - 1\]\?\.type === "empty"[\s\S]*lines\[end \+ 1\]\?\.type === "empty"[\s\S]*preview-empty-context/);
   assert.match(app, /target\?\.classList\.add\("source-current"\);\s*revealPreviewEmptyRun\(target\);\s*page\.focus/);
+});
+
+test("Preview navigation never enters editor-only source lines", async () => {
+  const app = await readFile(appPath, "utf8");
+  assert.match(app, /function previewLineIsEditable[\s\S]*line\.classList\.contains\("section"\)[\s\S]*line\.classList\.contains\("act"\)[\s\S]*"synopsis", "note", "boneyard", "title-key", "page-break"/);
+  assert.match(app, /function adjacentPreviewEditableLine[\s\S]*filter\(previewLineIsEditable\)/);
+  assert.match(app, /const adjacent = adjacentPreviewEditableLine\(line, verticalDirection\)/);
+  assert.match(app, /const candidates = \$\$\("\.script-line\[data-display\]", page\)\.filter\(previewLineIsEditable\)/);
+  assert.match(app, /function vimPreviewTargetLine[\s\S]*previewLineIsEditable\(line\) && !line\.classList\.contains\("empty"\)/);
+  assert.match(app, /function vimPreviewEndpoint[\s\S]*if \(!previewLineIsEditable\(line\)\) return null/);
 });
 
 test("Preview action spacing follows Screenplain paragraph spacing", async () => {
@@ -576,7 +586,8 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(app, /const candidates = \$\$\("\.script-line\[data-display\]"/);
   assert.match(app, /\["dialogue", "parenthetical", "note"\]\.includes/);
   assert.match(css, /\.annotation-orb\s*\{/);
-  assert.match(css, /--annotation-accent:\s*var\(--metric-scenes-ink\);/);
+  assert.match(css, /--annotation-accent:\s*var\(--syntax-character\);/);
+  assert.match(css, /\.note-indicator\s*\{[^}]*color:\s*var\(--annotation-accent\);[^}]*text-shadow:[^;}]*var\(--annotation-accent\)/s);
   assert.match(css, /\.annotation-orb\s*\{[^}]*appearance:\s*none;[^}]*-webkit-appearance:\s*none;[^}]*background-color:\s*var\(--annotation-accent\)/s);
   assert.match(worker, /fountain-publisher-shell-v2/);
   assert.match(worker, /\["styles\.css", "app\.mjs"\][\s\S]*fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);
@@ -584,7 +595,8 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(app, /function alignAnnotationOrbs\(\)[\s\S]*marginCenterX[\s\S]*orb\.offsetWidth \* scale \* \.5[\s\S]*orb\.style\.left/);
   assert.match(app, /requestAnimationFrame\(alignAnnotationOrbs\)/);
   assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*padding:\s*48px max\(28px, 7vw\) 72px;/s);
-  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.annotation-orb\s*\{[^}]*width:\s*16px;[^}]*height:\s*16px;/s);
+  assert.match(css, /\.annotation-orb\s*\{[^}]*width:\s*12px;[^}]*height:\s*12px;/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.annotation-orb\s*\{[^}]*width:\s*14px;[^}]*height:\s*14px;/s);
   assert.match(css, /\.annotation-orb::after\s*\{[^}]*inset:\s*-8px;/s);
   assert.match(app, /page\.addEventListener\("pointerdown"[\s\S]*previewTouchMenuTimer = setTimeout[\s\S]*showPreviewContextMenu[\s\S]*420/);
   assert.match(app, /page\.addEventListener\("pointermove"[\s\S]*Math\.hypot[\s\S]*cancelPreviewTouchMenu/);
@@ -697,9 +709,9 @@ test("source word wrap defaults on and preserves logical line numbers", async ()
   assert.match(app, /firstRect\.top - highlightRect\.top \+ highlight\.scrollTop/);
   assert.match(app, /class="line-number" style="top:/);
   assert.match(app, /gutter\.scrollTop = source\.scrollTop/);
-  assert.match(app, /const newline = index < lines\.length - 1 \? "\\n" : "";/);
-  assert.match(app, />\$\{value\}\$\{newline\}<\/span>`;\s*\}\)\.join\(""\)/);
+  assert.match(app, /lines\.map\(\(line\) => \{[\s\S]*<span data-source-line="\$\{line\.index\}"[\s\S]*>\$\{value\}<\/span>`;\s*\}\)\.join\(""\)/);
   assert.match(css, /body\.source-wrap #source/);
+  assert.match(css, /\.source-highlight > \[data-source-line\]\s*\{[^}]*display:\s*block;[^}]*min-height:\s*1\.55em;/);
   assert.match(css, /\.line-number\s*\{[^}]*position:\s*absolute;[^}]*right:\s*9px;/s);
   assert.match(css, /\.line-number-spacer\s*\{[^}]*visibility:\s*hidden;/s);
   assert.doesNotMatch(app, /function sourceVisualRows|function sourceWrapColumns/);
@@ -720,6 +732,8 @@ test("desktop Vim mode is persistent and shared by Source and Preview", async ()
   assert.match(html, /class="setting-row desktop-setting"[^>]*>[\s\S]*Vim mode[\s\S]*id="vim-mode"/);
   assert.match(html, /id="vim-source-status"[^>]*hidden>NORMAL/);
   assert.match(html, /id="vim-preview-status"[^>]*hidden>NORMAL/);
+  assert.match(html, /id="source-panel"[\s\S]*class="preview-actions workspace-zoom-actions"><b id="vim-source-status" class="vim-status" hidden>NORMAL<\/b><button data-zoom-out/);
+  assert.doesNotMatch(html, /class="editor-mode"><b id="vim-source-status"/);
   assert.match(html, /<h4>Vim mode<\/h4>[\s\S]*Visual mode[\s\S]*<kbd>dd<\/kbd>[\s\S]*<kbd>yy<\/kbd>/);
   assert.match(app, /vimEnabled:\s*localStorage\.getItem\("fountain-publisher\.vim-mode"\) === "true"/);
   assert.match(app, /function handleVimKey\(event, surface\)/);
@@ -982,4 +996,15 @@ test("mobile top bars stay pinned during focus, zoom, and viewport scrolling", a
   assert.match(app, /visualViewport\?\.addEventListener\("resize", scheduleMobileViewportUpdate\)/);
   assert.match(app, /visualViewport\?\.addEventListener\("scroll", scheduleMobileViewportUpdate\)/);
   assert.match(app, /document\.addEventListener\("focusin", scheduleMobileViewportUpdate\)/);
+});
+
+test("GitHub browser text fields accept iPad hardware-keyboard input", async () => {
+  const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
+  assert.match(html, /id="github-repository"[^>]*autocapitalize="off"[^>]*inputmode="text"/);
+  assert.match(html, /id="github-filename"[^>]*autocapitalize="off"[^>]*inputmode="text"/);
+  assert.match(app, /function prepareGithubKeyboardInputs[\s\S]*navigator\.maxTouchPoints > 0[\s\S]*removeAttribute\("list"\)/);
+  assert.match(app, /dialog\.addEventListener\("keydown", \(event\) => event\.stopPropagation\(\)\)/);
+  assert.match(app, /dialog\.addEventListener\("beforeinput", \(event\) => event\.stopPropagation\(\)\)/);
+  assert.match(app, /dialog\.addEventListener\("pointerup"[\s\S]*input\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(app, /openGithubBrowser[\s\S]*prepareGithubKeyboardInputs\(\)/);
 });
