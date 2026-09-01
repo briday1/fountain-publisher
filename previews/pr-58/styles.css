@@ -555,15 +555,20 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-sheet-actions span { flex: 1; color: var(--muted); font-size: 10px; }
 .beat-sheet-actions button { border: 1px solid var(--border); border-radius: 5px; padding: 7px 13px; background: var(--surface); color: var(--ink); }
 .beat-flow-editor { position: relative; padding-bottom: 20px; }
-.beat-flow-editor::before { content: ""; position: absolute; top: 20px; bottom: 24px; left: 13px; width: 2px; background: color-mix(in srgb, var(--metric-scenes-ink) 38%, var(--border)); }
-.beat-graph-node { position: relative; display: grid; grid-template-columns: 28px 20px 18px minmax(0, 1fr); gap: 5px; align-items: center; margin-bottom: 5px; padding: 2px 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.beat-flow-editor::before { content: ""; position: absolute; top: 20px; bottom: 24px; left: 16px; width: 2px; background: color-mix(in srgb, var(--metric-scenes-ink) 38%, var(--border)); }
+.beat-graph-node { position: relative; display: grid; grid-template-columns: 34px 32px 30px minmax(0, 1fr); gap: 7px; align-items: center; margin-bottom: 7px; padding: 3px 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .beat-graph-node.assigned { border: 0; background: transparent; box-shadow: none; }
-.beat-graph-node > .beat-number { position: relative; z-index: 1; width: 27px; height: 27px; margin: 0; border: 2px solid var(--surface-2); border-radius: 50%; }
-.beat-graph-node > .beat-drag { width: 20px; height: 28px; border: 0; border-radius: 4px; padding: 0; background: transparent; color: var(--muted); cursor: grab; font-size: 15px; }
-.beat-graph-node > .beat-drag:hover, .beat-shift button:hover { background: var(--surface); color: var(--ink); }
+.beat-graph-node > .beat-number { position: relative; z-index: 1; display: grid; place-items: center; width: 33px; height: 33px; margin: 0; border: 2px solid var(--surface); border-radius: 10px; background: var(--metric-pages-bg); color: var(--metric-pages-ink); box-shadow: 0 1px 3px rgb(0 0 0 / 12%); font: 800 12px/1 var(--mono); }
+.beat-graph-node > .beat-drag { width: 32px; height: 42px; display: grid; place-items: center; border: 1px solid var(--border-strong); border-radius: 7px; padding: 0; background: var(--surface); color: color-mix(in srgb, var(--ink) 72%, var(--muted)); cursor: grab; box-shadow: 0 1px 2px rgb(0 0 0 / 8%); }
+.beat-drag svg { width: 14px; height: 32px; fill: currentColor; }
+.beat-graph-node > .beat-drag:hover, .beat-graph-node > .beat-drag:focus-visible { border-color: var(--metric-scenes-ink); background: color-mix(in srgb, var(--metric-scenes-bg) 45%, var(--surface)); color: var(--metric-scenes-ink); outline: none; }
 .beat-card.touch-dragging { opacity: .72; }
-.beat-shift { display: flex; flex-direction: column; gap: 1px; }
-.beat-shift button { width: 18px; height: 14px; border: 0; border-radius: 3px; padding: 0; background: transparent; color: var(--muted); font-size: 9px; line-height: 1; }
+.beat-shift { width: 30px; height: 42px; display: grid; grid-template-rows: 1fr 1fr; overflow: hidden; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 8%); }
+.beat-shift button { width: 100%; height: 100%; display: grid; place-items: center; border: 0; border-radius: 0; padding: 0; background: var(--surface); color: var(--ink); }
+.beat-shift button + button { border-top: 1px solid var(--border); }
+.beat-shift button svg { width: 15px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.beat-shift button:hover, .beat-shift button:focus-visible { background: var(--surface-2); color: var(--metric-scenes-ink); outline: none; }
+.beat-shift button:disabled { background: var(--surface-2); color: var(--faint); opacity: .5; }
 .beat-node-box { min-width: 0; display: grid; grid-template-columns: minmax(190px, 1fr) minmax(230px, .85fr) 24px; gap: 8px; align-items: center; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 5%); }
 .beat-node-box:hover > .beat-remove, .beat-node-box:focus-within > .beat-remove { opacity: 1; }
 .beat-graph-node.assigned .beat-node-box { border-color: color-mix(in srgb, var(--metric-scenes-ink) 55%, var(--border)); box-shadow: inset 3px 0 color-mix(in srgb, var(--metric-scenes-ink) 72%, transparent), 0 2px 5px rgb(0 0 0 / 6%); }
@@ -746,7 +751,7 @@ button:disabled { cursor: default; opacity: .45; }
   .beat-progress-graph header small i { margin-left: 5px; }
   .beat-sheet-actions { width: 100%; margin: 0; border-inline: 0; border-bottom: 0; border-radius: 0; box-shadow: none; zoom: 1; }
   .beat-card { grid-template-columns: 22px minmax(0, 1fr) 22px; gap: 5px; padding: 7px; }
-  .beat-graph-node { grid-template-columns: 28px 20px 18px minmax(0, 1fr); }
+  .beat-graph-node { grid-template-columns: 34px 32px 30px minmax(0, 1fr); }
   .beat-node-box { grid-template-columns: minmax(0, 1fr) 22px; }
   .beat-node-box .beat-assignment-wrap { grid-column: 1; }
   .beat-card-fields label { align-items: flex-start; flex-direction: column; }
@@ -845,7 +850,9 @@ button:disabled { cursor: default; opacity: .45; }
 }
 
 @media (any-pointer: coarse) {
-  .beat-graph-node { grid-template-columns: 28px 32px 22px minmax(0, 1fr); }
-  .beat-graph-node > .beat-drag { width: 32px; height: 36px; font-size: 18px; }
-  .beat-shift button { width: 22px; height: 18px; }
+  .beat-graph-node { grid-template-columns: 38px 40px 36px minmax(0, 1fr); gap: 7px; }
+  .beat-graph-node > .beat-number { width: 37px; height: 37px; font-size: 13px; }
+  .beat-graph-node > .beat-drag { width: 40px; height: 48px; }
+  .beat-drag svg { height: 38px; }
+  .beat-shift { width: 36px; height: 48px; }
 }
