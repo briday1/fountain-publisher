@@ -310,6 +310,7 @@ body.source-tab-hidden [data-preview-mode="source"], body.source-tab-hidden [dat
 .script-line.lyric { margin-left: 96px; font-style: italic; }
 .script-line.empty { display: none; height: 16px; }
 .script-line.empty.source-current, .script-line.empty.preview-empty-context { display: block; }
+.script-line.empty.preview-draft-row { display: block !important; height: 16px; }
 .script-line.title-key { display: none; }
 .script-line.title-value { text-align: center; margin: 16px 0; }
 .title-page-block { position: relative; margin: 72px -18px 0; padding: 24px 18px 20px; border: 1px dashed color-mix(in srgb, var(--paper-ink) 22%, transparent); border-radius: 7px; }
