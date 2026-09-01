@@ -339,9 +339,106 @@ let dotMotionTarget = [0, 0];
 let dotOffset = [0, 0];
 let dotMotionDirection = "still";
 let dotMotionSpeed = 20;
+let hyperspaceFrame = 0;
+let hyperspaceLastTime = 0;
+let hyperspaceSpeed = 20;
+let hyperspaceDensity = 100;
+let hyperspaceColors = false;
+const hyperspaceFields = new WeakMap();
 
 function backgroundSurfaces() {
   return [$("#preview-scroll"), $("#source-panel"), $("#beat-sheet-panel"), $("#background-pattern-preview")];
+}
+
+function hyperspaceCanvases() {
+  return $$(".hyperspace-canvas");
+}
+
+function resetHyperspaceStar(star, initial = false) {
+  star.x = Math.random() * 2 - 1;
+  star.y = Math.random() * 2 - 1;
+  star.z = initial ? Math.random() * .96 + .04 : 1;
+  star.tint = Math.random();
+}
+
+function drawHyperspace(canvas, dt = 0) {
+  if (canvas.closest("[hidden]")) return;
+  const bounds = canvas.getBoundingClientRect();
+  const width = Math.max(1, Math.round(bounds.width));
+  const height = Math.max(1, Math.round(bounds.height));
+  const ratio = Math.min(devicePixelRatio || 1, 2);
+  if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+  }
+  const context = canvas.getContext("2d");
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  context.clearRect(0, 0, width, height);
+  let stars = hyperspaceFields.get(canvas);
+  const targetCount = Math.max(20, Math.min(430, Math.round(width * height / 7000 * hyperspaceDensity / 100)));
+  if (!stars || stars.length !== targetCount) {
+    stars = Array.from({ length: targetCount }, () => { const star = {}; resetHyperspaceStar(star, true); return star; });
+    hyperspaceFields.set(canvas, stars);
+  }
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const scale = Math.min(width, height) * .42;
+  const velocity = .08 + hyperspaceSpeed / 125;
+  const starColor = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#ffffff";
+  const darkTheme = document.documentElement.dataset.effectiveTheme === "dark";
+  const accentColors = darkTheme ? ["#a7e8ef", "#edb4d8", "#f2e3a4"] : ["#318d9a", "#ad5d91", "#9b842d"];
+  for (const star of stars) {
+    const previousZ = star.z;
+    if (dt) star.z -= velocity * dt;
+    let x = centerX + star.x / star.z * scale;
+    let y = centerY + star.y / star.z * scale;
+    if (star.z <= .025 || x < -30 || x > width + 30 || y < -30 || y > height + 30) {
+      resetHyperspaceStar(star);
+      x = centerX + star.x * scale;
+      y = centerY + star.y * scale;
+    }
+    const tailZ = Math.min(1.08, previousZ + velocity * Math.max(dt, .012) * 2.4);
+    const tailX = centerX + star.x / tailZ * scale;
+    const tailY = centerY + star.y / tailZ * scale;
+    const proximity = 1 - Math.min(1, star.z);
+    const colorIndex = Math.min(2, Math.floor((star.tint - .82) / .06));
+    const color = hyperspaceColors && star.tint >= .82 ? accentColors[colorIndex] : starColor;
+    context.strokeStyle = color;
+    context.fillStyle = color;
+    context.globalAlpha = .12 + proximity * .58;
+    context.lineWidth = .55 + proximity * 1.7;
+    context.beginPath();
+    context.moveTo(tailX, tailY);
+    context.lineTo(x, y);
+    context.stroke();
+    if (!dt) { context.beginPath(); context.arc(x, y, .55 + proximity, 0, Math.PI * 2); context.fill(); }
+  }
+  context.globalAlpha = 1;
+}
+
+function stopHyperspace(clear = true) {
+  cancelAnimationFrame(hyperspaceFrame);
+  hyperspaceFrame = 0;
+  hyperspaceLastTime = 0;
+  if (clear) hyperspaceCanvases().forEach((canvas) => canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height));
+}
+
+function startHyperspace(speed, density, colorsEnabled) {
+  hyperspaceSpeed = speed;
+  hyperspaceDensity = density;
+  hyperspaceColors = colorsEnabled;
+  stopHyperspace(false);
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  hyperspaceCanvases().forEach((canvas) => drawHyperspace(canvas));
+  if (reducedMotion || isMobilePreview()) return;
+  const animate = (time) => {
+    if (!hyperspaceLastTime) hyperspaceLastTime = time;
+    const dt = Math.min((time - hyperspaceLastTime) / 1000, .05);
+    hyperspaceLastTime = time;
+    hyperspaceCanvases().forEach((canvas) => drawHyperspace(canvas, dt));
+    hyperspaceFrame = requestAnimationFrame(animate);
+  };
+  hyperspaceFrame = requestAnimationFrame(animate);
 }
 
 function chooseRandomDotDirection() {
@@ -402,13 +499,16 @@ function startDotMotion(direction, speed) {
 
 function applyPreviewBackground() {
   const storedPattern = localStorage.getItem("fountain-publisher.preview-background") || "dots";
-  const pattern = ["blank", "dots"].includes(storedPattern) ? storedPattern : "dots";
+  const pattern = ["blank", "dots", "hyperspace"].includes(storedPattern) ? storedPattern : "dots";
   const storedRadius = Number(localStorage.getItem("fountain-publisher.preview-dot-radius"));
   const radius = storedRadius >= .6 && storedRadius <= 1.8 ? storedRadius : 1;
   const storedDirection = localStorage.getItem("fountain-publisher.preview-dot-direction") || "still";
   const direction = storedDirection === "random" || storedDirection === "still" || DOT_DIRECTIONS[storedDirection] ? storedDirection : "still";
   const storedSpeed = Number(localStorage.getItem("fountain-publisher.preview-dot-speed"));
   const speed = storedSpeed >= 1 && storedSpeed <= 100 ? storedSpeed : 20;
+  const storedDensity = Number(localStorage.getItem("fountain-publisher.preview-star-density"));
+  const density = storedDensity >= 30 && storedDensity <= 240 ? storedDensity : 100;
+  const colorsEnabled = localStorage.getItem("fountain-publisher.preview-star-colors") === "true";
   backgroundSurfaces().forEach((surface) => {
     surface.dataset.background = pattern;
     surface.style.setProperty("--preview-dot-radius", `${radius}px`);
@@ -420,9 +520,15 @@ function applyPreviewBackground() {
   $("#preview-dot-direction").value = direction;
   $("#preview-dot-speed").value = String(speed);
   $("#preview-dot-speed-value").textContent = String(speed);
+  $("#preview-star-density").value = String(density);
+  $("#preview-star-density-value").textContent = `${density}%`;
+  $("#preview-star-colors").checked = colorsEnabled;
   $("#preview-dot-direction-row").hidden = pattern !== "dots";
-  $("#preview-dot-speed-row").hidden = pattern !== "dots";
+  $("#preview-dot-speed-row").hidden = !["dots", "hyperspace"].includes(pattern);
+  $("#preview-star-density-row").hidden = pattern !== "hyperspace";
+  $("#preview-star-colors-row").hidden = pattern !== "hyperspace";
   if (pattern === "dots" && !isMobilePreview()) startDotMotion(direction, speed); else stopDotMotion(true);
+  if (pattern === "hyperspace") startHyperspace(speed, density, colorsEnabled); else stopHyperspace();
 }
 
 function escapeHtml(value) {
@@ -665,6 +771,16 @@ function renderPreviewLines(lines) {
   const sceneLabels = computeSceneLabels(lines);
   const output = [];
   for (let i = 0; i < lines.length; i += 1) {
+    if (lines[i].type.startsWith("title-value")) {
+      const titleLines = [];
+      while (i < lines.length && (lines[i].type.startsWith("title-value") || lines[i].type === "empty")) {
+        if (lines[i].type.startsWith("title-value")) titleLines.push(previewLineHtml(lines[i], null, annotationAfter(lines, i)));
+        i += 1;
+      }
+      output.push(`<section class="title-page-block" aria-label="Title page fields">${titleLines.join("")}</section>`);
+      i -= 1;
+      continue;
+    }
     if (lines[i].type === "character") {
       let next = i + 1;
       while (next < lines.length && ["dialogue", "parenthetical", "note"].includes(lines[next].type)) next += 1;
@@ -2219,11 +2335,17 @@ await micropip.install(_fp_screenplain_wheel, deps=False)
 `);
     pyodide.runPython(`
 import io
+import json
 import math
 import re
 from reportlab.lib.pagesizes import A4, letter
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from xml.sax.saxutils import escape as xml_escape
 from screenplain.export import fdx, pdf
 from screenplain.parsers.fountain import parse
 from screenplain.richstring import bold, plain
@@ -2315,6 +2437,79 @@ def _fp_patch_scene_numbers_left_only():
         pass
 _fp_patch_scene_numbers_left_only()
 
+def _fp_compile_beat_sheet(title, premise, beats, page_size="letter"):
+    output = io.BytesIO()
+    _, regular_font, bold_font, _, _ = _fp_register_pdf_fonts()
+    selected_size = A4 if page_size == "a4" else letter
+    document = SimpleDocTemplate(
+        output,
+        pagesize=selected_size,
+        leftMargin=54,
+        rightMargin=54,
+        topMargin=58,
+        bottomMargin=52,
+        title=f"{title} - Beat Sheet",
+        author="Fountain Publisher",
+    )
+    ink = colors.HexColor("#22252a")
+    muted = colors.HexColor("#66707a")
+    accent = colors.HexColor("#67516c")
+    soft = colors.HexColor("#f4f0f5")
+    rule = colors.HexColor("#d9d5da")
+    title_style = ParagraphStyle("BeatTitle", fontName=bold_font, fontSize=21, leading=25, textColor=ink, spaceAfter=5)
+    eyebrow_style = ParagraphStyle("BeatEyebrow", fontName=bold_font, fontSize=8, leading=10, textColor=accent, tracking=1.6, spaceAfter=6)
+    premise_style = ParagraphStyle("BeatPremise", fontName=regular_font, fontSize=10.5, leading=15, textColor=ink)
+    beat_style = ParagraphStyle("BeatBody", fontName=regular_font, fontSize=11, leading=15, textColor=ink)
+    number_style = ParagraphStyle("BeatNumber", fontName=bold_font, fontSize=10, leading=14, textColor=accent, alignment=TA_CENTER)
+    story = [
+        Paragraph("BEAT SHEET", eyebrow_style),
+        Paragraph(xml_escape(title), title_style),
+        Spacer(1, 16),
+        Paragraph("PREMISE", eyebrow_style),
+        Table([[Paragraph(xml_escape(premise) if premise else "No premise yet.", premise_style)]], colWidths=[document.width], style=TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), soft),
+            ("BOX", (0, 0), (-1, -1), 0.7, rule),
+            ("LEFTPADDING", (0, 0), (-1, -1), 14),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+            ("TOPPADDING", (0, 0), (-1, -1), 12),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+        ])),
+        Spacer(1, 22),
+        Paragraph("STORY BEATS", eyebrow_style),
+    ]
+    if beats:
+        for index, beat in enumerate(beats, 1):
+            row = Table(
+                [[Paragraph(str(index), number_style), Paragraph(xml_escape(str(beat)), beat_style)]],
+                colWidths=[34, document.width - 34],
+                style=TableStyle([
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LINEBELOW", (0, 0), (-1, -1), 0.6, rule),
+                    ("LEFTPADDING", (0, 0), (0, 0), 0),
+                    ("RIGHTPADDING", (0, 0), (0, 0), 8),
+                    ("LEFTPADDING", (1, 0), (1, 0), 7),
+                    ("RIGHTPADDING", (1, 0), (1, 0), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 10),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 11),
+                ]),
+            )
+            story.append(KeepTogether([row]))
+    else:
+        story.append(Paragraph("No beats yet.", premise_style))
+
+    def draw_page(canvas, doc):
+        canvas.saveState()
+        canvas.setStrokeColor(rule)
+        canvas.line(doc.leftMargin, 34, selected_size[0] - doc.rightMargin, 34)
+        canvas.setFont(regular_font, 8)
+        canvas.setFillColor(muted)
+        canvas.drawString(doc.leftMargin, 22, "Fountain Publisher")
+        canvas.drawRightString(selected_size[0] - doc.rightMargin, 22, str(doc.page))
+        canvas.restoreState()
+
+    document.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
+    return output.getvalue()
+
 def _fp_compile(source, kind, page_size, scene_numbers="margin", scene_number_format="sequential"):
     global _fp_last_page_eighths
     _fp_last_page_eighths = 0
@@ -2405,6 +2600,37 @@ async function compileWithBrowserScreenplain(kind, selectedPageSize) {
   value.destroy?.();
   const types = { pdf: "application/pdf", fdx: "application/xml;charset=utf-8" };
   return new Blob([bytes], { type: types[kind] });
+}
+
+async function compileBeatSheetPdf(title, premise, beats, selectedPageSize = $("#page-size").value) {
+  const pyodide = await getBrowserScreenplain();
+  pyodide.globals.set("_fp_beat_title", title);
+  pyodide.globals.set("_fp_beat_premise", premise);
+  pyodide.globals.set("_fp_beat_json", JSON.stringify(beats));
+  pyodide.globals.set("_fp_beat_page_size", selectedPageSize);
+  const value = pyodide.runPython("_fp_compile_beat_sheet(_fp_beat_title, _fp_beat_premise, json.loads(_fp_beat_json), _fp_beat_page_size)");
+  const bytes = value instanceof Uint8Array ? value : value.toJs();
+  value.destroy?.();
+  return new Blob([bytes], { type: "application/pdf" });
+}
+
+async function exportBeatSheetPdf() {
+  const button = $("#export-beat-sheet");
+  const premise = $("#beat-premise").value.trim();
+  const beats = currentBeatCards().map((beat) => beat.text).filter(Boolean);
+  const title = state.filename.replace(/\.(fountain|txt)$/i, "") || "Untitled";
+  button.disabled = true;
+  button.textContent = "Preparing…";
+  try {
+    const blob = await compileBeatSheetPdf(title, premise, beats);
+    await shareOrDownload(blob, `${title} - Beat Sheet.pdf`);
+    toast("Beat Sheet PDF exported");
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Export PDF";
+  }
 }
 
 function shouldUseBrowserCompiler(response, expectedType) {
@@ -2703,7 +2929,10 @@ function beatCard(beat = { text: "" }) {
   const excerpt = beat.range
     ? sourceLines().slice(beat.range.startLine, beat.range.endLine + 1).filter((line) => line.trim() && !managedNote(line)).join(" ").slice(0, 130)
     : "Select screenplay text in Preview, then assign it from the Beat runner.";
-  return `<li class="beat-card beat-graph-node${beat.range ? " assigned" : ""}" data-start-line="${range.startLine ?? ""}" data-end-line="${range.endLine ?? ""}"><span class="beat-number"></span><button class="beat-drag" draggable="true" type="button" aria-label="Drag to reorder" title="Drag to reorder">⠿</button><div class="beat-shift"><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">↑</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">↓</button></div><div class="beat-node-box"><div class="beat-card-fields"><input class="beat-text" type="text" placeholder="What happens in this beat?" value="${escapeHtml(beat.text)}" /></div><div class="beat-assignment-wrap"><button class="beat-assignment" type="button" ${beat.range ? "data-beat-jump" : "disabled"}><span>${beat.range ? "Assigned" : "Unassigned"}</span><small>${escapeHtml(assignment)}</small><em>${escapeHtml(excerpt)}</em></button>${beat.range ? `<button class="beat-unassign" type="button" aria-label="Unassign beat from screenplay" title="Unassign from screenplay">×</button>` : ""}</div><button class="beat-remove" type="button" aria-label="Delete beat" title="Delete beat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></div></li>`;
+  const grip = `<svg viewBox="0 0 12 28" aria-hidden="true"><circle cx="3" cy="4" r="1.25"/><circle cx="9" cy="4" r="1.25"/><circle cx="3" cy="10.5" r="1.25"/><circle cx="9" cy="10.5" r="1.25"/><circle cx="3" cy="17.5" r="1.25"/><circle cx="9" cy="17.5" r="1.25"/><circle cx="3" cy="24" r="1.25"/><circle cx="9" cy="24" r="1.25"/></svg>`;
+  const up = `<svg viewBox="0 0 16 12" aria-hidden="true"><path d="m3 8 5-5 5 5"/></svg>`;
+  const down = `<svg viewBox="0 0 16 12" aria-hidden="true"><path d="m3 4 5 5 5-5"/></svg>`;
+  return `<li class="beat-card beat-graph-node${beat.range ? " assigned" : ""}" data-start-line="${range.startLine ?? ""}" data-end-line="${range.endLine ?? ""}"><span class="beat-number" aria-label="Beat number"></span><button class="beat-drag" draggable="false" type="button" aria-label="Reorder beat. Drag, or use Up and Down arrow keys" aria-keyshortcuts="ArrowUp ArrowDown Home End" title="Drag or use arrow keys to reorder">${grip}</button><div class="beat-shift" role="group" aria-label="Move beat"><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">${up}</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">${down}</button></div><div class="beat-node-box"><div class="beat-card-fields"><input class="beat-text" type="text" placeholder="What happens in this beat?" value="${escapeHtml(beat.text)}" /></div><div class="beat-assignment-wrap"><button class="beat-assignment" type="button" ${beat.range ? "data-beat-jump" : "disabled"}><span>${beat.range ? "Assigned" : "Unassigned"}</span><small>${escapeHtml(assignment)}</small><em>${escapeHtml(excerpt)}</em></button>${beat.range ? `<button class="beat-unassign" type="button" aria-label="Unassign beat from screenplay" title="Unassign from screenplay">×</button>` : ""}</div><button class="beat-remove" type="button" aria-label="Delete beat" title="Delete beat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></div></li>`;
 }
 
 function screenplayWordProgress() {
@@ -2791,7 +3020,12 @@ async function saveBeatProgressPng() {
 }
 
 function renumberBeatCards() {
-  $$(".beat-card", $("#beat-list")).forEach((card, index) => { $(".beat-number", card).textContent = index + 1; });
+  const cards = $$(".beat-card", $("#beat-list"));
+  cards.forEach((card, index) => {
+    $(".beat-number", card).textContent = index + 1;
+    $(".beat-up", card).disabled = index === 0;
+    $(".beat-down", card).disabled = index === cards.length - 1;
+  });
   renderBeatProgressGraph();
 }
 
@@ -3631,15 +3865,22 @@ $("#beat-guide-layer").addEventListener("click", (event) => {
   }
 });
 $("#add-beat").addEventListener("click", () => {
-  $("#beat-list").insertAdjacentHTML("beforeend", beatCard()); renumberBeatCards();
-  $("#beat-list .beat-card:last-child .beat-text").focus();
+  const selected = $("#beat-list .beat-card.selected");
+  if (selected) selected.insertAdjacentHTML("afterend", beatCard());
+  else $("#beat-list").insertAdjacentHTML("beforeend", beatCard());
+  const added = selected ? selected.nextElementSibling : $("#beat-list .beat-card:last-child");
+  renumberBeatCards();
+  $(".beat-text", added).focus();
 });
 $("#view-beat-progress").addEventListener("click", openBeatProgressGraph);
+$("#export-beat-sheet").addEventListener("click", exportBeatSheetPdf);
 $("#close-beat-progress").addEventListener("click", () => $("#beat-progress-dialog").close());
 $("#save-beat-progress").addEventListener("click", saveBeatProgressPng);
 $("#beat-list").addEventListener("click", (event) => {
   const card = event.target.closest(".beat-card");
   if (!card) return;
+  $$(".beat-card.selected", $("#beat-list")).forEach((item) => item.classList.remove("selected"));
+  card.classList.add("selected");
   if (event.target.closest(".beat-up") && card.previousElementSibling) card.parentElement.insertBefore(card, card.previousElementSibling);
   else if (event.target.closest(".beat-down") && card.nextElementSibling) card.parentElement.insertBefore(card.nextElementSibling, card);
   else if (event.target.closest(".beat-remove")) card.remove();
@@ -3660,23 +3901,17 @@ $("#beat-list").addEventListener("click", (event) => {
   renumberBeatCards();
   scheduleBeatSheetSave();
 });
-let draggedBeat = null;
-$("#beat-list").addEventListener("dragstart", (event) => { draggedBeat = event.target.closest(".beat-card"); draggedBeat?.classList.add("dragging"); });
-$("#beat-list").addEventListener("dragend", () => { draggedBeat?.classList.remove("dragging"); draggedBeat = null; renumberBeatCards(); scheduleBeatSheetSave(); });
-$("#beat-list").addEventListener("dragover", (event) => {
-  if (!draggedBeat) return;
-  event.preventDefault();
-  const target = event.target.closest(".beat-card");
-  if (!target || target === draggedBeat) return;
-  const after = event.clientY > target.getBoundingClientRect().top + target.offsetHeight / 2;
-  target.parentElement.insertBefore(draggedBeat, after ? target.nextSibling : target);
+$("#beat-list").addEventListener("focusin", (event) => {
+  const card = event.target.closest(".beat-card");
+  if (!card) return;
+  $$(".beat-card.selected", $("#beat-list")).forEach((item) => item.classList.remove("selected"));
+  card.classList.add("selected");
 });
 let pointerDraggedBeat = null;
 let beatDragPointerId = null;
 $("#beat-list").addEventListener("pointerdown", (event) => {
-  if (event.pointerType === "mouse") return;
   const handle = event.target.closest(".beat-drag");
-  if (!handle) return;
+  if (!handle || (event.pointerType === "mouse" && event.button !== 0)) return;
   pointerDraggedBeat = handle.closest(".beat-card");
   beatDragPointerId = event.pointerId;
   handle.setPointerCapture?.(event.pointerId);
@@ -3705,6 +3940,19 @@ function finishPointerBeatDrag(event) {
 $("#beat-list").addEventListener("pointerup", finishPointerBeatDrag);
 $("#beat-list").addEventListener("pointercancel", finishPointerBeatDrag);
 $("#beat-list").addEventListener("keydown", (event) => {
+  const handle = event.target.closest(".beat-drag");
+  if (handle && ["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+    event.preventDefault();
+    const card = handle.closest(".beat-card");
+    if (event.key === "ArrowUp" && card.previousElementSibling) card.parentElement.insertBefore(card, card.previousElementSibling);
+    else if (event.key === "ArrowDown" && card.nextElementSibling) card.parentElement.insertBefore(card.nextElementSibling, card);
+    else if (event.key === "Home") card.parentElement.prepend(card);
+    else if (event.key === "End") card.parentElement.append(card);
+    renumberBeatCards();
+    scheduleBeatSheetSave();
+    handle.focus();
+    return;
+  }
   if (event.key !== "Enter" || !event.target.matches(".beat-text")) return;
   event.preventDefault();
   const card = event.target.closest(".beat-card");
@@ -3895,6 +4143,14 @@ $("#preview-dot-direction").addEventListener("change", (event) => {
 });
 $("#preview-dot-speed").addEventListener("input", (event) => {
   localStorage.setItem("fountain-publisher.preview-dot-speed", event.target.value);
+  applyPreviewBackground();
+});
+$("#preview-star-density").addEventListener("input", (event) => {
+  localStorage.setItem("fountain-publisher.preview-star-density", event.target.value);
+  applyPreviewBackground();
+});
+$("#preview-star-colors").addEventListener("change", (event) => {
+  localStorage.setItem("fountain-publisher.preview-star-colors", String(event.target.checked));
   applyPreviewBackground();
 });
 $("#page-size").addEventListener("change", () => { scheduleCompile(0); if (state.previewMode === "pdf") refreshPdf(); });
@@ -4183,7 +4439,7 @@ async function initialize() {
   const enableWorkspaceCache = params.get("demo") !== "1";
   setDocument(text, name, !restore, restore ? cached.githubFile || null : null);
   void refreshGithubSession();
-  const storedMobileTab = localStorage.getItem("fountain-publisher.mobile-tab") || "beats";
+  const storedMobileTab = localStorage.getItem("fountain-publisher.mobile-tab") || "preview";
   const initialMobileTab = !showSourceTab && storedMobileTab === "source" ? "preview" : storedMobileTab;
   setMobileTab(initialMobileTab);
   if (restore && ["fit", "70", "85", "100", "115", "130", "150", "175", "200"].includes(String(cached.zoom))) {
@@ -4192,7 +4448,7 @@ async function initialize() {
   }
   applyZoom();
   const restoredMode = ["source", "live", "pdf", "beats"].includes(cached?.previewMode) ? cached.previewMode : "live";
-  const requestedMode = restore ? restoredMode : localStorage.getItem("fountain-publisher.preview") || "beats";
+  const requestedMode = restore ? restoredMode : localStorage.getItem("fountain-publisher.preview") || "live";
   const initialMobileMode = initialMobileTab === "source" ? "source" : initialMobileTab === "beats" ? "beats" : "live";
   await setPreviewMode(isMobilePreview() ? initialMobileMode : requestedMode);
   if (restore) requestAnimationFrame(() => {

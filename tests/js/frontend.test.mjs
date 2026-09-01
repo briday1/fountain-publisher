@@ -383,8 +383,17 @@ test("new documents open to a blank canvas with starter helpers", async () => {
   assert.match(html, /id="insert-dialogue"/);
   assert.match(html, /id="beat-sheet-empty-state"[\s\S]*Map the story before/);
   assert.doesNotMatch(html, /data-blank-insert/);
-  assert.match(app, /localStorage\.getItem\("fountain-publisher\.preview"\) \|\| "beats"/);
+  assert.match(app, /localStorage\.getItem\("fountain-publisher\.preview"\) \|\| "live"/);
+  assert.match(app, /localStorage\.getItem\("fountain-publisher\.mobile-tab"\) \|\| "preview"/);
   assert.match(app, /beat-sheet-empty-state[^\n]*hidden = hasBeatSheet/);
+});
+
+test("preview gives title-page fields a compact visual boundary", async () => {
+  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(app, /<section class="title-page-block" aria-label="Title page fields">/);
+  assert.match(css, /\.title-page-block\s*\{[^}]*margin:\s*72px -18px 0;[^}]*border:\s*1px dashed/s);
+  assert.match(css, /\.title-page-block::before\s*\{[^}]*content:\s*"TITLE PAGE"/s);
+  assert.doesNotMatch(css, /\.script-line\.title-value\.title\s*\{[^}]*margin-top:\s*230px/);
 });
 
 test("the browser continuously restores a separate local recovery workspace", async () => {
@@ -636,6 +645,7 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(html, /id="beat-sheet-panel"[\s\S]*id="beat-premise"[\s\S]*id="beat-list"[^>]*beat-flow-editor/);
   assert.match(html, /id="beat-progress-graph"[^>]*aria-label="Beat pacing by cumulative screenplay words"/);
   assert.match(html, /id="view-beat-progress"[^>]*>View pacing graph</);
+  assert.match(html, /id="export-beat-sheet"[^>]*>Export PDF</);
   assert.match(html, /id="beat-progress-dialog"[\s\S]*id="save-beat-progress"[^>]*>Save PNG</);
   assert.match(html, /id="menu-toggle-beat-guide"[\s\S]*id="beat-guide-layer"/);
   assert.match(app, /data-assign-beat-area>Assign \+ Next</);
@@ -647,7 +657,10 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /function setSourceLines\(lines\)[\s\S]*selectionDirection[\s\S]*setSelectionRange/);
   assert.doesNotMatch(app, /beatSceneEntries|Connect to scene/);
   assert.doesNotMatch(app, /Place at scene/);
-  assert.match(app, /addEventListener\("dragover"[\s\S]*insertBefore\(draggedBeat/);
+  assert.match(app, /class="beat-drag" draggable="false"[\s\S]*aria-keyshortcuts="ArrowUp ArrowDown Home End"/);
+  assert.match(app, /add-beat"\)\.addEventListener\("click"[\s\S]*beat-card\.selected[\s\S]*insertAdjacentHTML\("afterend", beatCard\(\)\)[\s\S]*added[\s\S]*\.focus\(\)/);
+  assert.match(app, /beat-list"\)\.addEventListener\("focusin"[\s\S]*card\.classList\.add\("selected"\)/);
+  assert.match(app, /const grip = `<svg[\s\S]*<circle[\s\S]*const up = `<svg[\s\S]*const down = `<svg/);
   assert.match(app, /function renderBeatGuide\(\)[\s\S]*beat-guide-layer/);
   assert.match(app, /beat-graph-node[\s\S]*beat-assignment[\s\S]*data-beat-jump/);
   assert.match(app, /beat-unassign[\s\S]*beatCard\(\{ \.\.\.beat, range: null \}\)[\s\S]*persistBeatSheet\(\)/);
@@ -656,11 +669,19 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /beat-list"\)\.innerHTML = sheet\.beats\.map\(beatCard\)\.join\(""\)/);
   assert.doesNotMatch(app, /if \(!\$\("\.beat-card"[\s\S]*insertAdjacentHTML\("beforeend", beatCard\(\)\)/);
   assert.match(css, /#beat-sheet-panel\s*\{[\s\S]*\.beat-card\s*\{[\s\S]*\.beat-flow-editor[\s\S]*\.beat-graph-node[\s\S]*\.beat-guide-layer\s*\{[\s\S]*\.script-line\.beat-area/);
-  assert.match(app, /beat-list"\)\.addEventListener\("pointerdown"[\s\S]*setPointerCapture[\s\S]*addEventListener\("pointermove"[\s\S]*finishPointerBeatDrag/);
+  assert.match(app, /beat-list"\)\.addEventListener\("pointerdown"[\s\S]*event\.pointerType === "mouse" && event\.button !== 0[\s\S]*setPointerCapture[\s\S]*addEventListener\("pointermove"[\s\S]*finishPointerBeatDrag/);
+  assert.match(app, /\["ArrowUp", "ArrowDown", "Home", "End"\][\s\S]*prepend\(card\)[\s\S]*append\(card\)[\s\S]*handle\.focus\(\)/);
   assert.match(app, /function renderBeatProgressGraph\(beats = currentBeatCards\(\)\)[\s\S]*beforeValue[\s\S]*afterValue[\s\S]*beat-plot-point/);
   assert.match(app, /function saveBeatProgressPng\(\)[\s\S]*XMLSerializer[\s\S]*canvas\.toBlob[\s\S]*beat-pacing\.png/);
+  assert.match(app, /def _fp_compile_beat_sheet\(title, premise, beats, page_size="letter"\):[\s\S]*SimpleDocTemplate[\s\S]*Paragraph\("PREMISE"[\s\S]*Paragraph\("STORY BEATS"[\s\S]*document\.build/);
+  assert.match(app, /async function exportBeatSheetPdf\(\)[\s\S]*currentBeatCards\(\)[\s\S]*compileBeatSheetPdf[\s\S]*Beat Sheet\.pdf/);
   assert.match(css, /\.beat-progress-line\s*\{[^}]*stroke:/s);
   assert.match(css, /\.beat-drag\s*\{[^}]*touch-action:\s*none;[^}]*user-select:\s*none;/s);
+  assert.match(css, /\.beat-graph-node > \.beat-number\s*\{[^}]*width:\s*33px;[^}]*font:\s*800 12px/s);
+  assert.match(css, /\.beat-graph-node > \.beat-drag\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s);
+  assert.match(css, /:root\[data-effective-theme="dark"\] \.beat-graph-node > \.beat-number\s*\{[^}]*background:\s*color-mix/);
+  assert.match(css, /\.beat-shift\s*\{[^}]*grid-template-rows:\s*1fr 1fr;[^}]*border:\s*1px solid var\(--border-strong\)/s);
+  assert.match(css, /@media\s*\(any-pointer:\s*coarse\)[\s\S]*\.beat-graph-node > \.beat-drag\s*\{[^}]*width:\s*40px;[^}]*height:\s*48px;/s);
   assert.match(css, /#source-panel \.panel-title\s*\{[^}]*justify-content:\s*flex-start;[^}]*gap:\s*16px;[^}]*background:\s*var\(--panel\);/s);
 });
 
@@ -852,6 +873,7 @@ test("preview zoom clamps scaled bounds and reports the calculated fit percentag
   assert.match(app, /\$\$\('\[data-workspace-zoom\]'\)[\s\S]*--workspace-zoom/);
   assert.match(css, /#source-panel \.editor-shell, #source-panel \.editor-footer, \.beat-sheet-workspace, \.beat-sheet-actions\s*\{\s*zoom:\s*var\(--workspace-zoom, 1\);/);
   assert.match(html, /id="zoom-in"[\s\S]*id="zoom-fit"[^>]*>Fit<\/button>/);
+  assert.match(css, /\.preview-actions \.zoom-fit\[aria-pressed="true"\]\s*\{[^}]*border-color:\s*var\(--border\);[^}]*color:\s*var\(--ink\);[^}]*background:\s*var\(--surface-2\);/s);
   assert.match(app, /scale = Math\.max\(\.25,\s*Math\.min\(2,\s*availableWidth \/ 816\)\)/);
   assert.match(app, /preview\.scrollLeft = Math\.max\(0,\s*\(preview\.scrollWidth - preview\.clientWidth\) \/ 2\)/);
   assert.match(app, /function clampPreviewScroll\(preview = \$\("#preview-scroll"\)\)/);
@@ -877,13 +899,15 @@ test("preview background popup supports themed, directional dot motion", async (
   const settingsMenu = html.match(/<details class="toolbar-menu settings-menu">([\s\S]*?)<\/details>/)?.[1] || "";
   assert.match(settingsMenu, /id="open-background-dialog"[^>]*>Background…<\/button>/);
   assert.match(html, /<dialog id="background-dialog"/);
-  assert.match(html, /id="preview-background"[\s\S]*value="blank">Blank[\s\S]*value="dots" selected>Dots/);
+  assert.match(html, /id="preview-background"[\s\S]*value="blank">Blank[\s\S]*value="dots" selected>Dots[\s\S]*value="hyperspace">Hyperspace/);
   assert.doesNotMatch(html, /value="rain"|Raindrops|preview-rain-speed/);
   assert.doesNotMatch(html, /Damascus|value="damascus"/);
   assert.match(html, /id="preview-dot-radius" type="range" min="0\.6" max="1\.8" step="0\.1" value="1"/);
   assert.match(html, /id="background-pattern-preview"[^>]*data-background="dots"/);
   assert.match(html, /id="preview-dot-direction"[\s\S]*value="up"[\s\S]*value="down"[\s\S]*value="left"[\s\S]*value="right"[\s\S]*value="up-left"[\s\S]*value="up-right"[\s\S]*value="down-left"[\s\S]*value="down-right"[\s\S]*value="random"/);
   assert.match(html, /id="preview-dot-speed" type="range" min="1" max="100" step="1" value="20"/);
+  assert.match(html, /id="preview-star-density" type="range" min="30" max="240" step="5" value="100"/);
+  assert.match(html, /id="preview-star-colors-row"[^>]*hidden[\s\S]*id="preview-star-colors" type="checkbox" role="switch"/);
   assert.match(css, /\.preview-scroll\[data-background="dots"\][^}]*radial-gradient[^}]*background-size:\s*16px 16px;/s);
   assert.match(css, /\.background-pattern-preview\s*\{[^}]*background-color:\s*var\(--bg\);/s);
   assert.match(css, /background-position:\s*var\(--preview-dot-x, 0px\) var\(--preview-dot-y, 0px\)/);
@@ -894,6 +918,16 @@ test("preview background popup supports themed, directional dot motion", async (
   assert.match(html, /id="background-form"[\s\S]*class="dialog-actions"><button class="primary" value="default">Done<\/button>/);
   assert.doesNotMatch(css, /\.preview-scroll\s*\{[^}]*background-color:/s);
   assert.match(app, /function applyPreviewBackground\(\)/);
+  assert.match(app, /function drawHyperspace\(canvas, dt = 0\)[\s\S]*star\.x \/ star\.z[\s\S]*context\.lineTo\(x, y\)/);
+  assert.match(app, /function startHyperspace\(speed, density, colorsEnabled\)[\s\S]*prefers-reduced-motion[\s\S]*requestAnimationFrame/);
+  assert.match(app, /star\.tint >= \.82[\s\S]*accentColors\[colorIndex\]/);
+  assert.match(app, /preview-star-density[\s\S]*preview-star-density-value[\s\S]*pattern !== "hyperspace"/);
+  assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-star-density", event\.target\.value\)/);
+  assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-star-colors", String\(event\.target\.checked\)\)/);
+  assert.match(css, /\[data-background="hyperspace"\] > \.hyperspace-canvas[\s\S]*display:\s*block/);
+  assert.match(css, /\.background-pattern-preview span\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*1;/s);
+  assert.match(css, /\.background-pattern-preview\s*\{[^}]*position:\s*relative;[^}]*isolation:\s*isolate;[^}]*contain:\s*paint;/s);
+  assert.match(css, /\.background-pattern-preview \.hyperspace-canvas\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*0;[^}]*width:\s*100%;[^}]*height:\s*100%;/s);
   assert.match(app, /pattern === "dots" && !isMobilePreview\(\)/);
   assert.match(css, /\.beat-guide-layer\s*\{[^}]*position:\s*absolute;/s);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-background", event\.target\.value\)/);
