@@ -678,14 +678,17 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(css, /\.beat-progress-line\s*\{[^}]*stroke:/s);
   assert.match(css, /\.beat-drag\s*\{[^}]*touch-action:\s*none;[^}]*user-select:\s*none;/s);
   assert.match(app, /beat-number[\s\S]*beat-node-box[\s\S]*beat-card-fields[\s\S]*beat-item-tools[\s\S]*beat-assignment-wrap/);
-  assert.match(css, /\.beat-list\s*\{[^}]*--beat-node-size:\s*31px;/s);
+  assert.match(css, /\.beat-list\s*\{[^}]*--beat-node-size:\s*27px;/s);
   assert.match(css, /\.beat-flow-editor::before\s*\{[^}]*left:\s*calc\(var\(--beat-node-size\) \/ 2\)/s);
   assert.match(css, /\.beat-graph-node\s*\{[^}]*grid-template-columns:\s*var\(--beat-node-size\) minmax\(0, 1fr\);[^}]*margin:\s*0;/s);
-  assert.match(css, /\.beat-graph-node \+ \.beat-graph-node\s*\{\s*margin-top:\s*1px;/);
+  assert.match(css, /\.beat-graph-node \+ \.beat-graph-node\s*\{\s*margin-top:\s*0;/);
   assert.match(css, /:root\[data-effective-theme="dark"\] \.beat-graph-node > \.beat-number\s*\{[^}]*background:\s*color-mix/);
   assert.match(css, /\.beat-item-tools\s*\{[^}]*display:\s*flex;/s);
+  assert.match(css, /\.beat-node-box\s*\{[^}]*min-height:\s*39px;[^}]*border-bottom:\s*1px solid var\(--border\);/s);
+  assert.match(css, /\.beat-item-tools\s*\{[^}]*position:\s*absolute;[^}]*opacity:\s*0;[^}]*pointer-events:\s*none;/s);
+  assert.match(css, /\.beat-graph-node:hover \.beat-item-tools,[^}]*\.beat-graph-node\.selected \.beat-item-tools\s*\{[^}]*opacity:\s*1;/s);
   assert.match(css, /\.beat-assignment-wrap\s*\{[^}]*grid-column:\s*2;[^}]*justify-self:\s*end;/s);
-  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.beat-list\s*\{\s*--beat-node-size:\s*29px;[\s\S]*\.beat-assignment-wrap\s*\{[^}]*max-width:\s*min\(150px, 78%\);/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.beat-list\s*\{\s*--beat-node-size:\s*25px;[\s\S]*\.beat-assignment-wrap\s*\{[^}]*max-width:\s*112px;/s);
   assert.match(css, /#source-panel \.panel-title\s*\{[^}]*justify-content:\s*flex-start;[^}]*gap:\s*16px;[^}]*background:\s*var\(--panel\);/s);
 });
 
