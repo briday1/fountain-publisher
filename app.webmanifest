@@ -7,8 +7,8 @@
   "scope": "./",
   "display": "standalone",
   "display_override": ["standalone"],
-  "background_color": "#f4f4f2",
-  "theme_color": "#f4f4f2",
+  "background_color": "#17191b",
+  "theme_color": "#202326",
   "orientation": "any",
   "categories": ["productivity", "writing"],
   "icons": [
