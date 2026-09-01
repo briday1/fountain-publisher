@@ -926,6 +926,8 @@ test("preview background popup supports themed, directional dot motion", async (
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-star-colors", String\(event\.target\.checked\)\)/);
   assert.match(css, /\[data-background="hyperspace"\] > \.hyperspace-canvas[\s\S]*display:\s*block/);
   assert.match(css, /\.background-pattern-preview span\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*1;/s);
+  assert.match(css, /\.background-pattern-preview\s*\{[^}]*position:\s*relative;[^}]*isolation:\s*isolate;[^}]*contain:\s*paint;/s);
+  assert.match(css, /\.background-pattern-preview \.hyperspace-canvas\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*0;[^}]*width:\s*100%;[^}]*height:\s*100%;/s);
   assert.match(app, /pattern === "dots" && !isMobilePreview\(\)/);
   assert.match(css, /\.beat-guide-layer\s*\{[^}]*position:\s*absolute;/s);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-background", event\.target\.value\)/);
