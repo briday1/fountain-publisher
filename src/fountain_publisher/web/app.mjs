@@ -822,11 +822,13 @@ function alignAnnotationOrbs() {
   });
 }
 
-function revealPreviewEmptyRun(target) {
+function revealPreviewEmptyRun(target, includePrevious = false) {
   $$(".script-line.empty.preview-empty-context", page).forEach((line) => line.classList.remove("preview-empty-context"));
-  if (!target?.classList.contains("empty")) return;
+  if (!target) return;
   const lines = classifyLines(source.value);
-  let start = Number(target.dataset.line);
+  const targetLine = Number(target.dataset.line);
+  let start = target.classList.contains("empty") ? targetLine : includePrevious ? targetLine - 1 : -1;
+  if (start < 0 || lines[start]?.type !== "empty") return;
   let end = start;
   while (start > 0 && lines[start - 1]?.type === "empty") start -= 1;
   while (end + 1 < lines.length && lines[end + 1]?.type === "empty") end += 1;
@@ -835,7 +837,7 @@ function revealPreviewEmptyRun(target) {
   }
 }
 
-function renderPreview({ focusLine = null, focusOffset = null } = {}) {
+function renderPreview({ focusLine = null, focusOffset = null, revealEmptyBefore = false } = {}) {
   const lines = classifyLines(source.value);
   const previewScroll = $("#preview-scroll");
   const stage = $("#preview-page-stage");
@@ -851,7 +853,7 @@ function renderPreview({ focusLine = null, focusOffset = null } = {}) {
   if (focusLine !== null) {
     const target = $(`[data-line="${focusLine}"]`, page);
     target?.classList.add("source-current");
-    revealPreviewEmptyRun(target);
+    revealPreviewEmptyRun(target, revealEmptyBefore);
     page.focus({ preventScroll: true });
     if (target) {
       const offset = focusOffset ?? target.textContent.length;
@@ -1124,7 +1126,7 @@ function replacePreviewSelection(edit, text) {
     setSourceCursorFromPreview(edit.startLine, focusOffset);
     showPreviewCharacterCompletions(edit.startLine);
   } else {
-    renderPreview({ focusLine, focusOffset });
+    renderPreview({ focusLine, focusOffset, revealEmptyBefore: insertedText.includes("\n") });
   }
 }
 
@@ -3449,6 +3451,7 @@ function focusVimCursor(previewFocus, offset = source.selectionStart) {
   }
   const line = $(`[data-line="${position.line}"]`, page);
   if (!previewLineIsEditable(line)) return;
+  revealPreviewEmptyRun(line, position.column === 0);
   page.focus({ preventScroll: true });
   placeCaretAtOffset(line, Math.min(position.column, line.textContent.length));
   scrollPreviewTarget(line);

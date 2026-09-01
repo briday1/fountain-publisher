@@ -423,8 +423,10 @@ test("the active non-printing line remains visible as editor context", async () 
   assert.match(css, /\.script-line\.section\.source-current/);
   assert.match(css, /content:\s*"EDITOR ONLY/);
   assert.match(css, /\.script-line\.empty\s*\{[^}]*display:\s*none;[^}]*\}[\s\S]*\.script-line\.empty\.source-current, \.script-line\.empty\.preview-empty-context\s*\{[^}]*display:\s*block;/);
-  assert.match(app, /function revealPreviewEmptyRun[\s\S]*lines\[start - 1\]\?\.type === "empty"[\s\S]*lines\[end \+ 1\]\?\.type === "empty"[\s\S]*preview-empty-context/);
-  assert.match(app, /target\?\.classList\.add\("source-current"\);\s*revealPreviewEmptyRun\(target\);\s*page\.focus/);
+  assert.match(app, /function revealPreviewEmptyRun\(target, includePrevious = false\)[\s\S]*includePrevious \? targetLine - 1[\s\S]*lines\[start - 1\]\?\.type === "empty"[\s\S]*preview-empty-context/);
+  assert.match(app, /function renderPreview\(\{ focusLine = null, focusOffset = null, revealEmptyBefore = false \} = \{\}\)[\s\S]*revealPreviewEmptyRun\(target, revealEmptyBefore\)/);
+  assert.match(app, /renderPreview\(\{ focusLine, focusOffset, revealEmptyBefore: insertedText\.includes\("\\n"\) \}\)/);
+  assert.match(app, /function focusVimCursor[\s\S]*revealPreviewEmptyRun\(line, position\.column === 0\)[\s\S]*page\.focus/);
 });
 
 test("Preview navigation never enters editor-only source lines", async () => {
