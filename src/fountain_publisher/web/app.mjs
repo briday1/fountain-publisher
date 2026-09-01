@@ -1463,7 +1463,7 @@ function assignCurrentBeatArea() {
   const lines = sourceLines();
   lines[sheet.line] = managedBeatSheetSource(sheet.premise || "", beats);
   state.activeBeat = Math.min(beats.length - 1, state.activeBeat + 1);
-  setSourceLines(lines);
+  setSourceLines(lines, { record: false });
   toast("Beat area assigned");
 }
 
@@ -1752,11 +1752,26 @@ function recordHistory() {
   if (state.history.length > 250) { state.history.shift(); state.historyIndex -= 1; }
 }
 
+function mergeCurrentManagedNotes(historyValue, currentValue) {
+  const historyLines = historyValue.replace(/\r\n?/g, "\n").split("\n");
+  const currentLines = currentValue.replace(/\r\n?/g, "\n").split("\n");
+  const cleanHistory = historyLines.filter((line) => !managedNote(line));
+  const managed = currentLines.filter((line) => managedNote(line));
+  while (cleanHistory.length && !cleanHistory.at(-1).trim()) cleanHistory.pop();
+  if (managed.length) {
+    if (cleanHistory.length) cleanHistory.push("");
+    cleanHistory.push(...managed);
+  }
+  return cleanHistory.join("\n");
+}
+
 function restoreHistory(index) {
   if (index < 0 || index >= state.history.length || index === state.historyIndex) return;
   const previewLine = page.contains(document.activeElement) ? Number(document.activeElement.dataset.line) : null;
   const sourcePosition = source.selectionStart;
-  state.historyIndex = index; source.value = state.history[index]; sourceChanged({ fromPreview: previewLine !== null, record: false, rebaseBeats: false });
+  state.historyIndex = index;
+  source.value = mergeCurrentManagedNotes(state.history[index], source.value);
+  sourceChanged({ fromPreview: previewLine !== null, record: false });
   if (previewLine !== null) renderPreview({ focusLine: Math.min(previewLine, source.value.split("\n").length - 1) });
   else { source.focus(); source.setSelectionRange(Math.min(sourcePosition, source.value.length), Math.min(sourcePosition, source.value.length)); }
 }
@@ -2977,7 +2992,7 @@ function sourceLines() {
   return source.value.replace(/\r\n?/g, "\n").split("\n");
 }
 
-function setSourceLines(lines) {
+function setSourceLines(lines, { record = true } = {}) {
   const selectionStart = source.selectionStart;
   const selectionEnd = source.selectionEnd;
   const selectionDirection = source.selectionDirection;
@@ -2987,7 +3002,7 @@ function setSourceLines(lines) {
     Math.min(selectionEnd, source.value.length),
     selectionDirection,
   );
-  sourceChanged();
+  sourceChanged({ record });
 }
 
 function appendManagedNote(value) {
@@ -2995,7 +3010,7 @@ function appendManagedNote(value) {
   while (lines.length && !lines.at(-1).trim()) lines.pop();
   if (lines.length) lines.push("");
   lines.push(value);
-  setSourceLines(lines);
+  setSourceLines(lines, { record: false });
 }
 
 function managedGeneralSource(text) {
@@ -3374,11 +3389,11 @@ function openGeneralNoteEditor(line = null) {
   setTimeout(() => $("#general-note-text").focus(), 0);
 }
 
-function deleteNoteLine(line) {
+function deleteNoteLine(line, { record = true } = {}) {
   if (line === null || line === undefined) return;
   const lines = sourceLines();
   lines.splice(line, 1);
-  setSourceLines(lines);
+  setSourceLines(lines, { record });
 }
 
 const toolbarMenus = $$(".toolbar-menu");
@@ -4065,11 +4080,11 @@ function persistBeatSheet() {
   const premise = $("#beat-premise").value.trim();
   const beats = currentBeatCards().filter((beat) => beat.text);
   const existingLine = state.metadata.beatSheet?.line;
-  if (!premise && !beats.length) deleteNoteLine(existingLine);
+  if (!premise && !beats.length) deleteNoteLine(existingLine, { record: false });
   else {
     const value = managedBeatSheetSource(premise, beats);
     if (existingLine === null || existingLine === undefined) appendManagedNote(value);
-    else { const lines = sourceLines(); lines[existingLine] = value; setSourceLines(lines); }
+    else { const lines = sourceLines(); lines[existingLine] = value; setSourceLines(lines, { record: false }); }
   }
 }
 function scheduleBeatSheetSave() {
@@ -4105,14 +4120,14 @@ $("#character-note-form").addEventListener("submit", (event) => {
   if (event.submitter?.value !== "default") return;
   event.preventDefault();
   const text = $("#character-note-text").value.trim();
-  if (!text) { deleteNoteLine(state.noteEditor.line); $("#character-note-dialog").close(); return; }
+  if (!text) { deleteNoteLine(state.noteEditor.line, { record: false }); $("#character-note-dialog").close(); return; }
   const value = managedCharacterSource(state.noteEditor.name, text);
   if (state.noteEditor.line === null) appendManagedNote(value);
-  else { const lines = sourceLines(); lines[state.noteEditor.line] = value; setSourceLines(lines); }
+  else { const lines = sourceLines(); lines[state.noteEditor.line] = value; setSourceLines(lines, { record: false }); }
   $("#character-note-dialog").close();
 });
 $("#delete-character-note").addEventListener("click", () => {
-  deleteNoteLine(state.noteEditor?.line);
+  deleteNoteLine(state.noteEditor?.line, { record: false });
   $("#character-note-dialog").close();
 });
 
@@ -4123,11 +4138,11 @@ $("#general-note-form").addEventListener("submit", (event) => {
   if (!text) return;
   const value = managedGeneralSource(text);
   if (state.noteEditor.line === null) appendManagedNote(value);
-  else { const lines = sourceLines(); lines[state.noteEditor.line] = value; setSourceLines(lines); }
+  else { const lines = sourceLines(); lines[state.noteEditor.line] = value; setSourceLines(lines, { record: false }); }
   $("#general-note-dialog").close();
 });
 $("#delete-general-note").addEventListener("click", () => {
-  deleteNoteLine(state.noteEditor?.line);
+  deleteNoteLine(state.noteEditor?.line, { record: false });
   $("#general-note-dialog").close();
 });
 

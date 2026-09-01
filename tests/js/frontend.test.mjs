@@ -677,9 +677,16 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /function selectedBeatArea\(\)[\s\S]*function assignCurrentBeatArea\(\)/);
   assert.match(app, /function transformBeatRange\(range, editStart, oldCount, newCount\)[\s\S]*editEnd <= start[\s\S]*editStart >= endExclusive[\s\S]*return null;/);
   assert.match(app, /function rebaseBeatRanges\(previousValue, nextValue\)[\s\S]*while \(prefix[\s\S]*previousSuffix[\s\S]*transformBeatRange\(beat\.range, prefix, oldCount, newCount\)[\s\S]*managedBeatSheetSource/);
+  assert.match(app, /function mergeCurrentManagedNotes\(historyValue, currentValue\)[\s\S]*historyLines\.filter\(\(line\) => !managedNote\(line\)\)[\s\S]*currentLines\.filter\(\(line\) => managedNote\(line\)\)[\s\S]*cleanHistory\.push\(\.\.\.managed\)/);
+  assert.match(app, /source\.value = mergeCurrentManagedNotes\(state\.history\[index\], source\.value\);\s*sourceChanged\(\{ fromPreview: previewLine !== null, record: false \}\)/);
+  assert.match(app, /function setSourceLines\(lines, \{ record = true \} = \{\}\)[\s\S]*sourceChanged\(\{ record \}\)/);
+  assert.match(app, /assignCurrentBeatArea\(\)[\s\S]*setSourceLines\(lines, \{ record: false \}\)/);
+  assert.match(app, /annotation-form[\s\S]*setSourceLines\(lines\);[\s\S]*delete-annotation[\s\S]*deleteNoteLine\(state\.noteEditor\?\.line\)/);
+  assert.match(app, /function persistBeatSheet\(\)[\s\S]*record: false/);
+  assert.match(app, /character-note-form[\s\S]*record: false[\s\S]*general-note-form[\s\S]*record: false/);
   assert.match(app, /function sourceChanged\(\{ fromPreview = false, record = true, rebaseBeats = true \} = \{\}\)[\s\S]*rebaseBeatRanges\(state\.lastSourceValue, source\.value\)[\s\S]*state\.lastSourceValue = source\.value/);
   assert.match(app, /function jumpToBeatArea\(beat\)[\s\S]*!\["empty", "note", "boneyard"\]\.includes/);
-  assert.match(app, /function setSourceLines\(lines\)[\s\S]*selectionDirection[\s\S]*setSelectionRange/);
+  assert.match(app, /function setSourceLines\(lines, \{ record = true \} = \{\}\)[\s\S]*selectionDirection[\s\S]*setSelectionRange/);
   assert.doesNotMatch(app, /beatSceneEntries|Connect to scene/);
   assert.doesNotMatch(app, /Place at scene/);
   assert.match(app, /class="beat-number beat-drag" draggable="false"[\s\S]*aria-keyshortcuts="ArrowUp ArrowDown Home End"/);
