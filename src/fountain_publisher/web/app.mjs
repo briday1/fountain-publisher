@@ -3319,6 +3319,44 @@ async function runSourceContextAction(action, context) {
   return "";
 }
 
+function toggleFountainEmphasis(action, context, surface) {
+  const markers = { bold: "**", italic: "*", "bold-italic": "***", underline: "_" };
+  const marker = markers[action];
+  if (!marker || !context) return "";
+  let { start, end } = context;
+  if (start === end) return "Select text to format";
+  const selected = source.value.slice(start, end);
+  let replacement;
+  let selectionStart;
+  let selectionEnd;
+  if (selected.startsWith(marker) && selected.endsWith(marker) && selected.length >= marker.length * 2) {
+    replacement = selected.slice(marker.length, -marker.length);
+    selectionStart = start;
+    selectionEnd = start + replacement.length;
+  } else if (source.value.slice(Math.max(0, start - marker.length), start) === marker
+    && source.value.slice(end, end + marker.length) === marker) {
+    source.setRangeText("", end, end + marker.length, "preserve");
+    source.setRangeText("", start - marker.length, start, "preserve");
+    selectionStart = start - marker.length;
+    selectionEnd = end - marker.length;
+    source.setSelectionRange(selectionStart, selectionEnd);
+    sourceChanged({ fromPreview: surface === "preview" });
+    if (surface === "preview") renderPreview({ focusLine: sourceLineAtOffset(selectionStart) });
+    else source.focus();
+    return "";
+  } else {
+    replacement = `${marker}${selected}${marker}`;
+    selectionStart = start + marker.length;
+    selectionEnd = end + marker.length;
+  }
+  source.setRangeText(replacement, start, end, "select");
+  source.setSelectionRange(selectionStart, selectionEnd);
+  sourceChanged({ fromPreview: surface === "preview" });
+  if (surface === "preview") renderPreview({ focusLine: sourceLineAtOffset(selectionStart) });
+  else source.focus();
+  return "";
+}
+
 async function runPreviewClipboardAction(action, lineNumber, context = {}) {
   const line = Number.isInteger(lineNumber) ? $(`[data-line="${lineNumber}"]`, page) : null;
   if (action === "copy") {
@@ -3919,6 +3957,11 @@ $("#preview-context-menu").addEventListener("click", async (event) => {
   if (action === "annotation") return openAnnotationEditor(null, previewContextLine);
   if (action === "undo") { undoDocument(); return; }
   if (action === "redo") { redoDocument(); return; }
+  if (["bold", "italic", "bold-italic", "underline"].includes(action)) {
+    const message = toggleFountainEmphasis(action, contextSelection, contextSurface);
+    if (message) toast(message);
+    return;
+  }
   const message = contextSurface === "source"
     ? await runSourceContextAction(action, contextSelection)
     : await runPreviewClipboardAction(action, previewContextLine, { edit, text });

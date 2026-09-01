@@ -329,6 +329,16 @@ test("spellcheck exposes private local replacement suggestions in the unified ed
   assert.match(app, /checker\.suggest\(candidate\.word\)\.slice\(0, 5\)/);
 });
 
+test("the unified editor menu toggles supported Fountain emphasis", async () => {
+  const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
+  for (const action of ["bold", "italic", "bold-italic", "underline"]) assert.match(html, new RegExp(`data-context-action="${action}"`));
+  assert.doesNotMatch(html, /data-context-action="strikethrough"/);
+  assert.match(app, /function toggleFountainEmphasis\(action, context, surface\)/);
+  assert.match(app, /const markers = \{ bold: "\*\*", italic: "\*", "bold-italic": "\*\*\*", underline: "_" \}/);
+  assert.match(app, /selected\.startsWith\(marker\)[\s\S]*source\.value\.slice\(Math\.max\(0, start - marker\.length\), start\) === marker[\s\S]*replacement = `\$\{marker\}\$\{selected\}\$\{marker\}`/);
+  assert.match(app, /toggleFountainEmphasis\(action, contextSelection, contextSurface\)/);
+});
+
 test("dark mode inverts the screenplay page and toolbar uses SVG arrows", async () => {
   const [html, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(css, /--paper:\s*#17191b/);
