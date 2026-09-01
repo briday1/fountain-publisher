@@ -287,7 +287,7 @@ body.source-tab-hidden [data-preview-mode="source"], body.source-tab-hidden [dat
 .preview-actions button, .preview-actions select { height: 27px; border: 1px solid var(--border); background: var(--surface); }
 .preview-actions button { width: 28px; }
 .preview-actions .zoom-fit { width: auto; padding: 0 8px; }
-.preview-actions .zoom-fit[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.preview-actions .zoom-fit[aria-pressed="true"] { border-color: var(--border); color: var(--ink); background: var(--surface-2); box-shadow: inset 0 1px 2px rgb(0 0 0 / 9%); }
 .preview-actions select { width: 72px; padding-left: 8px !important; padding-right: 20px !important; text-align: center; text-align-last: center; }
 .preview-scroll { --preview-dot-radius: 1px; flex: 1 1 0; min-height: 0; overflow: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 34px 20px; }
 .preview-scroll[data-background="dots"], #source-panel[data-background="dots"], #beat-sheet-panel[data-background="dots"], .background-pattern-preview[data-background="dots"] { background-image: radial-gradient(color-mix(in srgb, var(--ink) 14%, transparent) var(--preview-dot-radius), transparent var(--preview-dot-radius)); background-position: var(--preview-dot-x, 0px) var(--preview-dot-y, 0px); background-size: 16px 16px; }
