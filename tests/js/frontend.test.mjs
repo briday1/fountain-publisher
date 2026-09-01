@@ -673,6 +673,8 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(css, /\.beat-progress-line\s*\{[^}]*stroke:/s);
   assert.match(css, /\.beat-drag\s*\{[^}]*touch-action:\s*none;[^}]*user-select:\s*none;/s);
   assert.match(css, /\.beat-graph-node > \.beat-number\s*\{[^}]*width:\s*33px;[^}]*font:\s*800 12px/s);
+  assert.match(css, /\.beat-graph-node > \.beat-drag\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s);
+  assert.match(css, /:root\[data-effective-theme="dark"\] \.beat-graph-node > \.beat-number\s*\{[^}]*background:\s*color-mix/);
   assert.match(css, /\.beat-shift\s*\{[^}]*grid-template-rows:\s*1fr 1fr;[^}]*border:\s*1px solid var\(--border-strong\)/s);
   assert.match(css, /@media\s*\(any-pointer:\s*coarse\)[\s\S]*\.beat-graph-node > \.beat-drag\s*\{[^}]*width:\s*40px;[^}]*height:\s*48px;/s);
   assert.match(css, /#source-panel \.panel-title\s*\{[^}]*justify-content:\s*flex-start;[^}]*gap:\s*16px;[^}]*background:\s*var\(--panel\);/s);
