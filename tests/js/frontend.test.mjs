@@ -283,7 +283,7 @@ test("preview edits are source-backed and preserve the viewport", async () => {
   assert.match(app, /page\.focus\(\{ preventScroll: true \}\)[\s\S]*scrollTop = scrollTop/);
   assert.match(app, /requestAnimationFrame\(\(\) => \{[\s\S]*previewScroll\.scrollTop = scrollTop/);
   assert.doesNotMatch(app, /const insertAbove =/);
-  assert.match(app, /const focusLine = startIndex \+ displayLines\.length - 1/);
+  assert.match(app, /let focusLine = startIndex \+ displayLines\.length - 1/);
   assert.match(app, /function previewCaretIsOnVisualEdge\(line, edge\)/);
   assert.match(app, /event\.key === "ArrowUp" \? -1 : event\.key === "ArrowDown" \? 1 : 0/);
   assert.match(app, /adjacentPreviewEditableLine\(line, verticalDirection\)/);
@@ -429,6 +429,11 @@ test("the active non-printing line remains visible as editor context", async () 
   assert.match(app, /function updatePreviewCursor\(scroll = false, scrollBlock = "nearest", revealEmptyBefore = false\)[\s\S]*revealPreviewEmptyRun\(target, revealEmptyBefore\)/);
   assert.match(app, /renderPreview\(\{ focusLine, focusOffset, revealEmptyBefore: insertedText\.includes\("\\n"\) \}\)/);
   assert.match(app, /function focusVimCursor[\s\S]*revealPreviewEmptyRun\(line, position\.column === 0\)[\s\S]*page\.focus/);
+  assert.match(app, /function limitBlankLineRun\(value, caret\)[\s\S]*end - start <= 2[\s\S]*const kept = "\\n\\n"/);
+  assert.match(app, /function replacePreviewSelection[\s\S]*limitBlankLineRun\(source\.value, sourceOffset\)[\s\S]*focusLine = source\.value\.slice\(0, sourceOffset\)\.split\("\\n"\)\.length - 1/);
+  assert.match(app, /source\.addEventListener\("input"[\s\S]*limitBlankLineRun\(source\.value, source\.selectionStart\)/);
+  assert.match(app, /page\.addEventListener\("pointerup"[\s\S]*setSourceSelectionFromPreview\(edit\); updatePreviewCursor\(\)/);
+  assert.match(app, /page\.addEventListener\("focusout"[\s\S]*preview-empty-context/);
 });
 
 test("Preview navigation never enters editor-only source lines", async () => {
