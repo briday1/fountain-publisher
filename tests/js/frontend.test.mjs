@@ -693,7 +693,7 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(css, /\.beat-node-box\s*\{[^}]*min-height:\s*39px;[^}]*border-bottom:\s*1px solid var\(--border\);/s);
   assert.match(css, /\.beat-assignment-wrap\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) 22px 22px;/s);
   assert.match(css, /\.beat-assignment-wrap\s*\{[^}]*grid-column:\s*2;[^}]*justify-self:\s*end;/s);
-  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.beat-list\s*\{\s*--beat-node-size:\s*25px;[\s\S]*\.beat-assignment-wrap\s*\{[^}]*max-width:\s*112px;/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.beat-sheet-workspace\s*\{[^}]*padding:\s*12px 12px 12px 22px;[\s\S]*\.beat-list\s*\{[^}]*--beat-arrow-lane:\s*0px;[\s\S]*\.beat-assignment-wrap\s*\{[^}]*width:\s*max-content;[^}]*max-width:\s*96px;/s);
   assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.beat-sheet-title h3\s*\{\s*display:\s*none;[\s\S]*\.beat-sheet-title > div:last-child\s*\{[^}]*flex-wrap:\s*nowrap;/s);
   assert.match(css, /#source-panel \.panel-title\s*\{[^}]*justify-content:\s*flex-start;[^}]*gap:\s*16px;[^}]*background:\s*var\(--panel\);/s);
 });

@@ -755,7 +755,7 @@ button:disabled { cursor: default; opacity: .45; }
   .beat-guide-layer.empty .beat-runner-actions .empty-beat-sheet-button { display: block; white-space: nowrap; }
   .beat-runner-actions .assign-beat-area { max-width: none; white-space: nowrap; line-height: 1.05; }
   #beat-sheet-panel { grid-column: 1; }
-  .beat-sheet-workspace { width: 100%; margin: 0; padding: 12px; border: 0; border-radius: 0; box-shadow: none; zoom: 1; }
+  .beat-sheet-workspace { width: 100%; margin: 0; padding: 12px 12px 12px 22px; border: 0; border-radius: 0; box-shadow: none; zoom: 1; }
   .beat-sheet-title { align-items: center; gap: 8px; margin-bottom: 7px; }
   .beat-sheet-title h3 { display: none; }
   .beat-sheet-title > div:last-child { flex-wrap: nowrap; gap: 3px; }
@@ -766,14 +766,15 @@ button:disabled { cursor: default; opacity: .45; }
   .beat-progress-graph header small { font-size: 0; }
   .beat-progress-graph header small i { margin-left: 5px; }
   .beat-sheet-actions { width: 100%; margin: 0; border-inline: 0; border-bottom: 0; border-radius: 0; box-shadow: none; zoom: 1; }
-  .beat-list { --beat-node-size: 25px; --beat-node-offset: 7px; --beat-arrow-lane: 27px; }
+  .beat-list { --beat-node-size: 25px; --beat-node-offset: 7px; --beat-arrow-lane: 0px; }
   .beat-graph-node { grid-template-columns: var(--beat-node-size) minmax(0, 1fr); gap: 6px; }
   .beat-graph-node > .beat-number { font-size: 9px; }
   .beat-node-box { min-height: 39px; gap: 4px; padding: 2px 3px; }
-  .beat-assignment-wrap { max-width: 112px; }
+  .beat-assignment-wrap { width: max-content; max-width: 96px; }
   .beat-assignment { gap: 4px; font-size: 7px; }
   .beat-assignment small { max-width: 68px; }
   .beat-unassign { width: 20px; height: 20px; }
+  .beat-shift { left: -22px; width: 22px; }
   .beat-card-fields label { align-items: flex-start; flex-direction: column; }
   .beat-card-fields select { width: 100%; max-width: none; }
   .beat-sheet-actions span { display: none; }
