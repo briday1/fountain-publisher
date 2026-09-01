@@ -383,8 +383,17 @@ test("new documents open to a blank canvas with starter helpers", async () => {
   assert.match(html, /id="insert-dialogue"/);
   assert.match(html, /id="beat-sheet-empty-state"[\s\S]*Map the story before/);
   assert.doesNotMatch(html, /data-blank-insert/);
-  assert.match(app, /localStorage\.getItem\("fountain-publisher\.preview"\) \|\| "beats"/);
+  assert.match(app, /localStorage\.getItem\("fountain-publisher\.preview"\) \|\| "live"/);
+  assert.match(app, /localStorage\.getItem\("fountain-publisher\.mobile-tab"\) \|\| "preview"/);
   assert.match(app, /beat-sheet-empty-state[^\n]*hidden = hasBeatSheet/);
+});
+
+test("preview gives title-page fields a compact visual boundary", async () => {
+  const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(app, /<section class="title-page-block" aria-label="Title page fields">/);
+  assert.match(css, /\.title-page-block\s*\{[^}]*margin:\s*72px -18px 0;[^}]*border:\s*1px dashed/s);
+  assert.match(css, /\.title-page-block::before\s*\{[^}]*content:\s*"TITLE PAGE"/s);
+  assert.doesNotMatch(css, /\.script-line\.title-value\.title\s*\{[^}]*margin-top:\s*230px/);
 });
 
 test("the browser continuously restores a separate local recovery workspace", async () => {

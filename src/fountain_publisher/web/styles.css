@@ -307,7 +307,9 @@ body.source-tab-hidden [data-preview-mode="source"], body.source-tab-hidden [dat
 .script-line.empty.source-current, .script-line.empty.preview-empty-context { display: block; }
 .script-line.title-key { display: none; }
 .script-line.title-value { text-align: center; margin: 16px 0; }
-.script-line.title-value.title { margin-top: 230px; }
+.title-page-block { position: relative; margin: 72px -18px 0; padding: 24px 18px 20px; border: 1px dashed color-mix(in srgb, var(--paper-ink) 22%, transparent); border-radius: 7px; }
+.title-page-block::before { content: "TITLE PAGE"; position: absolute; top: -7px; left: 18px; padding: 0 6px; background: var(--paper); color: color-mix(in srgb, var(--paper-ink) 45%, transparent); font: 700 8px/13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: .12em; }
+.title-page-block .script-line.title-value.title { margin-top: 0; }
 .script-line.scene { position: relative; margin: 32px 0 16px; font-weight: 700; text-transform: uppercase; }
 body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: attr(data-scene-number) "."; position: absolute; right: 100%; padding-right: 10px; top: 0; font-weight: 400; text-transform: none; color: var(--paper-ink); opacity: .45; white-space: nowrap; }
 .script-line.action { margin: 16px 0 0; }

@@ -665,6 +665,16 @@ function renderPreviewLines(lines) {
   const sceneLabels = computeSceneLabels(lines);
   const output = [];
   for (let i = 0; i < lines.length; i += 1) {
+    if (lines[i].type.startsWith("title-value")) {
+      const titleLines = [];
+      while (i < lines.length && (lines[i].type.startsWith("title-value") || lines[i].type === "empty")) {
+        if (lines[i].type.startsWith("title-value")) titleLines.push(previewLineHtml(lines[i], null, annotationAfter(lines, i)));
+        i += 1;
+      }
+      output.push(`<section class="title-page-block" aria-label="Title page fields">${titleLines.join("")}</section>`);
+      i -= 1;
+      continue;
+    }
     if (lines[i].type === "character") {
       let next = i + 1;
       while (next < lines.length && ["dialogue", "parenthetical", "note"].includes(lines[next].type)) next += 1;
@@ -4183,7 +4193,7 @@ async function initialize() {
   const enableWorkspaceCache = params.get("demo") !== "1";
   setDocument(text, name, !restore, restore ? cached.githubFile || null : null);
   void refreshGithubSession();
-  const storedMobileTab = localStorage.getItem("fountain-publisher.mobile-tab") || "beats";
+  const storedMobileTab = localStorage.getItem("fountain-publisher.mobile-tab") || "preview";
   const initialMobileTab = !showSourceTab && storedMobileTab === "source" ? "preview" : storedMobileTab;
   setMobileTab(initialMobileTab);
   if (restore && ["fit", "70", "85", "100", "115", "130", "150", "175", "200"].includes(String(cached.zoom))) {
@@ -4192,7 +4202,7 @@ async function initialize() {
   }
   applyZoom();
   const restoredMode = ["source", "live", "pdf", "beats"].includes(cached?.previewMode) ? cached.previewMode : "live";
-  const requestedMode = restore ? restoredMode : localStorage.getItem("fountain-publisher.preview") || "beats";
+  const requestedMode = restore ? restoredMode : localStorage.getItem("fountain-publisher.preview") || "live";
   const initialMobileMode = initialMobileTab === "source" ? "source" : initialMobileTab === "beats" ? "beats" : "live";
   await setPreviewMode(isMobilePreview() ? initialMobileMode : requestedMode);
   if (restore) requestAnimationFrame(() => {
