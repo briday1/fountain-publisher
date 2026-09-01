@@ -3649,8 +3649,12 @@ $("#beat-guide-layer").addEventListener("click", (event) => {
   }
 });
 $("#add-beat").addEventListener("click", () => {
-  $("#beat-list").insertAdjacentHTML("beforeend", beatCard()); renumberBeatCards();
-  $("#beat-list .beat-card:last-child .beat-text").focus();
+  const selected = $("#beat-list .beat-card.selected");
+  if (selected) selected.insertAdjacentHTML("afterend", beatCard());
+  else $("#beat-list").insertAdjacentHTML("beforeend", beatCard());
+  const added = selected ? selected.nextElementSibling : $("#beat-list .beat-card:last-child");
+  renumberBeatCards();
+  $(".beat-text", added).focus();
 });
 $("#view-beat-progress").addEventListener("click", openBeatProgressGraph);
 $("#close-beat-progress").addEventListener("click", () => $("#beat-progress-dialog").close());
@@ -3658,6 +3662,8 @@ $("#save-beat-progress").addEventListener("click", saveBeatProgressPng);
 $("#beat-list").addEventListener("click", (event) => {
   const card = event.target.closest(".beat-card");
   if (!card) return;
+  $$(".beat-card.selected", $("#beat-list")).forEach((item) => item.classList.remove("selected"));
+  card.classList.add("selected");
   if (event.target.closest(".beat-up") && card.previousElementSibling) card.parentElement.insertBefore(card, card.previousElementSibling);
   else if (event.target.closest(".beat-down") && card.nextElementSibling) card.parentElement.insertBefore(card.nextElementSibling, card);
   else if (event.target.closest(".beat-remove")) card.remove();
@@ -3677,6 +3683,12 @@ $("#beat-list").addEventListener("click", (event) => {
   else return;
   renumberBeatCards();
   scheduleBeatSheetSave();
+});
+$("#beat-list").addEventListener("focusin", (event) => {
+  const card = event.target.closest(".beat-card");
+  if (!card) return;
+  $$(".beat-card.selected", $("#beat-list")).forEach((item) => item.classList.remove("selected"));
+  card.classList.add("selected");
 });
 let pointerDraggedBeat = null;
 let beatDragPointerId = null;

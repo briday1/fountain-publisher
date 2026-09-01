@@ -657,6 +657,8 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.doesNotMatch(app, /beatSceneEntries|Connect to scene/);
   assert.doesNotMatch(app, /Place at scene/);
   assert.match(app, /class="beat-drag" draggable="false"[\s\S]*aria-keyshortcuts="ArrowUp ArrowDown Home End"/);
+  assert.match(app, /add-beat"\)\.addEventListener\("click"[\s\S]*beat-card\.selected[\s\S]*insertAdjacentHTML\("afterend", beatCard\(\)\)[\s\S]*added[\s\S]*\.focus\(\)/);
+  assert.match(app, /beat-list"\)\.addEventListener\("focusin"[\s\S]*card\.classList\.add\("selected"\)/);
   assert.match(app, /const grip = `<svg[\s\S]*<circle[\s\S]*const up = `<svg[\s\S]*const down = `<svg/);
   assert.match(app, /function renderBeatGuide\(\)[\s\S]*beat-guide-layer/);
   assert.match(app, /beat-graph-node[\s\S]*beat-assignment[\s\S]*data-beat-jump/);
