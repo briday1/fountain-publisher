@@ -2726,10 +2726,14 @@ function setTheme(theme) {
   if (theme === "system") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = theme;
   const effective = theme === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : theme;
   document.documentElement.dataset.effectiveTheme = effective;
-  $("#app-theme-color").content = effective === "dark" ? "#17191b" : "#f4f4f2";
+  $("#app-theme-color").content = effective === "dark" ? "#202326" : "#f8f8f7";
   $("#theme-value").textContent = effective[0].toUpperCase() + effective.slice(1);
   $("#theme").title = `Switch to ${effective === "dark" ? "light" : "dark"} mode`;
 }
+
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => {
+  if (state.theme === "system") setTheme("system");
+});
 
 function cycleTheme() {
   const effective = document.documentElement.dataset.effectiveTheme || "light";

@@ -33,6 +33,11 @@ test("app installs as a standalone PWA and offers desktop window controls", asyn
   const manifest = JSON.parse(manifestText);
   assert.equal(manifest.display, "standalone");
   assert.deepEqual(manifest.display_override, ["standalone"]);
+  assert.equal(manifest.theme_color, "#202326");
+  assert.equal(manifest.background_color, "#17191b");
+  assert.match(html, /name="color-scheme" content="light dark"/);
+  assert.match(html, /id="app-theme-color" content="#202326"/);
+  assert.match(html, /apple-mobile-web-app-status-bar-style" content="black-translucent"/);
   assert.match(html, /apple-mobile-web-app-capable" content="yes"/);
   assert.match(html, /rel="apple-touch-icon" href="icons\/apple-touch-icon\.png"/);
   assert.match(html, /rel="manifest" href="app\.webmanifest"/);
@@ -40,6 +45,8 @@ test("app installs as a standalone PWA and offers desktop window controls", asyn
   assert.match(html, /id="toggle-fullscreen"/);
   assert.match(app, /beforeinstallprompt/);
   assert.match(app, /requestFullscreen/);
+  assert.match(app, /effective === "dark" \? "#202326" : "#f8f8f7"/);
+  assert.match(app, /prefers-color-scheme: dark[\s\S]*addEventListener\?\.\("change"[\s\S]*state\.theme === "system"/);
   assert.match(app, /navigator\.serviceWorker\.register\("\.\/service-worker\.js"\)/);
   assert.match(worker, /CACHE_NAME[\s\S]*request\.mode === "navigate"[\s\S]*caches\.match/);
   assert.match(build, /app\.webmanifest[\s\S]*service-worker\.js[\s\S]*icons/);
@@ -598,7 +605,7 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(css, /--annotation-accent:\s*var\(--syntax-character\);/);
   assert.match(css, /\.note-indicator\s*\{[^}]*color:\s*var\(--annotation-accent\);[^}]*text-shadow:[^;}]*var\(--annotation-accent\)/s);
   assert.match(css, /\.annotation-orb\s*\{[^}]*appearance:\s*none;[^}]*-webkit-appearance:\s*none;[^}]*background-color:\s*var\(--annotation-accent\)/s);
-  assert.match(worker, /fountain-publisher-shell-v2/);
+  assert.match(worker, /fountain-publisher-shell-v3/);
   assert.match(worker, /\["styles\.css", "app\.mjs"\][\s\S]*fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);
   assert.match(css, /\.annotation-orb\s*\{[^}]*top:\s*1px;/s);
   assert.match(app, /function alignAnnotationOrbs\(\)[\s\S]*marginCenterX[\s\S]*orb\.offsetWidth \* scale \* \.5[\s\S]*orb\.style\.left/);
