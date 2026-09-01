@@ -867,7 +867,7 @@ function renderPreview({ focusLine = null, focusOffset = null, revealEmptyBefore
     previewScroll.scrollTop = scrollTop;
     previewScroll.scrollLeft = scrollLeft;
   });
-  updatePreviewCursor();
+  updatePreviewCursor(false, "nearest", revealEmptyBefore);
   applyZoom();
   requestAnimationFrame(alignAnnotationOrbs);
 }
@@ -1231,11 +1231,9 @@ function renderEditorChrome() {
 function renderLineNumbers() {
   const gutter = $("#line-numbers");
   const highlight = $("#source-highlight");
-  const highlightRect = highlight.getBoundingClientRect();
   const numbers = source.value.split("\n").map((line, index) => {
     const sourceLine = $(`[data-source-line="${index}"]`, highlight);
-    const firstRect = sourceLine?.getClientRects()[0];
-    const top = firstRect ? firstRect.top - highlightRect.top + highlight.scrollTop : 0;
+    const top = sourceLine?.offsetTop || 0;
     return `<span class="line-number" style="top:${Math.max(0, top)}px">${index + 1}</span>`;
   }).join("");
   const scrollHeight = Math.max(source.scrollHeight, highlight.scrollHeight);
@@ -1302,13 +1300,12 @@ function scrollSourceTarget(index, block = "nearest") {
   if (!source.clientHeight) return;
   const highlight = $("#source-highlight");
   const target = $(`[data-source-line="${index}"]`, highlight);
-  const firstRect = target?.getClientRects()[0];
-  if (!firstRect) return;
+  if (!target) return;
   const computed = getComputedStyle(source);
   const paddingTop = parseFloat(computed.paddingTop) || 0;
   const paddingBottom = parseFloat(computed.paddingBottom) || 0;
   const lineHeight = parseFloat(computed.lineHeight) || 20.15;
-  const top = firstRect.top - highlight.getBoundingClientRect().top + highlight.scrollTop;
+  const top = target.offsetTop;
   const bottom = top + lineHeight;
   let next = source.scrollTop;
   if (block === "center") next = top - (source.clientHeight - lineHeight) / 2;
@@ -1319,11 +1316,11 @@ function scrollSourceTarget(index, block = "nearest") {
   $("#line-numbers").scrollTop = source.scrollTop;
 }
 
-function updatePreviewCursor(scroll = false, scrollBlock = "nearest") {
+function updatePreviewCursor(scroll = false, scrollBlock = "nearest", revealEmptyBefore = false) {
   const target = $(`[data-line="${currentPosition().line}"]`, page);
   $$(".script-line.source-current", page).forEach((line) => line.classList.remove("source-current"));
   target?.classList.add("source-current");
-  revealPreviewEmptyRun(target);
+  revealPreviewEmptyRun(target, revealEmptyBefore);
   if (scroll && state.previewMode === "live" && target) scrollPreviewTarget(target, scrollBlock);
 }
 
@@ -1337,7 +1334,7 @@ function updateCursor({ scrollPreview = false, scrollBlock = "nearest" } = {}) {
   const lineHeight = parseFloat(computed.lineHeight) || 20.15;
   const sourceLine = $(`[data-source-line="${position.line}"]`, $("#source-highlight"));
   const lineTop = sourceLine
-    ? sourceLine.getBoundingClientRect().top - source.getBoundingClientRect().top - parseFloat(computed.paddingTop)
+    ? sourceLine.offsetTop - source.scrollTop - parseFloat(computed.paddingTop)
     : -source.scrollTop;
   $("#current-line").style.height = `${lineHeight}px`;
   $("#current-line").style.transform = `translateY(${lineTop}px)`;
@@ -3695,6 +3692,9 @@ source.addEventListener("input", (event) => {
 });
 source.addEventListener("beforeinput", (event) => { if (vimActive() && state.vimMode === "normal") event.preventDefault(); });
 source.addEventListener("scroll", () => { $("#line-numbers").scrollTop = source.scrollTop; syncSourceOverlay(); updateCursor(); scheduleWorkspaceCache(); });
+const sourceResizeObserver = new ResizeObserver(() => requestAnimationFrame(renderEditorChrome));
+sourceResizeObserver.observe(source);
+document.fonts?.ready.then(() => renderEditorChrome());
 source.addEventListener("click", () => { updateCursor({ scrollPreview: true }); hideCompletions(); scheduleWorkspaceCache(); });
 source.addEventListener("select", () => { updateCursor({ scrollPreview: true }); scheduleWorkspaceCache(); });
 source.addEventListener("keyup", (event) => { if (!["Enter", "Tab", "Escape"].includes(event.key)) updateCursor({ scrollPreview: true }); scheduleWorkspaceCache(); });

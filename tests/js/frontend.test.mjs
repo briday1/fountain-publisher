@@ -219,7 +219,7 @@ test("source highlighting follows the textarea viewport and rendered line geomet
   assert.match(app, /if \(scrollLeft !== source\.scrollLeft\) source\.scrollLeft = scrollLeft/);
   assert.match(app, /highlight\.scrollLeft = boundedScrollLeft\(highlight, scrollLeft\)/);
   assert.match(app, /data-source-line=/);
-  assert.match(app, /sourceLine\.getBoundingClientRect\(\)\.top - source\.getBoundingClientRect\(\)\.top/);
+  assert.match(app, /sourceLine\.offsetTop - source\.scrollTop - parseFloat\(computed\.paddingTop\)/);
   assert.doesNotMatch(app, /rowsBefore \* 20\.15/);
 });
 
@@ -425,6 +425,8 @@ test("the active non-printing line remains visible as editor context", async () 
   assert.match(css, /\.script-line\.empty\s*\{[^}]*display:\s*none;[^}]*\}[\s\S]*\.script-line\.empty\.source-current, \.script-line\.empty\.preview-empty-context\s*\{[^}]*display:\s*block;/);
   assert.match(app, /function revealPreviewEmptyRun\(target, includePrevious = false\)[\s\S]*includePrevious \? targetLine - 1[\s\S]*lines\[start - 1\]\?\.type === "empty"[\s\S]*preview-empty-context/);
   assert.match(app, /function renderPreview\(\{ focusLine = null, focusOffset = null, revealEmptyBefore = false \} = \{\}\)[\s\S]*revealPreviewEmptyRun\(target, revealEmptyBefore\)/);
+  assert.match(app, /updatePreviewCursor\(false, "nearest", revealEmptyBefore\)/);
+  assert.match(app, /function updatePreviewCursor\(scroll = false, scrollBlock = "nearest", revealEmptyBefore = false\)[\s\S]*revealPreviewEmptyRun\(target, revealEmptyBefore\)/);
   assert.match(app, /renderPreview\(\{ focusLine, focusOffset, revealEmptyBefore: insertedText\.includes\("\\n"\) \}\)/);
   assert.match(app, /function focusVimCursor[\s\S]*revealPreviewEmptyRun\(line, position\.column === 0\)[\s\S]*page\.focus/);
 });
@@ -757,9 +759,13 @@ test("source word wrap defaults on and preserves logical line numbers", async ()
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="word-wrap"[^>]*checked/);
   assert.match(app, /source\.setAttribute\("wrap", enabled \? "soft" : "off"\)/);
-  assert.match(app, /const firstRect = sourceLine\?\.getClientRects\(\)\[0\]/);
-  assert.match(app, /firstRect\.top - highlightRect\.top \+ highlight\.scrollTop/);
   assert.match(app, /class="line-number" style="top:/);
+  assert.match(app, /function renderLineNumbers\(\)[\s\S]*sourceLine\?\.offsetTop \|\| 0/);
+  assert.doesNotMatch(app, /function renderLineNumbers\(\)[\s\S]*?getBoundingClientRect\(\)[\s\S]*?function fountainSyntaxHtml/);
+  assert.match(app, /function scrollSourceTarget[\s\S]*const top = target\.offsetTop;/);
+  assert.match(app, /sourceLine\.offsetTop - source\.scrollTop - parseFloat\(computed\.paddingTop\)/);
+  assert.match(app, /new ResizeObserver\(\(\) => requestAnimationFrame\(renderEditorChrome\)\)[\s\S]*observe\(source\)/);
+  assert.match(app, /document\.fonts\?\.ready\.then\(\(\) => renderEditorChrome\(\)\)/);
   assert.match(app, /gutter\.scrollTop = source\.scrollTop/);
   assert.match(app, /lines\.map\(\(line\) => \{[\s\S]*<span data-source-line="\$\{line\.index\}"[\s\S]*>\$\{value\}<\/span>`;\s*\}\)\.join\(""\)/);
   assert.match(css, /body\.source-wrap #source/);
