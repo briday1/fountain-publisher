@@ -1,4 +1,4 @@
-const CACHE_NAME = "fountain-publisher-shell-v2";
+const CACHE_NAME = "fountain-publisher-shell-v3";
 const APP_SHELL = ["./", "./index.html", "./styles.css", "./app.mjs", "./app.webmanifest", "./icons/app-icon-192.png", "./icons/app-icon-512.png"];
 
 self.addEventListener("install", (event) => {
