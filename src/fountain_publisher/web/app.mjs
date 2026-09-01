@@ -2620,7 +2620,7 @@ async function exportBeatSheetPdf() {
   const beats = currentBeatCards().map((beat) => beat.text).filter(Boolean);
   const title = state.filename.replace(/\.(fountain|txt)$/i, "") || "Untitled";
   button.disabled = true;
-  button.textContent = "Preparing…";
+  button.setAttribute("aria-busy", "true");
   try {
     const blob = await compileBeatSheetPdf(title, premise, beats);
     await shareOrDownload(blob, `${title} - Beat Sheet.pdf`);
@@ -2629,7 +2629,7 @@ async function exportBeatSheetPdf() {
     toast(error.message);
   } finally {
     button.disabled = false;
-    button.textContent = "Export PDF";
+    button.removeAttribute("aria-busy");
   }
 }
 

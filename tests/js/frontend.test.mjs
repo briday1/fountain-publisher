@@ -644,8 +644,9 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.doesNotMatch(html, /beat-sheet-insight|id="beat-sheet-summary"|id="open-beat-sheet"/);
   assert.match(html, /id="beat-sheet-panel"[\s\S]*id="beat-premise"[\s\S]*id="beat-list"[^>]*beat-flow-editor/);
   assert.match(html, /id="beat-progress-graph"[^>]*aria-label="Beat pacing by cumulative screenplay words"/);
-  assert.match(html, /id="view-beat-progress"[^>]*>View pacing graph</);
-  assert.match(html, /id="export-beat-sheet"[^>]*>Export PDF</);
+  assert.match(html, /id="view-beat-progress"[^>]*><span>View pacing graph<\/span><b>Pacing<\/b>/);
+  assert.match(html, /id="export-beat-sheet"[^>]*><span>Export PDF<\/span><b>Export<\/b>/);
+  assert.match(html, /id="add-beat"[^>]*><span>\+ Add beat<\/span><b>\+ Beat<\/b>/);
   assert.match(html, /id="beat-progress-dialog"[\s\S]*id="save-beat-progress"[^>]*>Save PNG</);
   assert.match(html, /id="menu-toggle-beat-guide"[\s\S]*id="beat-guide-layer"/);
   assert.match(app, /data-assign-beat-area>Assign \+ Next</);
@@ -693,6 +694,7 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(css, /\.beat-assignment-wrap\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) 22px 22px;/s);
   assert.match(css, /\.beat-assignment-wrap\s*\{[^}]*grid-column:\s*2;[^}]*justify-self:\s*end;/s);
   assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.beat-list\s*\{\s*--beat-node-size:\s*25px;[\s\S]*\.beat-assignment-wrap\s*\{[^}]*max-width:\s*112px;/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.beat-sheet-title h3\s*\{\s*display:\s*none;[\s\S]*\.beat-sheet-title > div:last-child\s*\{[^}]*flex-wrap:\s*nowrap;/s);
   assert.match(css, /#source-panel \.panel-title\s*\{[^}]*justify-content:\s*flex-start;[^}]*gap:\s*16px;[^}]*background:\s*var\(--panel\);/s);
 });
 
