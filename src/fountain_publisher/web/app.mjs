@@ -837,7 +837,27 @@ function revealPreviewEmptyRun(target, includePrevious = false) {
   }
 }
 
-function renderPreview({ focusLine = null, focusOffset = null, revealEmptyBefore = false } = {}) {
+function insertPreviewDraftRow(target) {
+  if (!target) return null;
+  const targetLine = Number(target.dataset.line);
+  const draftLine = targetLine - 1;
+  if (draftLine < 0 || classifyLines(source.value)[draftLine]?.type !== "empty") return null;
+  const existing = $(`.script-line.empty[data-line="${draftLine}"]`, page);
+  if (existing) {
+    existing.classList.add("preview-empty-context", "preview-draft-row");
+    return existing;
+  }
+  const draft = document.createElement("div");
+  draft.className = "script-line empty preview-empty-context preview-draft-row";
+  draft.dataset.line = String(draftLine);
+  draft.dataset.prefix = "";
+  draft.dataset.display = "";
+  draft.innerHTML = "<br>";
+  (target.closest(".dual-dialog") || target).before(draft);
+  return draft;
+}
+
+function renderPreview({ focusLine = null, focusOffset = null, revealEmptyBefore = false, draftBefore = false } = {}) {
   const lines = classifyLines(source.value);
   const previewScroll = $("#preview-scroll");
   const stage = $("#preview-page-stage");
@@ -853,7 +873,8 @@ function renderPreview({ focusLine = null, focusOffset = null, revealEmptyBefore
   if (focusLine !== null) {
     const target = $(`[data-line="${focusLine}"]`, page);
     target?.classList.add("source-current");
-    revealPreviewEmptyRun(target, revealEmptyBefore);
+    if (draftBefore) insertPreviewDraftRow(target);
+    else revealPreviewEmptyRun(target, revealEmptyBefore);
     page.focus({ preventScroll: true });
     if (target) {
       const offset = focusOffset ?? target.textContent.length;
@@ -1038,19 +1059,6 @@ function sourceOffsetForLine(lines, index, column) {
   return lines.slice(0, index).reduce((total, value) => total + value.length + 1, 0) + column;
 }
 
-function limitBlankLineRun(value, caret) {
-  let start = Math.max(0, Math.min(caret, value.length));
-  let end = start;
-  while (start > 0 && value[start - 1] === "\n") start -= 1;
-  while (end < value.length && value[end] === "\n") end += 1;
-  if (end - start <= 2) return { value, caret };
-  const kept = "\n\n";
-  return {
-    value: value.slice(0, start) + kept + value.slice(end),
-    caret: start + Math.min(kept.length, Math.max(0, caret - start)),
-  };
-}
-
 function setSourceCursorFromPreview(element, displayOffset = element.textContent.length) {
   const lines = source.value.replace(/\r\n?/g, "\n").split("\n");
   const index = Number(element.dataset.line);
@@ -1125,14 +1133,10 @@ function replacePreviewSelection(edit, text) {
   }
   lines.splice(startIndex, endIndex - startIndex + 1, ...replacements, ...preservedNotes);
   source.value = lines.join("\n");
-  let focusLine = startIndex + displayLines.length - 1;
+  const focusLine = startIndex + displayLines.length - 1;
   const focusOffset = displayLines.length === 1 ? before.length + text.length : text.split(/\r\n?|\n/).at(-1).length;
   const sourceColumn = replacements.at(-1).length - trailingSource.length;
-  let sourceOffset = sourceOffsetForLine(lines, focusLine, Math.max(0, sourceColumn));
-  const limited = limitBlankLineRun(source.value, sourceOffset);
-  source.value = limited.value;
-  sourceOffset = limited.caret;
-  focusLine = source.value.slice(0, sourceOffset).split("\n").length - 1;
+  const sourceOffset = sourceOffsetForLine(lines, focusLine, Math.max(0, sourceColumn));
   source.setSelectionRange(sourceOffset, sourceOffset);
   sourceChanged({ fromPreview: true });
   if (startIndex === endIndex && displayLines.length === 1) {
@@ -1143,7 +1147,7 @@ function replacePreviewSelection(edit, text) {
     setSourceCursorFromPreview(edit.startLine, focusOffset);
     showPreviewCharacterCompletions(edit.startLine);
   } else {
-    renderPreview({ focusLine, focusOffset, revealEmptyBefore: insertedText.includes("\n") });
+    renderPreview({ focusLine, focusOffset, revealEmptyBefore: insertedText.includes("\n"), draftBefore: insertedText.includes("\n") && before.length === 0 });
   }
 }
 
@@ -3473,11 +3477,10 @@ function focusVimCursor(previewFocus, offset = source.selectionStart) {
 }
 
 function changeVimSource(value, offset, previewFocus) {
-  const limited = limitBlankLineRun(value, offset);
-  source.value = limited.value;
-  source.setSelectionRange(limited.caret, limited.caret);
+  source.value = value;
+  source.setSelectionRange(offset, offset);
   sourceChanged();
-  focusVimCursor(previewFocus, limited.caret);
+  focusVimCursor(previewFocus, offset);
 }
 
 function syncVimPreviewPosition() {
@@ -3704,11 +3707,6 @@ function handleVimKey(event, surface) {
 }
 
 source.addEventListener("input", (event) => {
-  const limited = limitBlankLineRun(source.value, source.selectionStart);
-  if (limited.value !== source.value) {
-    source.value = limited.value;
-    source.setSelectionRange(limited.caret, limited.caret);
-  }
   sourceChanged();
   if (event.inputType === "insertText") showCompletions();
   else hideCompletions();
@@ -3820,13 +3818,14 @@ page.addEventListener("keydown", (event) => {
   }
 });
 page.addEventListener("focusin", () => { const line = previewLineForNode(getSelection()?.focusNode); if (line) setSourceCursorFromPreview(line); });
-page.addEventListener("pointerup", (event) => { const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); const edit = previewSelection(line); if (edit) { setSourceSelectionFromPreview(edit); updatePreviewCursor(); } });
+page.addEventListener("pointerup", (event) => { const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); if (!line?.classList.contains("preview-draft-row")) $$(".preview-draft-row", page).forEach((row) => row.remove()); const edit = previewSelection(line); if (edit) { setSourceSelectionFromPreview(edit); updatePreviewCursor(); } });
 page.addEventListener("keyup", (event) => {
   if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
   const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); const edit = previewSelection(line); if (edit) setSourceSelectionFromPreview(edit);
 });
 page.addEventListener("focusout", () => setTimeout(() => {
   if (!page.contains(document.activeElement)) $$(".script-line.empty.preview-empty-context", page).forEach((line) => line.classList.remove("preview-empty-context"));
+  if (!page.contains(document.activeElement)) $$(".preview-draft-row", page).forEach((row) => row.remove());
   if (!$("#preview-completion-menu").matches(":hover")) hidePreviewCompletions();
 }, 0));
 let previewTouchMenuTimer = 0;
