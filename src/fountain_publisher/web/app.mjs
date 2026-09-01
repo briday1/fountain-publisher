@@ -2713,7 +2713,7 @@ function beatCard(beat = { text: "" }) {
   const excerpt = beat.range
     ? sourceLines().slice(beat.range.startLine, beat.range.endLine + 1).filter((line) => line.trim() && !managedNote(line)).join(" ").slice(0, 130)
     : "Select screenplay text in Preview, then assign it from the Beat runner.";
-  return `<li class="beat-card beat-graph-node${beat.range ? " assigned" : ""}" data-start-line="${range.startLine ?? ""}" data-end-line="${range.endLine ?? ""}"><span class="beat-number"></span><button class="beat-drag" draggable="true" type="button" aria-label="Drag to reorder" title="Drag to reorder">⠿</button><div class="beat-shift"><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">↑</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">↓</button></div><div class="beat-node-box"><div class="beat-card-fields"><input class="beat-text" type="text" placeholder="What happens in this beat?" value="${escapeHtml(beat.text)}" /></div><div class="beat-assignment-wrap"><button class="beat-assignment" type="button" ${beat.range ? "data-beat-jump" : "disabled"}><span>${beat.range ? "Assigned" : "Unassigned"}</span><small>${escapeHtml(assignment)}</small><em>${escapeHtml(excerpt)}</em></button>${beat.range ? `<button class="beat-unassign" type="button" aria-label="Unassign beat from screenplay" title="Unassign from screenplay">×</button>` : ""}</div><button class="beat-remove" type="button" aria-label="Delete beat" title="Delete beat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></div></li>`;
+  return `<li class="beat-card beat-graph-node${beat.range ? " assigned" : ""}" data-start-line="${range.startLine ?? ""}" data-end-line="${range.endLine ?? ""}"><span class="beat-number"></span><button class="beat-drag" draggable="false" type="button" aria-label="Reorder beat. Drag, or use Up and Down arrow keys" aria-keyshortcuts="ArrowUp ArrowDown Home End" title="Drag or use arrow keys to reorder">⠿</button><div class="beat-shift"><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">↑</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">↓</button></div><div class="beat-node-box"><div class="beat-card-fields"><input class="beat-text" type="text" placeholder="What happens in this beat?" value="${escapeHtml(beat.text)}" /></div><div class="beat-assignment-wrap"><button class="beat-assignment" type="button" ${beat.range ? "data-beat-jump" : "disabled"}><span>${beat.range ? "Assigned" : "Unassigned"}</span><small>${escapeHtml(assignment)}</small><em>${escapeHtml(excerpt)}</em></button>${beat.range ? `<button class="beat-unassign" type="button" aria-label="Unassign beat from screenplay" title="Unassign from screenplay">×</button>` : ""}</div><button class="beat-remove" type="button" aria-label="Delete beat" title="Delete beat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></div></li>`;
 }
 
 function screenplayWordProgress() {
@@ -3670,23 +3670,11 @@ $("#beat-list").addEventListener("click", (event) => {
   renumberBeatCards();
   scheduleBeatSheetSave();
 });
-let draggedBeat = null;
-$("#beat-list").addEventListener("dragstart", (event) => { draggedBeat = event.target.closest(".beat-card"); draggedBeat?.classList.add("dragging"); });
-$("#beat-list").addEventListener("dragend", () => { draggedBeat?.classList.remove("dragging"); draggedBeat = null; renumberBeatCards(); scheduleBeatSheetSave(); });
-$("#beat-list").addEventListener("dragover", (event) => {
-  if (!draggedBeat) return;
-  event.preventDefault();
-  const target = event.target.closest(".beat-card");
-  if (!target || target === draggedBeat) return;
-  const after = event.clientY > target.getBoundingClientRect().top + target.offsetHeight / 2;
-  target.parentElement.insertBefore(draggedBeat, after ? target.nextSibling : target);
-});
 let pointerDraggedBeat = null;
 let beatDragPointerId = null;
 $("#beat-list").addEventListener("pointerdown", (event) => {
-  if (event.pointerType === "mouse") return;
   const handle = event.target.closest(".beat-drag");
-  if (!handle) return;
+  if (!handle || (event.pointerType === "mouse" && event.button !== 0)) return;
   pointerDraggedBeat = handle.closest(".beat-card");
   beatDragPointerId = event.pointerId;
   handle.setPointerCapture?.(event.pointerId);
@@ -3715,6 +3703,19 @@ function finishPointerBeatDrag(event) {
 $("#beat-list").addEventListener("pointerup", finishPointerBeatDrag);
 $("#beat-list").addEventListener("pointercancel", finishPointerBeatDrag);
 $("#beat-list").addEventListener("keydown", (event) => {
+  const handle = event.target.closest(".beat-drag");
+  if (handle && ["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+    event.preventDefault();
+    const card = handle.closest(".beat-card");
+    if (event.key === "ArrowUp" && card.previousElementSibling) card.parentElement.insertBefore(card, card.previousElementSibling);
+    else if (event.key === "ArrowDown" && card.nextElementSibling) card.parentElement.insertBefore(card.nextElementSibling, card);
+    else if (event.key === "Home") card.parentElement.prepend(card);
+    else if (event.key === "End") card.parentElement.append(card);
+    renumberBeatCards();
+    scheduleBeatSheetSave();
+    handle.focus();
+    return;
+  }
   if (event.key !== "Enter" || !event.target.matches(".beat-text")) return;
   event.preventDefault();
   const card = event.target.closest(".beat-card");

@@ -656,7 +656,7 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /function setSourceLines\(lines\)[\s\S]*selectionDirection[\s\S]*setSelectionRange/);
   assert.doesNotMatch(app, /beatSceneEntries|Connect to scene/);
   assert.doesNotMatch(app, /Place at scene/);
-  assert.match(app, /addEventListener\("dragover"[\s\S]*insertBefore\(draggedBeat/);
+  assert.match(app, /class="beat-drag" draggable="false"[\s\S]*aria-keyshortcuts="ArrowUp ArrowDown Home End"/);
   assert.match(app, /function renderBeatGuide\(\)[\s\S]*beat-guide-layer/);
   assert.match(app, /beat-graph-node[\s\S]*beat-assignment[\s\S]*data-beat-jump/);
   assert.match(app, /beat-unassign[\s\S]*beatCard\(\{ \.\.\.beat, range: null \}\)[\s\S]*persistBeatSheet\(\)/);
@@ -665,11 +665,13 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /beat-list"\)\.innerHTML = sheet\.beats\.map\(beatCard\)\.join\(""\)/);
   assert.doesNotMatch(app, /if \(!\$\("\.beat-card"[\s\S]*insertAdjacentHTML\("beforeend", beatCard\(\)\)/);
   assert.match(css, /#beat-sheet-panel\s*\{[\s\S]*\.beat-card\s*\{[\s\S]*\.beat-flow-editor[\s\S]*\.beat-graph-node[\s\S]*\.beat-guide-layer\s*\{[\s\S]*\.script-line\.beat-area/);
-  assert.match(app, /beat-list"\)\.addEventListener\("pointerdown"[\s\S]*setPointerCapture[\s\S]*addEventListener\("pointermove"[\s\S]*finishPointerBeatDrag/);
+  assert.match(app, /beat-list"\)\.addEventListener\("pointerdown"[\s\S]*event\.pointerType === "mouse" && event\.button !== 0[\s\S]*setPointerCapture[\s\S]*addEventListener\("pointermove"[\s\S]*finishPointerBeatDrag/);
+  assert.match(app, /\["ArrowUp", "ArrowDown", "Home", "End"\][\s\S]*prepend\(card\)[\s\S]*append\(card\)[\s\S]*handle\.focus\(\)/);
   assert.match(app, /function renderBeatProgressGraph\(beats = currentBeatCards\(\)\)[\s\S]*beforeValue[\s\S]*afterValue[\s\S]*beat-plot-point/);
   assert.match(app, /function saveBeatProgressPng\(\)[\s\S]*XMLSerializer[\s\S]*canvas\.toBlob[\s\S]*beat-pacing\.png/);
   assert.match(css, /\.beat-progress-line\s*\{[^}]*stroke:/s);
   assert.match(css, /\.beat-drag\s*\{[^}]*touch-action:\s*none;[^}]*user-select:\s*none;/s);
+  assert.match(css, /@media\s*\(any-pointer:\s*coarse\)[\s\S]*\.beat-graph-node > \.beat-drag\s*\{[^}]*width:\s*32px;[^}]*height:\s*36px;/s);
   assert.match(css, /#source-panel \.panel-title\s*\{[^}]*justify-content:\s*flex-start;[^}]*gap:\s*16px;[^}]*background:\s*var\(--panel\);/s);
 });
 
