@@ -2713,7 +2713,10 @@ function beatCard(beat = { text: "" }) {
   const excerpt = beat.range
     ? sourceLines().slice(beat.range.startLine, beat.range.endLine + 1).filter((line) => line.trim() && !managedNote(line)).join(" ").slice(0, 130)
     : "Select screenplay text in Preview, then assign it from the Beat runner.";
-  return `<li class="beat-card beat-graph-node${beat.range ? " assigned" : ""}" data-start-line="${range.startLine ?? ""}" data-end-line="${range.endLine ?? ""}"><span class="beat-number"></span><button class="beat-drag" draggable="false" type="button" aria-label="Reorder beat. Drag, or use Up and Down arrow keys" aria-keyshortcuts="ArrowUp ArrowDown Home End" title="Drag or use arrow keys to reorder">⠿</button><div class="beat-shift"><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">↑</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">↓</button></div><div class="beat-node-box"><div class="beat-card-fields"><input class="beat-text" type="text" placeholder="What happens in this beat?" value="${escapeHtml(beat.text)}" /></div><div class="beat-assignment-wrap"><button class="beat-assignment" type="button" ${beat.range ? "data-beat-jump" : "disabled"}><span>${beat.range ? "Assigned" : "Unassigned"}</span><small>${escapeHtml(assignment)}</small><em>${escapeHtml(excerpt)}</em></button>${beat.range ? `<button class="beat-unassign" type="button" aria-label="Unassign beat from screenplay" title="Unassign from screenplay">×</button>` : ""}</div><button class="beat-remove" type="button" aria-label="Delete beat" title="Delete beat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></div></li>`;
+  const grip = `<svg viewBox="0 0 12 28" aria-hidden="true"><circle cx="3" cy="4" r="1.25"/><circle cx="9" cy="4" r="1.25"/><circle cx="3" cy="10.5" r="1.25"/><circle cx="9" cy="10.5" r="1.25"/><circle cx="3" cy="17.5" r="1.25"/><circle cx="9" cy="17.5" r="1.25"/><circle cx="3" cy="24" r="1.25"/><circle cx="9" cy="24" r="1.25"/></svg>`;
+  const up = `<svg viewBox="0 0 16 12" aria-hidden="true"><path d="m3 8 5-5 5 5"/></svg>`;
+  const down = `<svg viewBox="0 0 16 12" aria-hidden="true"><path d="m3 4 5 5 5-5"/></svg>`;
+  return `<li class="beat-card beat-graph-node${beat.range ? " assigned" : ""}" data-start-line="${range.startLine ?? ""}" data-end-line="${range.endLine ?? ""}"><span class="beat-number" aria-label="Beat number"></span><button class="beat-drag" draggable="false" type="button" aria-label="Reorder beat. Drag, or use Up and Down arrow keys" aria-keyshortcuts="ArrowUp ArrowDown Home End" title="Drag or use arrow keys to reorder">${grip}</button><div class="beat-shift" role="group" aria-label="Move beat"><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">${up}</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">${down}</button></div><div class="beat-node-box"><div class="beat-card-fields"><input class="beat-text" type="text" placeholder="What happens in this beat?" value="${escapeHtml(beat.text)}" /></div><div class="beat-assignment-wrap"><button class="beat-assignment" type="button" ${beat.range ? "data-beat-jump" : "disabled"}><span>${beat.range ? "Assigned" : "Unassigned"}</span><small>${escapeHtml(assignment)}</small><em>${escapeHtml(excerpt)}</em></button>${beat.range ? `<button class="beat-unassign" type="button" aria-label="Unassign beat from screenplay" title="Unassign from screenplay">×</button>` : ""}</div><button class="beat-remove" type="button" aria-label="Delete beat" title="Delete beat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></div></li>`;
 }
 
 function screenplayWordProgress() {
@@ -2801,7 +2804,12 @@ async function saveBeatProgressPng() {
 }
 
 function renumberBeatCards() {
-  $$(".beat-card", $("#beat-list")).forEach((card, index) => { $(".beat-number", card).textContent = index + 1; });
+  const cards = $$(".beat-card", $("#beat-list"));
+  cards.forEach((card, index) => {
+    $(".beat-number", card).textContent = index + 1;
+    $(".beat-up", card).disabled = index === 0;
+    $(".beat-down", card).disabled = index === cards.length - 1;
+  });
   renderBeatProgressGraph();
 }
 
