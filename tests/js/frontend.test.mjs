@@ -866,6 +866,7 @@ test("preview zoom clamps scaled bounds and reports the calculated fit percentag
   assert.match(app, /\$\$\('\[data-workspace-zoom\]'\)[\s\S]*--workspace-zoom/);
   assert.match(css, /#source-panel \.editor-shell, #source-panel \.editor-footer, \.beat-sheet-workspace, \.beat-sheet-actions\s*\{\s*zoom:\s*var\(--workspace-zoom, 1\);/);
   assert.match(html, /id="zoom-in"[\s\S]*id="zoom-fit"[^>]*>Fit<\/button>/);
+  assert.match(css, /\.preview-actions \.zoom-fit\[aria-pressed="true"\]\s*\{[^}]*border-color:\s*var\(--border\);[^}]*color:\s*var\(--ink\);[^}]*background:\s*var\(--surface-2\);/s);
   assert.match(app, /scale = Math\.max\(\.25,\s*Math\.min\(2,\s*availableWidth \/ 816\)\)/);
   assert.match(app, /preview\.scrollLeft = Math\.max\(0,\s*\(preview\.scrollWidth - preview\.clientWidth\) \/ 2\)/);
   assert.match(app, /function clampPreviewScroll\(preview = \$\("#preview-scroll"\)\)/);
