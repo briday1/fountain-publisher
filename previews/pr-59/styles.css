@@ -550,7 +550,7 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-card-fields label em { padding: 2px 5px; border-radius: 8px; background: var(--surface-2); font-size: 8px; font-style: normal; font-weight: 600; }
 .beat-link-later { margin: 7px 0 0; color: var(--muted); font-size: 10px; }
 .beat-card-fields select { min-width: 0; max-width: 360px; height: 28px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-2); color: var(--ink); font-size: 10px; text-transform: none; }
-.beat-remove { font-size: 17px; }
+.beat-remove { width: 22px; height: 22px; display: grid; place-items: center; border: 0; padding: 0; background: transparent; color: var(--muted); font-size: 17px; }
 .beat-remove svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .beat-remove:hover { background: color-mix(in srgb, #dc2626 10%, transparent); color: #dc2626; }
 .beat-sheet-actions { width: min(816px, calc(100% - 40px)); display: flex; align-items: center; gap: 8px; margin: 0 auto 34px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 0 0 4px 4px; background: var(--paper); color: var(--paper-ink); box-shadow: 0 12px 24px rgb(20 24 28 / 8%); }
@@ -570,11 +570,6 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-card-fields { grid-column: 1; min-width: 0; }
 .beat-text { height: 34px; border-color: transparent !important; background: transparent !important; box-shadow: none !important; }
 .beat-text:focus { background: var(--surface) !important; }
-.beat-item-tools { position: absolute; z-index: 2; top: 5px; right: 4px; display: flex; align-items: center; gap: 1px; padding-left: 5px; background: var(--surface); opacity: 0; pointer-events: none; }
-.beat-graph-node:hover .beat-item-tools, .beat-graph-node:focus-within .beat-item-tools, .beat-graph-node.selected .beat-item-tools { opacity: 1; pointer-events: auto; }
-.beat-item-tools button { width: 27px; height: 25px; min-height: 0; display: grid; place-items: center; border: 0; border-radius: 4px; padding: 0; background: transparent; color: var(--muted); }
-.beat-item-tools button:hover, .beat-item-tools button:focus-visible { background: var(--surface-2); color: var(--ink); outline: none; }
-.beat-item-tools button:disabled { color: var(--faint); opacity: .45; }
 .beat-shift { position: absolute; z-index: 3; top: 3px; left: calc(-1 * var(--beat-arrow-lane)); width: var(--beat-arrow-lane); height: 33px; display: grid; grid-template-rows: 1fr 1fr; overflow: hidden; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); box-shadow: 0 1px 3px rgb(0 0 0 / 10%); opacity: 0; pointer-events: none; }
 .beat-shift button { width: 100%; height: 100%; display: grid; place-items: center; border: 0; border-radius: 0; padding: 0; background: transparent; color: var(--muted); }
 .beat-shift button + button { border-top: 1px solid var(--border); }
@@ -586,8 +581,8 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-graph-node.assigned .beat-node-box { box-shadow: inset 2px 0 color-mix(in srgb, var(--metric-scenes-ink) 62%, transparent); }
 .beat-assignment { width: auto; max-width: 100%; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 5px; overflow: hidden; border: 0; padding: 2px 0; background: transparent; color: var(--muted); font-size: 8px; text-align: right; }
 .beat-assignment:disabled { opacity: .65; }
-.beat-assignment-wrap { grid-column: 2; min-width: 0; max-width: 250px; display: grid; grid-template-columns: minmax(0, 1fr) 22px; gap: 2px; align-items: center; justify-self: end; }
-.beat-assignment-wrap:not(:has(.beat-unassign)) { grid-template-columns: minmax(0, 1fr); }
+.beat-assignment-wrap { grid-column: 2; min-width: 0; max-width: 250px; display: grid; grid-template-columns: minmax(0, 1fr) 22px 22px; gap: 2px; align-items: center; justify-self: end; }
+.beat-assignment-wrap:not(:has(.beat-unassign)) { grid-template-columns: minmax(0, 1fr) 22px; }
 .beat-unassign { width: 22px; height: 22px; border: 0; border-radius: 4px; padding: 0; background: transparent; color: var(--muted); font-size: 15px; }
 .beat-unassign:hover { background: color-mix(in srgb, var(--metric-scenes-ink) 12%, transparent); color: var(--metric-scenes-ink); }
 .beat-assignment span { flex: 0 0 auto; padding: 0; background: transparent; color: var(--muted); font-size: 7px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
@@ -768,8 +763,6 @@ button:disabled { cursor: default; opacity: .45; }
   .beat-graph-node { grid-template-columns: var(--beat-node-size) minmax(0, 1fr); gap: 6px; }
   .beat-graph-node > .beat-number { font-size: 9px; }
   .beat-node-box { min-height: 39px; gap: 4px; padding: 2px 3px; }
-  .beat-item-tools button { width: 26px; height: 25px; }
-  .beat-item-tools { right: 2px; }
   .beat-assignment-wrap { max-width: 112px; }
   .beat-assignment { gap: 4px; font-size: 7px; }
   .beat-assignment small { max-width: 68px; }
@@ -870,5 +863,5 @@ button:disabled { cursor: default; opacity: .45; }
 }
 
 @media (any-pointer: coarse) and (min-width: 821px) {
-  .beat-item-tools button { width: 34px; height: 32px; }
+  .beat-remove, .beat-unassign { width: 28px; height: 28px; }
 }
