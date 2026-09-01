@@ -342,6 +342,7 @@ let dotMotionSpeed = 20;
 let hyperspaceFrame = 0;
 let hyperspaceLastTime = 0;
 let hyperspaceSpeed = 20;
+let hyperspaceDensity = 100;
 const hyperspaceFields = new WeakMap();
 
 function backgroundSurfaces() {
@@ -372,7 +373,7 @@ function drawHyperspace(canvas, dt = 0) {
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
   context.clearRect(0, 0, width, height);
   let stars = hyperspaceFields.get(canvas);
-  const targetCount = Math.max(45, Math.min(180, Math.round(width * height / 7000)));
+  const targetCount = Math.max(20, Math.min(430, Math.round(width * height / 7000 * hyperspaceDensity / 100)));
   if (!stars || stars.length !== targetCount) {
     stars = Array.from({ length: targetCount }, () => { const star = {}; resetHyperspaceStar(star, true); return star; });
     hyperspaceFields.set(canvas, stars);
@@ -416,8 +417,9 @@ function stopHyperspace(clear = true) {
   if (clear) hyperspaceCanvases().forEach((canvas) => canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height));
 }
 
-function startHyperspace(speed) {
+function startHyperspace(speed, density) {
   hyperspaceSpeed = speed;
+  hyperspaceDensity = density;
   stopHyperspace(false);
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   hyperspaceCanvases().forEach((canvas) => drawHyperspace(canvas));
@@ -497,6 +499,8 @@ function applyPreviewBackground() {
   const direction = storedDirection === "random" || storedDirection === "still" || DOT_DIRECTIONS[storedDirection] ? storedDirection : "still";
   const storedSpeed = Number(localStorage.getItem("fountain-publisher.preview-dot-speed"));
   const speed = storedSpeed >= 1 && storedSpeed <= 100 ? storedSpeed : 20;
+  const storedDensity = Number(localStorage.getItem("fountain-publisher.preview-star-density"));
+  const density = storedDensity >= 30 && storedDensity <= 240 ? storedDensity : 100;
   backgroundSurfaces().forEach((surface) => {
     surface.dataset.background = pattern;
     surface.style.setProperty("--preview-dot-radius", `${radius}px`);
@@ -508,10 +512,13 @@ function applyPreviewBackground() {
   $("#preview-dot-direction").value = direction;
   $("#preview-dot-speed").value = String(speed);
   $("#preview-dot-speed-value").textContent = String(speed);
+  $("#preview-star-density").value = String(density);
+  $("#preview-star-density-value").textContent = `${density}%`;
   $("#preview-dot-direction-row").hidden = pattern !== "dots";
   $("#preview-dot-speed-row").hidden = !["dots", "hyperspace"].includes(pattern);
+  $("#preview-star-density-row").hidden = pattern !== "hyperspace";
   if (pattern === "dots" && !isMobilePreview()) startDotMotion(direction, speed); else stopDotMotion(true);
-  if (pattern === "hyperspace") startHyperspace(speed); else stopHyperspace();
+  if (pattern === "hyperspace") startHyperspace(speed, density); else stopHyperspace();
 }
 
 function escapeHtml(value) {
@@ -4126,6 +4133,10 @@ $("#preview-dot-direction").addEventListener("change", (event) => {
 });
 $("#preview-dot-speed").addEventListener("input", (event) => {
   localStorage.setItem("fountain-publisher.preview-dot-speed", event.target.value);
+  applyPreviewBackground();
+});
+$("#preview-star-density").addEventListener("input", (event) => {
+  localStorage.setItem("fountain-publisher.preview-star-density", event.target.value);
   applyPreviewBackground();
 });
 $("#page-size").addEventListener("change", () => { scheduleCompile(0); if (state.previewMode === "pdf") refreshPdf(); });
