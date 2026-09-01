@@ -551,9 +551,9 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-card-fields label em { padding: 2px 5px; border-radius: 8px; background: var(--surface-2); font-size: 8px; font-style: normal; font-weight: 600; }
 .beat-link-later { margin: 7px 0 0; color: var(--muted); font-size: 10px; }
 .beat-card-fields select { min-width: 0; max-width: 360px; height: 28px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-2); color: var(--ink); font-size: 10px; text-transform: none; }
-.beat-remove { width: 22px; height: 22px; display: grid; place-items: center; border: 0; padding: 0; background: transparent; color: var(--muted); font-size: 17px; }
+.beat-remove { width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--danger) 52%, var(--border)); padding: 0; background: color-mix(in srgb, var(--danger) 11%, var(--surface)); color: color-mix(in srgb, var(--danger) 86%, var(--ink)); font-size: 17px; }
 .beat-remove svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.beat-remove:hover { background: color-mix(in srgb, #dc2626 10%, transparent); color: #dc2626; }
+.beat-remove:hover { border-color: color-mix(in srgb, var(--danger) 65%, var(--border)); background: color-mix(in srgb, var(--danger) 17%, var(--surface)); color: color-mix(in srgb, var(--danger) 92%, var(--ink)); }
 .beat-sheet-actions { width: min(816px, calc(100% - 40px)); display: flex; align-items: center; gap: 8px; margin: 0 auto 34px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 0 0 4px 4px; background: var(--paper); color: var(--paper-ink); box-shadow: 0 12px 24px rgb(20 24 28 / 8%); }
 .beat-sheet-actions span { flex: 1; color: var(--muted); font-size: 10px; }
 .beat-sheet-actions button { border: 1px solid var(--border); border-radius: 5px; padding: 7px 13px; background: var(--surface); color: var(--ink); }
