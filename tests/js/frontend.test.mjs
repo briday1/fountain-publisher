@@ -645,6 +645,7 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(html, /id="beat-sheet-panel"[\s\S]*id="beat-premise"[\s\S]*id="beat-list"[^>]*beat-flow-editor/);
   assert.match(html, /id="beat-progress-graph"[^>]*aria-label="Beat pacing by cumulative screenplay words"/);
   assert.match(html, /id="view-beat-progress"[^>]*>View pacing graph</);
+  assert.match(html, /id="export-beat-sheet"[^>]*>Export PDF</);
   assert.match(html, /id="beat-progress-dialog"[\s\S]*id="save-beat-progress"[^>]*>Save PNG</);
   assert.match(html, /id="menu-toggle-beat-guide"[\s\S]*id="beat-guide-layer"/);
   assert.match(app, /data-assign-beat-area>Assign \+ Next</);
@@ -672,6 +673,8 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /\["ArrowUp", "ArrowDown", "Home", "End"\][\s\S]*prepend\(card\)[\s\S]*append\(card\)[\s\S]*handle\.focus\(\)/);
   assert.match(app, /function renderBeatProgressGraph\(beats = currentBeatCards\(\)\)[\s\S]*beforeValue[\s\S]*afterValue[\s\S]*beat-plot-point/);
   assert.match(app, /function saveBeatProgressPng\(\)[\s\S]*XMLSerializer[\s\S]*canvas\.toBlob[\s\S]*beat-pacing\.png/);
+  assert.match(app, /def _fp_compile_beat_sheet\(title, premise, beats, page_size="letter"\):[\s\S]*SimpleDocTemplate[\s\S]*Paragraph\("PREMISE"[\s\S]*Paragraph\("STORY BEATS"[\s\S]*document\.build/);
+  assert.match(app, /async function exportBeatSheetPdf\(\)[\s\S]*currentBeatCards\(\)[\s\S]*compileBeatSheetPdf[\s\S]*Beat Sheet\.pdf/);
   assert.match(css, /\.beat-progress-line\s*\{[^}]*stroke:/s);
   assert.match(css, /\.beat-drag\s*\{[^}]*touch-action:\s*none;[^}]*user-select:\s*none;/s);
   assert.match(css, /\.beat-graph-node > \.beat-number\s*\{[^}]*width:\s*33px;[^}]*font:\s*800 12px/s);

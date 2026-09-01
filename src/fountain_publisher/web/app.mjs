@@ -2229,11 +2229,17 @@ await micropip.install(_fp_screenplain_wheel, deps=False)
 `);
     pyodide.runPython(`
 import io
+import json
 import math
 import re
 from reportlab.lib.pagesizes import A4, letter
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from xml.sax.saxutils import escape as xml_escape
 from screenplain.export import fdx, pdf
 from screenplain.parsers.fountain import parse
 from screenplain.richstring import bold, plain
@@ -2325,6 +2331,79 @@ def _fp_patch_scene_numbers_left_only():
         pass
 _fp_patch_scene_numbers_left_only()
 
+def _fp_compile_beat_sheet(title, premise, beats, page_size="letter"):
+    output = io.BytesIO()
+    _, regular_font, bold_font, _, _ = _fp_register_pdf_fonts()
+    selected_size = A4 if page_size == "a4" else letter
+    document = SimpleDocTemplate(
+        output,
+        pagesize=selected_size,
+        leftMargin=54,
+        rightMargin=54,
+        topMargin=58,
+        bottomMargin=52,
+        title=f"{title} - Beat Sheet",
+        author="Fountain Publisher",
+    )
+    ink = colors.HexColor("#22252a")
+    muted = colors.HexColor("#66707a")
+    accent = colors.HexColor("#67516c")
+    soft = colors.HexColor("#f4f0f5")
+    rule = colors.HexColor("#d9d5da")
+    title_style = ParagraphStyle("BeatTitle", fontName=bold_font, fontSize=21, leading=25, textColor=ink, spaceAfter=5)
+    eyebrow_style = ParagraphStyle("BeatEyebrow", fontName=bold_font, fontSize=8, leading=10, textColor=accent, tracking=1.6, spaceAfter=6)
+    premise_style = ParagraphStyle("BeatPremise", fontName=regular_font, fontSize=10.5, leading=15, textColor=ink)
+    beat_style = ParagraphStyle("BeatBody", fontName=regular_font, fontSize=11, leading=15, textColor=ink)
+    number_style = ParagraphStyle("BeatNumber", fontName=bold_font, fontSize=10, leading=14, textColor=accent, alignment=TA_CENTER)
+    story = [
+        Paragraph("BEAT SHEET", eyebrow_style),
+        Paragraph(xml_escape(title), title_style),
+        Spacer(1, 16),
+        Paragraph("PREMISE", eyebrow_style),
+        Table([[Paragraph(xml_escape(premise) if premise else "No premise yet.", premise_style)]], colWidths=[document.width], style=TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), soft),
+            ("BOX", (0, 0), (-1, -1), 0.7, rule),
+            ("LEFTPADDING", (0, 0), (-1, -1), 14),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+            ("TOPPADDING", (0, 0), (-1, -1), 12),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+        ])),
+        Spacer(1, 22),
+        Paragraph("STORY BEATS", eyebrow_style),
+    ]
+    if beats:
+        for index, beat in enumerate(beats, 1):
+            row = Table(
+                [[Paragraph(str(index), number_style), Paragraph(xml_escape(str(beat)), beat_style)]],
+                colWidths=[34, document.width - 34],
+                style=TableStyle([
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LINEBELOW", (0, 0), (-1, -1), 0.6, rule),
+                    ("LEFTPADDING", (0, 0), (0, 0), 0),
+                    ("RIGHTPADDING", (0, 0), (0, 0), 8),
+                    ("LEFTPADDING", (1, 0), (1, 0), 7),
+                    ("RIGHTPADDING", (1, 0), (1, 0), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 10),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 11),
+                ]),
+            )
+            story.append(KeepTogether([row]))
+    else:
+        story.append(Paragraph("No beats yet.", premise_style))
+
+    def draw_page(canvas, doc):
+        canvas.saveState()
+        canvas.setStrokeColor(rule)
+        canvas.line(doc.leftMargin, 34, selected_size[0] - doc.rightMargin, 34)
+        canvas.setFont(regular_font, 8)
+        canvas.setFillColor(muted)
+        canvas.drawString(doc.leftMargin, 22, "Fountain Publisher")
+        canvas.drawRightString(selected_size[0] - doc.rightMargin, 22, str(doc.page))
+        canvas.restoreState()
+
+    document.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
+    return output.getvalue()
+
 def _fp_compile(source, kind, page_size, scene_numbers="margin", scene_number_format="sequential"):
     global _fp_last_page_eighths
     _fp_last_page_eighths = 0
@@ -2415,6 +2494,37 @@ async function compileWithBrowserScreenplain(kind, selectedPageSize) {
   value.destroy?.();
   const types = { pdf: "application/pdf", fdx: "application/xml;charset=utf-8" };
   return new Blob([bytes], { type: types[kind] });
+}
+
+async function compileBeatSheetPdf(title, premise, beats, selectedPageSize = $("#page-size").value) {
+  const pyodide = await getBrowserScreenplain();
+  pyodide.globals.set("_fp_beat_title", title);
+  pyodide.globals.set("_fp_beat_premise", premise);
+  pyodide.globals.set("_fp_beat_json", JSON.stringify(beats));
+  pyodide.globals.set("_fp_beat_page_size", selectedPageSize);
+  const value = pyodide.runPython("_fp_compile_beat_sheet(_fp_beat_title, _fp_beat_premise, json.loads(_fp_beat_json), _fp_beat_page_size)");
+  const bytes = value instanceof Uint8Array ? value : value.toJs();
+  value.destroy?.();
+  return new Blob([bytes], { type: "application/pdf" });
+}
+
+async function exportBeatSheetPdf() {
+  const button = $("#export-beat-sheet");
+  const premise = $("#beat-premise").value.trim();
+  const beats = currentBeatCards().map((beat) => beat.text).filter(Boolean);
+  const title = state.filename.replace(/\.(fountain|txt)$/i, "") || "Untitled";
+  button.disabled = true;
+  button.textContent = "Preparing…";
+  try {
+    const blob = await compileBeatSheetPdf(title, premise, beats);
+    await shareOrDownload(blob, `${title} - Beat Sheet.pdf`);
+    toast("Beat Sheet PDF exported");
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Export PDF";
+  }
 }
 
 function shouldUseBrowserCompiler(response, expectedType) {
@@ -3657,6 +3767,7 @@ $("#add-beat").addEventListener("click", () => {
   $(".beat-text", added).focus();
 });
 $("#view-beat-progress").addEventListener("click", openBeatProgressGraph);
+$("#export-beat-sheet").addEventListener("click", exportBeatSheetPdf);
 $("#close-beat-progress").addEventListener("click", () => $("#beat-progress-dialog").close());
 $("#save-beat-progress").addEventListener("click", saveBeatProgressPng);
 $("#beat-list").addEventListener("click", (event) => {
