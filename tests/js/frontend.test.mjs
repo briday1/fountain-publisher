@@ -108,7 +108,7 @@ test("Source, Preview, PDF, and Beat Sheet share the main workspace", async () =
   assert.match(app, /storedStatsCollapsed === null \|\| storedStatsCollapsed === "true"/);
   assert.match(css, /body\.source-tab-hidden \[data-preview-mode="source"\]/);
   assert.match(css, /#source-panel \.editor-shell\s*\{[^}]*width:\s*min\(816px,[^}]*margin:\s*34px auto 0;[^}]*box-shadow:\s*var\(--shadow\);/s);
-  assert.match(css, /\.beat-sheet-workspace\s*\{[^}]*width:\s*min\(816px,[^}]*margin:\s*34px auto 0;[^}]*box-shadow:\s*var\(--shadow\);/s);
+  assert.match(css, /\.beat-sheet-workspace\s*\{[^}]*width:\s*816px;[^}]*margin:\s*34px auto 0;[^}]*box-shadow:\s*var\(--shadow\);/s);
   assert.match(css, /grid-template-rows:\s*minmax\(0,\s*1fr\)/);
 });
 
@@ -695,6 +695,9 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(css, /\.beat-remove\s*\{[^}]*border:\s*1px solid transparent;[^}]*background:\s*transparent;/s);
   assert.match(css, /\.beat-remove:is\(:hover, :focus-visible, :active\)\s*\{[^}]*border-color:\s*color-mix\(in srgb, var\(--danger\) 65%, var\(--border\)\);[^}]*background:\s*color-mix\(in srgb, var\(--danger\) 17%, var\(--surface\)\);/s);
   assert.match(css, /\.beat-assignment-wrap\s*\{[^}]*grid-column:\s*2;[^}]*justify-self:\s*end;/s);
+  assert.match(css, /\.beat-sheet-workspace\s*\{[^}]*width:\s*816px;/s);
+  assert.match(css, /#source-panel \.editor-shell, #source-panel \.editor-footer, \.beat-sheet-workspace, \.beat-sheet-actions\s*\{\s*zoom:\s*var\(--workspace-zoom, 1\);/s);
+  assert.match(css, /\.beat-sheet-actions\s*\{[^}]*width:\s*816px;/s);
   assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.beat-sheet-workspace\s*\{[^}]*--beat-compact-control:\s*clamp\(20px, calc\(17px \+ \.85vw\), 24px\);[^}]*--beat-arrow-popout:\s*clamp\(22px, calc\(19px \+ 1\.1vw\), 28px\);[\s\S]*\.beat-list\s*\{[^}]*--beat-row-size:\s*clamp\(39px, calc\(34\.5px \+ 1\.4vw\), 46px\);[^}]*--beat-node-size:\s*clamp\(25px, calc\(21\.2px \+ 1\.2vw\), 31px\);[\s\S]*\.beat-assignment-wrap\s*\{[^}]*max-width:\s*clamp\(96px, 20vw, 160px\);/s);
   assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.beat-sheet-title h3\s*\{\s*display:\s*none;[\s\S]*\.beat-sheet-title > div:last-child\s*\{[^}]*flex-wrap:\s*nowrap;/s);
   assert.match(css, /#source-panel \.panel-title\s*\{[^}]*justify-content:\s*flex-start;[^}]*gap:\s*16px;[^}]*background:\s*var\(--panel\);/s);
