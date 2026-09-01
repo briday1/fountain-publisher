@@ -539,7 +539,7 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-plot-point.assigned circle { fill: var(--metric-scenes-ink); stroke: var(--surface); }
 .beat-plot-point.unassigned circle { fill: var(--surface); stroke: #92979f; }
 .beat-plot-point text, .beat-axis-label { fill: color-mix(in srgb, var(--paper-ink) 55%, transparent); font: 8px var(--mono); }
-.beat-list { --beat-node-size: 27px; --beat-node-offset: 6px; max-width: 760px; margin: 0 auto; padding: 0; list-style: none; counter-reset: beat; }
+.beat-list { --beat-node-size: 27px; --beat-node-offset: 6px; --beat-arrow-lane: 28px; max-width: 760px; margin: 0 auto; padding: 0 0 0 var(--beat-arrow-lane); list-style: none; counter-reset: beat; }
 .beat-card { margin: 0; padding: 0; }
 .beat-card.dragging { opacity: .4; }
 .beat-drag { cursor: grab; touch-action: none; user-select: none; font-size: 14px; }
@@ -557,12 +557,13 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-sheet-actions span { flex: 1; color: var(--muted); font-size: 10px; }
 .beat-sheet-actions button { border: 1px solid var(--border); border-radius: 5px; padding: 7px 13px; background: var(--surface); color: var(--ink); }
 .beat-flow-editor { position: relative; padding-bottom: 12px; }
-.beat-flow-editor::before { content: ""; position: absolute; top: calc(var(--beat-node-offset) + var(--beat-node-size) / 2); bottom: calc(var(--beat-node-offset) + var(--beat-node-size) / 2); left: calc(var(--beat-node-size) / 2); width: 2px; transform: translateX(-1px); background: color-mix(in srgb, var(--metric-scenes-ink) 38%, var(--border)); }
+.beat-flow-editor::before { content: ""; position: absolute; top: calc(var(--beat-node-offset) + var(--beat-node-size) / 2); bottom: calc(var(--beat-node-offset) + var(--beat-node-size) / 2); left: calc(var(--beat-arrow-lane) + var(--beat-node-size) / 2); width: 2px; transform: translateX(-1px); background: color-mix(in srgb, var(--metric-scenes-ink) 38%, var(--border)); }
 .beat-graph-node { position: relative; display: grid; grid-template-columns: var(--beat-node-size) minmax(0, 1fr); gap: 7px; align-items: start; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .beat-graph-node + .beat-graph-node { margin-top: 0; }
 .beat-graph-node.assigned { border: 0; background: transparent; box-shadow: none; }
 .beat-graph-node.selected .beat-node-box { border-color: color-mix(in srgb, var(--metric-pages-ink) 48%, var(--border)); }
-.beat-graph-node > .beat-number { position: relative; z-index: 1; display: grid; place-items: center; width: var(--beat-node-size); height: var(--beat-node-size); margin: var(--beat-node-offset) 0 0; border: 2px solid var(--surface); border-radius: 50%; background: var(--metric-pages-bg); color: var(--metric-pages-ink); box-shadow: 0 1px 3px rgb(0 0 0 / 12%); font: 800 10px/1 var(--mono); }
+.beat-graph-node > .beat-number { position: relative; z-index: 1; display: grid; place-items: center; width: var(--beat-node-size); height: var(--beat-node-size); margin: var(--beat-node-offset) 0 0; padding: 0; border: 2px solid var(--surface); border-radius: 50%; background: var(--metric-pages-bg); color: var(--metric-pages-ink); box-shadow: 0 1px 3px rgb(0 0 0 / 12%); cursor: grab; touch-action: none; user-select: none; font: 800 10px/1 var(--mono); }
+.beat-graph-node > .beat-number:hover, .beat-graph-node > .beat-number:focus-visible { outline: 2px solid color-mix(in srgb, var(--metric-pages-ink) 40%, transparent); outline-offset: 1px; }
 :root[data-effective-theme="dark"] .beat-graph-node > .beat-number { background: color-mix(in srgb, var(--metric-pages-bg) 82%, white); }
 .beat-card.touch-dragging { opacity: .72; }
 .beat-node-box { position: relative; min-width: 0; min-height: 39px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; padding: 2px 5px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; }
@@ -574,11 +575,12 @@ button:disabled { cursor: default; opacity: .45; }
 .beat-item-tools button { width: 27px; height: 25px; min-height: 0; display: grid; place-items: center; border: 0; border-radius: 4px; padding: 0; background: transparent; color: var(--muted); }
 .beat-item-tools button:hover, .beat-item-tools button:focus-visible { background: var(--surface-2); color: var(--ink); outline: none; }
 .beat-item-tools button:disabled { color: var(--faint); opacity: .45; }
-.beat-drag svg { width: 11px; height: 22px; fill: currentColor; }
-.beat-shift { display: flex; align-items: center; }
-.beat-shift button { border-radius: 0; }
-.beat-shift button:first-child { border-radius: 4px 0 0 4px; }
-.beat-shift button:last-child { border-radius: 0 4px 4px 0; }
+.beat-shift { position: absolute; z-index: 3; top: 3px; left: calc(-1 * var(--beat-arrow-lane)); width: var(--beat-arrow-lane); height: 33px; display: grid; grid-template-rows: 1fr 1fr; overflow: hidden; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); box-shadow: 0 1px 3px rgb(0 0 0 / 10%); opacity: 0; pointer-events: none; }
+.beat-shift button { width: 100%; height: 100%; display: grid; place-items: center; border: 0; border-radius: 0; padding: 0; background: transparent; color: var(--muted); }
+.beat-shift button + button { border-top: 1px solid var(--border); }
+.beat-graph-node:has(> .beat-number:hover) > .beat-shift, .beat-graph-node:has(> .beat-number:focus-visible) > .beat-shift, .beat-shift:hover, .beat-shift:focus-within { opacity: 1; pointer-events: auto; }
+.beat-shift button:hover, .beat-shift button:focus-visible { background: var(--surface-2); color: var(--ink); outline: none; }
+.beat-shift button:disabled { color: var(--faint); opacity: .45; }
 .beat-shift button svg { width: 15px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .beat-graph-node.selected .beat-node-box { background: color-mix(in srgb, var(--metric-pages-bg) 20%, transparent); }
 .beat-graph-node.assigned .beat-node-box { box-shadow: inset 2px 0 color-mix(in srgb, var(--metric-scenes-ink) 62%, transparent); }
@@ -762,7 +764,7 @@ button:disabled { cursor: default; opacity: .45; }
   .beat-progress-graph header small { font-size: 0; }
   .beat-progress-graph header small i { margin-left: 5px; }
   .beat-sheet-actions { width: 100%; margin: 0; border-inline: 0; border-bottom: 0; border-radius: 0; box-shadow: none; zoom: 1; }
-  .beat-list { --beat-node-size: 25px; --beat-node-offset: 7px; }
+  .beat-list { --beat-node-size: 25px; --beat-node-offset: 7px; --beat-arrow-lane: 27px; }
   .beat-graph-node { grid-template-columns: var(--beat-node-size) minmax(0, 1fr); gap: 6px; }
   .beat-graph-node > .beat-number { font-size: 9px; }
   .beat-node-box { min-height: 39px; gap: 4px; padding: 2px 3px; }
@@ -869,5 +871,4 @@ button:disabled { cursor: default; opacity: .45; }
 
 @media (any-pointer: coarse) and (min-width: 821px) {
   .beat-item-tools button { width: 34px; height: 32px; }
-  .beat-drag svg { height: 27px; }
 }
