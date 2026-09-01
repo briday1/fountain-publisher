@@ -843,3 +843,9 @@ button:disabled { cursor: default; opacity: .45; }
   }
   .global-actions .toolbar-popover > button, .global-actions .setting-row { min-height: 42px; padding-inline: 11px; font-size: 13px; }
 }
+
+@media (any-pointer: coarse) {
+  .beat-graph-node { grid-template-columns: 28px 32px 22px minmax(0, 1fr); }
+  .beat-graph-node > .beat-drag { width: 32px; height: 36px; font-size: 18px; }
+  .beat-shift button { width: 22px; height: 18px; }
+}
