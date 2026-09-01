@@ -343,6 +343,7 @@ let hyperspaceFrame = 0;
 let hyperspaceLastTime = 0;
 let hyperspaceSpeed = 20;
 let hyperspaceDensity = 100;
+let hyperspaceColors = false;
 const hyperspaceFields = new WeakMap();
 
 function backgroundSurfaces() {
@@ -357,6 +358,7 @@ function resetHyperspaceStar(star, initial = false) {
   star.x = Math.random() * 2 - 1;
   star.y = Math.random() * 2 - 1;
   star.z = initial ? Math.random() * .96 + .04 : 1;
+  star.tint = Math.random();
 }
 
 function drawHyperspace(canvas, dt = 0) {
@@ -383,8 +385,8 @@ function drawHyperspace(canvas, dt = 0) {
   const scale = Math.min(width, height) * .42;
   const velocity = .08 + hyperspaceSpeed / 125;
   const starColor = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#ffffff";
-  context.strokeStyle = starColor;
-  context.fillStyle = starColor;
+  const darkTheme = document.documentElement.dataset.effectiveTheme === "dark";
+  const accentColors = darkTheme ? ["#a7e8ef", "#edb4d8", "#f2e3a4"] : ["#318d9a", "#ad5d91", "#9b842d"];
   for (const star of stars) {
     const previousZ = star.z;
     if (dt) star.z -= velocity * dt;
@@ -399,6 +401,10 @@ function drawHyperspace(canvas, dt = 0) {
     const tailX = centerX + star.x / tailZ * scale;
     const tailY = centerY + star.y / tailZ * scale;
     const proximity = 1 - Math.min(1, star.z);
+    const colorIndex = Math.min(2, Math.floor((star.tint - .82) / .06));
+    const color = hyperspaceColors && star.tint >= .82 ? accentColors[colorIndex] : starColor;
+    context.strokeStyle = color;
+    context.fillStyle = color;
     context.globalAlpha = .12 + proximity * .58;
     context.lineWidth = .55 + proximity * 1.7;
     context.beginPath();
@@ -417,9 +423,10 @@ function stopHyperspace(clear = true) {
   if (clear) hyperspaceCanvases().forEach((canvas) => canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height));
 }
 
-function startHyperspace(speed, density) {
+function startHyperspace(speed, density, colorsEnabled) {
   hyperspaceSpeed = speed;
   hyperspaceDensity = density;
+  hyperspaceColors = colorsEnabled;
   stopHyperspace(false);
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   hyperspaceCanvases().forEach((canvas) => drawHyperspace(canvas));
@@ -501,6 +508,7 @@ function applyPreviewBackground() {
   const speed = storedSpeed >= 1 && storedSpeed <= 100 ? storedSpeed : 20;
   const storedDensity = Number(localStorage.getItem("fountain-publisher.preview-star-density"));
   const density = storedDensity >= 30 && storedDensity <= 240 ? storedDensity : 100;
+  const colorsEnabled = localStorage.getItem("fountain-publisher.preview-star-colors") === "true";
   backgroundSurfaces().forEach((surface) => {
     surface.dataset.background = pattern;
     surface.style.setProperty("--preview-dot-radius", `${radius}px`);
@@ -514,11 +522,13 @@ function applyPreviewBackground() {
   $("#preview-dot-speed-value").textContent = String(speed);
   $("#preview-star-density").value = String(density);
   $("#preview-star-density-value").textContent = `${density}%`;
+  $("#preview-star-colors").checked = colorsEnabled;
   $("#preview-dot-direction-row").hidden = pattern !== "dots";
   $("#preview-dot-speed-row").hidden = !["dots", "hyperspace"].includes(pattern);
   $("#preview-star-density-row").hidden = pattern !== "hyperspace";
+  $("#preview-star-colors-row").hidden = pattern !== "hyperspace";
   if (pattern === "dots" && !isMobilePreview()) startDotMotion(direction, speed); else stopDotMotion(true);
-  if (pattern === "hyperspace") startHyperspace(speed, density); else stopHyperspace();
+  if (pattern === "hyperspace") startHyperspace(speed, density, colorsEnabled); else stopHyperspace();
 }
 
 function escapeHtml(value) {
@@ -4137,6 +4147,10 @@ $("#preview-dot-speed").addEventListener("input", (event) => {
 });
 $("#preview-star-density").addEventListener("input", (event) => {
   localStorage.setItem("fountain-publisher.preview-star-density", event.target.value);
+  applyPreviewBackground();
+});
+$("#preview-star-colors").addEventListener("change", (event) => {
+  localStorage.setItem("fountain-publisher.preview-star-colors", String(event.target.checked));
   applyPreviewBackground();
 });
 $("#page-size").addEventListener("change", () => { scheduleCompile(0); if (state.previewMode === "pdf") refreshPdf(); });

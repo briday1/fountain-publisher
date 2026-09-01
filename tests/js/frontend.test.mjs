@@ -907,6 +907,7 @@ test("preview background popup supports themed, directional dot motion", async (
   assert.match(html, /id="preview-dot-direction"[\s\S]*value="up"[\s\S]*value="down"[\s\S]*value="left"[\s\S]*value="right"[\s\S]*value="up-left"[\s\S]*value="up-right"[\s\S]*value="down-left"[\s\S]*value="down-right"[\s\S]*value="random"/);
   assert.match(html, /id="preview-dot-speed" type="range" min="1" max="100" step="1" value="20"/);
   assert.match(html, /id="preview-star-density" type="range" min="30" max="240" step="5" value="100"/);
+  assert.match(html, /id="preview-star-colors-row"[^>]*hidden[\s\S]*id="preview-star-colors" type="checkbox" role="switch"/);
   assert.match(css, /\.preview-scroll\[data-background="dots"\][^}]*radial-gradient[^}]*background-size:\s*16px 16px;/s);
   assert.match(css, /\.background-pattern-preview\s*\{[^}]*background-color:\s*var\(--bg\);/s);
   assert.match(css, /background-position:\s*var\(--preview-dot-x, 0px\) var\(--preview-dot-y, 0px\)/);
@@ -918,9 +919,11 @@ test("preview background popup supports themed, directional dot motion", async (
   assert.doesNotMatch(css, /\.preview-scroll\s*\{[^}]*background-color:/s);
   assert.match(app, /function applyPreviewBackground\(\)/);
   assert.match(app, /function drawHyperspace\(canvas, dt = 0\)[\s\S]*star\.x \/ star\.z[\s\S]*context\.lineTo\(x, y\)/);
-  assert.match(app, /function startHyperspace\(speed, density\)[\s\S]*prefers-reduced-motion[\s\S]*requestAnimationFrame/);
+  assert.match(app, /function startHyperspace\(speed, density, colorsEnabled\)[\s\S]*prefers-reduced-motion[\s\S]*requestAnimationFrame/);
+  assert.match(app, /star\.tint >= \.82[\s\S]*accentColors\[colorIndex\]/);
   assert.match(app, /preview-star-density[\s\S]*preview-star-density-value[\s\S]*pattern !== "hyperspace"/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-star-density", event\.target\.value\)/);
+  assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-star-colors", String\(event\.target\.checked\)\)/);
   assert.match(css, /\[data-background="hyperspace"\] > \.hyperspace-canvas[\s\S]*display:\s*block/);
   assert.match(css, /\.background-pattern-preview span\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*1;/s);
   assert.match(app, /pattern === "dots" && !isMobilePreview\(\)/);
