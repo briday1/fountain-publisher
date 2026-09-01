@@ -33,6 +33,11 @@ test("app installs as a standalone PWA and offers desktop window controls", asyn
   const manifest = JSON.parse(manifestText);
   assert.equal(manifest.display, "standalone");
   assert.deepEqual(manifest.display_override, ["standalone"]);
+  assert.equal(manifest.theme_color, "#202326");
+  assert.equal(manifest.background_color, "#17191b");
+  assert.match(html, /name="color-scheme" content="light dark"/);
+  assert.match(html, /id="app-theme-color" content="#202326"/);
+  assert.match(html, /apple-mobile-web-app-status-bar-style" content="black-translucent"/);
   assert.match(html, /apple-mobile-web-app-capable" content="yes"/);
   assert.match(html, /rel="apple-touch-icon" href="icons\/apple-touch-icon\.png"/);
   assert.match(html, /rel="manifest" href="app\.webmanifest"/);
@@ -40,6 +45,8 @@ test("app installs as a standalone PWA and offers desktop window controls", asyn
   assert.match(html, /id="toggle-fullscreen"/);
   assert.match(app, /beforeinstallprompt/);
   assert.match(app, /requestFullscreen/);
+  assert.match(app, /effective === "dark" \? "#202326" : "#f8f8f7"/);
+  assert.match(app, /prefers-color-scheme: dark[\s\S]*addEventListener\?\.\("change"[\s\S]*state\.theme === "system"/);
   assert.match(app, /navigator\.serviceWorker\.register\("\.\/service-worker\.js"\)/);
   assert.match(worker, /CACHE_NAME[\s\S]*request\.mode === "navigate"[\s\S]*caches\.match/);
   assert.match(build, /app\.webmanifest[\s\S]*service-worker\.js[\s\S]*icons/);
@@ -108,7 +115,7 @@ test("Source, Preview, PDF, and Beat Sheet share the main workspace", async () =
   assert.match(app, /storedStatsCollapsed === null \|\| storedStatsCollapsed === "true"/);
   assert.match(css, /body\.source-tab-hidden \[data-preview-mode="source"\]/);
   assert.match(css, /#source-panel \.editor-shell\s*\{[^}]*width:\s*min\(816px,[^}]*margin:\s*34px auto 0;[^}]*box-shadow:\s*var\(--shadow\);/s);
-  assert.match(css, /\.beat-sheet-workspace\s*\{[^}]*width:\s*min\(816px,[^}]*margin:\s*34px auto 0;[^}]*box-shadow:\s*var\(--shadow\);/s);
+  assert.match(css, /\.beat-sheet-workspace\s*\{[^}]*width:\s*816px;[^}]*margin:\s*34px auto 0;[^}]*box-shadow:\s*var\(--shadow\);/s);
   assert.match(css, /grid-template-rows:\s*minmax\(0,\s*1fr\)/);
 });
 
@@ -212,7 +219,7 @@ test("source highlighting follows the textarea viewport and rendered line geomet
   assert.match(app, /if \(scrollLeft !== source\.scrollLeft\) source\.scrollLeft = scrollLeft/);
   assert.match(app, /highlight\.scrollLeft = boundedScrollLeft\(highlight, scrollLeft\)/);
   assert.match(app, /data-source-line=/);
-  assert.match(app, /sourceLine\.getBoundingClientRect\(\)\.top - source\.getBoundingClientRect\(\)\.top/);
+  assert.match(app, /sourceLine\.offsetTop - source\.scrollTop - parseFloat\(computed\.paddingTop\)/);
   assert.doesNotMatch(app, /rowsBefore \* 20\.15/);
 });
 
@@ -268,6 +275,7 @@ test("preview edits are source-backed and preserve the viewport", async () => {
   assert.match(app, /page\.addEventListener\("paste"/);
   assert.match(app, /insertFromPaste/);
   assert.match(app, /function fountainInlineSourceMap/);
+  assert.match(app, /data-type="\$\{escapeHtml\(type\)\}"/);
   assert.match(app, /const startMap =/);
   assert.match(app, /const endMap =/);
   assert.match(app, /const caretMap =/);
@@ -319,6 +327,17 @@ test("spellcheck exposes private local replacement suggestions in the unified ed
   assert.match(app, /dictionary-en\.aff/);
   assert.match(app, /candidate\.word === candidate\.word\.toUpperCase\(\)/);
   assert.match(app, /checker\.suggest\(candidate\.word\)\.slice\(0, 5\)/);
+});
+
+test("the unified editor menu toggles supported Fountain emphasis", async () => {
+  const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
+  for (const action of ["bold", "italic", "bold-italic", "underline"]) assert.match(html, new RegExp(`data-context-action="${action}"`));
+  assert.doesNotMatch(html, /data-context-action="strikethrough"/);
+  assert.match(app, /function toggleFountainEmphasis\(action, context, surface\)/);
+  assert.match(app, /const markers = \{ bold: "\*\*", italic: "\*", "bold-italic": "\*\*\*", underline: "_" \}/);
+  assert.match(app, /function normalizeNestedFountainEmphasis\(text, action\)[\s\S]*action === "italic"[\s\S]*action === "bold"[\s\S]*action === "bold-italic"/);
+  assert.match(app, /selected\.startsWith\(marker\)[\s\S]*source\.value\.slice\(Math\.max\(0, start - marker\.length\), start\) === marker[\s\S]*replacement = `\$\{marker\}\$\{normalizeNestedFountainEmphasis\(selected, action\)\}\$\{marker\}`/);
+  assert.match(app, /toggleFountainEmphasis\(action, contextSelection, contextSurface\)/);
 });
 
 test("dark mode inverts the screenplay page and toolbar uses SVG arrows", async () => {
@@ -416,8 +435,21 @@ test("the active non-printing line remains visible as editor context", async () 
   assert.match(css, /\.script-line\.section\.source-current/);
   assert.match(css, /content:\s*"EDITOR ONLY/);
   assert.match(css, /\.script-line\.empty\s*\{[^}]*display:\s*none;[^}]*\}[\s\S]*\.script-line\.empty\.source-current, \.script-line\.empty\.preview-empty-context\s*\{[^}]*display:\s*block;/);
-  assert.match(app, /function revealPreviewEmptyRun[\s\S]*lines\[start - 1\]\?\.type === "empty"[\s\S]*lines\[end \+ 1\]\?\.type === "empty"[\s\S]*preview-empty-context/);
-  assert.match(app, /target\?\.classList\.add\("source-current"\);\s*revealPreviewEmptyRun\(target\);\s*page\.focus/);
+  assert.match(app, /function revealPreviewEmptyRun\(target, includePrevious = false\)[\s\S]*includePrevious \? targetLine - 1[\s\S]*lines\[start - 1\]\?\.type === "empty"[\s\S]*preview-empty-context/);
+  assert.match(app, /function insertPreviewDraftRow\(target\)[\s\S]*className = "script-line empty preview-empty-context preview-draft-row"[\s\S]*dataset\.line = String\(draftLine\)/);
+  assert.match(app, /function renderPreview\(\{ focusLine = null, focusOffset = null, revealEmptyBefore = false, draftBefore = false \} = \{\}\)[\s\S]*if \(draftBefore\) insertPreviewDraftRow\(target\)/);
+  assert.match(app, /updatePreviewCursor\(false, "nearest", revealEmptyBefore\)/);
+  assert.match(app, /function updatePreviewCursor\(scroll = false, scrollBlock = "nearest", revealEmptyBefore = false\)[\s\S]*revealPreviewEmptyRun\(target, revealEmptyBefore\)/);
+  assert.match(app, /renderPreview\(\{ focusLine, focusOffset, revealEmptyBefore: insertedText\.includes\("\\n"\), draftBefore: insertedText\.includes\("\\n"\) && before\.length === 0 \}\)/);
+  assert.match(app, /function focusVimCursor[\s\S]*revealPreviewEmptyRun\(line, position\.column === 0\)[\s\S]*page\.focus/);
+  assert.doesNotMatch(app, /limitBlankLineRun/);
+  assert.match(app, /source\.addEventListener\("input", \(event\) => \{\s*sourceChanged\(\);/);
+  assert.match(app, /page\.addEventListener\("pointerup"[\s\S]*setSourceSelectionFromPreview\(edit\); updatePreviewCursor\(\)/);
+  assert.match(app, /page\.addEventListener\("focusout"[\s\S]*preview-empty-context/);
+  assert.match(app, /draftBefore: insertedText\.includes\("\\n"\) && before\.length === 0/);
+  assert.match(app, /const nextType = classifyLines\(source\.value\)\[focusLine\]\?\.type;[\s\S]*nextType !== edit\.startLine\.dataset\.type[\s\S]*renderPreview\(\{ focusLine, focusOffset \}\)/);
+  assert.match(app, /function syncPreviewLine[\s\S]*nextType !== element\.dataset\.type[\s\S]*renderPreview\(\{ focusLine: index, focusOffset: newDisplay\.length \}\)/);
+  assert.match(css, /\.script-line\.empty\.preview-draft-row\s*\{[^}]*display:\s*block !important;[^}]*height:\s*16px;/s);
 });
 
 test("Preview navigation never enters editor-only source lines", async () => {
@@ -598,7 +630,7 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(css, /--annotation-accent:\s*var\(--syntax-character\);/);
   assert.match(css, /\.note-indicator\s*\{[^}]*color:\s*var\(--annotation-accent\);[^}]*text-shadow:[^;}]*var\(--annotation-accent\)/s);
   assert.match(css, /\.annotation-orb\s*\{[^}]*appearance:\s*none;[^}]*-webkit-appearance:\s*none;[^}]*background-color:\s*var\(--annotation-accent\)/s);
-  assert.match(worker, /fountain-publisher-shell-v2/);
+  assert.match(worker, /fountain-publisher-shell-v3/);
   assert.match(worker, /\["styles\.css", "app\.mjs"\][\s\S]*fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);
   assert.match(css, /\.annotation-orb\s*\{[^}]*top:\s*1px;/s);
   assert.match(app, /function alignAnnotationOrbs\(\)[\s\S]*marginCenterX[\s\S]*orb\.offsetWidth \* scale \* \.5[\s\S]*orb\.style\.left/);
@@ -644,8 +676,9 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.doesNotMatch(html, /beat-sheet-insight|id="beat-sheet-summary"|id="open-beat-sheet"/);
   assert.match(html, /id="beat-sheet-panel"[\s\S]*id="beat-premise"[\s\S]*id="beat-list"[^>]*beat-flow-editor/);
   assert.match(html, /id="beat-progress-graph"[^>]*aria-label="Beat pacing by cumulative screenplay words"/);
-  assert.match(html, /id="view-beat-progress"[^>]*>View pacing graph</);
-  assert.match(html, /id="export-beat-sheet"[^>]*>Export PDF</);
+  assert.match(html, /id="view-beat-progress"[^>]*><span>View pacing graph<\/span><b>Pacing<\/b>/);
+  assert.match(html, /id="export-beat-sheet"[^>]*><span>Export PDF<\/span><b>Export<\/b>/);
+  assert.match(html, /id="add-beat"[^>]*><span>\+ Add beat<\/span><b>\+ Beat<\/b>/);
   assert.match(html, /id="beat-progress-dialog"[\s\S]*id="save-beat-progress"[^>]*>Save PNG</);
   assert.match(html, /id="menu-toggle-beat-guide"[\s\S]*id="beat-guide-layer"/);
   assert.match(app, /data-assign-beat-area>Assign \+ Next</);
@@ -653,16 +686,30 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /function managedBeatSheetSource\(premise, beats\)/);
   assert.match(app, /Next Beat:[\s\S]*data-assign-beat-area[\s\S]*data-next-beat/);
   assert.match(app, /function selectedBeatArea\(\)[\s\S]*function assignCurrentBeatArea\(\)/);
+  assert.match(app, /function transformBeatRange\(range, editStart, oldCount, newCount\)[\s\S]*editEnd <= start[\s\S]*editStart >= endExclusive[\s\S]*return null;/);
+  assert.match(app, /function rebaseBeatRanges\(previousValue, nextValue\)[\s\S]*while \(prefix[\s\S]*previousSuffix[\s\S]*transformBeatRange\(beat\.range, prefix, oldCount, newCount\)[\s\S]*managedBeatSheetSource/);
+  assert.match(app, /function mergeCurrentManagedNotes\(historyValue, currentValue\)[\s\S]*historyLines\.filter\(\(line\) => !managedNote\(line\)\)[\s\S]*currentLines\.filter\(\(line\) => managedNote\(line\)\)[\s\S]*cleanHistory\.push\(\.\.\.managed\)/);
+  assert.match(app, /source\.value = mergeCurrentManagedNotes\(state\.history\[index\], source\.value\);\s*sourceChanged\(\{ fromPreview: previewLine !== null, record: false \}\)/);
+  assert.match(app, /function setSourceLines\(lines, \{ record = true \} = \{\}\)[\s\S]*sourceChanged\(\{ record \}\)/);
+  assert.match(app, /assignCurrentBeatArea\(\)[\s\S]*setSourceLines\(lines, \{ record: false \}\)/);
+  assert.match(app, /annotation-form[\s\S]*setSourceLines\(lines\);[\s\S]*delete-annotation[\s\S]*deleteNoteLine\(state\.noteEditor\?\.line\)/);
+  assert.match(app, /function persistBeatSheet\(\)[\s\S]*record: false/);
+  assert.match(app, /character-note-form[\s\S]*record: false[\s\S]*general-note-form[\s\S]*record: false/);
+  assert.match(app, /function sourceChanged\(\{ fromPreview = false, record = true, rebaseBeats = true \} = \{\}\)[\s\S]*rebaseBeatRanges\(state\.lastSourceValue, source\.value\)[\s\S]*state\.lastSourceValue = source\.value/);
   assert.match(app, /function jumpToBeatArea\(beat\)[\s\S]*!\["empty", "note", "boneyard"\]\.includes/);
-  assert.match(app, /function setSourceLines\(lines\)[\s\S]*selectionDirection[\s\S]*setSelectionRange/);
+  assert.match(app, /function setSourceLines\(lines, \{ record = true \} = \{\}\)[\s\S]*selectionDirection[\s\S]*setSelectionRange/);
   assert.doesNotMatch(app, /beatSceneEntries|Connect to scene/);
   assert.doesNotMatch(app, /Place at scene/);
-  assert.match(app, /class="beat-drag" draggable="false"[\s\S]*aria-keyshortcuts="ArrowUp ArrowDown Home End"/);
+  assert.match(app, /class="beat-number beat-drag" draggable="false"[\s\S]*aria-keyshortcuts="ArrowUp ArrowDown Home End"/);
   assert.match(app, /add-beat"\)\.addEventListener\("click"[\s\S]*beat-card\.selected[\s\S]*insertAdjacentHTML\("afterend", beatCard\(\)\)[\s\S]*added[\s\S]*\.focus\(\)/);
   assert.match(app, /beat-list"\)\.addEventListener\("focusin"[\s\S]*card\.classList\.add\("selected"\)/);
-  assert.match(app, /const grip = `<svg[\s\S]*<circle[\s\S]*const up = `<svg[\s\S]*const down = `<svg/);
+  assert.match(app, /const up = `<svg[\s\S]*const down = `<svg/);
   assert.match(app, /function renderBeatGuide\(\)[\s\S]*beat-guide-layer/);
   assert.match(app, /beat-graph-node[\s\S]*beat-assignment[\s\S]*data-beat-jump/);
+  assert.match(app, /data-beat-jump title="Open \$\{escapeHtml\(assignment\)\} in Preview"/);
+  assert.match(app, /event\.target\.closest\("\[data-beat-jump\]"\)[\s\S]*setPreviewMode\("live"\)[\s\S]*jumpToBeatArea\(beat\)/);
+  assert.match(app, /\? `Lines \$\{beat\.range\.startLine \+ 1\}–\$\{beat\.range\.endLine \+ 1\}`[\s\S]*: "Unassigned"/);
+  assert.doesNotMatch(app, /Scene \$\{scene\.number\} · \$\{scene\.heading\}/);
   assert.match(app, /beat-unassign[\s\S]*beatCard\(\{ \.\.\.beat, range: null \}\)[\s\S]*persistBeatSheet\(\)/);
   assert.match(app, /event\.key !== "Enter" \|\| !event\.target\.matches\("\.beat-text"\)[\s\S]*nextElementSibling[\s\S]*\.focus\(\)/);
   assert.match(app, /function persistBeatSheet\(\)[\s\S]*function scheduleBeatSheetSave\(\)/);
@@ -676,12 +723,26 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /def _fp_compile_beat_sheet\(title, premise, beats, page_size="letter"\):[\s\S]*SimpleDocTemplate[\s\S]*Paragraph\("PREMISE"[\s\S]*Paragraph\("STORY BEATS"[\s\S]*document\.build/);
   assert.match(app, /async function exportBeatSheetPdf\(\)[\s\S]*currentBeatCards\(\)[\s\S]*compileBeatSheetPdf[\s\S]*Beat Sheet\.pdf/);
   assert.match(css, /\.beat-progress-line\s*\{[^}]*stroke:/s);
-  assert.match(css, /\.beat-drag\s*\{[^}]*touch-action:\s*none;[^}]*user-select:\s*none;/s);
-  assert.match(css, /\.beat-graph-node > \.beat-number\s*\{[^}]*width:\s*33px;[^}]*font:\s*800 12px/s);
-  assert.match(css, /\.beat-graph-node > \.beat-drag\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s);
+  assert.match(css, /\.beat-graph-node > \.beat-number\s*\{[^}]*cursor:\s*grab;[^}]*touch-action:\s*none;[^}]*user-select:\s*none;/s);
+  assert.match(app, /beat-number[\s\S]*beat-node-box[\s\S]*beat-card-fields[\s\S]*beat-assignment-wrap[\s\S]*beat-unassign[\s\S]*beat-remove/);
+  assert.match(css, /\.beat-list\s*\{[^}]*--beat-node-size:\s*27px;/s);
+  assert.match(css, /\.beat-flow-editor::before\s*\{[^}]*left:\s*calc\(var\(--beat-arrow-lane\) \+ var\(--beat-node-size\) \/ 2\)/s);
+  assert.match(css, /\.beat-graph-node\s*\{[^}]*grid-template-columns:\s*var\(--beat-node-size\) minmax\(0, 1fr\);[^}]*margin:\s*0;/s);
+  assert.match(css, /\.beat-graph-node \+ \.beat-graph-node\s*\{\s*margin-top:\s*0;/);
   assert.match(css, /:root\[data-effective-theme="dark"\] \.beat-graph-node > \.beat-number\s*\{[^}]*background:\s*color-mix/);
-  assert.match(css, /\.beat-shift\s*\{[^}]*grid-template-rows:\s*1fr 1fr;[^}]*border:\s*1px solid var\(--border-strong\)/s);
-  assert.match(css, /@media\s*\(any-pointer:\s*coarse\)[\s\S]*\.beat-graph-node > \.beat-drag\s*\{[^}]*width:\s*40px;[^}]*height:\s*48px;/s);
+  assert.match(css, /\.beat-shift\s*\{[^}]*left:\s*calc\(-1 \* var\(--beat-arrow-lane\)\);[^}]*grid-template-rows:\s*1fr 1fr;[^}]*opacity:\s*0;/s);
+  assert.match(css, /\.beat-graph-node:has\(> \.beat-number:hover\) > \.beat-shift,[^}]*opacity:\s*1;[^}]*pointer-events:\s*auto;/s);
+  assert.match(css, /\.beat-node-box\s*\{[^}]*min-height:\s*39px;[^}]*border-bottom:\s*1px solid var\(--border\);/s);
+  assert.match(css, /\.beat-assignment-wrap\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) 22px 22px;/s);
+  assert.match(css, /\.beat-remove\s*\{[^}]*border:\s*1px solid transparent;[^}]*background:\s*transparent;/s);
+  assert.match(css, /\.beat-remove:is\(:hover, :focus-visible, :active\)\s*\{[^}]*border-color:\s*color-mix\(in srgb, var\(--danger\) 65%, var\(--border\)\);[^}]*background:\s*color-mix\(in srgb, var\(--danger\) 17%, var\(--surface\)\);/s);
+  assert.match(css, /\.beat-assignment-wrap\s*\{[^}]*grid-column:\s*2;[^}]*justify-self:\s*end;/s);
+  assert.match(css, /\.beat-sheet-workspace\s*\{[^}]*width:\s*816px;/s);
+  assert.match(css, /#source-panel \.editor-shell, #source-panel \.editor-footer, \.beat-sheet-workspace, \.beat-sheet-actions\s*\{\s*zoom:\s*var\(--workspace-zoom, 1\);/s);
+  assert.match(css, /\.beat-sheet-actions\s*\{[^}]*width:\s*816px;/s);
+  assert.match(css, /#beat-sheet-panel\s*\{[^}]*container-type:\s*inline-size;/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.beat-sheet-workspace\s*\{[^}]*--beat-compact-control:\s*clamp\(20px, calc\(17px \+ \.85cqi\), 24px\);[^}]*align-self:\s*stretch;[^}]*width:\s*100%;[^}]*min-width:\s*100%;[^}]*max-width:\s*none;[\s\S]*\.beat-sheet-empty-state, \.premise-field, \.beat-sheet-title, \.beat-list\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*none;[\s\S]*\.beat-list\s*\{[^}]*--beat-row-size:\s*clamp\(39px, calc\(34\.5px \+ 1\.4cqi\), 46px\);[\s\S]*\.beat-assignment-wrap\s*\{[^}]*max-width:\s*clamp\(96px, 20cqi, 160px\);/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.beat-sheet-title h3\s*\{\s*display:\s*none;[\s\S]*\.beat-sheet-title > div:last-child\s*\{[^}]*flex-wrap:\s*nowrap;/s);
   assert.match(css, /#source-panel \.panel-title\s*\{[^}]*justify-content:\s*flex-start;[^}]*gap:\s*16px;[^}]*background:\s*var\(--panel\);/s);
 });
 
@@ -726,9 +787,13 @@ test("source word wrap defaults on and preserves logical line numbers", async ()
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="word-wrap"[^>]*checked/);
   assert.match(app, /source\.setAttribute\("wrap", enabled \? "soft" : "off"\)/);
-  assert.match(app, /const firstRect = sourceLine\?\.getClientRects\(\)\[0\]/);
-  assert.match(app, /firstRect\.top - highlightRect\.top \+ highlight\.scrollTop/);
   assert.match(app, /class="line-number" style="top:/);
+  assert.match(app, /function renderLineNumbers\(\)[\s\S]*sourceLine\?\.offsetTop \|\| 0/);
+  assert.doesNotMatch(app, /function renderLineNumbers\(\)[\s\S]*?getBoundingClientRect\(\)[\s\S]*?function fountainSyntaxHtml/);
+  assert.match(app, /function scrollSourceTarget[\s\S]*const top = target\.offsetTop;/);
+  assert.match(app, /sourceLine\.offsetTop - source\.scrollTop - parseFloat\(computed\.paddingTop\)/);
+  assert.match(app, /new ResizeObserver\(\(\) => requestAnimationFrame\(renderEditorChrome\)\)[\s\S]*observe\(source\)/);
+  assert.match(app, /document\.fonts\?\.ready\.then\(\(\) => renderEditorChrome\(\)\)/);
   assert.match(app, /gutter\.scrollTop = source\.scrollTop/);
   assert.match(app, /lines\.map\(\(line\) => \{[\s\S]*<span data-source-line="\$\{line\.index\}"[\s\S]*>\$\{value\}<\/span>`;\s*\}\)\.join\(""\)/);
   assert.match(css, /body\.source-wrap #source/);

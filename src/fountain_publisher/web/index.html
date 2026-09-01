@@ -4,10 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Write, preview, and publish Fountain screenplays." />
-    <meta name="theme-color" id="app-theme-color" content="#f4f4f2" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" id="app-theme-color" content="#202326" />
     <meta name="application-name" content="Fountain Publisher" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Fountain Publisher" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:; worker-src 'self' blob:; connect-src 'self' https://api.fountain-publisher.com" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23000'/><text x='16' y='23' text-anchor='middle' font-family='Georgia,serif' font-weight='700' font-size='20' fill='%23fff'>F</text></svg>" />
@@ -181,6 +182,11 @@
         <div id="context-spelling" class="context-spelling" hidden></div>
         <button type="button" data-context-action="annotation" role="menuitem">Add annotation</button>
         <span class="context-menu-separator"></span>
+        <button type="button" data-context-action="bold" role="menuitem"><strong>Bold</strong><kbd>**</kbd></button>
+        <button type="button" data-context-action="italic" role="menuitem"><em>Italic</em><kbd>*</kbd></button>
+        <button type="button" data-context-action="bold-italic" role="menuitem"><strong><em>Bold italic</em></strong><kbd>***</kbd></button>
+        <button type="button" data-context-action="underline" role="menuitem"><u>Underline</u><kbd>_</kbd></button>
+        <span class="context-menu-separator"></span>
         <button type="button" data-context-action="undo" role="menuitem">Undo</button>
         <button type="button" data-context-action="redo" role="menuitem">Redo</button>
         <span class="context-menu-separator"></span>
@@ -199,7 +205,7 @@
               <span>Start with the premise, then add each story beat below. Press Enter to move to the next beat. Later, use the Beat guide in Preview to connect screenplay passages to this map.</span>
             </div>
             <label class="premise-field"><span>Premise</span><textarea id="beat-premise" rows="3" placeholder="What is this story really about?"></textarea></label>
-            <div class="beat-sheet-title"><div><small>STORY FLOW</small><h3>Beats and assignments</h3></div><div><button id="export-beat-sheet" type="button">Export PDF</button><button id="view-beat-progress" type="button">View pacing graph</button><button id="add-beat" type="button">+ Add beat</button></div></div>
+            <div class="beat-sheet-title"><div><small>STORY FLOW</small><h3>Beats and assignments</h3></div><div><button id="export-beat-sheet" type="button"><span>Export PDF</span><b>Export</b></button><button id="view-beat-progress" type="button"><span>View pacing graph</span><b>Pacing</b></button><button id="add-beat" type="button"><span>+ Add beat</span><b>+ Beat</b></button></div></div>
             <ol id="beat-list" class="beat-list beat-flow-editor"></ol>
           </div>
           <footer class="beat-sheet-actions"><span>Changes save automatically. Drag or use arrows to reorder the story.</span></footer>

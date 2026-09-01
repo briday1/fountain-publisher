@@ -276,6 +276,7 @@ const state = {
   activeBeat: 0,
   characterAnalyticsScene: null,
   browserLastPageEighths: 0,
+  lastSourceValue: "",
 };
 
 function emptyMetadata() {
@@ -744,7 +745,7 @@ function previewLineHtml(line, sceneLabel = null, annotation = null) {
     ? `<button class="annotation-orb" type="button" data-annotation-line="${annotation.index}" title="${escapeHtml(annotation.text)}" aria-label="Edit annotation: ${escapeHtml(annotation.text)}"></button>`
     : "";
   const spellcheckAttr = type === "character" ? ` spellcheck="false"` : "";
-  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(display)}"${spellcheckAttr}>${content}${orb}</div>`;
+  return `<div class="${className}" data-line="${line.index}" data-type="${escapeHtml(type)}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(display)}"${spellcheckAttr}>${content}${orb}</div>`;
 }
 
 function annotationAfter(lines, index) {
@@ -821,11 +822,13 @@ function alignAnnotationOrbs() {
   });
 }
 
-function revealPreviewEmptyRun(target) {
+function revealPreviewEmptyRun(target, includePrevious = false) {
   $$(".script-line.empty.preview-empty-context", page).forEach((line) => line.classList.remove("preview-empty-context"));
-  if (!target?.classList.contains("empty")) return;
+  if (!target) return;
   const lines = classifyLines(source.value);
-  let start = Number(target.dataset.line);
+  const targetLine = Number(target.dataset.line);
+  let start = target.classList.contains("empty") ? targetLine : includePrevious ? targetLine - 1 : -1;
+  if (start < 0 || lines[start]?.type !== "empty") return;
   let end = start;
   while (start > 0 && lines[start - 1]?.type === "empty") start -= 1;
   while (end + 1 < lines.length && lines[end + 1]?.type === "empty") end += 1;
@@ -834,7 +837,28 @@ function revealPreviewEmptyRun(target) {
   }
 }
 
-function renderPreview({ focusLine = null, focusOffset = null } = {}) {
+function insertPreviewDraftRow(target) {
+  if (!target) return null;
+  const targetLine = Number(target.dataset.line);
+  const draftLine = targetLine - 1;
+  if (draftLine < 0 || classifyLines(source.value)[draftLine]?.type !== "empty") return null;
+  const existing = $(`.script-line.empty[data-line="${draftLine}"]`, page);
+  if (existing) {
+    existing.classList.add("preview-empty-context", "preview-draft-row");
+    return existing;
+  }
+  const draft = document.createElement("div");
+  draft.className = "script-line empty preview-empty-context preview-draft-row";
+  draft.dataset.line = String(draftLine);
+  draft.dataset.type = "empty";
+  draft.dataset.prefix = "";
+  draft.dataset.display = "";
+  draft.innerHTML = "<br>";
+  (target.closest(".dual-dialog") || target).before(draft);
+  return draft;
+}
+
+function renderPreview({ focusLine = null, focusOffset = null, revealEmptyBefore = false, draftBefore = false } = {}) {
   const lines = classifyLines(source.value);
   const previewScroll = $("#preview-scroll");
   const stage = $("#preview-page-stage");
@@ -850,7 +874,8 @@ function renderPreview({ focusLine = null, focusOffset = null } = {}) {
   if (focusLine !== null) {
     const target = $(`[data-line="${focusLine}"]`, page);
     target?.classList.add("source-current");
-    revealPreviewEmptyRun(target);
+    if (draftBefore) insertPreviewDraftRow(target);
+    else revealPreviewEmptyRun(target, revealEmptyBefore);
     page.focus({ preventScroll: true });
     if (target) {
       const offset = focusOffset ?? target.textContent.length;
@@ -864,7 +889,7 @@ function renderPreview({ focusLine = null, focusOffset = null } = {}) {
     previewScroll.scrollTop = scrollTop;
     previewScroll.scrollLeft = scrollLeft;
   });
-  updatePreviewCursor();
+  updatePreviewCursor(false, "nearest", revealEmptyBefore);
   applyZoom();
   requestAnimationFrame(alignAnnotationOrbs);
 }
@@ -1080,6 +1105,8 @@ function syncPreviewLine(element) {
   const offset = sourceOffsetForLine(lines, index, rawStart + newEnd - start);
   source.setSelectionRange(offset, offset);
   sourceChanged({ fromPreview: true });
+  const nextType = classifyLines(source.value)[index]?.type;
+  if (nextType && nextType !== element.dataset.type) renderPreview({ focusLine: index, focusOffset: newDisplay.length });
 }
 
 function replacePreviewSelection(edit, text) {
@@ -1115,6 +1142,12 @@ function replacePreviewSelection(edit, text) {
   const sourceOffset = sourceOffsetForLine(lines, focusLine, Math.max(0, sourceColumn));
   source.setSelectionRange(sourceOffset, sourceOffset);
   sourceChanged({ fromPreview: true });
+  const nextType = classifyLines(source.value)[focusLine]?.type;
+  const typeChanged = startIndex === endIndex && displayLines.length === 1 && nextType !== edit.startLine.dataset.type;
+  if (typeChanged) {
+    renderPreview({ focusLine, focusOffset });
+    return;
+  }
   if (startIndex === endIndex && displayLines.length === 1) {
     edit.startLine.innerHTML = fountainInlineHtml(displayLines[0]) || "<br>";
     edit.startLine.dataset.display = displayLines[0];
@@ -1123,7 +1156,7 @@ function replacePreviewSelection(edit, text) {
     setSourceCursorFromPreview(edit.startLine, focusOffset);
     showPreviewCharacterCompletions(edit.startLine);
   } else {
-    renderPreview({ focusLine, focusOffset });
+    renderPreview({ focusLine, focusOffset, revealEmptyBefore: insertedText.includes("\n"), draftBefore: insertedText.includes("\n") && before.length === 0 });
   }
 }
 
@@ -1228,11 +1261,9 @@ function renderEditorChrome() {
 function renderLineNumbers() {
   const gutter = $("#line-numbers");
   const highlight = $("#source-highlight");
-  const highlightRect = highlight.getBoundingClientRect();
   const numbers = source.value.split("\n").map((line, index) => {
     const sourceLine = $(`[data-source-line="${index}"]`, highlight);
-    const firstRect = sourceLine?.getClientRects()[0];
-    const top = firstRect ? firstRect.top - highlightRect.top + highlight.scrollTop : 0;
+    const top = sourceLine?.offsetTop || 0;
     return `<span class="line-number" style="top:${Math.max(0, top)}px">${index + 1}</span>`;
   }).join("");
   const scrollHeight = Math.max(source.scrollHeight, highlight.scrollHeight);
@@ -1299,13 +1330,12 @@ function scrollSourceTarget(index, block = "nearest") {
   if (!source.clientHeight) return;
   const highlight = $("#source-highlight");
   const target = $(`[data-source-line="${index}"]`, highlight);
-  const firstRect = target?.getClientRects()[0];
-  if (!firstRect) return;
+  if (!target) return;
   const computed = getComputedStyle(source);
   const paddingTop = parseFloat(computed.paddingTop) || 0;
   const paddingBottom = parseFloat(computed.paddingBottom) || 0;
   const lineHeight = parseFloat(computed.lineHeight) || 20.15;
-  const top = firstRect.top - highlight.getBoundingClientRect().top + highlight.scrollTop;
+  const top = target.offsetTop;
   const bottom = top + lineHeight;
   let next = source.scrollTop;
   if (block === "center") next = top - (source.clientHeight - lineHeight) / 2;
@@ -1316,11 +1346,11 @@ function scrollSourceTarget(index, block = "nearest") {
   $("#line-numbers").scrollTop = source.scrollTop;
 }
 
-function updatePreviewCursor(scroll = false, scrollBlock = "nearest") {
+function updatePreviewCursor(scroll = false, scrollBlock = "nearest", revealEmptyBefore = false) {
   const target = $(`[data-line="${currentPosition().line}"]`, page);
   $$(".script-line.source-current", page).forEach((line) => line.classList.remove("source-current"));
   target?.classList.add("source-current");
-  revealPreviewEmptyRun(target);
+  revealPreviewEmptyRun(target, revealEmptyBefore);
   if (scroll && state.previewMode === "live" && target) scrollPreviewTarget(target, scrollBlock);
 }
 
@@ -1334,7 +1364,7 @@ function updateCursor({ scrollPreview = false, scrollBlock = "nearest" } = {}) {
   const lineHeight = parseFloat(computed.lineHeight) || 20.15;
   const sourceLine = $(`[data-source-line="${position.line}"]`, $("#source-highlight"));
   const lineTop = sourceLine
-    ? sourceLine.getBoundingClientRect().top - source.getBoundingClientRect().top - parseFloat(computed.paddingTop)
+    ? sourceLine.offsetTop - source.scrollTop - parseFloat(computed.paddingTop)
     : -source.scrollTop;
   $("#current-line").style.height = `${lineHeight}px`;
   $("#current-line").style.transform = `translateY(${lineTop}px)`;
@@ -1433,7 +1463,7 @@ function assignCurrentBeatArea() {
   const lines = sourceLines();
   lines[sheet.line] = managedBeatSheetSource(sheet.premise || "", beats);
   state.activeBeat = Math.min(beats.length - 1, state.activeBeat + 1);
-  setSourceLines(lines);
+  setSourceLines(lines, { record: false });
   toast("Beat area assigned");
 }
 
@@ -1722,11 +1752,26 @@ function recordHistory() {
   if (state.history.length > 250) { state.history.shift(); state.historyIndex -= 1; }
 }
 
+function mergeCurrentManagedNotes(historyValue, currentValue) {
+  const historyLines = historyValue.replace(/\r\n?/g, "\n").split("\n");
+  const currentLines = currentValue.replace(/\r\n?/g, "\n").split("\n");
+  const cleanHistory = historyLines.filter((line) => !managedNote(line));
+  const managed = currentLines.filter((line) => managedNote(line));
+  while (cleanHistory.length && !cleanHistory.at(-1).trim()) cleanHistory.pop();
+  if (managed.length) {
+    if (cleanHistory.length) cleanHistory.push("");
+    cleanHistory.push(...managed);
+  }
+  return cleanHistory.join("\n");
+}
+
 function restoreHistory(index) {
   if (index < 0 || index >= state.history.length || index === state.historyIndex) return;
   const previewLine = page.contains(document.activeElement) ? Number(document.activeElement.dataset.line) : null;
   const sourcePosition = source.selectionStart;
-  state.historyIndex = index; source.value = state.history[index]; sourceChanged({ fromPreview: previewLine !== null, record: false });
+  state.historyIndex = index;
+  source.value = mergeCurrentManagedNotes(state.history[index], source.value);
+  sourceChanged({ fromPreview: previewLine !== null, record: false });
   if (previewLine !== null) renderPreview({ focusLine: Math.min(previewLine, source.value.split("\n").length - 1) });
   else { source.focus(); source.setSelectionRange(Math.min(sourcePosition, source.value.length), Math.min(sourcePosition, source.value.length)); }
 }
@@ -1734,7 +1779,63 @@ function restoreHistory(index) {
 function undoDocument() { restoreHistory(state.historyIndex - 1); }
 function redoDocument() { restoreHistory(state.historyIndex + 1); }
 
-function sourceChanged({ fromPreview = false, record = true } = {}) {
+function transformBeatRange(range, editStart, oldCount, newCount) {
+  if (!range) return null;
+  const start = range.startLine;
+  const endExclusive = range.endLine + 1;
+  const editEnd = editStart + oldCount;
+  const delta = newCount - oldCount;
+  if (editEnd <= start) return { startLine: start + delta, endLine: range.endLine + delta };
+  if (editStart >= endExclusive) return range;
+  if (!newCount && editStart <= start && editEnd >= endExclusive) return null;
+  const nextStart = start < editStart ? start : editStart;
+  const survivingTail = endExclusive > editEnd ? endExclusive + delta : nextStart;
+  const replacementEnd = editStart + newCount;
+  const nextEndExclusive = Math.max(nextStart + 1, survivingTail, replacementEnd);
+  return { startLine: nextStart, endLine: nextEndExclusive - 1 };
+}
+
+function rebaseBeatRanges(previousValue, nextValue) {
+  if (!previousValue || previousValue === nextValue) return nextValue;
+  const previousLines = previousValue.replace(/\r\n?/g, "\n").split("\n");
+  const nextLines = nextValue.replace(/\r\n?/g, "\n").split("\n");
+  const previousSheet = parseManagedNotes(previousLines).beatSheet;
+  const nextSheet = parseManagedNotes(nextLines).beatSheet;
+  if (previousSheet.line === null || nextSheet.line === null || !previousSheet.beats.some((beat) => beat.range)) return nextValue;
+
+  let prefix = 0;
+  while (prefix < previousLines.length && prefix < nextLines.length && previousLines[prefix] === nextLines[prefix]) prefix += 1;
+  let previousSuffix = previousLines.length;
+  let nextSuffix = nextLines.length;
+  while (previousSuffix > prefix && nextSuffix > prefix && previousLines[previousSuffix - 1] === nextLines[nextSuffix - 1]) {
+    previousSuffix -= 1;
+    nextSuffix -= 1;
+  }
+  const oldCount = previousSuffix - prefix;
+  const newCount = nextSuffix - prefix;
+  if (previousSheet.line >= prefix && previousSheet.line < previousSuffix
+      && nextSheet.line >= prefix && nextSheet.line < nextSuffix) return nextValue;
+
+  const beats = nextSheet.beats.map((beat) => ({
+    ...beat,
+    range: transformBeatRange(beat.range, prefix, oldCount, newCount),
+  }));
+  nextLines[nextSheet.line] = managedBeatSheetSource(nextSheet.premise, beats);
+  return nextLines.join("\n");
+}
+
+function sourceChanged({ fromPreview = false, record = true, rebaseBeats = true } = {}) {
+  if (rebaseBeats) {
+    const selectionStart = source.selectionStart;
+    const selectionEnd = source.selectionEnd;
+    const selectionDirection = source.selectionDirection;
+    const rebased = rebaseBeatRanges(state.lastSourceValue, source.value);
+    if (rebased !== source.value) {
+      source.value = rebased;
+      source.setSelectionRange(Math.min(selectionStart, rebased.length), Math.min(selectionEnd, rebased.length), selectionDirection);
+    }
+  }
+  state.lastSourceValue = source.value;
   if (record) recordHistory();
   document.body.classList.toggle("dirty", source.value !== state.savedSource);
   if (!fromPreview || state.previewMode === "source") renderEditorChrome();
@@ -1946,8 +2047,9 @@ async function openFile() {
 
 function setDocument(text, filename, saved = false, githubFile = null) {
   source.value = text; state.history = [text]; state.historyIndex = 0; state.filename = filename || "Untitled.fountain"; if (saved) state.savedSource = text;
+  state.lastSourceValue = text;
   state.githubFile = githubFile;
-  $("#filename").textContent = state.filename; document.title = `${state.filename} — Fountain Publisher`; sourceChanged();
+  $("#filename").textContent = state.filename; document.title = `${state.filename} — Fountain Publisher`; sourceChanged({ rebaseBeats: false });
 }
 
 async function saveFile(saveAs = false) {
@@ -2620,7 +2722,7 @@ async function exportBeatSheetPdf() {
   const beats = currentBeatCards().map((beat) => beat.text).filter(Boolean);
   const title = state.filename.replace(/\.(fountain|txt)$/i, "") || "Untitled";
   button.disabled = true;
-  button.textContent = "Preparing…";
+  button.setAttribute("aria-busy", "true");
   try {
     const blob = await compileBeatSheetPdf(title, premise, beats);
     await shareOrDownload(blob, `${title} - Beat Sheet.pdf`);
@@ -2629,7 +2731,7 @@ async function exportBeatSheetPdf() {
     toast(error.message);
   } finally {
     button.disabled = false;
-    button.textContent = "Export PDF";
+    button.removeAttribute("aria-busy");
   }
 }
 
@@ -2726,10 +2828,14 @@ function setTheme(theme) {
   if (theme === "system") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = theme;
   const effective = theme === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : theme;
   document.documentElement.dataset.effectiveTheme = effective;
-  $("#app-theme-color").content = effective === "dark" ? "#17191b" : "#f4f4f2";
+  $("#app-theme-color").content = effective === "dark" ? "#202326" : "#f8f8f7";
   $("#theme-value").textContent = effective[0].toUpperCase() + effective.slice(1);
   $("#theme").title = `Switch to ${effective === "dark" ? "light" : "dark"} mode`;
 }
+
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => {
+  if (state.theme === "system") setTheme("system");
+});
 
 function cycleTheme() {
   const effective = document.documentElement.dataset.effectiveTheme || "light";
@@ -2886,7 +2992,7 @@ function sourceLines() {
   return source.value.replace(/\r\n?/g, "\n").split("\n");
 }
 
-function setSourceLines(lines) {
+function setSourceLines(lines, { record = true } = {}) {
   const selectionStart = source.selectionStart;
   const selectionEnd = source.selectionEnd;
   const selectionDirection = source.selectionDirection;
@@ -2896,7 +3002,7 @@ function setSourceLines(lines) {
     Math.min(selectionEnd, source.value.length),
     selectionDirection,
   );
-  sourceChanged();
+  sourceChanged({ record });
 }
 
 function appendManagedNote(value) {
@@ -2904,7 +3010,7 @@ function appendManagedNote(value) {
   while (lines.length && !lines.at(-1).trim()) lines.pop();
   if (lines.length) lines.push("");
   lines.push(value);
-  setSourceLines(lines);
+  setSourceLines(lines, { record: false });
 }
 
 function managedGeneralSource(text) {
@@ -2922,17 +3028,13 @@ function managedBeatSheetSource(premise, beats) {
 function beatCard(beat = { text: "" }) {
   if (typeof beat === "string") beat = { text: beat };
   const range = beat.range || {};
-  const scene = beat.range ? [...(state.metadata.scenes || [])].reverse().find((item) => item.line <= beat.range.startLine) : null;
   const assignment = beat.range
-    ? `${scene ? `Scene ${scene.number} · ${scene.heading} · ` : ""}Lines ${beat.range.startLine + 1}–${beat.range.endLine + 1}`
-    : "Not assigned to screenplay";
-  const excerpt = beat.range
-    ? sourceLines().slice(beat.range.startLine, beat.range.endLine + 1).filter((line) => line.trim() && !managedNote(line)).join(" ").slice(0, 130)
-    : "Select screenplay text in Preview, then assign it from the Beat runner.";
-  const grip = `<svg viewBox="0 0 12 28" aria-hidden="true"><circle cx="3" cy="4" r="1.25"/><circle cx="9" cy="4" r="1.25"/><circle cx="3" cy="10.5" r="1.25"/><circle cx="9" cy="10.5" r="1.25"/><circle cx="3" cy="17.5" r="1.25"/><circle cx="9" cy="17.5" r="1.25"/><circle cx="3" cy="24" r="1.25"/><circle cx="9" cy="24" r="1.25"/></svg>`;
+    ? `Lines ${beat.range.startLine + 1}–${beat.range.endLine + 1}`
+    : "Unassigned";
   const up = `<svg viewBox="0 0 16 12" aria-hidden="true"><path d="m3 8 5-5 5 5"/></svg>`;
   const down = `<svg viewBox="0 0 16 12" aria-hidden="true"><path d="m3 4 5 5 5-5"/></svg>`;
-  return `<li class="beat-card beat-graph-node${beat.range ? " assigned" : ""}" data-start-line="${range.startLine ?? ""}" data-end-line="${range.endLine ?? ""}"><span class="beat-number" aria-label="Beat number"></span><button class="beat-drag" draggable="false" type="button" aria-label="Reorder beat. Drag, or use Up and Down arrow keys" aria-keyshortcuts="ArrowUp ArrowDown Home End" title="Drag or use arrow keys to reorder">${grip}</button><div class="beat-shift" role="group" aria-label="Move beat"><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">${up}</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">${down}</button></div><div class="beat-node-box"><div class="beat-card-fields"><input class="beat-text" type="text" placeholder="What happens in this beat?" value="${escapeHtml(beat.text)}" /></div><div class="beat-assignment-wrap"><button class="beat-assignment" type="button" ${beat.range ? "data-beat-jump" : "disabled"}><span>${beat.range ? "Assigned" : "Unassigned"}</span><small>${escapeHtml(assignment)}</small><em>${escapeHtml(excerpt)}</em></button>${beat.range ? `<button class="beat-unassign" type="button" aria-label="Unassign beat from screenplay" title="Unassign from screenplay">×</button>` : ""}</div><button class="beat-remove" type="button" aria-label="Delete beat" title="Delete beat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></div></li>`;
+  const jumpAttributes = beat.range ? `data-beat-jump title="Open ${escapeHtml(assignment)} in Preview" aria-label="Open ${escapeHtml(assignment)} in Preview"` : "disabled";
+  return `<li class="beat-card beat-graph-node${beat.range ? " assigned" : ""}" data-start-line="${range.startLine ?? ""}" data-end-line="${range.endLine ?? ""}"><div class="beat-shift" role="group" aria-label="Move beat"><button class="beat-up" type="button" aria-label="Move beat up" title="Move up">${up}</button><button class="beat-down" type="button" aria-label="Move beat down" title="Move down">${down}</button></div><button class="beat-number beat-drag" draggable="false" type="button" aria-label="Reorder beat. Drag, or use Up and Down arrow keys" aria-keyshortcuts="ArrowUp ArrowDown Home End" title="Drag or use arrow keys to reorder"></button><div class="beat-node-box"><div class="beat-card-fields"><input class="beat-text" type="text" placeholder="What happens in this beat?" value="${escapeHtml(beat.text)}" /></div><div class="beat-assignment-wrap"><button class="beat-assignment" type="button" ${jumpAttributes}><small>${escapeHtml(assignment)}</small></button>${beat.range ? `<button class="beat-unassign" type="button" aria-label="Unassign beat from screenplay" title="Unassign from screenplay">×</button>` : ""}<button class="beat-remove" type="button" aria-label="Delete beat" title="Delete beat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg></button></div></div></li>`;
 }
 
 function screenplayWordProgress() {
@@ -3217,6 +3319,61 @@ async function runSourceContextAction(action, context) {
   return "";
 }
 
+function replaceExactAsteriskEmphasis(text, count, replacementCount) {
+  const stars = `\\*{${count}}`;
+  const exact = new RegExp(`(?<!\\*)${stars}(?!\\*)(?=\\S)(.+?\\S)(?<!\\*)${stars}(?!\\*)`, "g");
+  const replacement = "*".repeat(replacementCount);
+  return text.replace(exact, `${replacement}$1${replacement}`);
+}
+
+function normalizeNestedFountainEmphasis(text, action) {
+  if (action === "underline") return text.replace(/(?<!_)_(?!_)(?=\S)(.+?\S)(?<!_)_(?!_)/g, "$1");
+  if (action === "italic") return replaceExactAsteriskEmphasis(replaceExactAsteriskEmphasis(text, 3, 2), 1, 0);
+  if (action === "bold") return replaceExactAsteriskEmphasis(replaceExactAsteriskEmphasis(text, 3, 1), 2, 0);
+  if (action === "bold-italic") {
+    return replaceExactAsteriskEmphasis(replaceExactAsteriskEmphasis(replaceExactAsteriskEmphasis(text, 3, 0), 2, 0), 1, 0);
+  }
+  return text;
+}
+
+function toggleFountainEmphasis(action, context, surface) {
+  const markers = { bold: "**", italic: "*", "bold-italic": "***", underline: "_" };
+  const marker = markers[action];
+  if (!marker || !context) return "";
+  let { start, end } = context;
+  if (start === end) return "Select text to format";
+  const selected = source.value.slice(start, end);
+  let replacement;
+  let selectionStart;
+  let selectionEnd;
+  if (selected.startsWith(marker) && selected.endsWith(marker) && selected.length >= marker.length * 2) {
+    replacement = selected.slice(marker.length, -marker.length);
+    selectionStart = start;
+    selectionEnd = start + replacement.length;
+  } else if (source.value.slice(Math.max(0, start - marker.length), start) === marker
+    && source.value.slice(end, end + marker.length) === marker) {
+    source.setRangeText("", end, end + marker.length, "preserve");
+    source.setRangeText("", start - marker.length, start, "preserve");
+    selectionStart = start - marker.length;
+    selectionEnd = end - marker.length;
+    source.setSelectionRange(selectionStart, selectionEnd);
+    sourceChanged({ fromPreview: surface === "preview" });
+    if (surface === "preview") renderPreview({ focusLine: sourceLineAtOffset(selectionStart) });
+    else source.focus();
+    return "";
+  } else {
+    replacement = `${marker}${normalizeNestedFountainEmphasis(selected, action)}${marker}`;
+    selectionStart = start + marker.length;
+    selectionEnd = start + replacement.length - marker.length;
+  }
+  source.setRangeText(replacement, start, end, "select");
+  source.setSelectionRange(selectionStart, selectionEnd);
+  sourceChanged({ fromPreview: surface === "preview" });
+  if (surface === "preview") renderPreview({ focusLine: sourceLineAtOffset(selectionStart) });
+  else source.focus();
+  return "";
+}
+
 async function runPreviewClipboardAction(action, lineNumber, context = {}) {
   const line = Number.isInteger(lineNumber) ? $(`[data-line="${lineNumber}"]`, page) : null;
   if (action === "copy") {
@@ -3287,11 +3444,11 @@ function openGeneralNoteEditor(line = null) {
   setTimeout(() => $("#general-note-text").focus(), 0);
 }
 
-function deleteNoteLine(line) {
+function deleteNoteLine(line, { record = true } = {}) {
   if (line === null || line === undefined) return;
   const lines = sourceLines();
   lines.splice(line, 1);
-  setSourceLines(lines);
+  setSourceLines(lines, { record });
 }
 
 const toolbarMenus = $$(".toolbar-menu");
@@ -3391,6 +3548,7 @@ function focusVimCursor(previewFocus, offset = source.selectionStart) {
   }
   const line = $(`[data-line="${position.line}"]`, page);
   if (!previewLineIsEditable(line)) return;
+  revealPreviewEmptyRun(line, position.column === 0);
   page.focus({ preventScroll: true });
   placeCaretAtOffset(line, Math.min(position.column, line.textContent.length));
   scrollPreviewTarget(line);
@@ -3634,6 +3792,9 @@ source.addEventListener("input", (event) => {
 });
 source.addEventListener("beforeinput", (event) => { if (vimActive() && state.vimMode === "normal") event.preventDefault(); });
 source.addEventListener("scroll", () => { $("#line-numbers").scrollTop = source.scrollTop; syncSourceOverlay(); updateCursor(); scheduleWorkspaceCache(); });
+const sourceResizeObserver = new ResizeObserver(() => requestAnimationFrame(renderEditorChrome));
+sourceResizeObserver.observe(source);
+document.fonts?.ready.then(() => renderEditorChrome());
 source.addEventListener("click", () => { updateCursor({ scrollPreview: true }); hideCompletions(); scheduleWorkspaceCache(); });
 source.addEventListener("select", () => { updateCursor({ scrollPreview: true }); scheduleWorkspaceCache(); });
 source.addEventListener("keyup", (event) => { if (!["Enter", "Tab", "Escape"].includes(event.key)) updateCursor({ scrollPreview: true }); scheduleWorkspaceCache(); });
@@ -3736,12 +3897,16 @@ page.addEventListener("keydown", (event) => {
   }
 });
 page.addEventListener("focusin", () => { const line = previewLineForNode(getSelection()?.focusNode); if (line) setSourceCursorFromPreview(line); });
-page.addEventListener("pointerup", (event) => { const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); const edit = previewSelection(line); if (edit) setSourceSelectionFromPreview(edit); });
+page.addEventListener("pointerup", (event) => { const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); if (!line?.classList.contains("preview-draft-row")) $$(".preview-draft-row", page).forEach((row) => row.remove()); const edit = previewSelection(line); if (edit) { setSourceSelectionFromPreview(edit); updatePreviewCursor(); } });
 page.addEventListener("keyup", (event) => {
   if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
   const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); const edit = previewSelection(line); if (edit) setSourceSelectionFromPreview(edit);
 });
-page.addEventListener("focusout", () => setTimeout(() => { if (!$("#preview-completion-menu").matches(":hover")) hidePreviewCompletions(); }, 0));
+page.addEventListener("focusout", () => setTimeout(() => {
+  if (!page.contains(document.activeElement)) $$(".script-line.empty.preview-empty-context", page).forEach((line) => line.classList.remove("preview-empty-context"));
+  if (!page.contains(document.activeElement)) $$(".preview-draft-row", page).forEach((row) => row.remove());
+  if (!$("#preview-completion-menu").matches(":hover")) hidePreviewCompletions();
+}, 0));
 let previewTouchMenuTimer = 0;
 let previewTouchStart = null;
 let suppressPreviewClickUntil = 0;
@@ -3809,6 +3974,11 @@ $("#preview-context-menu").addEventListener("click", async (event) => {
   if (action === "annotation") return openAnnotationEditor(null, previewContextLine);
   if (action === "undo") { undoDocument(); return; }
   if (action === "redo") { redoDocument(); return; }
+  if (["bold", "italic", "bold-italic", "underline"].includes(action)) {
+    const message = toggleFountainEmphasis(action, contextSelection, contextSurface);
+    if (message) toast(message);
+    return;
+  }
   const message = contextSurface === "source"
     ? await runSourceContextAction(action, contextSelection)
     : await runPreviewClipboardAction(action, previewContextLine, { edit, text });
@@ -3970,11 +4140,11 @@ function persistBeatSheet() {
   const premise = $("#beat-premise").value.trim();
   const beats = currentBeatCards().filter((beat) => beat.text);
   const existingLine = state.metadata.beatSheet?.line;
-  if (!premise && !beats.length) deleteNoteLine(existingLine);
+  if (!premise && !beats.length) deleteNoteLine(existingLine, { record: false });
   else {
     const value = managedBeatSheetSource(premise, beats);
     if (existingLine === null || existingLine === undefined) appendManagedNote(value);
-    else { const lines = sourceLines(); lines[existingLine] = value; setSourceLines(lines); }
+    else { const lines = sourceLines(); lines[existingLine] = value; setSourceLines(lines, { record: false }); }
   }
 }
 function scheduleBeatSheetSave() {
@@ -4010,14 +4180,14 @@ $("#character-note-form").addEventListener("submit", (event) => {
   if (event.submitter?.value !== "default") return;
   event.preventDefault();
   const text = $("#character-note-text").value.trim();
-  if (!text) { deleteNoteLine(state.noteEditor.line); $("#character-note-dialog").close(); return; }
+  if (!text) { deleteNoteLine(state.noteEditor.line, { record: false }); $("#character-note-dialog").close(); return; }
   const value = managedCharacterSource(state.noteEditor.name, text);
   if (state.noteEditor.line === null) appendManagedNote(value);
-  else { const lines = sourceLines(); lines[state.noteEditor.line] = value; setSourceLines(lines); }
+  else { const lines = sourceLines(); lines[state.noteEditor.line] = value; setSourceLines(lines, { record: false }); }
   $("#character-note-dialog").close();
 });
 $("#delete-character-note").addEventListener("click", () => {
-  deleteNoteLine(state.noteEditor?.line);
+  deleteNoteLine(state.noteEditor?.line, { record: false });
   $("#character-note-dialog").close();
 });
 
@@ -4028,11 +4198,11 @@ $("#general-note-form").addEventListener("submit", (event) => {
   if (!text) return;
   const value = managedGeneralSource(text);
   if (state.noteEditor.line === null) appendManagedNote(value);
-  else { const lines = sourceLines(); lines[state.noteEditor.line] = value; setSourceLines(lines); }
+  else { const lines = sourceLines(); lines[state.noteEditor.line] = value; setSourceLines(lines, { record: false }); }
   $("#general-note-dialog").close();
 });
 $("#delete-general-note").addEventListener("click", () => {
-  deleteNoteLine(state.noteEditor?.line);
+  deleteNoteLine(state.noteEditor?.line, { record: false });
   $("#general-note-dialog").close();
 });
 
