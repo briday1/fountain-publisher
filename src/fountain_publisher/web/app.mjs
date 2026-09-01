@@ -339,9 +339,97 @@ let dotMotionTarget = [0, 0];
 let dotOffset = [0, 0];
 let dotMotionDirection = "still";
 let dotMotionSpeed = 20;
+let hyperspaceFrame = 0;
+let hyperspaceLastTime = 0;
+let hyperspaceSpeed = 20;
+const hyperspaceFields = new WeakMap();
 
 function backgroundSurfaces() {
   return [$("#preview-scroll"), $("#source-panel"), $("#beat-sheet-panel"), $("#background-pattern-preview")];
+}
+
+function hyperspaceCanvases() {
+  return $$(".hyperspace-canvas");
+}
+
+function resetHyperspaceStar(star, initial = false) {
+  star.x = Math.random() * 2 - 1;
+  star.y = Math.random() * 2 - 1;
+  star.z = initial ? Math.random() * .96 + .04 : 1;
+}
+
+function drawHyperspace(canvas, dt = 0) {
+  if (canvas.closest("[hidden]")) return;
+  const bounds = canvas.getBoundingClientRect();
+  const width = Math.max(1, Math.round(bounds.width));
+  const height = Math.max(1, Math.round(bounds.height));
+  const ratio = Math.min(devicePixelRatio || 1, 2);
+  if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+  }
+  const context = canvas.getContext("2d");
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  context.clearRect(0, 0, width, height);
+  let stars = hyperspaceFields.get(canvas);
+  const targetCount = Math.max(45, Math.min(180, Math.round(width * height / 7000)));
+  if (!stars || stars.length !== targetCount) {
+    stars = Array.from({ length: targetCount }, () => { const star = {}; resetHyperspaceStar(star, true); return star; });
+    hyperspaceFields.set(canvas, stars);
+  }
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const scale = Math.min(width, height) * .42;
+  const velocity = .08 + hyperspaceSpeed / 125;
+  const starColor = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#ffffff";
+  context.strokeStyle = starColor;
+  context.fillStyle = starColor;
+  for (const star of stars) {
+    const previousZ = star.z;
+    if (dt) star.z -= velocity * dt;
+    let x = centerX + star.x / star.z * scale;
+    let y = centerY + star.y / star.z * scale;
+    if (star.z <= .025 || x < -30 || x > width + 30 || y < -30 || y > height + 30) {
+      resetHyperspaceStar(star);
+      x = centerX + star.x * scale;
+      y = centerY + star.y * scale;
+    }
+    const tailZ = Math.min(1.08, previousZ + velocity * Math.max(dt, .012) * 2.4);
+    const tailX = centerX + star.x / tailZ * scale;
+    const tailY = centerY + star.y / tailZ * scale;
+    const proximity = 1 - Math.min(1, star.z);
+    context.globalAlpha = .12 + proximity * .58;
+    context.lineWidth = .55 + proximity * 1.7;
+    context.beginPath();
+    context.moveTo(tailX, tailY);
+    context.lineTo(x, y);
+    context.stroke();
+    if (!dt) { context.beginPath(); context.arc(x, y, .55 + proximity, 0, Math.PI * 2); context.fill(); }
+  }
+  context.globalAlpha = 1;
+}
+
+function stopHyperspace(clear = true) {
+  cancelAnimationFrame(hyperspaceFrame);
+  hyperspaceFrame = 0;
+  hyperspaceLastTime = 0;
+  if (clear) hyperspaceCanvases().forEach((canvas) => canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height));
+}
+
+function startHyperspace(speed) {
+  hyperspaceSpeed = speed;
+  stopHyperspace(false);
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  hyperspaceCanvases().forEach((canvas) => drawHyperspace(canvas));
+  if (reducedMotion || isMobilePreview()) return;
+  const animate = (time) => {
+    if (!hyperspaceLastTime) hyperspaceLastTime = time;
+    const dt = Math.min((time - hyperspaceLastTime) / 1000, .05);
+    hyperspaceLastTime = time;
+    hyperspaceCanvases().forEach((canvas) => drawHyperspace(canvas, dt));
+    hyperspaceFrame = requestAnimationFrame(animate);
+  };
+  hyperspaceFrame = requestAnimationFrame(animate);
 }
 
 function chooseRandomDotDirection() {
@@ -402,7 +490,7 @@ function startDotMotion(direction, speed) {
 
 function applyPreviewBackground() {
   const storedPattern = localStorage.getItem("fountain-publisher.preview-background") || "dots";
-  const pattern = ["blank", "dots"].includes(storedPattern) ? storedPattern : "dots";
+  const pattern = ["blank", "dots", "hyperspace"].includes(storedPattern) ? storedPattern : "dots";
   const storedRadius = Number(localStorage.getItem("fountain-publisher.preview-dot-radius"));
   const radius = storedRadius >= .6 && storedRadius <= 1.8 ? storedRadius : 1;
   const storedDirection = localStorage.getItem("fountain-publisher.preview-dot-direction") || "still";
@@ -421,8 +509,9 @@ function applyPreviewBackground() {
   $("#preview-dot-speed").value = String(speed);
   $("#preview-dot-speed-value").textContent = String(speed);
   $("#preview-dot-direction-row").hidden = pattern !== "dots";
-  $("#preview-dot-speed-row").hidden = pattern !== "dots";
+  $("#preview-dot-speed-row").hidden = !["dots", "hyperspace"].includes(pattern);
   if (pattern === "dots" && !isMobilePreview()) startDotMotion(direction, speed); else stopDotMotion(true);
+  if (pattern === "hyperspace") startHyperspace(speed); else stopHyperspace();
 }
 
 function escapeHtml(value) {

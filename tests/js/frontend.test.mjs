@@ -899,7 +899,7 @@ test("preview background popup supports themed, directional dot motion", async (
   const settingsMenu = html.match(/<details class="toolbar-menu settings-menu">([\s\S]*?)<\/details>/)?.[1] || "";
   assert.match(settingsMenu, /id="open-background-dialog"[^>]*>Background…<\/button>/);
   assert.match(html, /<dialog id="background-dialog"/);
-  assert.match(html, /id="preview-background"[\s\S]*value="blank">Blank[\s\S]*value="dots" selected>Dots/);
+  assert.match(html, /id="preview-background"[\s\S]*value="blank">Blank[\s\S]*value="dots" selected>Dots[\s\S]*value="hyperspace">Hyperspace/);
   assert.doesNotMatch(html, /value="rain"|Raindrops|preview-rain-speed/);
   assert.doesNotMatch(html, /Damascus|value="damascus"/);
   assert.match(html, /id="preview-dot-radius" type="range" min="0\.6" max="1\.8" step="0\.1" value="1"/);
@@ -916,6 +916,9 @@ test("preview background popup supports themed, directional dot motion", async (
   assert.match(html, /id="background-form"[\s\S]*class="dialog-actions"><button class="primary" value="default">Done<\/button>/);
   assert.doesNotMatch(css, /\.preview-scroll\s*\{[^}]*background-color:/s);
   assert.match(app, /function applyPreviewBackground\(\)/);
+  assert.match(app, /function drawHyperspace\(canvas, dt = 0\)[\s\S]*star\.x \/ star\.z[\s\S]*context\.lineTo\(x, y\)/);
+  assert.match(app, /function startHyperspace\(speed\)[\s\S]*prefers-reduced-motion[\s\S]*requestAnimationFrame/);
+  assert.match(css, /\[data-background="hyperspace"\] > \.hyperspace-canvas[\s\S]*display:\s*block/);
   assert.match(app, /pattern === "dots" && !isMobilePreview\(\)/);
   assert.match(css, /\.beat-guide-layer\s*\{[^}]*position:\s*absolute;/s);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-background", event\.target\.value\)/);

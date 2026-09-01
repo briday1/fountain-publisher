@@ -275,6 +275,11 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .vim-status[data-mode="visual"] { color: var(--metric-scenes-ink); }
 
 .preview-panel { min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; position: relative; background: var(--bg); }
+.hyperspace-canvas { display: none; position: absolute; z-index: 0; inset: 58px 0 0; width: 100%; height: calc(100% - 58px); pointer-events: none; }
+[data-background="hyperspace"] > .hyperspace-canvas, .preview-panel:has(.preview-scroll[data-background="hyperspace"]) > .hyperspace-canvas { display: block; }
+.preview-toolbar, #source-panel > .panel-title, .beat-sheet-header { position: relative; z-index: 2; }
+.preview-scroll, #source-panel > :not(.hyperspace-canvas), #beat-sheet-panel > :not(.hyperspace-canvas) { position: relative; z-index: 1; }
+.preview-scroll[data-background="hyperspace"], #source-panel[data-background="hyperspace"], #beat-sheet-panel[data-background="hyperspace"] { background-color: transparent; background-image: none; }
 .preview-toolbar { flex: 0 0 auto; min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 12px 6px 15px; border-bottom: 1px solid var(--border); background: var(--panel); }
 .preview-heading { display: flex; align-items: center; gap: 16px; }
 .view-switcher { display: flex; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); }
@@ -423,6 +428,7 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 #background-form > label { display: flex; flex-direction: column; gap: 5px; margin: 13px 0; font-weight: 600; }
 #background-form select { height: 35px; border: 1px solid var(--border); background: var(--surface); border-radius: 5px; padding: 0 8px; color: var(--ink); }
 .background-pattern-preview { --preview-dot-radius: 1px; width: 100%; height: 92px; overflow: hidden; border: 1px solid var(--border); border-radius: 7px; margin: 13px 0; background-color: var(--bg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--surface) 35%, transparent); }
+.background-pattern-preview .hyperspace-canvas { inset: 0; width: 100%; height: 100%; }
 .background-pattern-preview span { display: block; width: 68px; height: 52px; margin: 20px auto; border: 1px solid var(--border-strong); border-radius: 3px; background: var(--paper); box-shadow: var(--shadow); }
 #background-form .range-setting { width: 100%; }
 #background-form .range-setting input { flex: 1; width: auto; }
@@ -732,6 +738,7 @@ button:disabled { cursor: default; opacity: .45; }
   .workspace-zoom-actions { display: none; }
   .preview-scroll { padding: 0; overflow-x: hidden; scrollbar-gutter: auto; }
   #preview-scroll, #source-panel, #beat-sheet-panel { background-image: none !important; }
+  .hyperspace-canvas { display: none !important; }
   #source-panel { background: var(--source-bg); }
   #source-panel .editor-shell, #source-panel .editor-footer { width: 100%; margin: 0; border: 0; border-radius: 0; box-shadow: none; zoom: 1; }
   .preview-panel.beat-runner-on .preview-scroll { padding-top: 0; }
