@@ -276,6 +276,7 @@ const state = {
   activeBeat: 0,
   characterAnalyticsScene: null,
   browserLastPageEighths: 0,
+  lastSourceValue: "",
 };
 
 function emptyMetadata() {
@@ -1726,7 +1727,7 @@ function restoreHistory(index) {
   if (index < 0 || index >= state.history.length || index === state.historyIndex) return;
   const previewLine = page.contains(document.activeElement) ? Number(document.activeElement.dataset.line) : null;
   const sourcePosition = source.selectionStart;
-  state.historyIndex = index; source.value = state.history[index]; sourceChanged({ fromPreview: previewLine !== null, record: false });
+  state.historyIndex = index; source.value = state.history[index]; sourceChanged({ fromPreview: previewLine !== null, record: false, rebaseBeats: false });
   if (previewLine !== null) renderPreview({ focusLine: Math.min(previewLine, source.value.split("\n").length - 1) });
   else { source.focus(); source.setSelectionRange(Math.min(sourcePosition, source.value.length), Math.min(sourcePosition, source.value.length)); }
 }
@@ -1734,7 +1735,63 @@ function restoreHistory(index) {
 function undoDocument() { restoreHistory(state.historyIndex - 1); }
 function redoDocument() { restoreHistory(state.historyIndex + 1); }
 
-function sourceChanged({ fromPreview = false, record = true } = {}) {
+function transformBeatRange(range, editStart, oldCount, newCount) {
+  if (!range) return null;
+  const start = range.startLine;
+  const endExclusive = range.endLine + 1;
+  const editEnd = editStart + oldCount;
+  const delta = newCount - oldCount;
+  if (editEnd <= start) return { startLine: start + delta, endLine: range.endLine + delta };
+  if (editStart >= endExclusive) return range;
+  if (!newCount && editStart <= start && editEnd >= endExclusive) return null;
+  const nextStart = start < editStart ? start : editStart;
+  const survivingTail = endExclusive > editEnd ? endExclusive + delta : nextStart;
+  const replacementEnd = editStart + newCount;
+  const nextEndExclusive = Math.max(nextStart + 1, survivingTail, replacementEnd);
+  return { startLine: nextStart, endLine: nextEndExclusive - 1 };
+}
+
+function rebaseBeatRanges(previousValue, nextValue) {
+  if (!previousValue || previousValue === nextValue) return nextValue;
+  const previousLines = previousValue.replace(/\r\n?/g, "\n").split("\n");
+  const nextLines = nextValue.replace(/\r\n?/g, "\n").split("\n");
+  const previousSheet = parseManagedNotes(previousLines).beatSheet;
+  const nextSheet = parseManagedNotes(nextLines).beatSheet;
+  if (previousSheet.line === null || nextSheet.line === null || !previousSheet.beats.some((beat) => beat.range)) return nextValue;
+
+  let prefix = 0;
+  while (prefix < previousLines.length && prefix < nextLines.length && previousLines[prefix] === nextLines[prefix]) prefix += 1;
+  let previousSuffix = previousLines.length;
+  let nextSuffix = nextLines.length;
+  while (previousSuffix > prefix && nextSuffix > prefix && previousLines[previousSuffix - 1] === nextLines[nextSuffix - 1]) {
+    previousSuffix -= 1;
+    nextSuffix -= 1;
+  }
+  const oldCount = previousSuffix - prefix;
+  const newCount = nextSuffix - prefix;
+  if (previousSheet.line >= prefix && previousSheet.line < previousSuffix
+      && nextSheet.line >= prefix && nextSheet.line < nextSuffix) return nextValue;
+
+  const beats = nextSheet.beats.map((beat) => ({
+    ...beat,
+    range: transformBeatRange(beat.range, prefix, oldCount, newCount),
+  }));
+  nextLines[nextSheet.line] = managedBeatSheetSource(nextSheet.premise, beats);
+  return nextLines.join("\n");
+}
+
+function sourceChanged({ fromPreview = false, record = true, rebaseBeats = true } = {}) {
+  if (rebaseBeats) {
+    const selectionStart = source.selectionStart;
+    const selectionEnd = source.selectionEnd;
+    const selectionDirection = source.selectionDirection;
+    const rebased = rebaseBeatRanges(state.lastSourceValue, source.value);
+    if (rebased !== source.value) {
+      source.value = rebased;
+      source.setSelectionRange(Math.min(selectionStart, rebased.length), Math.min(selectionEnd, rebased.length), selectionDirection);
+    }
+  }
+  state.lastSourceValue = source.value;
   if (record) recordHistory();
   document.body.classList.toggle("dirty", source.value !== state.savedSource);
   if (!fromPreview || state.previewMode === "source") renderEditorChrome();
@@ -1946,8 +2003,9 @@ async function openFile() {
 
 function setDocument(text, filename, saved = false, githubFile = null) {
   source.value = text; state.history = [text]; state.historyIndex = 0; state.filename = filename || "Untitled.fountain"; if (saved) state.savedSource = text;
+  state.lastSourceValue = text;
   state.githubFile = githubFile;
-  $("#filename").textContent = state.filename; document.title = `${state.filename} — Fountain Publisher`; sourceChanged();
+  $("#filename").textContent = state.filename; document.title = `${state.filename} — Fountain Publisher`; sourceChanged({ rebaseBeats: false });
 }
 
 async function saveFile(saveAs = false) {

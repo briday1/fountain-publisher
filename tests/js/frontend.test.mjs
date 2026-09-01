@@ -661,6 +661,9 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /function managedBeatSheetSource\(premise, beats\)/);
   assert.match(app, /Next Beat:[\s\S]*data-assign-beat-area[\s\S]*data-next-beat/);
   assert.match(app, /function selectedBeatArea\(\)[\s\S]*function assignCurrentBeatArea\(\)/);
+  assert.match(app, /function transformBeatRange\(range, editStart, oldCount, newCount\)[\s\S]*editEnd <= start[\s\S]*editStart >= endExclusive[\s\S]*return null;/);
+  assert.match(app, /function rebaseBeatRanges\(previousValue, nextValue\)[\s\S]*while \(prefix[\s\S]*previousSuffix[\s\S]*transformBeatRange\(beat\.range, prefix, oldCount, newCount\)[\s\S]*managedBeatSheetSource/);
+  assert.match(app, /function sourceChanged\(\{ fromPreview = false, record = true, rebaseBeats = true \} = \{\}\)[\s\S]*rebaseBeatRanges\(state\.lastSourceValue, source\.value\)[\s\S]*state\.lastSourceValue = source\.value/);
   assert.match(app, /function jumpToBeatArea\(beat\)[\s\S]*!\["empty", "note", "boneyard"\]\.includes/);
   assert.match(app, /function setSourceLines\(lines\)[\s\S]*selectionDirection[\s\S]*setSelectionRange/);
   assert.doesNotMatch(app, /beatSceneEntries|Connect to scene/);
