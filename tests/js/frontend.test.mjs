@@ -705,7 +705,8 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(css, /\.beat-sheet-workspace\s*\{[^}]*width:\s*816px;/s);
   assert.match(css, /#source-panel \.editor-shell, #source-panel \.editor-footer, \.beat-sheet-workspace, \.beat-sheet-actions\s*\{\s*zoom:\s*var\(--workspace-zoom, 1\);/s);
   assert.match(css, /\.beat-sheet-actions\s*\{[^}]*width:\s*816px;/s);
-  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.beat-sheet-workspace\s*\{[^}]*--beat-compact-control:\s*clamp\(20px, calc\(17px \+ \.85vw\), 24px\);[^}]*--beat-arrow-popout:\s*clamp\(22px, calc\(19px \+ 1\.1vw\), 28px\);[\s\S]*\.beat-list\s*\{[^}]*--beat-row-size:\s*clamp\(39px, calc\(34\.5px \+ 1\.4vw\), 46px\);[^}]*--beat-node-size:\s*clamp\(25px, calc\(21\.2px \+ 1\.2vw\), 31px\);[\s\S]*\.beat-assignment-wrap\s*\{[^}]*max-width:\s*clamp\(96px, 20vw, 160px\);/s);
+  assert.match(css, /#beat-sheet-panel\s*\{[^}]*container-type:\s*inline-size;/s);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.beat-sheet-workspace\s*\{[^}]*--beat-compact-control:\s*clamp\(20px, calc\(17px \+ \.85cqi\), 24px\);[^}]*align-self:\s*stretch;[^}]*width:\s*100%;[^}]*min-width:\s*100%;[^}]*max-width:\s*none;[\s\S]*\.beat-sheet-empty-state, \.premise-field, \.beat-sheet-title, \.beat-list\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*none;[\s\S]*\.beat-list\s*\{[^}]*--beat-row-size:\s*clamp\(39px, calc\(34\.5px \+ 1\.4cqi\), 46px\);[\s\S]*\.beat-assignment-wrap\s*\{[^}]*max-width:\s*clamp\(96px, 20cqi, 160px\);/s);
   assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.beat-sheet-title h3\s*\{\s*display:\s*none;[\s\S]*\.beat-sheet-title > div:last-child\s*\{[^}]*flex-wrap:\s*nowrap;/s);
   assert.match(css, /#source-panel \.panel-title\s*\{[^}]*justify-content:\s*flex-start;[^}]*gap:\s*16px;[^}]*background:\s*var\(--panel\);/s);
 });

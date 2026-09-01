@@ -504,8 +504,8 @@ button:disabled { cursor: default; opacity: .45; }
 .dialog-actions .danger { border-color: color-mix(in srgb, var(--danger) 52%, var(--border)); background: color-mix(in srgb, var(--danger) 11%, var(--surface)); color: color-mix(in srgb, var(--danger) 86%, var(--ink)); }
 .dialog-actions .danger:hover { border-color: color-mix(in srgb, var(--danger) 65%, var(--border)); background: color-mix(in srgb, var(--danger) 17%, var(--surface)); color: color-mix(in srgb, var(--danger) 92%, var(--ink)); }
 
-#beat-sheet-panel { min-width: 0; min-height: 0; overflow: hidden; background-color: var(--bg); color: var(--ink); }
-.beat-sheet-shell { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+#beat-sheet-panel { min-width: 0; min-height: 0; overflow: hidden; background-color: var(--bg); color: var(--ink); container-type: inline-size; }
+.beat-sheet-shell { width: 100%; height: 100%; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .beat-sheet-header { min-height: 58px; display: flex; align-items: center; justify-content: flex-start; gap: 16px; padding: 6px 12px 6px 15px; border-bottom: 1px solid var(--border); background: var(--panel); }
 .beat-sheet-header small { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .12em; }
 .beat-sheet-header h2 { margin: 1px 0 0; font-size: 16px; line-height: 1.1; }
@@ -754,29 +754,30 @@ button:disabled { cursor: default; opacity: .45; }
   .beat-runner-actions button[data-open-beat-sheet] { display: none; }
   .beat-guide-layer.empty .beat-runner-actions .empty-beat-sheet-button { display: block; white-space: nowrap; }
   .beat-runner-actions .assign-beat-area { max-width: none; white-space: nowrap; line-height: 1.05; }
-  #beat-sheet-panel { grid-column: 1; }
-  .beat-sheet-workspace { --beat-compact-control: clamp(20px, calc(17px + .85vw), 24px); --beat-arrow-popout: clamp(22px, calc(19px + 1.1vw), 28px); width: 100%; margin: 0; padding: clamp(10px, 1.8vw, 14px) clamp(10px, 1.8vw, 14px) clamp(10px, 1.8vw, 14px) var(--beat-arrow-popout); border: 0; border-radius: 0; box-shadow: none; zoom: 1; }
-  .beat-sheet-title { align-items: center; gap: clamp(5px, 1.2vw, 10px); margin-bottom: clamp(6px, 1.2vw, 10px); }
+  #beat-sheet-panel { grid-column: 1; width: 100%; max-width: none; }
+  .beat-sheet-workspace { --beat-compact-control: clamp(20px, calc(17px + .85cqi), 24px); --beat-arrow-popout: clamp(22px, calc(19px + 1.1cqi), 28px); align-self: stretch; width: 100%; min-width: 100%; max-width: none; margin: 0; padding: clamp(10px, 1.8cqi, 14px) clamp(10px, 1.8cqi, 14px) clamp(10px, 1.8cqi, 14px) var(--beat-arrow-popout); border: 0; border-radius: 0; box-shadow: none; zoom: 1; }
+  .beat-sheet-empty-state, .premise-field, .beat-sheet-title, .beat-list { width: 100%; max-width: none; }
+  .beat-sheet-title { align-items: center; gap: clamp(5px, 1.2cqi, 10px); margin-bottom: clamp(6px, 1.2cqi, 10px); }
   .beat-sheet-title h3 { display: none; }
-  .beat-sheet-title > div:last-child { flex-wrap: nowrap; gap: clamp(2px, .6vw, 5px); }
-  .beat-sheet-title button { padding: clamp(5px, .8vw, 7px) clamp(6px, 1.2vw, 10px); white-space: nowrap; font-size: clamp(9px, 1.45vw, 11px); }
+  .beat-sheet-title > div:last-child { flex-wrap: nowrap; gap: clamp(2px, .6cqi, 5px); }
+  .beat-sheet-title button { padding: clamp(5px, .8cqi, 7px) clamp(6px, 1.2cqi, 10px); white-space: nowrap; font-size: clamp(9px, 1.45cqi, 11px); }
   .beat-sheet-title button span { display: none; }
   .beat-sheet-title button b { display: inline; font: inherit; }
   .beat-progress-graph header span { display: none; }
   .beat-progress-graph header small { font-size: 0; }
   .beat-progress-graph header small i { margin-left: 5px; }
   .beat-sheet-actions { width: 100%; margin: 0; border-inline: 0; border-bottom: 0; border-radius: 0; box-shadow: none; zoom: 1; }
-  .beat-list { --beat-row-size: clamp(39px, calc(34.5px + 1.4vw), 46px); --beat-node-size: clamp(25px, calc(21.2px + 1.2vw), 31px); --beat-node-offset: calc((var(--beat-row-size) - var(--beat-node-size)) / 2); --beat-arrow-lane: 0px; }
+  .beat-list { --beat-row-size: clamp(39px, calc(34.5px + 1.4cqi), 46px); --beat-node-size: clamp(25px, calc(21.2px + 1.2cqi), 31px); --beat-node-offset: calc((var(--beat-row-size) - var(--beat-node-size)) / 2); --beat-arrow-lane: 0px; }
   .beat-graph-node { grid-template-columns: var(--beat-node-size) minmax(0, 1fr); gap: 6px; }
-  .beat-graph-node > .beat-number { font-size: clamp(9px, 1.35vw, 11px); }
-  .beat-node-box { min-height: var(--beat-row-size); gap: clamp(3px, .7vw, 6px); padding: 2px clamp(3px, .8vw, 6px); }
-  .beat-text { height: calc(var(--beat-row-size) - 5px); font-size: clamp(11px, 1.7vw, 13px); }
-  .beat-assignment-wrap { width: max-content; max-width: clamp(96px, 20vw, 160px); grid-template-columns: minmax(0, 1fr) var(--beat-compact-control) var(--beat-compact-control); }
+  .beat-graph-node > .beat-number { font-size: clamp(9px, 1.35cqi, 11px); }
+  .beat-node-box { min-height: var(--beat-row-size); gap: clamp(3px, .7cqi, 6px); padding: 2px clamp(3px, .8cqi, 6px); }
+  .beat-text { height: calc(var(--beat-row-size) - 5px); font-size: clamp(11px, 1.7cqi, 13px); }
+  .beat-assignment-wrap { width: max-content; max-width: clamp(96px, 20cqi, 160px); grid-template-columns: minmax(0, 1fr) var(--beat-compact-control) var(--beat-compact-control); }
   .beat-assignment-wrap:not(:has(.beat-unassign)) { grid-template-columns: minmax(0, 1fr) var(--beat-compact-control); }
-  .beat-assignment { gap: clamp(3px, .6vw, 5px); font-size: clamp(7px, 1.2vw, 9px); }
-  .beat-assignment small { max-width: clamp(68px, 13vw, 110px); }
+  .beat-assignment { gap: clamp(3px, .6cqi, 5px); font-size: clamp(7px, 1.2cqi, 9px); }
+  .beat-assignment small { max-width: clamp(68px, 13cqi, 110px); }
   .beat-unassign, .beat-remove { width: var(--beat-compact-control); height: var(--beat-compact-control); }
-  .beat-shift { top: calc((var(--beat-row-size) - clamp(33px, 4.8vw, 39px)) / 2); left: calc(-1 * var(--beat-arrow-popout)); width: var(--beat-arrow-popout); height: clamp(33px, 4.8vw, 39px); }
+  .beat-shift { top: calc((var(--beat-row-size) - clamp(33px, 4.8cqi, 39px)) / 2); left: calc(-1 * var(--beat-arrow-popout)); width: var(--beat-arrow-popout); height: clamp(33px, 4.8cqi, 39px); }
   .beat-card-fields label { align-items: flex-start; flex-direction: column; }
   .beat-card-fields select { width: 100%; max-width: none; }
   .beat-sheet-actions span { display: none; }
