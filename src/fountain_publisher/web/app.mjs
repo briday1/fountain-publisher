@@ -3319,6 +3319,23 @@ async function runSourceContextAction(action, context) {
   return "";
 }
 
+function replaceExactAsteriskEmphasis(text, count, replacementCount) {
+  const stars = `\\*{${count}}`;
+  const exact = new RegExp(`(?<!\\*)${stars}(?!\\*)(?=\\S)(.+?\\S)(?<!\\*)${stars}(?!\\*)`, "g");
+  const replacement = "*".repeat(replacementCount);
+  return text.replace(exact, `${replacement}$1${replacement}`);
+}
+
+function normalizeNestedFountainEmphasis(text, action) {
+  if (action === "underline") return text.replace(/(?<!_)_(?!_)(?=\S)(.+?\S)(?<!_)_(?!_)/g, "$1");
+  if (action === "italic") return replaceExactAsteriskEmphasis(replaceExactAsteriskEmphasis(text, 3, 2), 1, 0);
+  if (action === "bold") return replaceExactAsteriskEmphasis(replaceExactAsteriskEmphasis(text, 3, 1), 2, 0);
+  if (action === "bold-italic") {
+    return replaceExactAsteriskEmphasis(replaceExactAsteriskEmphasis(replaceExactAsteriskEmphasis(text, 3, 0), 2, 0), 1, 0);
+  }
+  return text;
+}
+
 function toggleFountainEmphasis(action, context, surface) {
   const markers = { bold: "**", italic: "*", "bold-italic": "***", underline: "_" };
   const marker = markers[action];
@@ -3345,9 +3362,9 @@ function toggleFountainEmphasis(action, context, surface) {
     else source.focus();
     return "";
   } else {
-    replacement = `${marker}${selected}${marker}`;
+    replacement = `${marker}${normalizeNestedFountainEmphasis(selected, action)}${marker}`;
     selectionStart = start + marker.length;
-    selectionEnd = end + marker.length;
+    selectionEnd = start + replacement.length - marker.length;
   }
   source.setRangeText(replacement, start, end, "select");
   source.setSelectionRange(selectionStart, selectionEnd);

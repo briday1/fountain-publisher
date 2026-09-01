@@ -335,7 +335,8 @@ test("the unified editor menu toggles supported Fountain emphasis", async () => 
   assert.doesNotMatch(html, /data-context-action="strikethrough"/);
   assert.match(app, /function toggleFountainEmphasis\(action, context, surface\)/);
   assert.match(app, /const markers = \{ bold: "\*\*", italic: "\*", "bold-italic": "\*\*\*", underline: "_" \}/);
-  assert.match(app, /selected\.startsWith\(marker\)[\s\S]*source\.value\.slice\(Math\.max\(0, start - marker\.length\), start\) === marker[\s\S]*replacement = `\$\{marker\}\$\{selected\}\$\{marker\}`/);
+  assert.match(app, /function normalizeNestedFountainEmphasis\(text, action\)[\s\S]*action === "italic"[\s\S]*action === "bold"[\s\S]*action === "bold-italic"/);
+  assert.match(app, /selected\.startsWith\(marker\)[\s\S]*source\.value\.slice\(Math\.max\(0, start - marker\.length\), start\) === marker[\s\S]*replacement = `\$\{marker\}\$\{normalizeNestedFountainEmphasis\(selected, action\)\}\$\{marker\}`/);
   assert.match(app, /toggleFountainEmphasis\(action, contextSelection, contextSurface\)/);
 });
 
