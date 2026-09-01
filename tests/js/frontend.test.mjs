@@ -663,6 +663,8 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /const grip = `<svg[\s\S]*<circle[\s\S]*const up = `<svg[\s\S]*const down = `<svg/);
   assert.match(app, /function renderBeatGuide\(\)[\s\S]*beat-guide-layer/);
   assert.match(app, /beat-graph-node[\s\S]*beat-assignment[\s\S]*data-beat-jump/);
+  assert.match(app, /\? `Lines \$\{beat\.range\.startLine \+ 1\}–\$\{beat\.range\.endLine \+ 1\}`[\s\S]*: "Unassigned"/);
+  assert.doesNotMatch(app, /Scene \$\{scene\.number\} · \$\{scene\.heading\}/);
   assert.match(app, /beat-unassign[\s\S]*beatCard\(\{ \.\.\.beat, range: null \}\)[\s\S]*persistBeatSheet\(\)/);
   assert.match(app, /event\.key !== "Enter" \|\| !event\.target\.matches\("\.beat-text"\)[\s\S]*nextElementSibling[\s\S]*\.focus\(\)/);
   assert.match(app, /function persistBeatSheet\(\)[\s\S]*function scheduleBeatSheetSave\(\)/);
