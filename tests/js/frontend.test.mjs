@@ -275,6 +275,7 @@ test("preview edits are source-backed and preserve the viewport", async () => {
   assert.match(app, /page\.addEventListener\("paste"/);
   assert.match(app, /insertFromPaste/);
   assert.match(app, /function fountainInlineSourceMap/);
+  assert.match(app, /data-type="\$\{escapeHtml\(type\)\}"/);
   assert.match(app, /const startMap =/);
   assert.match(app, /const endMap =/);
   assert.match(app, /const caretMap =/);
@@ -435,6 +436,8 @@ test("the active non-printing line remains visible as editor context", async () 
   assert.match(app, /page\.addEventListener\("pointerup"[\s\S]*setSourceSelectionFromPreview\(edit\); updatePreviewCursor\(\)/);
   assert.match(app, /page\.addEventListener\("focusout"[\s\S]*preview-empty-context/);
   assert.match(app, /draftBefore: insertedText\.includes\("\\n"\) && before\.length === 0/);
+  assert.match(app, /const nextType = classifyLines\(source\.value\)\[focusLine\]\?\.type;[\s\S]*nextType !== edit\.startLine\.dataset\.type[\s\S]*renderPreview\(\{ focusLine, focusOffset \}\)/);
+  assert.match(app, /function syncPreviewLine[\s\S]*nextType !== element\.dataset\.type[\s\S]*renderPreview\(\{ focusLine: index, focusOffset: newDisplay\.length \}\)/);
   assert.match(css, /\.script-line\.empty\.preview-draft-row\s*\{[^}]*display:\s*block !important;[^}]*height:\s*16px;/s);
 });
 

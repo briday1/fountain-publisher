@@ -745,7 +745,7 @@ function previewLineHtml(line, sceneLabel = null, annotation = null) {
     ? `<button class="annotation-orb" type="button" data-annotation-line="${annotation.index}" title="${escapeHtml(annotation.text)}" aria-label="Edit annotation: ${escapeHtml(annotation.text)}"></button>`
     : "";
   const spellcheckAttr = type === "character" ? ` spellcheck="false"` : "";
-  return `<div class="${className}" data-line="${line.index}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(display)}"${spellcheckAttr}>${content}${orb}</div>`;
+  return `<div class="${className}" data-line="${line.index}" data-type="${escapeHtml(type)}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(display)}"${spellcheckAttr}>${content}${orb}</div>`;
 }
 
 function annotationAfter(lines, index) {
@@ -850,6 +850,7 @@ function insertPreviewDraftRow(target) {
   const draft = document.createElement("div");
   draft.className = "script-line empty preview-empty-context preview-draft-row";
   draft.dataset.line = String(draftLine);
+  draft.dataset.type = "empty";
   draft.dataset.prefix = "";
   draft.dataset.display = "";
   draft.innerHTML = "<br>";
@@ -1104,6 +1105,8 @@ function syncPreviewLine(element) {
   const offset = sourceOffsetForLine(lines, index, rawStart + newEnd - start);
   source.setSelectionRange(offset, offset);
   sourceChanged({ fromPreview: true });
+  const nextType = classifyLines(source.value)[index]?.type;
+  if (nextType && nextType !== element.dataset.type) renderPreview({ focusLine: index, focusOffset: newDisplay.length });
 }
 
 function replacePreviewSelection(edit, text) {
@@ -1139,6 +1142,12 @@ function replacePreviewSelection(edit, text) {
   const sourceOffset = sourceOffsetForLine(lines, focusLine, Math.max(0, sourceColumn));
   source.setSelectionRange(sourceOffset, sourceOffset);
   sourceChanged({ fromPreview: true });
+  const nextType = classifyLines(source.value)[focusLine]?.type;
+  const typeChanged = startIndex === endIndex && displayLines.length === 1 && nextType !== edit.startLine.dataset.type;
+  if (typeChanged) {
+    renderPreview({ focusLine, focusOffset });
+    return;
+  }
   if (startIndex === endIndex && displayLines.length === 1) {
     edit.startLine.innerHTML = fountainInlineHtml(displayLines[0]) || "<br>";
     edit.startLine.dataset.display = displayLines[0];
