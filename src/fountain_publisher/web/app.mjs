@@ -346,6 +346,15 @@ let hyperspaceSpeed = 20;
 let hyperspaceDensity = 100;
 let hyperspaceColors = false;
 const hyperspaceFields = new WeakMap();
+const AMBIENT_PATTERNS = ["geometric", "constellation", "topographic", "tiles"];
+const ambientFields = new WeakMap();
+const ambientTileFields = new WeakMap();
+let ambientFrame = 0;
+let ambientStartedAt = 0;
+let ambientPattern = "geometric";
+let ambientSpeed = 20;
+let ambientDensity = 100;
+let ambientColors = false;
 
 function backgroundSurfaces() {
   return [$("#preview-scroll"), $("#source-panel"), $("#beat-sheet-panel"), $("#background-pattern-preview")];
@@ -431,7 +440,7 @@ function startHyperspace(speed, density, colorsEnabled) {
   stopHyperspace(false);
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   hyperspaceCanvases().forEach((canvas) => drawHyperspace(canvas));
-  if (reducedMotion || isMobilePreview()) return;
+  if (speed === 0 || reducedMotion || isMobilePreview()) return;
   const animate = (time) => {
     if (!hyperspaceLastTime) hyperspaceLastTime = time;
     const dt = Math.min((time - hyperspaceLastTime) / 1000, .05);
@@ -440,6 +449,138 @@ function startHyperspace(speed, density, colorsEnabled) {
     hyperspaceFrame = requestAnimationFrame(animate);
   };
   hyperspaceFrame = requestAnimationFrame(animate);
+}
+
+function ambientPalette() {
+  const dark = document.documentElement.dataset.effectiveTheme === "dark";
+  const neutral = dark ? "#d6dadd" : "#30363b";
+  return ambientColors
+    ? (dark ? [neutral, "#8edbe5", "#e5a8cf", "#eadb91"] : [neutral, "#277f8b", "#a65083", "#8c7625"])
+    : [neutral];
+}
+
+function ambientCanvas(canvas) {
+  const bounds = canvas.getBoundingClientRect();
+  const width = Math.max(1, Math.round(bounds.width));
+  const height = Math.max(1, Math.round(bounds.height));
+  const ratio = Math.min(devicePixelRatio || 1, 2);
+  if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+    canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
+  }
+  const context = canvas.getContext("2d");
+  context.setTransform(ratio, 0, 0, ratio, 0, 0); context.clearRect(0, 0, width, height);
+  return { context, width, height };
+}
+
+function ambientPoints(canvas, count) {
+  let field = ambientFields.get(canvas);
+  if (!field || field.pattern !== ambientPattern || field.points.length !== count) {
+    field = { pattern: ambientPattern, points: Array.from({ length: count }, (_, index) => ({
+      x: (Math.sin(index * 91.17) * 43758.5453 % 1 + 1) % 1,
+      y: (Math.sin(index * 47.63 + 2) * 24634.6345 % 1 + 1) % 1,
+      size: .45 + ((index * 37) % 100) / 100,
+      phase: index * 1.618,
+    })) };
+    ambientFields.set(canvas, field);
+  }
+  return field.points;
+}
+
+function nextTileState() {
+  return { energy: .08 + Math.random() * .72 };
+}
+
+function ambientTiles(canvas, columns, rows, now) {
+  let field = ambientTileFields.get(canvas);
+  if (!field || field.columns !== columns || field.rows !== rows) {
+    field = { columns, rows, lastTime: now, walkers: Array.from({ length: 4 }, () => ({ x: Math.random() * columns, y: Math.random() * rows, vx: Math.random() * .7 - .35, vy: Math.random() * .7 - .35, phase: Math.random() * Math.PI * 2 })), tiles: Array.from({ length: columns * rows }, () => {
+      const state = nextTileState();
+      return { from: state, to: nextTileState(), started: now - Math.random() * 5000, duration: 5000 + Math.random() * 7000, value: state };
+    }) };
+    ambientTileFields.set(canvas, field);
+  }
+  const speedRatio = ambientSpeed / 100;
+  const pace = .7 + speedRatio * speedRatio * 6;
+  const dt = Math.min(.08, Math.max(0, (now - field.lastTime) / 1000)); field.lastTime = now;
+  field.walkers.forEach((walker) => {
+    walker.phase += dt * (.11 + ambientSpeed * .002);
+    walker.vx += Math.sin(walker.phase * .73) * dt * .035; walker.vy += Math.cos(walker.phase * .61) * dt * .035;
+    const length = Math.max(.01, Math.hypot(walker.vx, walker.vy)); const velocity = (.04 + speedRatio * speedRatio * 4) / length;
+    walker.x += walker.vx * velocity * dt; walker.y += walker.vy * velocity * dt;
+    if (walker.x < -2) walker.x = columns + 2; else if (walker.x > columns + 2) walker.x = -2;
+    if (walker.y < -2) walker.y = rows + 2; else if (walker.y > rows + 2) walker.y = -2;
+  });
+  field.tiles.forEach((tile) => {
+    if (now >= tile.started + tile.duration) {
+      tile.from = tile.value; tile.to = nextTileState(); tile.started = now;
+      tile.duration = (4500 + Math.random() * 7500) / pace;
+    }
+    const progress = Math.max(0, Math.min(1, (now - tile.started) / tile.duration));
+    const eased = progress * progress * (3 - 2 * progress);
+    tile.value = Object.fromEntries(Object.keys(tile.to).map((key) => [key, tile.from[key] + (tile.to[key] - tile.from[key]) * eased]));
+  });
+  return field;
+}
+
+function drawAmbient(canvas, time = 0) {
+  if (canvas.closest("[hidden]")) return;
+  const { context, width, height } = ambientCanvas(canvas);
+  const palette = ambientPalette();
+  const motion = time * (.000035 + ambientSpeed * .0000018);
+  const scale = ambientDensity / 100;
+  context.lineJoin = "round"; context.lineCap = "round";
+  if (ambientPattern === "geometric") {
+    const points = ambientPoints(canvas, Math.max(8, Math.round(20 * scale)));
+    points.forEach((point, index) => {
+      const x = (point.x * width + Math.sin(motion + point.phase) * 34 + width) % width;
+      const y = (point.y * height + Math.cos(motion * .73 + point.phase) * 27 + height) % height;
+      const radius = 7 + point.size * 17; const sides = [3, 4, 6][index % 3];
+      context.save(); context.translate(x, y); context.rotate(motion * (index % 2 ? 1 : -1) + point.phase);
+      context.strokeStyle = palette[index % palette.length]; context.globalAlpha = .09 + point.size * .13; context.lineWidth = 1;
+      context.beginPath();
+      for (let side = 0; side <= sides; side += 1) { const angle = side / sides * Math.PI * 2; const px = Math.cos(angle) * radius; const py = Math.sin(angle) * radius; if (!side) context.moveTo(px, py); else context.lineTo(px, py); }
+      context.stroke(); context.restore();
+    });
+  } else if (ambientPattern === "constellation") {
+    const points = ambientPoints(canvas, Math.max(14, Math.round(38 * scale))).map((point) => ({ ...point, px: (point.x * width + Math.sin(motion + point.phase) * 13 + width) % width, py: (point.y * height + Math.cos(motion * .8 + point.phase) * 11 + height) % height }));
+    context.strokeStyle = palette[0]; context.lineWidth = .7;
+    points.forEach((point, index) => points.slice(index + 1).forEach((other) => { const distance = Math.hypot(point.px - other.px, point.py - other.py); if (distance < 105) { context.globalAlpha = (1 - distance / 105) * .16; context.beginPath(); context.moveTo(point.px, point.py); context.lineTo(other.px, other.py); context.stroke(); } }));
+    points.forEach((point, index) => { context.fillStyle = palette[index % palette.length]; context.globalAlpha = .28; context.beginPath(); context.arc(point.px, point.py, 1 + point.size, 0, Math.PI * 2); context.fill(); });
+  } else if (ambientPattern === "topographic") {
+    const lines = Math.max(7, Math.round(13 * scale));
+    for (let row = 0; row < lines; row += 1) { context.strokeStyle = palette[row % palette.length]; context.globalAlpha = .12; context.lineWidth = .8; context.beginPath(); for (let x = -10; x <= width + 10; x += 8) { const y = (row + .5) / lines * height + Math.sin(x * .014 + row * .72 + motion) * 18 + Math.sin(x * .031 - motion * .7) * 7; if (x < 0) context.moveTo(x, y); else context.lineTo(x, y); } context.stroke(); }
+  } else if (ambientPattern === "tiles") {
+    const unit = Math.max(24, 46 / Math.sqrt(scale));
+    const columns = Math.ceil(width / unit) + 2; const rows = Math.ceil(height / unit) + 2;
+    const tileField = ambientTiles(canvas, columns, rows, performance.now()); const tiles = tileField.tiles;
+    for (let row = 0; row < rows; row += 1) for (let column = 0; column < columns; column += 1) {
+      const tile = tiles[row * columns + column].value;
+      const neighbors = [[row - 1, column], [row + 1, column], [row, column - 1], [row, column + 1]]
+        .filter(([nearRow, nearColumn]) => nearRow >= 0 && nearRow < rows && nearColumn >= 0 && nearColumn < columns)
+        .map(([nearRow, nearColumn]) => tiles[nearRow * columns + nearColumn].value.energy);
+      const spread = neighbors.reduce((total, value) => total + value, tile.energy) / (neighbors.length + 1);
+      const migration = tileField.walkers.reduce((strongest, walker) => Math.max(strongest, Math.exp(-(Math.hypot(column - walker.x, row - walker.y) ** 2) / 9)), 0);
+      const shade = Math.min(1, tile.energy * .38 + spread * .22 + migration * .72);
+      const left = (column - 1) * unit + 2; const top = (row - 1) * unit + 2; const size = unit - 4;
+      context.fillStyle = palette[(Math.abs(row * 3 + column * 5)) % palette.length]; context.globalAlpha = .01 + shade * .09;
+      context.fillRect(left, top, size, size);
+      context.strokeStyle = palette[0]; context.globalAlpha = .035 + shade * .045; context.lineWidth = .7; context.strokeRect(left, top, size, size);
+    }
+  }
+  context.globalAlpha = 1;
+}
+
+function stopAmbient(clear = true) {
+  cancelAnimationFrame(ambientFrame); ambientFrame = 0; ambientStartedAt = 0;
+  if (clear) hyperspaceCanvases().forEach((canvas) => canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height));
+}
+
+function startAmbient(pattern, speed, density, colorsEnabled) {
+  ambientPattern = pattern; ambientSpeed = speed; ambientDensity = density; ambientColors = colorsEnabled; stopAmbient(false);
+  hyperspaceCanvases().forEach((canvas) => drawAmbient(canvas));
+  if (speed === 0 || matchMedia("(prefers-reduced-motion: reduce)").matches || isMobilePreview()) return;
+  const animate = (time) => { if (!ambientStartedAt) ambientStartedAt = time; hyperspaceCanvases().forEach((canvas) => drawAmbient(canvas, time - ambientStartedAt)); ambientFrame = requestAnimationFrame(animate); };
+  ambientFrame = requestAnimationFrame(animate);
 }
 
 function chooseRandomDotDirection() {
@@ -467,7 +608,7 @@ function startDotMotion(direction, speed) {
   if (dotMotionFrame && direction === dotMotionDirection) return;
   stopDotMotion(direction === "still");
   dotMotionDirection = direction;
-  if (direction === "still" || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (speed === 0 || direction === "still" || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   if (direction === "random") {
     chooseRandomDotDirection();
     dotMotionVector = [...dotMotionTarget];
@@ -500,13 +641,14 @@ function startDotMotion(direction, speed) {
 
 function applyPreviewBackground() {
   const storedPattern = localStorage.getItem("fountain-publisher.preview-background") || "dots";
-  const pattern = ["blank", "dots", "hyperspace"].includes(storedPattern) ? storedPattern : "dots";
+  const pattern = ["blank", "dots", "hyperspace", ...AMBIENT_PATTERNS].includes(storedPattern) ? storedPattern : "dots";
   const storedRadius = Number(localStorage.getItem("fountain-publisher.preview-dot-radius"));
   const radius = storedRadius >= .6 && storedRadius <= 1.8 ? storedRadius : 1;
   const storedDirection = localStorage.getItem("fountain-publisher.preview-dot-direction") || "still";
   const direction = storedDirection === "random" || storedDirection === "still" || DOT_DIRECTIONS[storedDirection] ? storedDirection : "still";
-  const storedSpeed = Number(localStorage.getItem("fountain-publisher.preview-dot-speed"));
-  const speed = storedSpeed >= 1 && storedSpeed <= 100 ? storedSpeed : 20;
+  const storedSpeedValue = localStorage.getItem("fountain-publisher.preview-dot-speed");
+  const storedSpeed = Number(storedSpeedValue);
+  const speed = storedSpeedValue !== null && storedSpeed >= 0 && storedSpeed <= 100 ? storedSpeed : 20;
   const storedDensity = Number(localStorage.getItem("fountain-publisher.preview-star-density"));
   const density = storedDensity >= 30 && storedDensity <= 240 ? storedDensity : 100;
   const colorsEnabled = localStorage.getItem("fountain-publisher.preview-star-colors") === "true";
@@ -525,11 +667,14 @@ function applyPreviewBackground() {
   $("#preview-star-density-value").textContent = `${density}%`;
   $("#preview-star-colors").checked = colorsEnabled;
   $("#preview-dot-direction-row").hidden = pattern !== "dots";
-  $("#preview-dot-speed-row").hidden = !["dots", "hyperspace"].includes(pattern);
-  $("#preview-star-density-row").hidden = pattern !== "hyperspace";
-  $("#preview-star-colors-row").hidden = pattern !== "hyperspace";
+  const animated = pattern === "hyperspace" || AMBIENT_PATTERNS.includes(pattern);
+  $("#preview-dot-speed-row").hidden = pattern !== "dots" && !animated;
+  $("#preview-star-density-row").hidden = !animated;
+  $("#preview-star-colors-row").hidden = !animated;
   if (pattern === "dots" && !isMobilePreview()) startDotMotion(direction, speed); else stopDotMotion(true);
-  if (pattern === "hyperspace") startHyperspace(speed, density, colorsEnabled); else stopHyperspace();
+  stopHyperspace(); stopAmbient();
+  if (pattern === "hyperspace") startHyperspace(speed, density, colorsEnabled);
+  else if (AMBIENT_PATTERNS.includes(pattern)) startAmbient(pattern, speed, density, colorsEnabled);
 }
 
 function escapeHtml(value) {
