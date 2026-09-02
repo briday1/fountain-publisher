@@ -86,7 +86,7 @@
           <summary>Settings</summary>
           <div class="toolbar-popover">
             <strong>APPEARANCE</strong>
-            <button class="setting-row theme-setting" id="theme" type="button" aria-label="Switch color theme" title="Switch to dark mode">
+            <button class="setting-row theme-setting" id="theme" type="button" aria-label="Choose color theme" aria-haspopup="dialog" title="Choose color theme">
               <span>Theme</span><small><svg class="theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg><svg class="theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.2A8.5 8.5 0 0 1 8.8 4 8.5 8.5 0 1 0 20 15.2Z"></path></svg><span id="theme-value">System</span></small>
             </button>
             <label class="setting-row"><span>Paper</span><select id="page-size"><option value="letter">US Letter</option><option value="a4">A4</option></select></label>
@@ -308,6 +308,35 @@
         <label id="preview-dot-speed-row">Speed<span class="range-setting"><input id="preview-dot-speed" type="range" min="0" max="100" step="1" value="20" /><output id="preview-dot-speed-value">20</output></span></label>
         <label id="preview-star-density-row" hidden>Density<span class="range-setting"><input id="preview-star-density" type="range" min="30" max="240" step="5" value="100" /><output id="preview-star-density-value">100%</output></span></label>
         <label id="preview-star-colors-row" class="background-toggle" hidden><span>Add colors</span><input id="preview-star-colors" type="checkbox" role="switch" /></label>
+        <div class="dialog-actions"><button class="primary" value="default">Done</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="theme-dialog" aria-labelledby="theme-dialog-title">
+      <form method="dialog" id="theme-form">
+        <div class="dialog-heading"><small>APPEARANCE</small><h2 id="theme-dialog-title">Color theme</h2></div>
+        <div class="theme-options" role="radiogroup" aria-label="Color theme">
+          <button class="theme-option theme-preview-system" type="button" role="radio" data-theme-option="system">
+            <span class="theme-preview" aria-hidden="true"><i></i><b></b><em></em></span>
+            <span><strong>System</strong><small>Match your device</small></span><span class="theme-check">✓</span>
+          </button>
+          <button class="theme-option theme-preview-light" type="button" role="radio" data-theme-option="light">
+            <span class="theme-preview" aria-hidden="true"><i></i><b></b><em></em></span>
+            <span><strong>Light</strong><small>Neutral grey</small></span><span class="theme-check">✓</span>
+          </button>
+          <button class="theme-option theme-preview-dark" type="button" role="radio" data-theme-option="dark">
+            <span class="theme-preview" aria-hidden="true"><i></i><b></b><em></em></span>
+            <span><strong>Dark</strong><small>Low-light neutral</small></span><span class="theme-check">✓</span>
+          </button>
+          <button class="theme-option theme-preview-solarized-light" type="button" role="radio" data-theme-option="solarized-light">
+            <span class="theme-preview" aria-hidden="true"><i></i><b></b><em></em></span>
+            <span><strong>Solarized Light</strong><small>Warm and balanced</small></span><span class="theme-check">✓</span>
+          </button>
+          <button class="theme-option theme-preview-solarized-dark" type="button" role="radio" data-theme-option="solarized-dark">
+            <span class="theme-preview" aria-hidden="true"><i></i><b></b><em></em></span>
+            <span><strong>Solarized Dark</strong><small>Deep blue-green</small></span><span class="theme-check">✓</span>
+          </button>
+        </div>
         <div class="dialog-actions"><button class="primary" value="default">Done</button></div>
       </form>
     </dialog>

@@ -2987,22 +2987,40 @@ async function refreshPdf() {
 }
 
 function setTheme(theme) {
+  const themes = {
+    system: { label: "System", color: null },
+    light: { label: "Light", color: "#eeeeed" },
+    dark: { label: "Dark", color: "#202326" },
+    "solarized-light": { label: "Solarized Light", color: "#eee8d5" },
+    "solarized-dark": { label: "Solarized Dark", color: "#073642" },
+  };
+  if (!themes[theme]) theme = "system";
   state.theme = theme; localStorage.setItem("fountain-publisher.theme", theme);
   if (theme === "system") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = theme;
-  const effective = theme === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : theme;
+  const effective = theme === "system"
+    ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+    : (theme.endsWith("dark") ? "dark" : "light");
   document.documentElement.dataset.effectiveTheme = effective;
-  $("#app-theme-color").content = effective === "dark" ? "#202326" : "#f8f8f7";
-  $("#theme-value").textContent = effective[0].toUpperCase() + effective.slice(1);
-  $("#theme").title = `Switch to ${effective === "dark" ? "light" : "dark"} mode`;
+  $("#app-theme-color").content = themes[theme].color || (effective === "dark" ? "#202326" : "#eeeeed");
+  $("#theme-value").textContent = themes[theme].label;
+  $$("[data-theme-option]").forEach((option) => option.setAttribute("aria-checked", String(option.dataset.themeOption === theme)));
 }
 
 matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => {
   if (state.theme === "system") setTheme("system");
 });
 
-function cycleTheme() {
-  const effective = document.documentElement.dataset.effectiveTheme || "light";
-  setTheme(effective === "dark" ? "light" : "dark");
+function openThemeDialog() {
+  const open = () => {
+    setTheme(state.theme);
+    $("#theme-dialog").showModal();
+    $(`[data-theme-option="${state.theme}"]`)?.focus();
+  };
+  if (isMobilePreview()) requestAnimationFrame(() => {
+    setMobileMenu(false);
+    open();
+  });
+  else open();
 }
 
 function isStandaloneApp() {
@@ -4428,7 +4446,12 @@ $("#file-input").addEventListener("change", async (event) => { const file = even
 $("#export-pdf").addEventListener("click", () => openExport("pdf")); $("#export-fdx").addEventListener("click", () => openExport("fdx"));
 $("#export-format").addEventListener("change", (event) => { $("#dialog-page-size").hidden = event.target.value !== "pdf"; });
 $("#export-form").addEventListener("submit", (event) => { if (event.submitter?.value !== "default") return; event.preventDefault(); exportDocument($("#export-format").value); });
-$("#theme").addEventListener("click", cycleTheme); $("#spellcheck").addEventListener("change", () => {
+$("#theme").addEventListener("click", openThemeDialog);
+$("#theme-form").addEventListener("click", (event) => {
+  const option = event.target.closest("[data-theme-option]");
+  if (option) setTheme(option.dataset.themeOption);
+});
+$("#spellcheck").addEventListener("change", () => {
   const enabled = $("#spellcheck").checked;
   source.spellcheck = false;
   source.setAttribute("spellcheck", "false");
