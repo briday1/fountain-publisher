@@ -62,6 +62,7 @@ test("theme picker previews neutral and Solarized palettes", async () => {
   assert.match(app, /theme\.endsWith\("dark"\) \? "dark" : "light"/);
   assert.match(css, /:root\[data-theme="solarized-light"\][\s\S]*:root\[data-theme="solarized-dark"\]/);
   assert.match(css, /--surface:\s*#eeeeed;[\s\S]*--paper:\s*#fff;/);
+  assert.match(css, /:root\[data-theme="solarized-light"\][^}]*--paper:\s*#fdf6e3;[^}]*--paper-ink:\s*#073642;/);
   assert.match(css, /\.theme-preview-system[\s\S]*\.theme-preview-solarized-dark/);
 });
 

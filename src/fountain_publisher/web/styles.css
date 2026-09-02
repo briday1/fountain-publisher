@@ -126,8 +126,8 @@
   --syntax-structure: #268bd2;
   --syntax-ignored: #dc322f;
   --annotation-accent: var(--syntax-character);
-  --paper: #fff;
-  --paper-ink: #101010;
+  --paper: #fdf6e3;
+  --paper-ink: #073642;
   --shadow: 0 8px 28px rgb(69 64 45 / 18%);
 }
 
@@ -519,7 +519,7 @@ body.scene-nums-margin .script-line.scene[data-scene-number]::before { content: 
 .theme-preview em { position: absolute; top: 15px; left: 35px; width: 37px; height: 32px; border: 1px solid rgb(0 0 0 / 18%); border-radius: 2px; background: var(--theme-preview-paper); box-shadow: 0 3px 8px rgb(0 0 0 / 16%); }
 .theme-preview-system .theme-preview { --theme-preview-bg: linear-gradient(110deg, #dfe1e2 0 50%, #17191b 50%); --theme-preview-panel: linear-gradient(110deg, #e7e8e8 0 50%, #202326 50%); --theme-preview-paper: linear-gradient(110deg, #fff 0 50%, #17191b 50%); }
 .theme-preview-dark .theme-preview { --theme-preview-bg: #17191b; --theme-preview-panel: #202326; --theme-preview-paper: #17191b; }
-.theme-preview-solarized-light .theme-preview { --theme-preview-bg: #e4ddc9; --theme-preview-panel: #eee8d5; --theme-preview-paper: #fff; }
+.theme-preview-solarized-light .theme-preview { --theme-preview-bg: #e4ddc9; --theme-preview-panel: #eee8d5; --theme-preview-paper: #fdf6e3; }
 .theme-preview-solarized-dark .theme-preview { --theme-preview-bg: #002b36; --theme-preview-panel: #073642; --theme-preview-paper: #002b36; }
 
 #github-dialog { width: min(520px, calc(100vw - 32px)); height: min(480px, calc(var(--visual-viewport-height) - 32px)); max-width: none; max-height: none; padding: 0; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
