@@ -993,7 +993,8 @@ test("preview background popup supports themed, directional dot motion", async (
   assert.match(app, /const AMBIENT_PATTERNS = \["geometric", "constellation", "topographic", "tiles"\]/);
   assert.match(app, /function drawAmbient\(canvas, time = 0\)[\s\S]*ambientPattern === "geometric"[\s\S]*ambientPattern === "constellation"[\s\S]*ambientPattern === "topographic"[\s\S]*ambientPattern === "tiles"/);
   assert.match(app, /function ambientTiles\(canvas, columns, rows, now\)[\s\S]*Math\.random\(\)[\s\S]*progress \* progress \* \(3 - 2 \* progress\)/);
-  assert.match(app, /ambientPattern === "tiles"[\s\S]*ambientTiles\(canvas, columns, rows, performance\.now\(\)\)[\s\S]*const spread = neighbors\.reduce[\s\S]*tile\.x[\s\S]*tile\.rotation/);
+  assert.match(app, /ambientPattern === "tiles"[\s\S]*ambientTiles\(canvas, columns, rows, performance\.now\(\)\)[\s\S]*const spread = neighbors\.reduce[\s\S]*const migration = tileField\.walkers\.reduce[\s\S]*context\.fillRect\(left, top, size, size\)/);
+  assert.doesNotMatch(app, /tile\.rotation|tile\.x|tile\.y/);
   assert.match(app, /function startAmbient\(pattern, speed, density, colorsEnabled\)[\s\S]*prefers-reduced-motion[\s\S]*requestAnimationFrame/);
   assert.match(app, /star\.tint >= \.82[\s\S]*accentColors\[colorIndex\]/);
   assert.match(app, /preview-star-density[\s\S]*preview-star-density-value[\s\S]*const animated = pattern === "hyperspace" \|\| AMBIENT_PATTERNS\.includes\(pattern\)/);

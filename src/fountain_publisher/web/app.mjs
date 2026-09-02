@@ -487,19 +487,28 @@ function ambientPoints(canvas, count) {
 }
 
 function nextTileState() {
-  return { size: .5 + Math.random() * .42, x: Math.random() * .28 - .14, y: Math.random() * .28 - .14, rotation: Math.random() * .7 - .35, energy: .12 + Math.random() * .88 };
+  return { energy: .08 + Math.random() * .72 };
 }
 
 function ambientTiles(canvas, columns, rows, now) {
   let field = ambientTileFields.get(canvas);
   if (!field || field.columns !== columns || field.rows !== rows) {
-    field = { columns, rows, tiles: Array.from({ length: columns * rows }, () => {
+    field = { columns, rows, lastTime: now, walkers: Array.from({ length: 4 }, () => ({ x: Math.random() * columns, y: Math.random() * rows, vx: Math.random() * .7 - .35, vy: Math.random() * .7 - .35, phase: Math.random() * Math.PI * 2 })), tiles: Array.from({ length: columns * rows }, () => {
       const state = nextTileState();
       return { from: state, to: nextTileState(), started: now - Math.random() * 5000, duration: 5000 + Math.random() * 7000, value: state };
     }) };
     ambientTileFields.set(canvas, field);
   }
   const pace = .55 + ambientSpeed / 45;
+  const dt = Math.min(.08, Math.max(0, (now - field.lastTime) / 1000)); field.lastTime = now;
+  field.walkers.forEach((walker) => {
+    walker.phase += dt * (.11 + ambientSpeed * .002);
+    walker.vx += Math.sin(walker.phase * .73) * dt * .035; walker.vy += Math.cos(walker.phase * .61) * dt * .035;
+    const length = Math.max(.01, Math.hypot(walker.vx, walker.vy)); const velocity = (.08 + ambientSpeed * .0045) / length;
+    walker.x += walker.vx * velocity * dt; walker.y += walker.vy * velocity * dt;
+    if (walker.x < -2) walker.x = columns + 2; else if (walker.x > columns + 2) walker.x = -2;
+    if (walker.y < -2) walker.y = rows + 2; else if (walker.y > rows + 2) walker.y = -2;
+  });
   field.tiles.forEach((tile) => {
     if (now >= tile.started + tile.duration) {
       tile.from = tile.value; tile.to = nextTileState(); tile.started = now;
@@ -509,7 +518,7 @@ function ambientTiles(canvas, columns, rows, now) {
     const eased = progress * progress * (3 - 2 * progress);
     tile.value = Object.fromEntries(Object.keys(tile.to).map((key) => [key, tile.from[key] + (tile.to[key] - tile.from[key]) * eased]));
   });
-  return field.tiles;
+  return field;
 }
 
 function drawAmbient(canvas, time = 0) {
@@ -542,21 +551,19 @@ function drawAmbient(canvas, time = 0) {
   } else if (ambientPattern === "tiles") {
     const unit = Math.max(24, 46 / Math.sqrt(scale));
     const columns = Math.ceil(width / unit) + 2; const rows = Math.ceil(height / unit) + 2;
-    const tiles = ambientTiles(canvas, columns, rows, performance.now());
+    const tileField = ambientTiles(canvas, columns, rows, performance.now()); const tiles = tileField.tiles;
     for (let row = 0; row < rows; row += 1) for (let column = 0; column < columns; column += 1) {
       const tile = tiles[row * columns + column].value;
       const neighbors = [[row - 1, column], [row + 1, column], [row, column - 1], [row, column + 1]]
         .filter(([nearRow, nearColumn]) => nearRow >= 0 && nearRow < rows && nearColumn >= 0 && nearColumn < columns)
         .map(([nearRow, nearColumn]) => tiles[nearRow * columns + nearColumn].value.energy);
       const spread = neighbors.reduce((total, value) => total + value, tile.energy) / (neighbors.length + 1);
-      const size = unit * tile.size;
-      const centerX = (column - .5 + tile.x) * unit;
-      const centerY = (row - .5 + tile.y) * unit;
-      context.save(); context.translate(centerX, centerY); context.rotate(tile.rotation);
-      context.fillStyle = palette[(Math.abs(row * 3 + column * 5)) % palette.length]; context.globalAlpha = .012 + (tile.energy * .65 + spread * .35) * .075;
-      context.fillRect(-size / 2, -size / 2, size, size);
-      context.strokeStyle = palette[0]; context.globalAlpha = .035 + spread * .045; context.lineWidth = .7; context.strokeRect(-size / 2, -size / 2, size, size);
-      context.restore();
+      const migration = tileField.walkers.reduce((strongest, walker) => Math.max(strongest, Math.exp(-(Math.hypot(column - walker.x, row - walker.y) ** 2) / 9)), 0);
+      const shade = Math.min(1, tile.energy * .38 + spread * .22 + migration * .72);
+      const left = (column - 1) * unit + 2; const top = (row - 1) * unit + 2; const size = unit - 4;
+      context.fillStyle = palette[(Math.abs(row * 3 + column * 5)) % palette.length]; context.globalAlpha = .01 + shade * .09;
+      context.fillRect(left, top, size, size);
+      context.strokeStyle = palette[0]; context.globalAlpha = .035 + shade * .045; context.lineWidth = .7; context.strokeRect(left, top, size, size);
     }
   }
   context.globalAlpha = 1;
