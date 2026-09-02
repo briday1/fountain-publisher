@@ -2987,22 +2987,60 @@ async function refreshPdf() {
 }
 
 function setTheme(theme) {
+  const themes = {
+    system: { label: "System", color: null },
+    light: { label: "Light", color: "#eeeeed" },
+    dark: { label: "Dark", color: "#202326" },
+    "solarized-light": { label: "Solarized Light", color: "#eee8d5" },
+    "solarized-dark": { label: "Solarized Dark", color: "#073642" },
+  };
+  if (!themes[theme]) theme = "system";
   state.theme = theme; localStorage.setItem("fountain-publisher.theme", theme);
   if (theme === "system") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = theme;
-  const effective = theme === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : theme;
+  const effective = theme === "system"
+    ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+    : (theme.endsWith("dark") ? "dark" : "light");
   document.documentElement.dataset.effectiveTheme = effective;
-  $("#app-theme-color").content = effective === "dark" ? "#202326" : "#f8f8f7";
-  $("#theme-value").textContent = effective[0].toUpperCase() + effective.slice(1);
-  $("#theme").title = `Switch to ${effective === "dark" ? "light" : "dark"} mode`;
+  $("#app-theme-color").content = themes[theme].color || (effective === "dark" ? "#202326" : "#eeeeed");
+  $("#theme-value").textContent = themes[theme].label;
+  $$("[data-theme-option]").forEach((option) => option.setAttribute("aria-checked", String(option.dataset.themeOption === theme)));
 }
 
 matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => {
   if (state.theme === "system") setTheme("system");
 });
 
-function cycleTheme() {
-  const effective = document.documentElement.dataset.effectiveTheme || "light";
-  setTheme(effective === "dark" ? "light" : "dark");
+function openThemeDialog() {
+  const open = () => {
+    setTheme(state.theme);
+    $("#theme-dialog").showModal();
+    $(`[data-theme-option="${state.theme}"]`)?.focus();
+  };
+  if (isMobilePreview()) requestAnimationFrame(() => {
+    setMobileMenu(false);
+    open();
+  });
+  else open();
+}
+
+async function setZenMode(enabled, { syncFullscreen = true } = {}) {
+  document.body.classList.toggle("zen-mode", enabled);
+  $("#zen-controls").hidden = !enabled;
+  $("#toggle-zen").textContent = enabled ? "Exit Zen mode" : "Enter Zen mode";
+  if (enabled) {
+    setMobileMenu(false);
+    closeMenus();
+  }
+  requestAnimationFrame(() => {
+    if (state.previewZoom === "fit") applyZoom();
+    if (state.previewMode === "source") renderEditorChrome();
+  });
+  if (!syncFullscreen || isStandaloneApp()) return;
+  try {
+    const fullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+    if (enabled && !fullscreen) await (document.documentElement.requestFullscreen?.({ navigationUI: "hide" }) || document.documentElement.webkitRequestFullscreen?.());
+    else if (!enabled && fullscreen) await (document.exitFullscreen?.() || document.webkitExitFullscreen?.());
+  } catch { /* Zen mode remains available when fullscreen permission is unavailable. */ }
 }
 
 function isStandaloneApp() {
@@ -3033,8 +3071,14 @@ window.addEventListener("beforeinstallprompt", (event) => {
   updateAppWindowControls();
 });
 window.addEventListener("appinstalled", () => { installPrompt = null; updateAppWindowControls(); });
-document.addEventListener("fullscreenchange", updateAppWindowControls);
-document.addEventListener("webkitfullscreenchange", updateAppWindowControls);
+function handleFullscreenChange() {
+  updateAppWindowControls();
+  if (!document.fullscreenElement && !document.webkitFullscreenElement && document.body.classList.contains("zen-mode") && !isStandaloneApp()) {
+    void setZenMode(false, { syncFullscreen: false });
+  }
+}
+document.addEventListener("fullscreenchange", handleFullscreenChange);
+document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
 
 function togglePanel(panel, force) {
   const collapsed = force ?? !document.body.classList.contains(`${panel}-collapsed`);
@@ -4428,7 +4472,12 @@ $("#file-input").addEventListener("change", async (event) => { const file = even
 $("#export-pdf").addEventListener("click", () => openExport("pdf")); $("#export-fdx").addEventListener("click", () => openExport("fdx"));
 $("#export-format").addEventListener("change", (event) => { $("#dialog-page-size").hidden = event.target.value !== "pdf"; });
 $("#export-form").addEventListener("submit", (event) => { if (event.submitter?.value !== "default") return; event.preventDefault(); exportDocument($("#export-format").value); });
-$("#theme").addEventListener("click", cycleTheme); $("#spellcheck").addEventListener("change", () => {
+$("#theme").addEventListener("click", openThemeDialog);
+$("#theme-form").addEventListener("click", (event) => {
+  const option = event.target.closest("[data-theme-option]");
+  if (option) setTheme(option.dataset.themeOption);
+});
+$("#spellcheck").addEventListener("change", () => {
   const enabled = $("#spellcheck").checked;
   source.spellcheck = false;
   source.setAttribute("spellcheck", "false");
@@ -4513,6 +4562,8 @@ $("#menu-toggle-source-tab").addEventListener("click", () => {
   closeMenus();
 });
 $("#toggle-fullscreen").addEventListener("click", () => { void toggleFullscreen(); });
+$("#toggle-zen").addEventListener("click", () => { void setZenMode(!document.body.classList.contains("zen-mode")); });
+$("#exit-zen").addEventListener("click", () => { void setZenMode(false); });
 $("#install-app").addEventListener("click", async () => {
   if (!installPrompt) return;
   await installPrompt.prompt();
@@ -4691,6 +4742,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !$("#preview-context-menu").hidden) hidePreviewContextMenu();
   else if (event.key === "Escape" && document.body.classList.contains("mobile-menu-open")) setMobileMenu(false);
   else if (event.key === "Escape" && toolbarMenus.some((menu) => menu.open)) { closeMenus(); }
+  else if (event.key === "Escape" && document.body.classList.contains("zen-mode")) void setZenMode(false);
   else if ((source === document.activeElement || page.contains(document.activeElement)) && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redoDocument() : undoDocument(); }
   else if ((source === document.activeElement || page.contains(document.activeElement)) && event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === "y") { event.preventDefault(); redoDocument(); }
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); saveFile(event.shiftKey); }
