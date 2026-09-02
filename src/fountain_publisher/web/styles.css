@@ -278,10 +278,10 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 
 .preview-panel { min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; position: relative; background: var(--bg); }
 .hyperspace-canvas { display: none; position: absolute; z-index: 0; inset: 58px 0 0; width: 100%; height: calc(100% - 58px); pointer-events: none; }
-[data-background="hyperspace"] > .hyperspace-canvas, .preview-panel:has(.preview-scroll[data-background="hyperspace"]) > .hyperspace-canvas { display: block; }
+[data-background="hyperspace"] > .hyperspace-canvas, [data-background="geometric"] > .hyperspace-canvas, [data-background="constellation"] > .hyperspace-canvas, [data-background="topographic"] > .hyperspace-canvas, [data-background="isometric"] > .hyperspace-canvas, [data-background="aurora"] > .hyperspace-canvas, [data-background="orbit"] > .hyperspace-canvas, [data-background="tiles"] > .hyperspace-canvas, .preview-panel:has(.preview-scroll:not([data-background="blank"]):not([data-background="dots"])) > .hyperspace-canvas { display: block; }
 .preview-toolbar, #source-panel > .panel-title, .beat-sheet-header { position: relative; z-index: 2; }
 .preview-scroll, #source-panel > :not(.hyperspace-canvas), #beat-sheet-panel > :not(.hyperspace-canvas) { position: relative; z-index: 1; }
-.preview-scroll[data-background="hyperspace"], #source-panel[data-background="hyperspace"], #beat-sheet-panel[data-background="hyperspace"] { background-color: transparent; background-image: none; }
+.preview-scroll:not([data-background="blank"]):not([data-background="dots"]), #source-panel:not([data-background="blank"]):not([data-background="dots"]), #beat-sheet-panel:not([data-background="blank"]):not([data-background="dots"]) { background-color: transparent; background-image: none; }
 .preview-toolbar { flex: 0 0 auto; min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 12px 6px 15px; border-bottom: 1px solid var(--border); background: var(--panel); }
 .preview-heading { display: flex; align-items: center; gap: 16px; }
 .view-switcher { display: flex; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); }

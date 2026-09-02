@@ -634,7 +634,7 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(css, /--annotation-accent:\s*var\(--syntax-character\);/);
   assert.match(css, /\.note-indicator\s*\{[^}]*color:\s*var\(--annotation-accent\);[^}]*text-shadow:[^;}]*var\(--annotation-accent\)/s);
   assert.match(css, /\.annotation-orb\s*\{[^}]*appearance:\s*none;[^}]*-webkit-appearance:\s*none;[^}]*background-color:\s*var\(--annotation-accent\)/s);
-  assert.match(worker, /fountain-publisher-shell-v3/);
+  assert.match(worker, /fountain-publisher-shell-v4/);
   assert.match(worker, /\["styles\.css", "app\.mjs"\][\s\S]*fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);
   assert.match(css, /\.annotation-orb\s*\{[^}]*top:\s*1px;/s);
   assert.match(app, /function alignAnnotationOrbs\(\)[\s\S]*marginCenterX[\s\S]*orb\.offsetWidth \* scale \* \.5[\s\S]*orb\.style\.left/);
@@ -968,7 +968,7 @@ test("preview background popup supports themed, directional dot motion", async (
   const settingsMenu = html.match(/<details class="toolbar-menu settings-menu">([\s\S]*?)<\/details>/)?.[1] || "";
   assert.match(settingsMenu, /id="open-background-dialog"[^>]*>Background…<\/button>/);
   assert.match(html, /<dialog id="background-dialog"/);
-  assert.match(html, /id="preview-background"[\s\S]*value="blank">Blank[\s\S]*value="dots" selected>Dots[\s\S]*value="hyperspace">Hyperspace/);
+  assert.match(html, /id="preview-background"[\s\S]*value="blank">Blank[\s\S]*value="dots" selected>Dots[\s\S]*value="hyperspace">Hyperspace[\s\S]*value="geometric">Geometric drift[\s\S]*value="constellation">Constellation[\s\S]*value="topographic">Topographic[\s\S]*value="isometric">Isometric cubes[\s\S]*value="aurora">Aurora polygons[\s\S]*value="orbit">Orbit[\s\S]*value="tiles">Generative tiles/);
   assert.doesNotMatch(html, /value="rain"|Raindrops|preview-rain-speed/);
   assert.doesNotMatch(html, /Damascus|value="damascus"/);
   assert.match(html, /id="preview-dot-radius" type="range" min="0\.6" max="1\.8" step="0\.1" value="1"/);
@@ -989,8 +989,11 @@ test("preview background popup supports themed, directional dot motion", async (
   assert.match(app, /function applyPreviewBackground\(\)/);
   assert.match(app, /function drawHyperspace\(canvas, dt = 0\)[\s\S]*star\.x \/ star\.z[\s\S]*context\.lineTo\(x, y\)/);
   assert.match(app, /function startHyperspace\(speed, density, colorsEnabled\)[\s\S]*prefers-reduced-motion[\s\S]*requestAnimationFrame/);
+  assert.match(app, /const AMBIENT_PATTERNS = \["geometric", "constellation", "topographic", "isometric", "aurora", "orbit", "tiles"\]/);
+  assert.match(app, /function drawAmbient\(canvas, time = 0\)[\s\S]*ambientPattern === "geometric"[\s\S]*ambientPattern === "constellation"[\s\S]*ambientPattern === "topographic"[\s\S]*ambientPattern === "isometric"[\s\S]*ambientPattern === "aurora"[\s\S]*ambientPattern === "orbit"[\s\S]*ambientPattern === "tiles"/);
+  assert.match(app, /function startAmbient\(pattern, speed, density, colorsEnabled\)[\s\S]*prefers-reduced-motion[\s\S]*requestAnimationFrame/);
   assert.match(app, /star\.tint >= \.82[\s\S]*accentColors\[colorIndex\]/);
-  assert.match(app, /preview-star-density[\s\S]*preview-star-density-value[\s\S]*pattern !== "hyperspace"/);
+  assert.match(app, /preview-star-density[\s\S]*preview-star-density-value[\s\S]*const animated = pattern === "hyperspace" \|\| AMBIENT_PATTERNS\.includes\(pattern\)/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-star-density", event\.target\.value\)/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-star-colors", String\(event\.target\.checked\)\)/);
   assert.match(css, /\[data-background="hyperspace"\] > \.hyperspace-canvas[\s\S]*display:\s*block/);

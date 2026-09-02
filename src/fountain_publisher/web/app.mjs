@@ -346,6 +346,14 @@ let hyperspaceSpeed = 20;
 let hyperspaceDensity = 100;
 let hyperspaceColors = false;
 const hyperspaceFields = new WeakMap();
+const AMBIENT_PATTERNS = ["geometric", "constellation", "topographic", "isometric", "aurora", "orbit", "tiles"];
+const ambientFields = new WeakMap();
+let ambientFrame = 0;
+let ambientStartedAt = 0;
+let ambientPattern = "geometric";
+let ambientSpeed = 20;
+let ambientDensity = 100;
+let ambientColors = false;
 
 function backgroundSurfaces() {
   return [$("#preview-scroll"), $("#source-panel"), $("#beat-sheet-panel"), $("#background-pattern-preview")];
@@ -442,6 +450,98 @@ function startHyperspace(speed, density, colorsEnabled) {
   hyperspaceFrame = requestAnimationFrame(animate);
 }
 
+function ambientPalette() {
+  const dark = document.documentElement.dataset.effectiveTheme === "dark";
+  const neutral = dark ? "#d6dadd" : "#30363b";
+  return ambientColors
+    ? (dark ? [neutral, "#8edbe5", "#e5a8cf", "#eadb91"] : [neutral, "#277f8b", "#a65083", "#8c7625"])
+    : [neutral];
+}
+
+function ambientCanvas(canvas) {
+  const bounds = canvas.getBoundingClientRect();
+  const width = Math.max(1, Math.round(bounds.width));
+  const height = Math.max(1, Math.round(bounds.height));
+  const ratio = Math.min(devicePixelRatio || 1, 2);
+  if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+    canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
+  }
+  const context = canvas.getContext("2d");
+  context.setTransform(ratio, 0, 0, ratio, 0, 0); context.clearRect(0, 0, width, height);
+  return { context, width, height };
+}
+
+function ambientPoints(canvas, count) {
+  let field = ambientFields.get(canvas);
+  if (!field || field.pattern !== ambientPattern || field.points.length !== count) {
+    field = { pattern: ambientPattern, points: Array.from({ length: count }, (_, index) => ({
+      x: (Math.sin(index * 91.17) * 43758.5453 % 1 + 1) % 1,
+      y: (Math.sin(index * 47.63 + 2) * 24634.6345 % 1 + 1) % 1,
+      size: .45 + ((index * 37) % 100) / 100,
+      phase: index * 1.618,
+    })) };
+    ambientFields.set(canvas, field);
+  }
+  return field.points;
+}
+
+function drawAmbient(canvas, time = 0) {
+  if (canvas.closest("[hidden]")) return;
+  const { context, width, height } = ambientCanvas(canvas);
+  const palette = ambientPalette();
+  const motion = time * (.000035 + ambientSpeed * .0000018);
+  const scale = ambientDensity / 100;
+  context.lineJoin = "round"; context.lineCap = "round";
+  if (ambientPattern === "geometric") {
+    const points = ambientPoints(canvas, Math.max(8, Math.round(20 * scale)));
+    points.forEach((point, index) => {
+      const x = (point.x * width + Math.sin(motion + point.phase) * 34 + width) % width;
+      const y = (point.y * height + Math.cos(motion * .73 + point.phase) * 27 + height) % height;
+      const radius = 7 + point.size * 17; const sides = [3, 4, 6][index % 3];
+      context.save(); context.translate(x, y); context.rotate(motion * (index % 2 ? 1 : -1) + point.phase);
+      context.strokeStyle = palette[index % palette.length]; context.globalAlpha = .09 + point.size * .13; context.lineWidth = 1;
+      context.beginPath();
+      for (let side = 0; side <= sides; side += 1) { const angle = side / sides * Math.PI * 2; const px = Math.cos(angle) * radius; const py = Math.sin(angle) * radius; if (!side) context.moveTo(px, py); else context.lineTo(px, py); }
+      context.stroke(); context.restore();
+    });
+  } else if (ambientPattern === "constellation") {
+    const points = ambientPoints(canvas, Math.max(14, Math.round(38 * scale))).map((point) => ({ ...point, px: (point.x * width + Math.sin(motion + point.phase) * 13 + width) % width, py: (point.y * height + Math.cos(motion * .8 + point.phase) * 11 + height) % height }));
+    context.strokeStyle = palette[0]; context.lineWidth = .7;
+    points.forEach((point, index) => points.slice(index + 1).forEach((other) => { const distance = Math.hypot(point.px - other.px, point.py - other.py); if (distance < 105) { context.globalAlpha = (1 - distance / 105) * .16; context.beginPath(); context.moveTo(point.px, point.py); context.lineTo(other.px, other.py); context.stroke(); } }));
+    points.forEach((point, index) => { context.fillStyle = palette[index % palette.length]; context.globalAlpha = .28; context.beginPath(); context.arc(point.px, point.py, 1 + point.size, 0, Math.PI * 2); context.fill(); });
+  } else if (ambientPattern === "topographic") {
+    const lines = Math.max(7, Math.round(13 * scale));
+    for (let row = 0; row < lines; row += 1) { context.strokeStyle = palette[row % palette.length]; context.globalAlpha = .12; context.lineWidth = .8; context.beginPath(); for (let x = -10; x <= width + 10; x += 8) { const y = (row + .5) / lines * height + Math.sin(x * .014 + row * .72 + motion) * 18 + Math.sin(x * .031 - motion * .7) * 7; if (x < 0) context.moveTo(x, y); else context.lineTo(x, y); } context.stroke(); }
+  } else if (ambientPattern === "isometric") {
+    const unit = Math.max(22, 42 / Math.sqrt(scale)); const shift = (motion * 18) % unit;
+    context.strokeStyle = palette[0]; context.globalAlpha = .13; context.lineWidth = .8;
+    for (let y = -unit; y < height + unit; y += unit / 2) for (let x = -unit; x < width + unit; x += unit) { const cx = x + ((Math.round(y / (unit / 2)) & 1) ? unit / 2 : 0) + shift; context.beginPath(); context.moveTo(cx, y); context.lineTo(cx + unit / 2, y + unit / 4); context.lineTo(cx, y + unit / 2); context.lineTo(cx - unit / 2, y + unit / 4); context.closePath(); context.moveTo(cx, y + unit / 2); context.lineTo(cx, y + unit); context.moveTo(cx - unit / 2, y + unit / 4); context.lineTo(cx - unit / 2, y + unit * .75); context.lineTo(cx, y + unit); context.lineTo(cx + unit / 2, y + unit * .75); context.lineTo(cx + unit / 2, y + unit / 4); context.stroke(); }
+  } else if (ambientPattern === "aurora") {
+    const bands = Math.max(4, Math.round(6 * scale));
+    for (let band = 0; band < bands; band += 1) { const gradient = context.createLinearGradient(0, 0, width, height); const color = palette[band % palette.length]; gradient.addColorStop(0, "transparent"); gradient.addColorStop(.5, color); gradient.addColorStop(1, "transparent"); context.fillStyle = gradient; context.globalAlpha = ambientColors ? .045 : .025; context.beginPath(); context.moveTo(-20, height); for (let x = -20; x <= width + 20; x += 30) context.lineTo(x, height * (.18 + band / bands * .72) + Math.sin(x * .009 + motion + band) * 55); context.lineTo(width + 20, height); context.closePath(); context.fill(); }
+  } else if (ambientPattern === "orbit") {
+    const rings = Math.max(3, Math.round(6 * scale)); const cx = width * .5; const cy = height * .5;
+    for (let ring = 0; ring < rings; ring += 1) { const radiusX = 38 + ring * Math.min(width, height) * .075; const radiusY = radiusX * (.38 + (ring % 3) * .12); context.strokeStyle = palette[ring % palette.length]; context.globalAlpha = .11; context.lineWidth = .8; context.beginPath(); context.ellipse(cx, cy, radiusX, radiusY, ring * .42, 0, Math.PI * 2); context.stroke(); const angle = motion * (ring % 2 ? -1 : 1) + ring; const cos = Math.cos(ring * .42); const sin = Math.sin(ring * .42); const ox = Math.cos(angle) * radiusX; const oy = Math.sin(angle) * radiusY; context.fillStyle = palette[ring % palette.length]; context.globalAlpha = .32; context.beginPath(); context.arc(cx + ox * cos - oy * sin, cy + ox * sin + oy * cos, 2.2, 0, Math.PI * 2); context.fill(); }
+  } else if (ambientPattern === "tiles") {
+    const unit = Math.max(24, 46 / Math.sqrt(scale));
+    for (let row = -1; row < height / unit + 1; row += 1) for (let column = -1; column < width / unit + 1; column += 1) { const pulse = (Math.sin(motion * 1.4 + row * .73 + column * .51) + 1) / 2; context.fillStyle = palette[(row + column + 100) % palette.length]; context.globalAlpha = .015 + pulse * .055; context.beginPath(); context.rect(column * unit + 2, row * unit + 2, unit - 4, unit - 4); context.fill(); context.strokeStyle = palette[0]; context.globalAlpha = .055; context.stroke(); }
+  }
+  context.globalAlpha = 1;
+}
+
+function stopAmbient(clear = true) {
+  cancelAnimationFrame(ambientFrame); ambientFrame = 0; ambientStartedAt = 0;
+  if (clear) hyperspaceCanvases().forEach((canvas) => canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height));
+}
+
+function startAmbient(pattern, speed, density, colorsEnabled) {
+  ambientPattern = pattern; ambientSpeed = speed; ambientDensity = density; ambientColors = colorsEnabled; stopAmbient(false);
+  hyperspaceCanvases().forEach((canvas) => drawAmbient(canvas));
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches || isMobilePreview()) return;
+  const animate = (time) => { if (!ambientStartedAt) ambientStartedAt = time; hyperspaceCanvases().forEach((canvas) => drawAmbient(canvas, time - ambientStartedAt)); ambientFrame = requestAnimationFrame(animate); };
+  ambientFrame = requestAnimationFrame(animate);
+}
+
 function chooseRandomDotDirection() {
   const directions = Object.values(DOT_DIRECTIONS);
   let next = directions[Math.floor(Math.random() * directions.length)];
@@ -500,7 +600,7 @@ function startDotMotion(direction, speed) {
 
 function applyPreviewBackground() {
   const storedPattern = localStorage.getItem("fountain-publisher.preview-background") || "dots";
-  const pattern = ["blank", "dots", "hyperspace"].includes(storedPattern) ? storedPattern : "dots";
+  const pattern = ["blank", "dots", "hyperspace", ...AMBIENT_PATTERNS].includes(storedPattern) ? storedPattern : "dots";
   const storedRadius = Number(localStorage.getItem("fountain-publisher.preview-dot-radius"));
   const radius = storedRadius >= .6 && storedRadius <= 1.8 ? storedRadius : 1;
   const storedDirection = localStorage.getItem("fountain-publisher.preview-dot-direction") || "still";
@@ -525,11 +625,14 @@ function applyPreviewBackground() {
   $("#preview-star-density-value").textContent = `${density}%`;
   $("#preview-star-colors").checked = colorsEnabled;
   $("#preview-dot-direction-row").hidden = pattern !== "dots";
-  $("#preview-dot-speed-row").hidden = !["dots", "hyperspace"].includes(pattern);
-  $("#preview-star-density-row").hidden = pattern !== "hyperspace";
-  $("#preview-star-colors-row").hidden = pattern !== "hyperspace";
+  const animated = pattern === "hyperspace" || AMBIENT_PATTERNS.includes(pattern);
+  $("#preview-dot-speed-row").hidden = pattern !== "dots" && !animated;
+  $("#preview-star-density-row").hidden = !animated;
+  $("#preview-star-colors-row").hidden = !animated;
   if (pattern === "dots" && !isMobilePreview()) startDotMotion(direction, speed); else stopDotMotion(true);
-  if (pattern === "hyperspace") startHyperspace(speed, density, colorsEnabled); else stopHyperspace();
+  stopHyperspace(); stopAmbient();
+  if (pattern === "hyperspace") startHyperspace(speed, density, colorsEnabled);
+  else if (AMBIENT_PATTERNS.includes(pattern)) startAmbient(pattern, speed, density, colorsEnabled);
 }
 
 function escapeHtml(value) {
