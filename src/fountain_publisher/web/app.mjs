@@ -3023,9 +3023,8 @@ function openThemeDialog() {
   else open();
 }
 
-function setZenMode(enabled) {
+async function setZenMode(enabled, { syncFullscreen = true } = {}) {
   document.body.classList.toggle("zen-mode", enabled);
-  localStorage.setItem("fountain-publisher.zen-mode", String(enabled));
   $("#zen-controls").hidden = !enabled;
   $("#toggle-zen").textContent = enabled ? "Exit Zen mode" : "Enter Zen mode";
   if (enabled) {
@@ -3036,6 +3035,12 @@ function setZenMode(enabled) {
     if (state.previewZoom === "fit") applyZoom();
     if (state.previewMode === "source") renderEditorChrome();
   });
+  if (!syncFullscreen || isStandaloneApp()) return;
+  try {
+    const fullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+    if (enabled && !fullscreen) await (document.documentElement.requestFullscreen?.({ navigationUI: "hide" }) || document.documentElement.webkitRequestFullscreen?.());
+    else if (!enabled && fullscreen) await (document.exitFullscreen?.() || document.webkitExitFullscreen?.());
+  } catch { /* Zen mode remains available when fullscreen permission is unavailable. */ }
 }
 
 function isStandaloneApp() {
@@ -3066,8 +3071,14 @@ window.addEventListener("beforeinstallprompt", (event) => {
   updateAppWindowControls();
 });
 window.addEventListener("appinstalled", () => { installPrompt = null; updateAppWindowControls(); });
-document.addEventListener("fullscreenchange", updateAppWindowControls);
-document.addEventListener("webkitfullscreenchange", updateAppWindowControls);
+function handleFullscreenChange() {
+  updateAppWindowControls();
+  if (!document.fullscreenElement && !document.webkitFullscreenElement && document.body.classList.contains("zen-mode") && !isStandaloneApp()) {
+    void setZenMode(false, { syncFullscreen: false });
+  }
+}
+document.addEventListener("fullscreenchange", handleFullscreenChange);
+document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
 
 function togglePanel(panel, force) {
   const collapsed = force ?? !document.body.classList.contains(`${panel}-collapsed`);
@@ -4551,8 +4562,8 @@ $("#menu-toggle-source-tab").addEventListener("click", () => {
   closeMenus();
 });
 $("#toggle-fullscreen").addEventListener("click", () => { void toggleFullscreen(); });
-$("#toggle-zen").addEventListener("click", () => setZenMode(!document.body.classList.contains("zen-mode")));
-$("#exit-zen").addEventListener("click", () => setZenMode(false));
+$("#toggle-zen").addEventListener("click", () => { void setZenMode(!document.body.classList.contains("zen-mode")); });
+$("#exit-zen").addEventListener("click", () => { void setZenMode(false); });
 $("#install-app").addEventListener("click", async () => {
   if (!installPrompt) return;
   await installPrompt.prompt();
@@ -4731,7 +4742,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !$("#preview-context-menu").hidden) hidePreviewContextMenu();
   else if (event.key === "Escape" && document.body.classList.contains("mobile-menu-open")) setMobileMenu(false);
   else if (event.key === "Escape" && toolbarMenus.some((menu) => menu.open)) { closeMenus(); }
-  else if (event.key === "Escape" && document.body.classList.contains("zen-mode")) setZenMode(false);
+  else if (event.key === "Escape" && document.body.classList.contains("zen-mode")) void setZenMode(false);
   else if ((source === document.activeElement || page.contains(document.activeElement)) && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redoDocument() : undoDocument(); }
   else if ((source === document.activeElement || page.contains(document.activeElement)) && event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === "y") { event.preventDefault(); redoDocument(); }
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); saveFile(event.shiftKey); }
@@ -4781,7 +4792,6 @@ function registerAppServiceWorker() {
 async function initialize() {
   updateMobileViewport();
   setTheme(state.theme);
-  setZenMode(localStorage.getItem("fountain-publisher.zen-mode") === "true");
   updateAppWindowControls();
   registerAppServiceWorker();
   const showSourceTab = sourceTabEnabled();

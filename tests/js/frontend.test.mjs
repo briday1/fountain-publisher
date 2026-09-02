@@ -69,10 +69,12 @@ test("theme picker previews neutral and Solarized palettes", async () => {
 test("Zen mode leaves only work and compact view controls", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="toggle-zen"[\s\S]*id="zen-controls"[^>]*hidden[\s\S]*data-preview-mode="source"[\s\S]*data-preview-mode="live"[\s\S]*data-preview-mode="beats"[\s\S]*id="exit-zen"/);
-  assert.match(app, /function setZenMode\(enabled\)[\s\S]*fountain-publisher\.zen-mode[\s\S]*zen-controls/);
+  assert.match(app, /async function setZenMode\(enabled[\s\S]*zen-controls[\s\S]*requestFullscreen/);
+  assert.match(app, /function handleFullscreenChange\(\)[\s\S]*setZenMode\(false, \{ syncFullscreen: false \}\)/);
   assert.match(app, /event\.key === "Escape" && document\.body\.classList\.contains\("zen-mode"\)/);
-  assert.match(app, /setZenMode\(localStorage\.getItem\("fountain-publisher\.zen-mode"\) === "true"\)/);
   assert.match(css, /body\.zen-mode \.app-toolbar[\s\S]*body\.zen-mode #workspace[\s\S]*height:\s*100vh !important/);
+  assert.match(css, /\.zen-controls\s*\{[^}]*left:\s*50%;[^}]*transform:\s*translateX\(-50%\)/);
+  assert.match(css, /body\.zen-mode #source-panel \.editor-shell\s*\{[^}]*margin:\s*34px auto;[^}]*border-bottom:\s*1px solid var\(--border\)/);
   assert.match(css, /body\.source-tab-hidden \[data-preview-mode="source"\]/);
 });
 
