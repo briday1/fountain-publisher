@@ -63,7 +63,11 @@ test("theme picker previews neutral and Solarized palettes", async () => {
   assert.match(css, /:root\[data-theme="solarized-light"\][\s\S]*:root\[data-theme="solarized-dark"\]/);
   assert.match(css, /--surface:\s*#eeeeed;[\s\S]*--paper:\s*#fff;/);
   assert.match(css, /:root\[data-theme="solarized-light"\][^}]*--paper:\s*#fdf6e3;[^}]*--paper-ink:\s*#073642;/);
-  assert.match(css, /\.theme-preview-system[\s\S]*\.theme-preview-solarized-dark/);
+  assert.match(css, /:root\s*\{[^}]*--bg:\s*#c8cbcd;/);
+  assert.match(css, /:root\[data-theme="solarized-light"\][^}]*--bg:\s*#d2c9b1;/);
+  assert.match(html, /theme-preview-layer-light[\s\S]*theme-preview-layer-dark/);
+  assert.match(css, /\.theme-preview-system \.theme-preview-layer-dark[^}]*clip-path:\s*polygon\(100% 0, 100% 100%, 0 100%\)/);
+  assert.match(css, /\.theme-preview-system \.theme-preview::after[^}]*linear-gradient\(to bottom right/);
 });
 
 test("Zen mode leaves only work and compact view controls", async () => {
