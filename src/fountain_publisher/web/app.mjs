@@ -440,7 +440,7 @@ function startHyperspace(speed, density, colorsEnabled) {
   stopHyperspace(false);
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   hyperspaceCanvases().forEach((canvas) => drawHyperspace(canvas));
-  if (reducedMotion || isMobilePreview()) return;
+  if (speed === 0 || reducedMotion || isMobilePreview()) return;
   const animate = (time) => {
     if (!hyperspaceLastTime) hyperspaceLastTime = time;
     const dt = Math.min((time - hyperspaceLastTime) / 1000, .05);
@@ -499,12 +499,13 @@ function ambientTiles(canvas, columns, rows, now) {
     }) };
     ambientTileFields.set(canvas, field);
   }
-  const pace = .55 + ambientSpeed / 45;
+  const speedRatio = ambientSpeed / 100;
+  const pace = .7 + speedRatio * speedRatio * 6;
   const dt = Math.min(.08, Math.max(0, (now - field.lastTime) / 1000)); field.lastTime = now;
   field.walkers.forEach((walker) => {
     walker.phase += dt * (.11 + ambientSpeed * .002);
     walker.vx += Math.sin(walker.phase * .73) * dt * .035; walker.vy += Math.cos(walker.phase * .61) * dt * .035;
-    const length = Math.max(.01, Math.hypot(walker.vx, walker.vy)); const velocity = (.08 + ambientSpeed * .0045) / length;
+    const length = Math.max(.01, Math.hypot(walker.vx, walker.vy)); const velocity = (.04 + speedRatio * speedRatio * 4) / length;
     walker.x += walker.vx * velocity * dt; walker.y += walker.vy * velocity * dt;
     if (walker.x < -2) walker.x = columns + 2; else if (walker.x > columns + 2) walker.x = -2;
     if (walker.y < -2) walker.y = rows + 2; else if (walker.y > rows + 2) walker.y = -2;
@@ -577,7 +578,7 @@ function stopAmbient(clear = true) {
 function startAmbient(pattern, speed, density, colorsEnabled) {
   ambientPattern = pattern; ambientSpeed = speed; ambientDensity = density; ambientColors = colorsEnabled; stopAmbient(false);
   hyperspaceCanvases().forEach((canvas) => drawAmbient(canvas));
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches || isMobilePreview()) return;
+  if (speed === 0 || matchMedia("(prefers-reduced-motion: reduce)").matches || isMobilePreview()) return;
   const animate = (time) => { if (!ambientStartedAt) ambientStartedAt = time; hyperspaceCanvases().forEach((canvas) => drawAmbient(canvas, time - ambientStartedAt)); ambientFrame = requestAnimationFrame(animate); };
   ambientFrame = requestAnimationFrame(animate);
 }
@@ -607,7 +608,7 @@ function startDotMotion(direction, speed) {
   if (dotMotionFrame && direction === dotMotionDirection) return;
   stopDotMotion(direction === "still");
   dotMotionDirection = direction;
-  if (direction === "still" || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (speed === 0 || direction === "still" || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   if (direction === "random") {
     chooseRandomDotDirection();
     dotMotionVector = [...dotMotionTarget];
@@ -645,8 +646,9 @@ function applyPreviewBackground() {
   const radius = storedRadius >= .6 && storedRadius <= 1.8 ? storedRadius : 1;
   const storedDirection = localStorage.getItem("fountain-publisher.preview-dot-direction") || "still";
   const direction = storedDirection === "random" || storedDirection === "still" || DOT_DIRECTIONS[storedDirection] ? storedDirection : "still";
-  const storedSpeed = Number(localStorage.getItem("fountain-publisher.preview-dot-speed"));
-  const speed = storedSpeed >= 1 && storedSpeed <= 100 ? storedSpeed : 20;
+  const storedSpeedValue = localStorage.getItem("fountain-publisher.preview-dot-speed");
+  const storedSpeed = Number(storedSpeedValue);
+  const speed = storedSpeedValue !== null && storedSpeed >= 0 && storedSpeed <= 100 ? storedSpeed : 20;
   const storedDensity = Number(localStorage.getItem("fountain-publisher.preview-star-density"));
   const density = storedDensity >= 30 && storedDensity <= 240 ? storedDensity : 100;
   const colorsEnabled = localStorage.getItem("fountain-publisher.preview-star-colors") === "true";

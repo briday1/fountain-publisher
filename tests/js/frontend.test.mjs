@@ -975,7 +975,7 @@ test("preview background popup supports themed, directional dot motion", async (
   assert.match(html, /id="preview-dot-radius" type="range" min="0\.6" max="1\.8" step="0\.1" value="1"/);
   assert.match(html, /id="background-pattern-preview"[^>]*data-background="dots"/);
   assert.match(html, /id="preview-dot-direction"[\s\S]*value="up"[\s\S]*value="down"[\s\S]*value="left"[\s\S]*value="right"[\s\S]*value="up-left"[\s\S]*value="up-right"[\s\S]*value="down-left"[\s\S]*value="down-right"[\s\S]*value="random"/);
-  assert.match(html, /id="preview-dot-speed" type="range" min="1" max="100" step="1" value="20"/);
+  assert.match(html, /id="preview-dot-speed" type="range" min="0" max="100" step="1" value="20"/);
   assert.match(html, /id="preview-star-density" type="range" min="30" max="240" step="5" value="100"/);
   assert.match(html, /id="preview-star-colors-row"[^>]*hidden[\s\S]*id="preview-star-colors" type="checkbox" role="switch"/);
   assert.match(css, /\.preview-scroll\[data-background="dots"\][^}]*radial-gradient[^}]*background-size:\s*16px 16px;/s);
@@ -990,12 +990,17 @@ test("preview background popup supports themed, directional dot motion", async (
   assert.match(app, /function applyPreviewBackground\(\)/);
   assert.match(app, /function drawHyperspace\(canvas, dt = 0\)[\s\S]*star\.x \/ star\.z[\s\S]*context\.lineTo\(x, y\)/);
   assert.match(app, /function startHyperspace\(speed, density, colorsEnabled\)[\s\S]*prefers-reduced-motion[\s\S]*requestAnimationFrame/);
+  assert.match(app, /function startHyperspace\(speed, density, colorsEnabled\)[\s\S]*speed === 0/);
   assert.match(app, /const AMBIENT_PATTERNS = \["geometric", "constellation", "topographic", "tiles"\]/);
   assert.match(app, /function drawAmbient\(canvas, time = 0\)[\s\S]*ambientPattern === "geometric"[\s\S]*ambientPattern === "constellation"[\s\S]*ambientPattern === "topographic"[\s\S]*ambientPattern === "tiles"/);
   assert.match(app, /function ambientTiles\(canvas, columns, rows, now\)[\s\S]*Math\.random\(\)[\s\S]*progress \* progress \* \(3 - 2 \* progress\)/);
+  assert.match(app, /const speedRatio = ambientSpeed \/ 100;[\s\S]*speedRatio \* speedRatio \* 6[\s\S]*speedRatio \* speedRatio \* 4/);
   assert.match(app, /ambientPattern === "tiles"[\s\S]*ambientTiles\(canvas, columns, rows, performance\.now\(\)\)[\s\S]*const spread = neighbors\.reduce[\s\S]*const migration = tileField\.walkers\.reduce[\s\S]*context\.fillRect\(left, top, size, size\)/);
   assert.doesNotMatch(app, /tile\.rotation|tile\.x|tile\.y/);
   assert.match(app, /function startAmbient\(pattern, speed, density, colorsEnabled\)[\s\S]*prefers-reduced-motion[\s\S]*requestAnimationFrame/);
+  assert.match(app, /function startAmbient\(pattern, speed, density, colorsEnabled\)[\s\S]*speed === 0/);
+  assert.match(app, /function startDotMotion\(direction, speed\)[\s\S]*speed === 0/);
+  assert.match(app, /storedSpeedValue !== null && storedSpeed >= 0/);
   assert.match(app, /star\.tint >= \.82[\s\S]*accentColors\[colorIndex\]/);
   assert.match(app, /preview-star-density[\s\S]*preview-star-density-value[\s\S]*const animated = pattern === "hyperspace" \|\| AMBIENT_PATTERNS\.includes\(pattern\)/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-star-density", event\.target\.value\)/);
