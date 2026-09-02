@@ -4481,6 +4481,10 @@ $("#theme-form").addEventListener("click", (event) => {
   const option = event.target.closest("[data-theme-option]");
   if (option) setTheme(option.dataset.themeOption);
 });
+$("#preview-colors").addEventListener("change", (event) => {
+  localStorage.setItem("fountain-publisher.preview-colors", String(event.target.checked));
+  document.body.classList.toggle("preview-colors", event.target.checked);
+});
 $("#spellcheck").addEventListener("change", () => {
   const enabled = $("#spellcheck").checked;
   source.spellcheck = false;
@@ -4806,6 +4810,8 @@ async function initialize() {
   document.documentElement.dataset.os = isMac ? "mac" : "win";
   const wordWrap = localStorage.getItem("fountain-publisher.word-wrap") !== "false";
   $("#word-wrap").checked = wordWrap; document.body.classList.toggle("source-wrap", wordWrap); source.setAttribute("wrap", wordWrap ? "soft" : "off");
+  const previewColors = localStorage.getItem("fountain-publisher.preview-colors") === "true";
+  $("#preview-colors").checked = previewColors; document.body.classList.toggle("preview-colors", previewColors);
   $("#vim-mode").checked = state.vimEnabled;
   updateVimUi();
   $("#clear-workspace-on-exit").checked = clearWorkspaceOnExit();

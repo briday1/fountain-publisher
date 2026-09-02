@@ -400,6 +400,23 @@ test("source editor uses neutral backgrounds with colored screenplay cues", asyn
   assert.match(css, /\.editor-shell\s*\{[^}]*background:\s*var\(--source-bg\);/s);
   assert.match(css, /\.source-highlight\s*\{[^}]*color:\s*var\(--source-ink\);/s);
   assert.match(css, /\.line-numbers\s*\{[^}]*background:\s*var\(--source-gutter-bg\);/s);
+  assert.match(css, /\.source-highlight \.syntax-dialogue\s*\{\s*color:\s*color-mix\(in srgb, var\(--syntax-dialogue\) 65%, var\(--source-ink\)\);/);
+  assert.match(css, /\.source-highlight \.syntax-action\s*\{\s*color:\s*color-mix\(in srgb, var\(--syntax-action\) 65%, var\(--source-ink\)\);/);
+});
+
+test("Preview can color screenplay elements with the active theme", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(html, /id="preview-colors"[^>]*type="checkbox"[^>]*role="switch"/);
+  assert.match(app, /fountain-publisher\.preview-colors/);
+  assert.match(app, /classList\.toggle\("preview-colors",\s*(?:event\.target\.checked|previewColors)\)/);
+  for (const type of ["title-value", "scene", "action", "character", "parenthetical", "dialogue", "transition", "section.act"]) {
+    assert.match(css, new RegExp(`body\\.preview-colors \\.script-line\\.${type.replace(".", "\\.")}`));
+  }
+  assert.match(css, /body\.preview-colors \.script-line\.scene\s*\{[^}]*color-mix\(in srgb, var\(--syntax-scene\) 65%, var\(--paper-ink\)\)/);
+  assert.match(css, /:root\[data-theme="espresso"\][^}]*--syntax-action:[^;}]+;[^}]*--syntax-dialogue:/);
+  assert.match(css, /:root\[data-theme="dracula"\][^}]*--syntax-action:[^;}]+;[^}]*--syntax-dialogue:/);
+  assert.match(css, /:root\[data-theme="tokyo-night"\][^}]*--syntax-action:[^;}]+;[^}]*--syntax-dialogue:/);
+  assert.match(css, /:root\[data-theme="synth-wave"\][^}]*--syntax-action:[^;}]+;[^}]*--syntax-dialogue:/);
 });
 
 test("blank documents retain a page and title inference is constrained", async () => {
