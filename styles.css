@@ -250,6 +250,7 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .source-highlight .syntax-note, .source-highlight .syntax-boneyard { color: var(--syntax-ignored); }
 .source-highlight .syntax-lyric { color: var(--syntax-parenthetical); font-style: italic; }
 .source-highlight .fountain-markup { color: var(--source-muted); }
+.source-highlight .source-spelling-error { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: #d14b64; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 .current-line { position: absolute; left: 43px; right: 0; height: 20.15px; top: 14px; background: color-mix(in srgb, var(--syntax-scene) 8%, transparent); pointer-events: none; z-index: 0; }
 #source, .line-numbers { position: relative; z-index: 1; }
 #source { z-index: 2; }

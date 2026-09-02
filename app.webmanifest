@@ -1,7 +1,7 @@
 {
   "id": "./",
   "name": "Fountain Publisher",
-  "short_name": "Fountain",
+  "short_name": "Fountain Publisher",
   "description": "Write, preview, and publish Fountain screenplays.",
   "start_url": "./",
   "scope": "./",
