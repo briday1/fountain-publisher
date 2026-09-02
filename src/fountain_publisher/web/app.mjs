@@ -3023,6 +3023,21 @@ function openThemeDialog() {
   else open();
 }
 
+function setZenMode(enabled) {
+  document.body.classList.toggle("zen-mode", enabled);
+  localStorage.setItem("fountain-publisher.zen-mode", String(enabled));
+  $("#zen-controls").hidden = !enabled;
+  $("#toggle-zen").textContent = enabled ? "Exit Zen mode" : "Enter Zen mode";
+  if (enabled) {
+    setMobileMenu(false);
+    closeMenus();
+  }
+  requestAnimationFrame(() => {
+    if (state.previewZoom === "fit") applyZoom();
+    if (state.previewMode === "source") renderEditorChrome();
+  });
+}
+
 function isStandaloneApp() {
   return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 }
@@ -4536,6 +4551,8 @@ $("#menu-toggle-source-tab").addEventListener("click", () => {
   closeMenus();
 });
 $("#toggle-fullscreen").addEventListener("click", () => { void toggleFullscreen(); });
+$("#toggle-zen").addEventListener("click", () => setZenMode(!document.body.classList.contains("zen-mode")));
+$("#exit-zen").addEventListener("click", () => setZenMode(false));
 $("#install-app").addEventListener("click", async () => {
   if (!installPrompt) return;
   await installPrompt.prompt();
@@ -4714,6 +4731,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !$("#preview-context-menu").hidden) hidePreviewContextMenu();
   else if (event.key === "Escape" && document.body.classList.contains("mobile-menu-open")) setMobileMenu(false);
   else if (event.key === "Escape" && toolbarMenus.some((menu) => menu.open)) { closeMenus(); }
+  else if (event.key === "Escape" && document.body.classList.contains("zen-mode")) setZenMode(false);
   else if ((source === document.activeElement || page.contains(document.activeElement)) && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redoDocument() : undoDocument(); }
   else if ((source === document.activeElement || page.contains(document.activeElement)) && event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === "y") { event.preventDefault(); redoDocument(); }
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); saveFile(event.shiftKey); }
@@ -4763,6 +4781,7 @@ function registerAppServiceWorker() {
 async function initialize() {
   updateMobileViewport();
   setTheme(state.theme);
+  setZenMode(localStorage.getItem("fountain-publisher.zen-mode") === "true");
   updateAppWindowControls();
   registerAppServiceWorker();
   const showSourceTab = sourceTabEnabled();

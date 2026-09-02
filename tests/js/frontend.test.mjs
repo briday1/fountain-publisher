@@ -66,6 +66,16 @@ test("theme picker previews neutral and Solarized palettes", async () => {
   assert.match(css, /\.theme-preview-system[\s\S]*\.theme-preview-solarized-dark/);
 });
 
+test("Zen mode leaves only work and compact view controls", async () => {
+  const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  assert.match(html, /id="toggle-zen"[\s\S]*id="zen-controls"[^>]*hidden[\s\S]*data-preview-mode="source"[\s\S]*data-preview-mode="live"[\s\S]*data-preview-mode="beats"[\s\S]*id="exit-zen"/);
+  assert.match(app, /function setZenMode\(enabled\)[\s\S]*fountain-publisher\.zen-mode[\s\S]*zen-controls/);
+  assert.match(app, /event\.key === "Escape" && document\.body\.classList\.contains\("zen-mode"\)/);
+  assert.match(app, /setZenMode\(localStorage\.getItem\("fountain-publisher\.zen-mode"\) === "true"\)/);
+  assert.match(css, /body\.zen-mode \.app-toolbar[\s\S]*body\.zen-mode #workspace[\s\S]*height:\s*100vh !important/);
+  assert.match(css, /body\.source-tab-hidden \[data-preview-mode="source"\]/);
+});
+
 test("production deployment cannot be displaced by PR cleanup", async () => {
   const workflow = await readFile(new URL("../../.github/workflows/pages-preview.yml", import.meta.url), "utf8");
   assert.match(workflow, /concurrency:[\s\S]*group:\s*pages-\$\{\{ github\.event_name \}\}[\s\S]*cancel-in-progress:\s*false/);
