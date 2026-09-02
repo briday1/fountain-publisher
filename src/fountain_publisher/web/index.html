@@ -92,6 +92,7 @@
             </button>
             <label class="setting-row"><span>Paper</span><select id="page-size"><option value="letter">US Letter</option><option value="a4">A4</option></select></label>
             <button id="open-background-dialog" type="button">Background…</button>
+            <label class="setting-row" title="Color screenplay elements in Preview using the active theme"><span>Preview colors</span><input id="preview-colors" type="checkbox" role="switch" /></label>
             <label class="setting-row" title="Underline misspellings and right-click them for replacement suggestions"><span>Spellcheck</span><input id="spellcheck" type="checkbox" role="switch" checked /></label>
             <label class="setting-row" title="Wrap long source lines without changing Fountain line numbers"><span>Source word wrap</span><input id="word-wrap" type="checkbox" role="switch" checked /></label>
             <label class="setting-row desktop-setting" title="Use Vim-style Normal and Insert modes in Source and Preview"><span>Vim mode</span><input id="vim-mode" type="checkbox" role="switch" /></label>
@@ -324,7 +325,10 @@
         <div class="dialog-heading"><small>APPEARANCE</small><h2 id="theme-dialog-title">Color theme</h2></div>
         <div class="theme-options" role="radiogroup" aria-label="Color theme">
           <button class="theme-option theme-preview-system" type="button" role="radio" data-theme-option="system">
-            <span class="theme-preview" aria-hidden="true"><i></i><b></b><em></em></span>
+            <span class="theme-preview" aria-hidden="true">
+              <span class="theme-preview-layer theme-preview-layer-light"><i></i><b></b><em></em></span>
+              <span class="theme-preview-layer theme-preview-layer-dark"><i></i><b></b><em></em></span>
+            </span>
             <span><strong>System</strong><small>Match your device</small></span><span class="theme-check">✓</span>
           </button>
           <button class="theme-option theme-preview-light" type="button" role="radio" data-theme-option="light">
@@ -342,6 +346,22 @@
           <button class="theme-option theme-preview-solarized-dark" type="button" role="radio" data-theme-option="solarized-dark">
             <span class="theme-preview" aria-hidden="true"><i></i><b></b><em></em></span>
             <span><strong>Solarized Dark</strong><small>Deep blue-green</small></span><span class="theme-check">✓</span>
+          </button>
+          <button class="theme-option theme-preview-espresso" type="button" role="radio" data-theme-option="espresso">
+            <span class="theme-preview" aria-hidden="true"><i></i><b></b><em></em></span>
+            <span><strong>Espresso</strong><small>Warm coffee tones</small></span><span class="theme-check">✓</span>
+          </button>
+          <button class="theme-option theme-preview-dracula" type="button" role="radio" data-theme-option="dracula">
+            <span class="theme-preview" aria-hidden="true"><i></i><b></b><em></em></span>
+            <span><strong>Dracula</strong><small>Vivid purple contrast</small></span><span class="theme-check">✓</span>
+          </button>
+          <button class="theme-option theme-preview-tokyo-night" type="button" role="radio" data-theme-option="tokyo-night">
+            <span class="theme-preview" aria-hidden="true"><i></i><b></b><em></em></span>
+            <span><strong>Tokyo Night</strong><small>Midnight blue</small></span><span class="theme-check">✓</span>
+          </button>
+          <button class="theme-option theme-preview-synth-wave" type="button" role="radio" data-theme-option="synth-wave">
+            <span class="theme-preview" aria-hidden="true"><i></i><b></b><em></em></span>
+            <span><strong>Synth Wave</strong><small>Neon after dark</small></span><span class="theme-check">✓</span>
           </button>
         </div>
         <div class="dialog-actions"><button class="primary" value="default">Done</button></div>
