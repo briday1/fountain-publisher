@@ -55,12 +55,14 @@ test("app installs as a standalone PWA and offers desktop window controls", asyn
   assert.match(pyproject, /web\/icons\/\*/);
 });
 
-test("theme picker previews neutral and Solarized palettes", async () => {
+test("theme picker previews all available palettes", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
-  assert.match(html, /id="theme-dialog"[\s\S]*data-theme-option="system"[\s\S]*data-theme-option="light"[\s\S]*data-theme-option="dark"[\s\S]*data-theme-option="solarized-light"[\s\S]*data-theme-option="solarized-dark"/);
+  assert.match(html, /id="theme-dialog"[\s\S]*data-theme-option="system"[\s\S]*data-theme-option="light"[\s\S]*data-theme-option="dark"[\s\S]*data-theme-option="solarized-light"[\s\S]*data-theme-option="solarized-dark"[\s\S]*data-theme-option="espresso"[\s\S]*data-theme-option="dracula"[\s\S]*data-theme-option="tokyo-night"[\s\S]*data-theme-option="synth-wave"/);
   assert.match(app, /function openThemeDialog\(\)[\s\S]*showModal\(\)/);
-  assert.match(app, /theme\.endsWith\("dark"\) \? "dark" : "light"/);
+  assert.match(app, /espresso:\s*\{[^}]*dark:\s*true[^}]*\}[\s\S]*dracula:\s*\{[^}]*dark:\s*true[^}]*\}[\s\S]*"tokyo-night":\s*\{[^}]*dark:\s*true[^}]*\}[\s\S]*"synth-wave":\s*\{[^}]*dark:\s*true/);
+  assert.match(app, /themes\[theme\]\.dark \? "dark" : "light"/);
   assert.match(css, /:root\[data-theme="solarized-light"\][\s\S]*:root\[data-theme="solarized-dark"\]/);
+  assert.match(css, /:root\[data-theme="espresso"\][\s\S]*:root\[data-theme="dracula"\][\s\S]*:root\[data-theme="tokyo-night"\][\s\S]*:root\[data-theme="synth-wave"\]/);
   assert.match(css, /--surface:\s*#eeeeed;[\s\S]*--paper:\s*#fff;/);
   assert.match(css, /:root\[data-theme="solarized-light"\][^}]*--paper:\s*#fdf6e3;[^}]*--paper-ink:\s*#073642;/);
   assert.match(css, /:root\s*\{[^}]*--bg:\s*#c8cbcd;/);
@@ -68,6 +70,8 @@ test("theme picker previews neutral and Solarized palettes", async () => {
   assert.match(html, /theme-preview-layer-light[\s\S]*theme-preview-layer-dark/);
   assert.match(css, /\.theme-preview-system \.theme-preview-layer-dark[^}]*clip-path:\s*polygon\(100% 0, 100% 100%, 0 100%\)/);
   assert.match(css, /\.theme-preview-system \.theme-preview::after[^}]*linear-gradient\(to bottom right/);
+  assert.match(css, /\.theme-preview-espresso[\s\S]*\.theme-preview-dracula[\s\S]*\.theme-preview-tokyo-night[\s\S]*\.theme-preview-synth-wave/);
+  assert.match(css, /\.theme-options\s*\{[^}]*overflow-y:\s*auto/);
 });
 
 test("Zen mode leaves only work and compact view controls", async () => {

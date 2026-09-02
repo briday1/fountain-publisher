@@ -2989,17 +2989,21 @@ async function refreshPdf() {
 function setTheme(theme) {
   const themes = {
     system: { label: "System", color: null },
-    light: { label: "Light", color: "#eeeeed" },
-    dark: { label: "Dark", color: "#202326" },
-    "solarized-light": { label: "Solarized Light", color: "#eee8d5" },
-    "solarized-dark": { label: "Solarized Dark", color: "#073642" },
+    light: { label: "Light", color: "#eeeeed", dark: false },
+    dark: { label: "Dark", color: "#202326", dark: true },
+    "solarized-light": { label: "Solarized Light", color: "#eee8d5", dark: false },
+    "solarized-dark": { label: "Solarized Dark", color: "#073642", dark: true },
+    espresso: { label: "Espresso", color: "#3c312c", dark: true },
+    dracula: { label: "Dracula", color: "#21222c", dark: true },
+    "tokyo-night": { label: "Tokyo Night", color: "#16161e", dark: true },
+    "synth-wave": { label: "Synth Wave", color: "#2b213a", dark: true },
   };
   if (!themes[theme]) theme = "system";
   state.theme = theme; localStorage.setItem("fountain-publisher.theme", theme);
   if (theme === "system") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = theme;
   const effective = theme === "system"
     ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
-    : (theme.endsWith("dark") ? "dark" : "light");
+    : (themes[theme].dark ? "dark" : "light");
   document.documentElement.dataset.effectiveTheme = effective;
   $("#app-theme-color").content = themes[theme].color || (effective === "dark" ? "#202326" : "#eeeeed");
   $("#theme-value").textContent = themes[theme].label;
