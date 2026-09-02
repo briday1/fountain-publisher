@@ -302,11 +302,11 @@
       <form method="dialog" id="background-form">
         <div class="dialog-heading"><small>APPEARANCE</small><h2 id="background-dialog-title">Preview background</h2></div>
         <div id="background-pattern-preview" class="background-pattern-preview" data-background="dots" aria-hidden="true"><canvas class="hyperspace-canvas"></canvas><span></span></div>
-        <label>Pattern<select id="preview-background"><option value="blank">Blank</option><option value="dots" selected>Dots</option><option value="hyperspace">Hyperspace</option></select></label>
+        <label>Pattern<select id="preview-background"><option value="blank">Blank</option><option value="dots" selected>Dots</option><option value="hyperspace">Hyperspace</option><option value="geometric">Geometric drift</option><option value="constellation">Constellation</option><option value="topographic">Topographic</option><option value="tiles">Tiles</option></select></label>
         <label id="preview-dot-radius-row">Dot radius<span class="range-setting"><input id="preview-dot-radius" type="range" min="0.6" max="1.8" step="0.1" value="1" /><output id="preview-dot-radius-value">1.0px</output></span></label>
         <label id="preview-dot-direction-row">Direction<select id="preview-dot-direction"><option value="still" selected>Still</option><option value="up">Up</option><option value="down">Down</option><option value="left">Left</option><option value="right">Right</option><option value="up-left">Up-left</option><option value="up-right">Up-right</option><option value="down-left">Down-left</option><option value="down-right">Down-right</option><option value="random">Random</option></select></label>
-        <label id="preview-dot-speed-row">Speed<span class="range-setting"><input id="preview-dot-speed" type="range" min="1" max="100" step="1" value="20" /><output id="preview-dot-speed-value">20</output></span></label>
-        <label id="preview-star-density-row" hidden>Star density<span class="range-setting"><input id="preview-star-density" type="range" min="30" max="240" step="5" value="100" /><output id="preview-star-density-value">100%</output></span></label>
+        <label id="preview-dot-speed-row">Speed<span class="range-setting"><input id="preview-dot-speed" type="range" min="0" max="100" step="1" value="20" /><output id="preview-dot-speed-value">20</output></span></label>
+        <label id="preview-star-density-row" hidden>Density<span class="range-setting"><input id="preview-star-density" type="range" min="30" max="240" step="5" value="100" /><output id="preview-star-density-value">100%</output></span></label>
         <label id="preview-star-colors-row" class="background-toggle" hidden><span>Add colors</span><input id="preview-star-colors" type="checkbox" role="switch" /></label>
         <div class="dialog-actions"><button class="primary" value="default">Done</button></div>
       </form>
