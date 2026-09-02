@@ -346,8 +346,9 @@ let hyperspaceSpeed = 20;
 let hyperspaceDensity = 100;
 let hyperspaceColors = false;
 const hyperspaceFields = new WeakMap();
-const AMBIENT_PATTERNS = ["geometric", "constellation", "topographic", "isometric", "aurora", "orbit", "tiles"];
+const AMBIENT_PATTERNS = ["geometric", "constellation", "topographic", "tiles"];
 const ambientFields = new WeakMap();
+const ambientTileFields = new WeakMap();
 let ambientFrame = 0;
 let ambientStartedAt = 0;
 let ambientPattern = "geometric";
@@ -485,6 +486,32 @@ function ambientPoints(canvas, count) {
   return field.points;
 }
 
+function nextTileState() {
+  return { size: .5 + Math.random() * .42, x: Math.random() * .28 - .14, y: Math.random() * .28 - .14, rotation: Math.random() * .7 - .35, energy: .12 + Math.random() * .88 };
+}
+
+function ambientTiles(canvas, columns, rows, now) {
+  let field = ambientTileFields.get(canvas);
+  if (!field || field.columns !== columns || field.rows !== rows) {
+    field = { columns, rows, tiles: Array.from({ length: columns * rows }, () => {
+      const state = nextTileState();
+      return { from: state, to: nextTileState(), started: now - Math.random() * 5000, duration: 5000 + Math.random() * 7000, value: state };
+    }) };
+    ambientTileFields.set(canvas, field);
+  }
+  const pace = .55 + ambientSpeed / 45;
+  field.tiles.forEach((tile) => {
+    if (now >= tile.started + tile.duration) {
+      tile.from = tile.value; tile.to = nextTileState(); tile.started = now;
+      tile.duration = (4500 + Math.random() * 7500) / pace;
+    }
+    const progress = Math.max(0, Math.min(1, (now - tile.started) / tile.duration));
+    const eased = progress * progress * (3 - 2 * progress);
+    tile.value = Object.fromEntries(Object.keys(tile.to).map((key) => [key, tile.from[key] + (tile.to[key] - tile.from[key]) * eased]));
+  });
+  return field.tiles;
+}
+
 function drawAmbient(canvas, time = 0) {
   if (canvas.closest("[hidden]")) return;
   const { context, width, height } = ambientCanvas(canvas);
@@ -512,19 +539,25 @@ function drawAmbient(canvas, time = 0) {
   } else if (ambientPattern === "topographic") {
     const lines = Math.max(7, Math.round(13 * scale));
     for (let row = 0; row < lines; row += 1) { context.strokeStyle = palette[row % palette.length]; context.globalAlpha = .12; context.lineWidth = .8; context.beginPath(); for (let x = -10; x <= width + 10; x += 8) { const y = (row + .5) / lines * height + Math.sin(x * .014 + row * .72 + motion) * 18 + Math.sin(x * .031 - motion * .7) * 7; if (x < 0) context.moveTo(x, y); else context.lineTo(x, y); } context.stroke(); }
-  } else if (ambientPattern === "isometric") {
-    const unit = Math.max(22, 42 / Math.sqrt(scale)); const shift = (motion * 18) % unit;
-    context.strokeStyle = palette[0]; context.globalAlpha = .13; context.lineWidth = .8;
-    for (let y = -unit; y < height + unit; y += unit / 2) for (let x = -unit; x < width + unit; x += unit) { const cx = x + ((Math.round(y / (unit / 2)) & 1) ? unit / 2 : 0) + shift; context.beginPath(); context.moveTo(cx, y); context.lineTo(cx + unit / 2, y + unit / 4); context.lineTo(cx, y + unit / 2); context.lineTo(cx - unit / 2, y + unit / 4); context.closePath(); context.moveTo(cx, y + unit / 2); context.lineTo(cx, y + unit); context.moveTo(cx - unit / 2, y + unit / 4); context.lineTo(cx - unit / 2, y + unit * .75); context.lineTo(cx, y + unit); context.lineTo(cx + unit / 2, y + unit * .75); context.lineTo(cx + unit / 2, y + unit / 4); context.stroke(); }
-  } else if (ambientPattern === "aurora") {
-    const bands = Math.max(4, Math.round(6 * scale));
-    for (let band = 0; band < bands; band += 1) { const gradient = context.createLinearGradient(0, 0, width, height); const color = palette[band % palette.length]; gradient.addColorStop(0, "transparent"); gradient.addColorStop(.5, color); gradient.addColorStop(1, "transparent"); context.fillStyle = gradient; context.globalAlpha = ambientColors ? .045 : .025; context.beginPath(); context.moveTo(-20, height); for (let x = -20; x <= width + 20; x += 30) context.lineTo(x, height * (.18 + band / bands * .72) + Math.sin(x * .009 + motion + band) * 55); context.lineTo(width + 20, height); context.closePath(); context.fill(); }
-  } else if (ambientPattern === "orbit") {
-    const rings = Math.max(3, Math.round(6 * scale)); const cx = width * .5; const cy = height * .5;
-    for (let ring = 0; ring < rings; ring += 1) { const radiusX = 38 + ring * Math.min(width, height) * .075; const radiusY = radiusX * (.38 + (ring % 3) * .12); context.strokeStyle = palette[ring % palette.length]; context.globalAlpha = .11; context.lineWidth = .8; context.beginPath(); context.ellipse(cx, cy, radiusX, radiusY, ring * .42, 0, Math.PI * 2); context.stroke(); const angle = motion * (ring % 2 ? -1 : 1) + ring; const cos = Math.cos(ring * .42); const sin = Math.sin(ring * .42); const ox = Math.cos(angle) * radiusX; const oy = Math.sin(angle) * radiusY; context.fillStyle = palette[ring % palette.length]; context.globalAlpha = .32; context.beginPath(); context.arc(cx + ox * cos - oy * sin, cy + ox * sin + oy * cos, 2.2, 0, Math.PI * 2); context.fill(); }
   } else if (ambientPattern === "tiles") {
     const unit = Math.max(24, 46 / Math.sqrt(scale));
-    for (let row = -1; row < height / unit + 1; row += 1) for (let column = -1; column < width / unit + 1; column += 1) { const pulse = (Math.sin(motion * 1.4 + row * .73 + column * .51) + 1) / 2; context.fillStyle = palette[(row + column + 100) % palette.length]; context.globalAlpha = .015 + pulse * .055; context.beginPath(); context.rect(column * unit + 2, row * unit + 2, unit - 4, unit - 4); context.fill(); context.strokeStyle = palette[0]; context.globalAlpha = .055; context.stroke(); }
+    const columns = Math.ceil(width / unit) + 2; const rows = Math.ceil(height / unit) + 2;
+    const tiles = ambientTiles(canvas, columns, rows, performance.now());
+    for (let row = 0; row < rows; row += 1) for (let column = 0; column < columns; column += 1) {
+      const tile = tiles[row * columns + column].value;
+      const neighbors = [[row - 1, column], [row + 1, column], [row, column - 1], [row, column + 1]]
+        .filter(([nearRow, nearColumn]) => nearRow >= 0 && nearRow < rows && nearColumn >= 0 && nearColumn < columns)
+        .map(([nearRow, nearColumn]) => tiles[nearRow * columns + nearColumn].value.energy);
+      const spread = neighbors.reduce((total, value) => total + value, tile.energy) / (neighbors.length + 1);
+      const size = unit * tile.size;
+      const centerX = (column - .5 + tile.x) * unit;
+      const centerY = (row - .5 + tile.y) * unit;
+      context.save(); context.translate(centerX, centerY); context.rotate(tile.rotation);
+      context.fillStyle = palette[(Math.abs(row * 3 + column * 5)) % palette.length]; context.globalAlpha = .012 + (tile.energy * .65 + spread * .35) * .075;
+      context.fillRect(-size / 2, -size / 2, size, size);
+      context.strokeStyle = palette[0]; context.globalAlpha = .035 + spread * .045; context.lineWidth = .7; context.strokeRect(-size / 2, -size / 2, size, size);
+      context.restore();
+    }
   }
   context.globalAlpha = 1;
 }

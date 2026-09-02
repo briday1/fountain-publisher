@@ -968,7 +968,8 @@ test("preview background popup supports themed, directional dot motion", async (
   const settingsMenu = html.match(/<details class="toolbar-menu settings-menu">([\s\S]*?)<\/details>/)?.[1] || "";
   assert.match(settingsMenu, /id="open-background-dialog"[^>]*>Background…<\/button>/);
   assert.match(html, /<dialog id="background-dialog"/);
-  assert.match(html, /id="preview-background"[\s\S]*value="blank">Blank[\s\S]*value="dots" selected>Dots[\s\S]*value="hyperspace">Hyperspace[\s\S]*value="geometric">Geometric drift[\s\S]*value="constellation">Constellation[\s\S]*value="topographic">Topographic[\s\S]*value="isometric">Isometric cubes[\s\S]*value="aurora">Aurora polygons[\s\S]*value="orbit">Orbit[\s\S]*value="tiles">Generative tiles/);
+  assert.match(html, /id="preview-background"[\s\S]*value="blank">Blank[\s\S]*value="dots" selected>Dots[\s\S]*value="hyperspace">Hyperspace[\s\S]*value="geometric">Geometric drift[\s\S]*value="constellation">Constellation[\s\S]*value="topographic">Topographic[\s\S]*value="tiles">Tiles/);
+  assert.doesNotMatch(html, /Isometric cubes|Aurora polygons|>Orbit</);
   assert.doesNotMatch(html, /value="rain"|Raindrops|preview-rain-speed/);
   assert.doesNotMatch(html, /Damascus|value="damascus"/);
   assert.match(html, /id="preview-dot-radius" type="range" min="0\.6" max="1\.8" step="0\.1" value="1"/);
@@ -989,8 +990,10 @@ test("preview background popup supports themed, directional dot motion", async (
   assert.match(app, /function applyPreviewBackground\(\)/);
   assert.match(app, /function drawHyperspace\(canvas, dt = 0\)[\s\S]*star\.x \/ star\.z[\s\S]*context\.lineTo\(x, y\)/);
   assert.match(app, /function startHyperspace\(speed, density, colorsEnabled\)[\s\S]*prefers-reduced-motion[\s\S]*requestAnimationFrame/);
-  assert.match(app, /const AMBIENT_PATTERNS = \["geometric", "constellation", "topographic", "isometric", "aurora", "orbit", "tiles"\]/);
-  assert.match(app, /function drawAmbient\(canvas, time = 0\)[\s\S]*ambientPattern === "geometric"[\s\S]*ambientPattern === "constellation"[\s\S]*ambientPattern === "topographic"[\s\S]*ambientPattern === "isometric"[\s\S]*ambientPattern === "aurora"[\s\S]*ambientPattern === "orbit"[\s\S]*ambientPattern === "tiles"/);
+  assert.match(app, /const AMBIENT_PATTERNS = \["geometric", "constellation", "topographic", "tiles"\]/);
+  assert.match(app, /function drawAmbient\(canvas, time = 0\)[\s\S]*ambientPattern === "geometric"[\s\S]*ambientPattern === "constellation"[\s\S]*ambientPattern === "topographic"[\s\S]*ambientPattern === "tiles"/);
+  assert.match(app, /function ambientTiles\(canvas, columns, rows, now\)[\s\S]*Math\.random\(\)[\s\S]*progress \* progress \* \(3 - 2 \* progress\)/);
+  assert.match(app, /ambientPattern === "tiles"[\s\S]*ambientTiles\(canvas, columns, rows, performance\.now\(\)\)[\s\S]*const spread = neighbors\.reduce[\s\S]*tile\.x[\s\S]*tile\.rotation/);
   assert.match(app, /function startAmbient\(pattern, speed, density, colorsEnabled\)[\s\S]*prefers-reduced-motion[\s\S]*requestAnimationFrame/);
   assert.match(app, /star\.tint >= \.82[\s\S]*accentColors\[colorIndex\]/);
   assert.match(app, /preview-star-density[\s\S]*preview-star-density-value[\s\S]*const animated = pattern === "hyperspace" \|\| AMBIENT_PATTERNS\.includes\(pattern\)/);
