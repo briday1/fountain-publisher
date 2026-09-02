@@ -31,6 +31,8 @@ test("app installs as a standalone PWA and offers desktop window controls", asyn
     readFile(new URL("../../pyproject.toml", import.meta.url), "utf8"),
   ]);
   const manifest = JSON.parse(manifestText);
+  assert.equal(manifest.name, "Fountain Publisher");
+  assert.equal(manifest.short_name, "Fountain Publisher");
   assert.equal(manifest.display, "standalone");
   assert.deepEqual(manifest.display_override, ["standalone"]);
   assert.equal(manifest.theme_color, "#202326");
@@ -321,8 +323,10 @@ test("spellcheck exposes private local replacement suggestions in the unified ed
   const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
   assert.match(html, /Right-click spelling for suggestions/);
   assert.match(html, /aria-describedby="editor-status spellcheck-help"/);
-  assert.match(app, /setAttribute\("spellcheck", String\(enabled\)\)/);
-  assert.match(app, /type === "character" \? ` spellcheck="false"`/);
+  assert.match(html, /id="source"[^>]*spellcheck="false"/);
+  assert.match(app, /type === "character" \? ` spellcheck="false" autocorrect="off" autocomplete="off"`/);
+  assert.match(app, /function sourceSpellingHtml\(value, type, checker\)[\s\S]*type === "character"[\s\S]*word === word\.toUpperCase\(\)/);
+  assert.match(app, /source\.setAttribute\("spellcheck", "false"\)/);
   assert.match(app, /import\("\.\/vendor\/spellcheck\.mjs"\)/);
   assert.match(app, /dictionary-en\.aff/);
   assert.match(app, /candidate\.word === candidate\.word\.toUpperCase\(\)/);

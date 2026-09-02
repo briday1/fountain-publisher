@@ -744,7 +744,7 @@ function previewLineHtml(line, sceneLabel = null, annotation = null) {
   const orb = annotation
     ? `<button class="annotation-orb" type="button" data-annotation-line="${annotation.index}" title="${escapeHtml(annotation.text)}" aria-label="Edit annotation: ${escapeHtml(annotation.text)}"></button>`
     : "";
-  const spellcheckAttr = type === "character" ? ` spellcheck="false"` : "";
+  const spellcheckAttr = type === "character" ? ` spellcheck="false" autocorrect="off" autocomplete="off"` : "";
   return `<div class="${className}" data-line="${line.index}" data-type="${escapeHtml(type)}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(display)}"${spellcheckAttr}>${content}${orb}</div>`;
 }
 
@@ -1275,14 +1275,32 @@ function fountainSyntaxHtml(value) {
   return escapeHtml(value).replace(/(\[\[|\]\]|\/\*|\*\/|\*{1,3}|_(?=\S)|(?<=\S)_|^~)/g, '<span class="fountain-markup">$1</span>');
 }
 
+function sourceSpellingHtml(value, type, checker) {
+  if (!checker || type === "character") return fountainSyntaxHtml(value);
+  let output = "";
+  let offset = 0;
+  for (const match of value.matchAll(/[\p{L}][\p{L}'’-]*/gu)) {
+    output += fountainSyntaxHtml(value.slice(offset, match.index));
+    const word = match[0];
+    const allCaps = word === word.toUpperCase();
+    output += !allCaps && word.length > 1 && !checker.correct(word)
+      ? `<span class="source-spelling-error">${escapeHtml(word)}</span>`
+      : fountainSyntaxHtml(word);
+    offset = match.index + word.length;
+  }
+  return output + fountainSyntaxHtml(value.slice(offset));
+}
+
 function renderSourceSyntax() {
   const classes = { scene: "scene", character: "character", dialogue: "dialogue", parenthetical: "parenthetical", transition: "transition", section: "section", synopsis: "synopsis", note: "note", boneyard: "boneyard", lyric: "lyric", "title-value": "title", "title-value title": "title" };
   const lines = classifyLines(source.value);
+  const checker = $("#spellcheck").checked ? state.spellchecker : null;
   $("#source-highlight").innerHTML = lines.map((line) => {
     const name = classes[line.type];
-    const value = fountainSyntaxHtml(line.raw) || " ";
+    const value = sourceSpellingHtml(line.raw, line.type, checker) || " ";
     return `<span data-source-line="${line.index}"${name ? ` class="syntax-${name}"` : ""}>${value}</span>`;
   }).join("");
+  if ($("#spellcheck").checked && !state.spellchecker) void getSpellchecker().then(renderSourceSyntax).catch(() => {});
 }
 
 function boundedScrollLeft(element, value = element.scrollLeft) {
@@ -4267,12 +4285,11 @@ $("#export-format").addEventListener("change", (event) => { $("#dialog-page-size
 $("#export-form").addEventListener("submit", (event) => { if (event.submitter?.value !== "default") return; event.preventDefault(); exportDocument($("#export-format").value); });
 $("#theme").addEventListener("click", cycleTheme); $("#spellcheck").addEventListener("change", () => {
   const enabled = $("#spellcheck").checked;
-  source.spellcheck = enabled;
-  source.setAttribute("spellcheck", String(enabled));
+  source.spellcheck = false;
+  source.setAttribute("spellcheck", "false");
   $("#spellcheck-help").hidden = !enabled;
+  renderSourceSyntax();
   renderPreview();
-  // Refocusing prompts Chromium/WebKit to rerun the native checker immediately.
-  if (enabled) { const start = source.selectionStart; const end = source.selectionEnd; source.blur(); source.focus(); source.setSelectionRange(start, end); }
 });
 $("#word-wrap").addEventListener("change", () => {
   const enabled = $("#word-wrap").checked;
