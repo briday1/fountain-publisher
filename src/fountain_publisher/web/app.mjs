@@ -2345,7 +2345,7 @@ function stagePlayLayoutToFountain(pages) {
 function flattenedScreenplayToFountain(value) {
   const scenePattern = /^(?:\d+[A-Z]?\.?\s+)?((?:\.?INT\.?|\.?EXT\.?|EST\.?|INT\.?\/?EXT\.?|I\/?E\.?)\b.*?)(?:\s+\d+[A-Z]?)?$/i;
   const transitionPattern = /(?:TO:|FADE (?:IN:|OUT\.?))$/i;
-  const rawLines = value.replace(/\r/g, "").split("\n").map((line) => line.trim()).filter(Boolean);
+  const rawLines = value.replace(/\r/g, "").split("\n").map((line) => line.trim().replace(/(\d+[A-Z]?)\s+\1$/, "").trim()).filter(Boolean);
   const isTransition = (text) => text === text.toUpperCase() && transitionPattern.test(text);
   const isCue = (text, index) => {
     if (!text || text.length > 42 || text !== text.toUpperCase() || !/[A-Z]/.test(text)) return false;
@@ -2412,7 +2412,8 @@ function flattenedScreenplayToFountain(value) {
         mode = "action";
       } else {
         output.push(text);
-        if (!parenthetical) { dialogueHasText = true; previousDialogue = text; }
+        if (parenthetical) previousDialogue = "";
+        else { dialogueHasText = true; previousDialogue = text; }
         return;
       }
     }
@@ -2422,10 +2423,12 @@ function flattenedScreenplayToFountain(value) {
 }
 
 function normalizeScreenplayPaste(value) {
-  const text = value.replace(/\r\n?/g, "\n");
+  const text = value.replace(/\r\n?|\u2028|\u2029|\f/g, "\n");
   if (!text.includes("\n")) return { text, reconstructed: false };
   const lines = text.split("\n");
-  const alreadyFountain = lines.some((line) => /^(?:Title|Credit|Author|Draft date):/i.test(line.trim()) || /^[.@!#~=]/.test(line.trim()));
+  const alreadyFountain = lines.some((line) => /^(?:Title|Credit|Author|Draft date):/i.test(line.trim())
+    || /^(?:@|!|#|~|=|\.(?!(?:INT|EXT)\.?\b))/.test(line.trim()))
+    || /\n\s*\n/.test(text);
   if (alreadyFountain) return { text, reconstructed: false };
   const hasScene = lines.some((line) => /^(?:\s*\d+[A-Z]?\.?\s+)?(?:INT\.?|EXT\.?|EST\.?|INT\.?\/?EXT\.?|I\/?E\.?)\b/i.test(line));
   const indentedLines = lines.filter((line) => /^\s{5,}\S/.test(line)).length;
@@ -2439,7 +2442,7 @@ function normalizeScreenplayPaste(value) {
       && !/^\(.+\)$/.test(text) && Boolean(next);
   }).length;
   const formattedLayout = hasScene && (positionedCue || indentedLines >= 3 || pageArtifacts);
-  const flattenedScreenplay = hasScene && !formattedLayout && flattenedCueCount >= 2;
+  const flattenedScreenplay = hasScene && !positionedCue && indentedLines < 3 && flattenedCueCount >= 2;
   if (flattenedScreenplay) return { text: flattenedScreenplayToFountain(text), reconstructed: true };
   return formattedLayout ? { text: pdfLayoutToFountain([text]), reconstructed: true } : { text, reconstructed: false };
 }

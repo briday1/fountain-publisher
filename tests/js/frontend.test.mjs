@@ -33,7 +33,7 @@ test("local file opening accepts text-based screenplay PDFs for Fountain reconst
   assert.match(app, /function pdfLayoutToFountain\(pages\)[\s\S]*scenePattern[\s\S]*titlePage[\s\S]*const character[\s\S]*const type/);
   assert.match(app, /function stagePlayLayoutToFountain\(pages\)[\s\S]*castNames[\s\S]*matchCue[\s\S]*# Cast of Characters[\s\S]*# \$\{text\.toUpperCase\(\)\}/);
   assert.match(app, /function flattenedScreenplayToFountain\(value\)[\s\S]*cueIndexes[\s\S]*Credit:[\s\S]*beginsAction/);
-  assert.match(app, /function normalizeScreenplayPaste\(value\)[\s\S]*alreadyFountain[\s\S]*positionedCue[\s\S]*pageArtifacts[\s\S]*flattenedCueCount[\s\S]*flattenedScreenplayToFountain\(text\)[\s\S]*pdfLayoutToFountain\(\[text\]\)/);
+  assert.match(app, /function normalizeScreenplayPaste\(value\)[\s\S]*u2028[\s\S]*alreadyFountain[\s\S]*INT\|EXT[\s\S]*positionedCue[\s\S]*pageArtifacts[\s\S]*flattenedCueCount[\s\S]*flattenedScreenplayToFountain\(text\)[\s\S]*pdfLayoutToFountain\(\[text\]\)/);
   assert.match(app, /source\.addEventListener\("paste"[\s\S]*normalizeScreenplayPaste\(pasted\)[\s\S]*setRangeText/);
   assert.match(app, /page\.addEventListener\("paste"[\s\S]*normalizeScreenplayPaste[\s\S]*replacePreviewSelection/);
   assert.match(html, /paste text copied from a conventionally formatted screenplay PDF/);
