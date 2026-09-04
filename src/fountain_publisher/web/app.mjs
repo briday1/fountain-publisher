@@ -1796,7 +1796,6 @@ function renderSceneCharacterAnalytics(sceneIndex) {
   $("#character-analytics-title").textContent = `${scene.kind === "scene" ? `Scene ${sceneNumber}` : scene.heading} Character Gantt`;
   $("#character-analytics-description").textContent = `${scene?.heading || "Document"} · Solid bars show dialogue word count and position within this ${scene.kind}.`;
   $("#character-analytics-back").hidden = groups.length <= 1;
-  $("#character-analytics-full").hidden = scene.kind === "document";
   $("#character-analytics-legend").hidden = true;
   canvas.setAttribute("aria-label", `Character dialogue word-position Gantt for ${scene?.heading || "document"}, with ${total} words`);
 }
@@ -1827,7 +1826,6 @@ function renderCharacterAnalytics() {
     ? "Dialogue lines by character across acts and scenes. Select a scene header for word-position detail."
     : "Dialogue lines by character across the document structure. Select a header for word-position detail.";
   $("#character-analytics-back").hidden = true;
-  $("#character-analytics-full").hidden = false;
 
   const surface = canvasColor("--surface", "#fff");
   const surface2 = canvasColor("--surface-2", "#f2f2f2");
@@ -4537,7 +4535,6 @@ $("#completion-menu").addEventListener("mousedown", (event) => { const item = ev
 $("[data-character-analytics]").addEventListener("click", openCharacterAnalytics);
 $("#close-character-analytics").addEventListener("click", () => $("#character-analytics-dialog").close());
 $("#character-analytics-back").addEventListener("click", () => { state.characterAnalyticsScene = null; renderCharacterAnalytics(); });
-$("#character-analytics-full").addEventListener("click", () => { state.characterAnalyticsScene = characterAnalyticsDocumentGroup(); renderCharacterAnalytics(); });
 $("#character-analytics-chart").addEventListener("click", (event) => {
   if (state.characterAnalyticsScene !== null) return;
   const scenes = characterAnalyticsGroups();
@@ -4548,9 +4545,12 @@ $("#character-analytics-chart").addEventListener("click", (event) => {
   if (y > 82 || x < 150) return;
   const sceneIndex = Math.floor((x - 150) / 92);
   if (sceneIndex < 0 || sceneIndex >= scenes.length) return;
-  if (y < 28 && state.metadata.scenes.length) {
-    const act = scenes[sceneIndex].act;
-    state.characterAnalyticsScene = characterAnalyticsActGroups().find((group) => group.heading === act) || characterAnalyticsDocumentGroup();
+  if (y < 28) {
+    if (!state.metadata.scenes.length) state.characterAnalyticsScene = characterAnalyticsDocumentGroup();
+    else {
+      const act = scenes[sceneIndex].act;
+      state.characterAnalyticsScene = characterAnalyticsActGroups().find((group) => group.heading === act) || characterAnalyticsDocumentGroup();
+    }
   } else if (y >= 28) state.characterAnalyticsScene = scenes[sceneIndex];
   else return;
   renderCharacterAnalytics();
