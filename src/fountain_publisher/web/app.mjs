@@ -2201,11 +2201,78 @@ async function openFile() {
   if (!(await confirmDiscard())) return;
   if (window.showOpenFilePicker) {
     try {
-      [state.handle] = await window.showOpenFilePicker({ types: [{ description: "Fountain screenplay", accept: { "text/plain": [".fountain", ".txt"] } }], multiple: false });
-      const file = await state.handle.getFile(); setDocument(await file.text(), file.name, true); return;
+      [state.handle] = await window.showOpenFilePicker({ types: [{ description: "Screenplay", accept: { "text/plain": [".fountain", ".txt"], "application/pdf": [".pdf"] } }], multiple: false });
+      const file = await state.handle.getFile();
+      if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) { state.handle = null; await importPdfFile(file); }
+      else setDocument(await file.text(), file.name, true);
+      return;
     } catch (error) { if (error.name !== "AbortError") toast(error.message); return; }
   }
   $("#file-input").click();
+}
+
+function pdfLayoutToFountain(pages) {
+  const scenePattern = /^(?:\d+[A-Z]?\.?\s+)?((?:\.?INT\.?|\.?EXT\.?|EST\.?|INT\.?\/?EXT\.?|I\/?E\.?)\b.*?)(?:\s+\d+[A-Z]?)?$/i;
+  const pageHasScene = (page) => page.split("\n").some((line) => scenePattern.test(line.trim()));
+  const output = [];
+  const pushBlank = () => { if (output.length && output.at(-1) !== "") output.push(""); };
+  const titlePage = pages.length > 1 && !pageHasScene(pages[0]) && pages.slice(1).some(pageHasScene);
+  if (titlePage) {
+    const titleLines = pages[0].split("\n").map((line) => line.trim()).filter((line) => line && !/^\d+\.?$/.test(line));
+    const creditIndex = titleLines.findIndex((line) => /^(?:written|screenplay|teleplay) by$/i.test(line));
+    const title = titleLines.find((line, index) => index < (creditIndex < 0 ? titleLines.length : creditIndex) && !/^(?:draft|revision|copyright)/i.test(line));
+    if (title) output.push(`Title: ${title}`);
+    if (creditIndex >= 0) {
+      output.push(`Credit: ${titleLines[creditIndex]}`);
+      if (titleLines[creditIndex + 1]) output.push(`Author: ${titleLines[creditIndex + 1]}`);
+    }
+    if (output.length) { output.push("", "===", ""); }
+  }
+  pages.slice(titlePage ? 1 : 0).forEach((page) => {
+    let previousType = "empty";
+    const lines = page.replace(/\r/g, "").split("\n");
+    lines.forEach((raw, index) => {
+      const indent = raw.match(/^\s*/)[0].length;
+      let text = raw.trim();
+      if (!text || /^\d+\.?$/.test(text) || /^(?:CONTINUED:|\(CONTINUED\))$/i.test(text)) { if (!text) pushBlank(); return; }
+      const scene = text.match(scenePattern);
+      const transition = !scene && /(?:TO:|FADE (?:IN:|OUT\.?))$/i.test(text) && text === text.toUpperCase();
+      const parenthetical = /^\(.+\)$/.test(text);
+      const nextText = lines.slice(index + 1).map((line) => line.trim()).find(Boolean) || "";
+      const character = !scene && !transition && !parenthetical && text.length <= 42 && text === text.toUpperCase()
+        && /[A-Z]/.test(text) && indent >= 10 && nextText && !scenePattern.test(nextText);
+      const type = scene ? "scene" : transition ? "transition" : character ? "character" : parenthetical && ["character", "dialogue", "parenthetical"].includes(previousType) ? "parenthetical" : ["character", "dialogue", "parenthetical"].includes(previousType) && indent >= 5 ? "dialogue" : "action";
+      if (["scene", "transition", "character"].includes(type) || (type === "action" && ["dialogue", "parenthetical", "transition"].includes(previousType))) pushBlank();
+      if (scene) text = scene[1].replace(/^\.(?=(?:INT|EXT)\.)/i, "");
+      else if (transition) text = `> ${text}`;
+      else if (character) text = `@${text.replace(/\s+\d+[A-Z]?$/, "")}`;
+      output.push(text);
+      if (["scene", "transition"].includes(type)) pushBlank();
+      previousType = type;
+    });
+    pushBlank();
+  });
+  return output.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
+}
+
+async function importPdfFile(file) {
+  $("#compile-status").textContent = "Importing PDF…";
+  try {
+    const pyodide = await getBrowserScreenplain();
+    pyodide.FS.writeFile("/tmp/fountain-publisher-import.pdf", new Uint8Array(await file.arrayBuffer()));
+    const extracted = pyodide.runPython(`_fp_extract_pdf("/tmp/fountain-publisher-import.pdf")`);
+    const pages = JSON.parse(String(extracted));
+    if (!pages.some((page) => page.trim())) throw new Error("No selectable text was found. This PDF may be an image-only scan.");
+    const imported = pdfLayoutToFountain(pages);
+    const filename = file.name.replace(/\.pdf$/i, "") + ".fountain";
+    setDocument(imported, filename, false);
+    state.savedSource = "";
+    document.body.classList.add("dirty");
+    toast("PDF imported — review the reconstructed Fountain before saving");
+  } catch (error) {
+    $("#compile-status").textContent = "Import failed";
+    window.alert(`PDF import failed: ${error.message}`);
+  }
 }
 
 function setDocument(text, filename, saved = false, githubFile = null) {
@@ -2578,6 +2645,7 @@ async function getBrowserScreenplain() {
     pyodide.globals.set("_fp_pillow_wheel", new URL("vendor/pillow-12.2.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl", import.meta.url).href);
     pyodide.globals.set("_fp_screenplain_wheel", new URL("vendor/screenplain-0.12.0-py3-none-any.whl", import.meta.url).href);
     pyodide.globals.set("_fp_six_wheel", new URL("vendor/six-1.17.0-py2.py3-none-any.whl", import.meta.url).href);
+    pyodide.globals.set("_fp_pypdf_wheel", new URL("vendor/pypdf-6.17.0-py3-none-any.whl", import.meta.url).href);
     const fontFiles = [
       "CourierPrime-Regular.ttf",
       "CourierPrime-Bold.ttf",
@@ -2597,6 +2665,7 @@ await micropip.install(_fp_pillow_wheel, deps=False)
 await micropip.install(_fp_charset_wheel, deps=False)
 await micropip.install(_fp_reportlab_wheel, deps=False)
 await micropip.install(_fp_screenplain_wheel, deps=False)
+await micropip.install(_fp_pypdf_wheel, deps=False)
 `);
     pyodide.runPython(`
 import io
@@ -2615,6 +2684,18 @@ from screenplain.export import fdx, pdf
 from screenplain.parsers.fountain import parse
 from screenplain.richstring import bold, plain
 from screenplain.types import Action, Section, Slug
+from pypdf import PdfReader
+
+def _fp_extract_pdf(path):
+    reader = PdfReader(path)
+    pages = []
+    for page in reader.pages:
+        try:
+            text = page.extract_text(extraction_mode="layout") or ""
+        except Exception:
+            text = page.extract_text() or ""
+        pages.append(text)
+    return json.dumps(pages)
 
 def _fp_register_pdf_fonts():
     try:
@@ -4472,7 +4553,7 @@ window.addEventListener("message", async (event) => {
   if (event.data.type === "github-error") return toast(event.data.message || "GitHub connection failed");
   if (await refreshGithubSession({ notify: true })) await openGithubBrowser();
 });
-$("#file-input").addEventListener("change", async (event) => { const file = event.target.files?.[0]; if (file) { state.handle = null; setDocument(await file.text(), file.name, true); } event.target.value = ""; });
+$("#file-input").addEventListener("change", async (event) => { const file = event.target.files?.[0]; if (file) { state.handle = null; if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) await importPdfFile(file); else setDocument(await file.text(), file.name, true); } event.target.value = ""; });
 $("#export-pdf").addEventListener("click", () => openExport("pdf")); $("#export-fdx").addEventListener("click", () => openExport("fdx"));
 $("#export-format").addEventListener("change", (event) => { $("#dialog-page-size").hidden = event.target.value !== "pdf"; });
 $("#export-form").addEventListener("submit", (event) => { if (event.submitter?.value !== "default") return; event.preventDefault(); exportDocument($("#export-format").value); });

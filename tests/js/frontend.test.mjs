@@ -21,6 +21,23 @@ test("application shell exposes editing, preview, and insights regions", async (
   assert.match(html, /id="export-pdf"/);
 });
 
+test("local file opening accepts text-based screenplay PDFs for Fountain reconstruction", async () => {
+  const [html, app, notices, pyproject] = await Promise.all([
+    readFile(htmlPath, "utf8"), readFile(appPath, "utf8"),
+    readFile(new URL("../../src/fountain_publisher/web/THIRD_PARTY_NOTICES.md", import.meta.url), "utf8"),
+    readFile(new URL("../../pyproject.toml", import.meta.url), "utf8"),
+  ]);
+  assert.match(html, /id="file-input"[^>]*accept="[^"]*\.pdf[^"]*application\/pdf/);
+  assert.match(html, /Open Fountain or PDF/);
+  assert.match(html, /Text-based PDFs are reconstructed locally/);
+  assert.match(app, /function pdfLayoutToFountain\(pages\)[\s\S]*scenePattern[\s\S]*titlePage[\s\S]*const character[\s\S]*const type/);
+  assert.match(app, /async function importPdfFile\(file\)[\s\S]*file\.arrayBuffer\(\)[\s\S]*_fp_extract_pdf[\s\S]*pdfLayoutToFountain\(pages\)[\s\S]*\.fountain/);
+  assert.match(app, /pypdf-6\.17\.0-py3-none-any\.whl[\s\S]*micropip\.install\(_fp_pypdf_wheel, deps=False\)/);
+  assert.match(app, /from pypdf import PdfReader[\s\S]*def _fp_extract_pdf\(path\)[\s\S]*extraction_mode="layout"/);
+  assert.match(notices, /pypdf 6\.17\.0 — BSD 3-Clause/);
+  assert.match(pyproject, /"pypdf==6\.17\.0"/);
+});
+
 test("app installs as a standalone PWA and offers desktop window controls", async () => {
   const [html, app, manifestText, worker, build, pyproject] = await Promise.all([
     readFile(htmlPath, "utf8"),
