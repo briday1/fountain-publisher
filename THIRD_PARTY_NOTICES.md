@@ -19,6 +19,8 @@ inside their `.dist-info` directory:
 - Pillow 12.2.0 — MIT-CMU.
 - charset-normalizer 3.4.7 — MIT.
 - six 1.17.0 — MIT.
+- pypdf 6.17.0 — BSD 3-Clause; used locally to extract text from imported PDF
+  screenplays. The complete license is included in its wheel.
 
 Courier Prime font files distributed directly by Fountain Publisher are under
 the SIL Open Font License 1.1. The complete text accompanies them at
