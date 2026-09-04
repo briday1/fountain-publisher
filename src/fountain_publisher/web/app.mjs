@@ -4833,18 +4833,13 @@ async function initialize() {
   const enableWorkspaceCache = params.get("demo") !== "1";
   setDocument(text, name, !restore, restore ? cached.githubFile || null : null);
   void refreshGithubSession();
-  const storedMobileTab = localStorage.getItem("fountain-publisher.mobile-tab") || "preview";
-  const initialMobileTab = !showSourceTab && storedMobileTab === "source" ? "preview" : storedMobileTab;
-  setMobileTab(initialMobileTab);
+  setMobileTab("preview");
   if (restore && ["fit", "70", "85", "100", "115", "130", "150", "175", "200"].includes(String(cached.zoom))) {
     state.previewZoom = String(cached.zoom);
     if (cached.zoom !== "fit") $("#zoom").value = String(cached.zoom);
   }
   applyZoom();
-  const restoredMode = ["source", "live", "pdf", "beats"].includes(cached?.previewMode) ? cached.previewMode : "live";
-  const requestedMode = restore ? restoredMode : localStorage.getItem("fountain-publisher.preview") || "live";
-  const initialMobileMode = initialMobileTab === "source" ? "source" : initialMobileTab === "beats" ? "beats" : "live";
-  await setPreviewMode(isMobilePreview() ? initialMobileMode : requestedMode);
+  await setPreviewMode("live");
   if (restore) requestAnimationFrame(() => {
     const start = Math.min(Number(cached.selectionStart) || 0, source.value.length);
     const end = Math.min(Number(cached.selectionEnd) || start, source.value.length);
