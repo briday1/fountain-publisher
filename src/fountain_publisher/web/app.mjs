@@ -4679,12 +4679,9 @@ $("#beat-list").addEventListener("keydown", (event) => {
   if (event.key !== "Enter" || !event.target.matches(".beat-text")) return;
   event.preventDefault();
   const card = event.target.closest(".beat-card");
-  let next = card.nextElementSibling;
-  if (!next) {
-    $("#beat-list").insertAdjacentHTML("beforeend", beatCard());
-    next = $("#beat-list .beat-card:last-child");
-    renumberBeatCards();
-  }
+  card.insertAdjacentHTML("afterend", beatCard());
+  const next = card.nextElementSibling;
+  renumberBeatCards();
   scheduleBeatSheetSave();
   $(".beat-text", next).focus();
 });
