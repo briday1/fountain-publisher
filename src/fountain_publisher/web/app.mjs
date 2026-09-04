@@ -2201,11 +2201,287 @@ async function openFile() {
   if (!(await confirmDiscard())) return;
   if (window.showOpenFilePicker) {
     try {
-      [state.handle] = await window.showOpenFilePicker({ types: [{ description: "Fountain screenplay", accept: { "text/plain": [".fountain", ".txt"] } }], multiple: false });
-      const file = await state.handle.getFile(); setDocument(await file.text(), file.name, true); return;
+      [state.handle] = await window.showOpenFilePicker({ types: [{ description: "Screenplay", accept: { "text/plain": [".fountain", ".txt"], "application/pdf": [".pdf"] } }], multiple: false });
+      const file = await state.handle.getFile();
+      if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) { state.handle = null; await importPdfFile(file); }
+      else setDocument(await file.text(), file.name, true);
+      return;
     } catch (error) { if (error.name !== "AbortError") toast(error.message); return; }
   }
   $("#file-input").click();
+}
+
+function pdfLayoutToFountain(pages) {
+  const stagePlay = pages.some((page) => /^\s*Cast of Characters\s*$/im.test(page))
+    || (pages.some((page) => /^\s*ACT (?:ONE|TWO|THREE|FOUR|FIVE|[IVX]+|\d+)\s*$/im.test(page))
+      && !pages.some((page) => /^\s*\.?INT\.?|^\s*\.?EXT\.?/im.test(page)));
+  if (stagePlay) return stagePlayLayoutToFountain(pages);
+  const scenePattern = /^(?:\d+[A-Z]?\.?\s+)?((?:\.?INT\.?|\.?EXT\.?|EST\.?|INT\.?\/?EXT\.?|I\/?E\.?)\b.*?)(?:\s+\d+[A-Z]?)?$/i;
+  const pageHasScene = (page) => page.split("\n").some((line) => scenePattern.test(line.trim()));
+  const output = [];
+  const pushBlank = () => { if (output.length && output.at(-1) !== "") output.push(""); };
+  const titlePage = pages.length > 1 && !pageHasScene(pages[0]) && pages.slice(1).some(pageHasScene);
+  if (titlePage) {
+    const titleLines = pages[0].split("\n").map((line) => line.trim()).filter((line) => line && !/^\d+\.?$/.test(line));
+    const creditIndex = titleLines.findIndex((line) => /^(?:written|screenplay|teleplay) by$/i.test(line));
+    const title = titleLines.find((line, index) => index < (creditIndex < 0 ? titleLines.length : creditIndex) && !/^(?:draft|revision|copyright)/i.test(line));
+    if (title) output.push(`Title: ${title}`);
+    if (creditIndex >= 0) {
+      output.push(`Credit: ${titleLines[creditIndex]}`);
+      if (titleLines[creditIndex + 1]) output.push(`Author: ${titleLines[creditIndex + 1]}`);
+    }
+    if (output.length) { output.push("", "===", ""); }
+  }
+  pages.slice(titlePage ? 1 : 0).forEach((page) => {
+    let previousType = "empty";
+    const lines = page.replace(/\r/g, "").split("\n");
+    lines.forEach((raw, index) => {
+      const indent = raw.match(/^\s*/)[0].length;
+      let text = raw.trim();
+      if (!text || /^\d+\.?$/.test(text) || /^(?:CONTINUED:|\(CONTINUED\))$/i.test(text)) { if (!text) pushBlank(); return; }
+      const scene = text.match(scenePattern);
+      const transition = !scene && /(?:TO:|FADE (?:IN:|OUT\.?))$/i.test(text) && text === text.toUpperCase();
+      const parenthetical = /^\(.+\)$/.test(text);
+      const nextText = lines.slice(index + 1).map((line) => line.trim()).find(Boolean) || "";
+      const character = !scene && !transition && !parenthetical && text.length <= 42 && text === text.toUpperCase()
+        && /[A-Z]/.test(text) && indent >= 10 && nextText && !scenePattern.test(nextText);
+      const type = scene ? "scene" : transition ? "transition" : character ? "character" : parenthetical && ["character", "dialogue", "parenthetical"].includes(previousType) ? "parenthetical" : ["character", "dialogue", "parenthetical"].includes(previousType) && indent >= 5 ? "dialogue" : "action";
+      if (["scene", "transition", "character"].includes(type) || (type === "action" && ["dialogue", "parenthetical", "transition"].includes(previousType))) pushBlank();
+      if (scene) text = scene[1].replace(/^\.(?=(?:INT|EXT)\.)/i, "");
+      else if (transition) text = `> ${text}`;
+      else if (character) text = `@${text.replace(/\s+\d+[A-Z]?$/, "")}`;
+      output.push(text);
+      if (["scene", "transition"].includes(type)) pushBlank();
+      previousType = type;
+    });
+    pushBlank();
+  });
+  return output.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
+}
+
+function stagePlayLayoutToFountain(pages) {
+  const output = [];
+  const pushBlank = () => { if (output.length && output.at(-1) !== "") output.push(""); };
+  const clean = (text) => text.trim().replace(/\s{2,}/g, " ");
+  const castNames = new Set();
+  pages.forEach((page) => page.split("\n").forEach((raw) => {
+    const match = clean(raw).match(/^([A-Z][A-Z .'-]{1,38}):\s+/);
+    if (match) {
+      const fullName = match[1].trim();
+      castNames.add(fullName);
+      const untitledName = fullName.replace(/^(?:DR|LORD|CAPTAIN|PROFESSOR)\.?\s+/, "");
+      if (untitledName !== fullName) castNames.add(untitledName);
+      const parts = untitledName.split(/\s+/);
+      if (parts.length > 1) {
+        if (parts[0] !== "THE") castNames.add(parts[0]);
+        castNames.add(parts.at(-1));
+      }
+    }
+  }));
+  const names = [...castNames].sort((left, right) => right.length - left.length);
+  const matchCue = (text) => {
+    const normalized = clean(text);
+    for (const name of names) {
+      if (normalized === name) return { name, remainder: "" };
+      if (normalized.startsWith(`${name} `)) return { name, remainder: normalized.slice(name.length).trim() };
+      if (normalized.startsWith(name) && /^[A-Z(\[\"'?!.,-]/.test(normalized.slice(name.length))) {
+        return { name, remainder: normalized.slice(name.length).trim() };
+      }
+    }
+    return null;
+  };
+
+  const titleLines = pages[0]?.split("\n").map(clean).filter(Boolean) || [];
+  const byIndex = titleLines.findIndex((line) => /^by$/i.test(line));
+  const title = byIndex > 0 ? titleLines[byIndex - 1] : titleLines[0];
+  if (title) output.push(`Title: ${title}`);
+  if (byIndex >= 0) {
+    output.push(`Credit: ${titleLines[byIndex]}`);
+    if (titleLines[byIndex + 1]) output.push(`Author: ${titleLines[byIndex + 1]}`);
+  }
+  if (output.length) output.push("", "===", "");
+
+  let mode = "action";
+  pages.slice(1).forEach((page) => {
+    page.split("\n").forEach((raw) => {
+      const indent = raw.match(/^\s*/)?.[0].length || 0;
+      const text = clean(raw);
+      if (!text || /^\d+\.?$/.test(text) || /^(?:CONTINUED:|\(CONTINUED\))$/i.test(text)) return;
+      if (/^Cast of Characters$/i.test(text)) {
+        pushBlank(); output.push("# Cast of Characters", ""); mode = "action"; return;
+      }
+      if (/^ACT (?:ONE|TWO|THREE|FOUR|FIVE|[IVX]+|\d+)$/i.test(text)) {
+        pushBlank(); output.push(`# ${text.toUpperCase()}`, ""); mode = "action"; return;
+      }
+      const castEntry = text.match(/^([A-Z][A-Z .'-]{1,38}):\s*(.*)$/);
+      if (castEntry) {
+        pushBlank(); output.push(`**${castEntry[1].trim()}**: ${castEntry[2]}`); mode = "action"; return;
+      }
+      const cue = matchCue(text);
+      if (cue && indent < 10) {
+        pushBlank();
+        output.push(`@${cue.name}`);
+        if (cue.remainder) output.push(cue.remainder);
+        mode = "dialogue";
+        return;
+      }
+      if (mode === "dialogue" && /^\(.+\)$/.test(text)) {
+        output.push(text);
+        return;
+      }
+      if (mode === "dialogue" && indent < 10) {
+        output.push(text);
+        return;
+      }
+      if (mode === "dialogue") pushBlank();
+      output.push(text);
+      mode = "action";
+    });
+    pushBlank();
+  });
+  return output.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
+}
+
+function flattenedScreenplayToFountain(value) {
+  const scenePattern = /^(?:\d+[A-Z]?\.?\s+)?((?:\.?INT\.?|\.?EXT\.?|EST\.?|INT\.?\/?EXT\.?|I\/?E\.?)\b.*?)(?:\s+\d+[A-Z]?)?$/i;
+  const transitionPattern = /(?:TO:|FADE (?:IN:|OUT\.?))$/i;
+  const rawLines = value.replace(/\r/g, "").split("\n").map((line) => line.trim().replace(/(\d+[A-Z]?)\s+\1$/, "").trim()).filter(Boolean);
+  const isTransition = (text) => text === text.toUpperCase() && transitionPattern.test(text);
+  const isCue = (text, index) => {
+    if (!text || text.length > 42 || text !== text.toUpperCase() || !/[A-Z]/.test(text)) return false;
+    if (scenePattern.test(text) || isTransition(text) || /^\(.+\)$/.test(text) || /^\d+\.?$/.test(text)) return false;
+    if (/^(?:CONTINUED:?|THE END|END|WRITTEN BY|SCREENPLAY BY|TELEPLAY BY)$/i.test(text)) return false;
+    const next = rawLines[index + 1] || "";
+    return Boolean(next && !scenePattern.test(next) && !isTransition(next));
+  };
+  const cueIndexes = new Set(rawLines.map((line, index) => isCue(line, index) ? index : -1).filter((index) => index >= 0));
+  const firstBody = rawLines.findIndex((line, index) => scenePattern.test(line) || isTransition(line) || cueIndexes.has(index));
+  const header = firstBody > 0 ? rawLines.slice(0, firstBody) : [];
+  const body = firstBody >= 0 ? rawLines.slice(firstBody) : rawLines;
+  const output = [];
+  const pushBlank = () => { if (output.length && output.at(-1) !== "") output.push(""); };
+  const creditIndex = header.findIndex((line) => /^(?:written|screenplay|teleplay) by$/i.test(line));
+  if (creditIndex >= 0) {
+    const title = header.slice(0, creditIndex).filter((line) => !/^(?:[A-Z][a-z]+ \d{1,2}, \d{4}|\d{1,2}[ /-]\d{1,2}[ /-]\d{2,4})$/.test(line)).at(-1);
+    const draftDate = header.find((line) => /^(?:[A-Z][a-z]+ \d{1,2}, \d{4}|\d{1,2}[ /-]\d{1,2}[ /-]\d{2,4})$/.test(line));
+    if (title) output.push(`Title: ${title}`);
+    output.push(`Credit: ${header[creditIndex]}`);
+    if (header[creditIndex + 1]) output.push(`Author: ${header[creditIndex + 1]}`);
+    if (draftDate) output.push(`Draft date: ${draftDate}`);
+    output.push("", "===", "");
+  } else if (header.length) {
+    output.push(...header, "");
+  }
+
+  let mode = "action";
+  let dialogueHasText = false;
+  let previousDialogue = "";
+  body.forEach((original, bodyIndex) => {
+    let text = original;
+    const absoluteIndex = firstBody >= 0 ? firstBody + bodyIndex : bodyIndex;
+    const scene = text.match(scenePattern);
+    const transition = !scene && isTransition(text);
+    const cue = cueIndexes.has(absoluteIndex);
+    const parenthetical = /^\(.+\)$/.test(text);
+    if (scene) {
+      pushBlank();
+      output.push(scene[1].replace(/^\.(?=(?:INT|EXT)\.)/i, ""));
+      pushBlank();
+      mode = "action";
+      return;
+    }
+    if (transition) {
+      pushBlank();
+      output.push(`> ${text}`);
+      pushBlank();
+      mode = "action";
+      return;
+    }
+    if (cue) {
+      pushBlank();
+      output.push(`@${text}`);
+      mode = "dialogue";
+      dialogueHasText = false;
+      previousDialogue = "";
+      return;
+    }
+    if (mode === "dialogue") {
+      const beginsAction = dialogueHasText && !parenthetical && /[.!?][\"')\]]?$/.test(previousDialogue);
+      if (beginsAction) {
+        pushBlank();
+        mode = "action";
+      } else {
+        output.push(text);
+        if (parenthetical) previousDialogue = "";
+        else { dialogueHasText = true; previousDialogue = text; }
+        return;
+      }
+    }
+    output.push(text);
+  });
+  return output.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
+}
+
+function normalizeScreenplayPaste(value) {
+  const text = value.replace(/\r\n?|\u2028|\u2029|\f/g, "\n");
+  if (!text.includes("\n")) return { text, reconstructed: false };
+  const lines = text.split("\n");
+  const alreadyFountain = lines.some((line) => /^(?:Title|Credit|Author|Draft date):/i.test(line.trim())
+    || /^(?:@|!|#|~|=|\.(?!(?:INT|EXT)\.?\b))/.test(line.trim()))
+    || /\n\s*\n/.test(text);
+  if (alreadyFountain) return { text, reconstructed: false };
+  const hasScene = lines.some((line) => /^(?:\s*\d+[A-Z]?\.?\s+)?(?:INT\.?|EXT\.?|EST\.?|INT\.?\/?EXT\.?|I\/?E\.?)\b/i.test(line));
+  const indentedLines = lines.filter((line) => /^\s{5,}\S/.test(line)).length;
+  const positionedCue = lines.some((line) => /^\s{10,}[A-Z][A-Z0-9 ._'-]*(?:\s+\([^)]*\))?\s*$/.test(line));
+  const pageArtifacts = lines.some((line) => /^\s*\d+\.?\s*$/.test(line) || /^\s*\d+[A-Z]?\.?\s+(?:INT|EXT)\.?/i.test(line));
+  const flattenedCueCount = lines.filter((line, index) => {
+    const text = line.trim();
+    const next = lines[index + 1]?.trim();
+    return text.length <= 42 && text === text.toUpperCase() && /[A-Z]/.test(text)
+      && !/^(?:\.?INT\.?|\.?EXT\.?|EST\.?|INT\.?\/?EXT\.?|I\/?E\.?|FADE |CUT TO:|WRITTEN BY|SCREENPLAY BY|TELEPLAY BY)/i.test(text)
+      && !/^\(.+\)$/.test(text) && Boolean(next);
+  }).length;
+  const formattedLayout = hasScene && (positionedCue || indentedLines >= 3 || pageArtifacts);
+  const flattenedScreenplay = hasScene && !positionedCue && indentedLines < 3 && flattenedCueCount >= 2;
+  if (flattenedScreenplay) return { text: flattenedScreenplayToFountain(text), reconstructed: true };
+  return formattedLayout ? { text: pdfLayoutToFountain([text]), reconstructed: true } : { text, reconstructed: false };
+}
+
+async function importPdfFile(file) {
+  $("#compile-status").textContent = "Importing PDF…";
+  try {
+    const bytes = await file.arrayBuffer();
+    let pages;
+    let localPython = false;
+    if (!STATIC_HOST) {
+      try {
+        const healthResponse = await fetch("/healthz", { cache: "no-store" });
+        const health = healthResponse.headers.get("content-type")?.includes("application/json") ? await healthResponse.json() : null;
+        localPython = healthResponse.ok && health?.status === "ok";
+      } catch { /* Static deployments do not expose the loopback Python health endpoint. */ }
+    }
+    if (!localPython) {
+      const pyodide = await getBrowserScreenplain();
+      pyodide.FS.writeFile("/tmp/fountain-publisher-import.pdf", new Uint8Array(bytes));
+      const extracted = pyodide.runPython(`_fp_extract_pdf("/tmp/fountain-publisher-import.pdf")`);
+      pages = JSON.parse(String(extracted));
+    } else {
+      const response = await fetch("/api/import/pdf", { method: "POST", headers: { "Content-Type": "application/pdf" }, body: bytes });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || `Local PDF import failed (${response.status})`);
+      pages = payload.pages;
+    }
+    if (!pages.some((page) => page.trim())) throw new Error("No selectable text was found. This PDF may be an image-only scan.");
+    const imported = pdfLayoutToFountain(pages);
+    const filename = file.name.replace(/\.pdf$/i, "") + ".fountain";
+    setDocument(imported, filename, false);
+    state.savedSource = "";
+    document.body.classList.add("dirty");
+    toast("PDF imported — review the reconstructed Fountain before saving");
+  } catch (error) {
+    $("#compile-status").textContent = "Import failed";
+    window.alert(`PDF import failed: ${error.message}`);
+  }
 }
 
 function setDocument(text, filename, saved = false, githubFile = null) {
@@ -2578,6 +2854,7 @@ async function getBrowserScreenplain() {
     pyodide.globals.set("_fp_pillow_wheel", new URL("vendor/pillow-12.2.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl", import.meta.url).href);
     pyodide.globals.set("_fp_screenplain_wheel", new URL("vendor/screenplain-0.12.0-py3-none-any.whl", import.meta.url).href);
     pyodide.globals.set("_fp_six_wheel", new URL("vendor/six-1.17.0-py2.py3-none-any.whl", import.meta.url).href);
+    pyodide.globals.set("_fp_pypdf_wheel", new URL("vendor/pypdf-6.17.0-py3-none-any.whl", import.meta.url).href);
     const fontFiles = [
       "CourierPrime-Regular.ttf",
       "CourierPrime-Bold.ttf",
@@ -2597,6 +2874,7 @@ await micropip.install(_fp_pillow_wheel, deps=False)
 await micropip.install(_fp_charset_wheel, deps=False)
 await micropip.install(_fp_reportlab_wheel, deps=False)
 await micropip.install(_fp_screenplain_wheel, deps=False)
+await micropip.install(_fp_pypdf_wheel, deps=False)
 `);
     pyodide.runPython(`
 import io
@@ -2615,6 +2893,18 @@ from screenplain.export import fdx, pdf
 from screenplain.parsers.fountain import parse
 from screenplain.richstring import bold, plain
 from screenplain.types import Action, Section, Slug
+from pypdf import PdfReader
+
+def _fp_extract_pdf(path):
+    reader = PdfReader(path)
+    pages = []
+    for page in reader.pages:
+        try:
+            text = page.extract_text(extraction_mode="layout") or ""
+        except Exception:
+            text = page.extract_text() or ""
+        pages.append(text)
+    return json.dumps(pages)
 
 def _fp_register_pdf_fonts():
     try:
@@ -4001,6 +4291,15 @@ source.addEventListener("input", (event) => {
   if (event.inputType === "insertText") showCompletions();
   else hideCompletions();
 });
+source.addEventListener("paste", (event) => {
+  const pasted = event.clipboardData?.getData("text/plain");
+  if (pasted === undefined) return;
+  event.preventDefault();
+  const normalized = normalizeScreenplayPaste(pasted);
+  source.setRangeText(normalized.text, source.selectionStart, source.selectionEnd, "end");
+  sourceChanged();
+  if (normalized.reconstructed) toast("Formatted screenplay text reconstructed as Fountain");
+});
 source.addEventListener("beforeinput", (event) => { if (vimActive() && state.vimMode === "normal") event.preventDefault(); });
 source.addEventListener("scroll", () => { $("#line-numbers").scrollTop = source.scrollTop; syncSourceOverlay(); updateCursor(); scheduleWorkspaceCache(); });
 const sourceResizeObserver = new ResizeObserver(() => requestAnimationFrame(renderEditorChrome));
@@ -4056,6 +4355,7 @@ page.addEventListener("beforeinput", (event) => {
   const insertionTypes = new Set(["insertText", "insertReplacementText", "insertFromPaste", "insertFromDrop", "insertParagraph", "insertLineBreak"]);
   const deletionTypes = new Set(["deleteContentBackward", "deleteContentForward", "deleteWordBackward", "deleteWordForward", "deleteSoftLineBackward", "deleteSoftLineForward", "deleteByCut", "deleteByDrag"]);
   if (!insertionTypes.has(event.inputType) && !deletionTypes.has(event.inputType)) return;
+  if (event.inputType === "insertFromPaste") return;
   event.preventDefault();
   hidePreviewCompletions();
   if (deletionTypes.has(event.inputType)) {
@@ -4073,7 +4373,9 @@ page.addEventListener("paste", (event) => {
   const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); if (!line) return;
   const edit = previewSelection(line); if (!edit) return;
   event.preventDefault();
-  replacePreviewSelection(edit, event.clipboardData?.getData("text/plain") || "");
+  const normalized = normalizeScreenplayPaste(event.clipboardData?.getData("text/plain") || "");
+  replacePreviewSelection(edit, normalized.text);
+  if (normalized.reconstructed) toast("Formatted screenplay text reconstructed as Fountain");
 });
 page.addEventListener("keydown", (event) => {
   if (handleVimKey(event, "preview")) return;
@@ -4472,7 +4774,7 @@ window.addEventListener("message", async (event) => {
   if (event.data.type === "github-error") return toast(event.data.message || "GitHub connection failed");
   if (await refreshGithubSession({ notify: true })) await openGithubBrowser();
 });
-$("#file-input").addEventListener("change", async (event) => { const file = event.target.files?.[0]; if (file) { state.handle = null; setDocument(await file.text(), file.name, true); } event.target.value = ""; });
+$("#file-input").addEventListener("change", async (event) => { const file = event.target.files?.[0]; if (file) { state.handle = null; if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) await importPdfFile(file); else setDocument(await file.text(), file.name, true); } event.target.value = ""; });
 $("#export-pdf").addEventListener("click", () => openExport("pdf")); $("#export-fdx").addEventListener("click", () => openExport("fdx"));
 $("#export-format").addEventListener("change", (event) => { $("#dialog-page-size").hidden = event.target.value !== "pdf"; });
 $("#export-form").addEventListener("submit", (event) => { if (event.submitter?.value !== "default") return; event.preventDefault(); exportDocument($("#export-format").value); });

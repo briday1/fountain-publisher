@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import threading
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -38,10 +39,12 @@ class FountainRequestHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         path = urlsplit(self.path).path
-        if path not in {"/api/compile", "/api/render/pdf", "/api/export/fdx"}:
+        if path not in {"/api/compile", "/api/render/pdf", "/api/export/fdx", "/api/import/pdf"}:
             self.send_error(404)
             return
         try:
+            if path == "/api/import/pdf":
+                return self._import_pdf()
             body = self._read_json()
             source = body.get("source")
             if not isinstance(source, str):
@@ -65,6 +68,38 @@ class FountainRequestHandler(SimpleHTTPRequestHandler):
             return self._send_json(payload)
         except Exception as error:
             self._send_json({"error": str(error)}, status=400)
+
+    def _import_pdf(self) -> None:
+        from io import BytesIO
+
+        try:
+            from pypdf import PdfReader
+        except ModuleNotFoundError:
+            bundled_wheel = STATIC_ROOT / "vendor" / "pypdf-6.17.0-py3-none-any.whl"
+            if not bundled_wheel.is_file():
+                raise RuntimeError("PDF import support is not installed") from None
+            sys.path.insert(0, str(bundled_wheel))
+            from pypdf import PdfReader
+
+        payload = self._read_bytes()
+        reader = PdfReader(BytesIO(payload))
+        pages = []
+        for page in reader.pages:
+            try:
+                text = page.extract_text(extraction_mode="layout") or ""
+            except Exception:
+                text = page.extract_text() or ""
+            pages.append(text)
+        self._send_json({"pages": pages})
+
+    def _read_bytes(self) -> bytes:
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError as error:
+            raise ValueError("invalid Content-Length") from error
+        if length <= 0 or length > MAX_REQUEST_BYTES:
+            raise ValueError("PDF is empty or larger than 8 MB")
+        return self.rfile.read(length)
 
     def _read_json(self) -> dict:
         try:
