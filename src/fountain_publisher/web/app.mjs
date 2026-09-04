@@ -1589,6 +1589,7 @@ function renderBeatGuide() {
   layer.hidden = !enabled;
   layer.classList.toggle("empty", !beats.length);
   $(".preview-panel").classList.toggle("beat-runner-on", enabled);
+  requestAnimationFrame(() => document.body.style.setProperty("--zen-beat-guide-height", enabled ? `${layer.offsetHeight}px` : "0px"));
   $(".menu-check", button).textContent = state.beatGuide ? "✓" : "";
   $$(".script-line.beat-area", page).forEach((line) => line.classList.remove("beat-area", "active-beat-area"));
   if (!enabled) { layer.innerHTML = ""; return; }
