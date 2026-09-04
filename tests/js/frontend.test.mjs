@@ -664,7 +664,9 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   const sceneGantt = app.slice(app.indexOf("function renderSceneCharacterAnalytics"), app.indexOf("function renderCharacterAnalytics"));
   assert.doesNotMatch(sceneGantt, /fillText\(String\(segment\.words\)/);
   assert.match(app, /fillText\(String\(lineCount\)/);
-  assert.match(app, /state\.metadata\.scenes\.length === 1 \? 0 : null/);
+  assert.match(app, /function characterAnalyticsGroups\(\)[\s\S]*sections[\s\S]*kind: "act"[\s\S]*kind: "document"/);
+  assert.match(app, /function characterGroupLineUsage\(group\)[\s\S]*line\.type === "dialogue"[\s\S]*usage\.set/);
+  assert.match(app, /characterAnalyticsGroups\(\)\.length === 1 \? 0 : null/);
   assert.match(app, /character-analytics-chart"\)\.addEventListener\("click"[\s\S]*sceneIndex[\s\S]*renderCharacterAnalytics\(\)/);
   assert.match(app, /function renderSceneCharacterAnalytics\(sceneIndex\)[\s\S]*chartViewport\.clientWidth - labelWidth/);
   assert.match(app, /function openCharacterAnalytics\(\)[\s\S]*showModal\(\);[\s\S]*renderCharacterAnalytics\(\)/);
