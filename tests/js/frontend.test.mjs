@@ -454,9 +454,16 @@ test("new documents open to a blank canvas with starter helpers", async () => {
   assert.match(html, /id="insert-dialogue"/);
   assert.match(html, /id="beat-sheet-empty-state"[\s\S]*Map the story before/);
   assert.doesNotMatch(html, /data-blank-insert/);
-  assert.match(app, /localStorage\.getItem\("fountain-publisher\.preview"\) \|\| "live"/);
-  assert.match(app, /localStorage\.getItem\("fountain-publisher\.mobile-tab"\) \|\| "preview"/);
   assert.match(app, /beat-sheet-empty-state[^\n]*hidden = hasBeatSheet/);
+});
+
+test("the app always opens in live Preview regardless of saved view state", async () => {
+  const app = await readFile(appPath, "utf8");
+  const initialize = app.match(/async function initialize\(\) \{[\s\S]*?\n\}/)?.[0] ?? "";
+  assert.match(initialize, /setMobileTab\("preview"\)/);
+  assert.match(initialize, /await setPreviewMode\("live"\)/);
+  assert.doesNotMatch(initialize, /localStorage\.getItem\("fountain-publisher\.(?:preview|mobile-tab)"\)/);
+  assert.doesNotMatch(initialize, /cached\?\.previewMode/);
 });
 
 test("preview gives title-page fields a compact visual boundary", async () => {
