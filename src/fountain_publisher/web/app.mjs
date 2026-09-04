@@ -2260,7 +2260,15 @@ async function importPdfFile(file) {
   try {
     const bytes = await file.arrayBuffer();
     let pages;
-    if (STATIC_HOST) {
+    let localPython = false;
+    if (!STATIC_HOST) {
+      try {
+        const healthResponse = await fetch("/healthz", { cache: "no-store" });
+        const health = healthResponse.headers.get("content-type")?.includes("application/json") ? await healthResponse.json() : null;
+        localPython = healthResponse.ok && health?.status === "ok";
+      } catch { /* Static deployments do not expose the loopback Python health endpoint. */ }
+    }
+    if (!localPython) {
       const pyodide = await getBrowserScreenplain();
       pyodide.FS.writeFile("/tmp/fountain-publisher-import.pdf", new Uint8Array(bytes));
       const extracted = pyodide.runPython(`_fp_extract_pdf("/tmp/fountain-publisher-import.pdf")`);

@@ -31,7 +31,7 @@ test("local file opening accepts text-based screenplay PDFs for Fountain reconst
   assert.match(html, /Open Fountain or PDF/);
   assert.match(html, /Text-based PDFs are reconstructed locally/);
   assert.match(app, /function pdfLayoutToFountain\(pages\)[\s\S]*scenePattern[\s\S]*titlePage[\s\S]*const character[\s\S]*const type/);
-  assert.match(app, /async function importPdfFile\(file\)[\s\S]*file\.arrayBuffer\(\)[\s\S]*if \(STATIC_HOST\)[\s\S]*_fp_extract_pdf[\s\S]*\/api\/import\/pdf[\s\S]*pdfLayoutToFountain\(pages\)[\s\S]*\.fountain/);
+  assert.match(app, /async function importPdfFile\(file\)[\s\S]*file\.arrayBuffer\(\)[\s\S]*fetch\("\/healthz", \{ cache: "no-store" \}\)[\s\S]*health\?\.status === "ok"[\s\S]*if \(!localPython\)[\s\S]*_fp_extract_pdf[\s\S]*\/api\/import\/pdf[\s\S]*pdfLayoutToFountain\(pages\)[\s\S]*\.fountain/);
   assert.match(app, /pypdf-6\.17\.0-py3-none-any\.whl[\s\S]*micropip\.install\(_fp_pypdf_wheel, deps=False\)/);
   assert.match(app, /from pypdf import PdfReader[\s\S]*def _fp_extract_pdf\(path\)[\s\S]*extraction_mode="layout"/);
   assert.match(notices, /pypdf 6\.17\.0 — BSD 3-Clause/);
