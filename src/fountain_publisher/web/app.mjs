@@ -2212,6 +2212,10 @@ async function openFile() {
 }
 
 function pdfLayoutToFountain(pages) {
+  const stagePlay = pages.some((page) => /^\s*Cast of Characters\s*$/im.test(page))
+    || (pages.some((page) => /^\s*ACT (?:ONE|TWO|THREE|FOUR|FIVE|[IVX]+|\d+)\s*$/im.test(page))
+      && !pages.some((page) => /^\s*\.?INT\.?|^\s*\.?EXT\.?/im.test(page)));
+  if (stagePlay) return stagePlayLayoutToFountain(pages);
   const scenePattern = /^(?:\d+[A-Z]?\.?\s+)?((?:\.?INT\.?|\.?EXT\.?|EST\.?|INT\.?\/?EXT\.?|I\/?E\.?)\b.*?)(?:\s+\d+[A-Z]?)?$/i;
   const pageHasScene = (page) => page.split("\n").some((line) => scenePattern.test(line.trim()));
   const output = [];
@@ -2249,6 +2253,89 @@ function pdfLayoutToFountain(pages) {
       output.push(text);
       if (["scene", "transition"].includes(type)) pushBlank();
       previousType = type;
+    });
+    pushBlank();
+  });
+  return output.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
+}
+
+function stagePlayLayoutToFountain(pages) {
+  const output = [];
+  const pushBlank = () => { if (output.length && output.at(-1) !== "") output.push(""); };
+  const clean = (text) => text.trim().replace(/\s{2,}/g, " ");
+  const castNames = new Set();
+  pages.forEach((page) => page.split("\n").forEach((raw) => {
+    const match = clean(raw).match(/^([A-Z][A-Z .'-]{1,38}):\s+/);
+    if (match) {
+      const fullName = match[1].trim();
+      castNames.add(fullName);
+      const untitledName = fullName.replace(/^(?:DR|LORD|CAPTAIN|PROFESSOR)\.?\s+/, "");
+      if (untitledName !== fullName) castNames.add(untitledName);
+      const parts = untitledName.split(/\s+/);
+      if (parts.length > 1) {
+        if (parts[0] !== "THE") castNames.add(parts[0]);
+        castNames.add(parts.at(-1));
+      }
+    }
+  }));
+  const names = [...castNames].sort((left, right) => right.length - left.length);
+  const matchCue = (text) => {
+    const normalized = clean(text);
+    for (const name of names) {
+      if (normalized === name) return { name, remainder: "" };
+      if (normalized.startsWith(`${name} `)) return { name, remainder: normalized.slice(name.length).trim() };
+      if (normalized.startsWith(name) && /^[A-Z(\[\"'?!.,-]/.test(normalized.slice(name.length))) {
+        return { name, remainder: normalized.slice(name.length).trim() };
+      }
+    }
+    return null;
+  };
+
+  const titleLines = pages[0]?.split("\n").map(clean).filter(Boolean) || [];
+  const byIndex = titleLines.findIndex((line) => /^by$/i.test(line));
+  const title = byIndex > 0 ? titleLines[byIndex - 1] : titleLines[0];
+  if (title) output.push(`Title: ${title}`);
+  if (byIndex >= 0) {
+    output.push(`Credit: ${titleLines[byIndex]}`);
+    if (titleLines[byIndex + 1]) output.push(`Author: ${titleLines[byIndex + 1]}`);
+  }
+  if (output.length) output.push("", "===", "");
+
+  let mode = "action";
+  pages.slice(1).forEach((page) => {
+    page.split("\n").forEach((raw) => {
+      const indent = raw.match(/^\s*/)?.[0].length || 0;
+      const text = clean(raw);
+      if (!text || /^\d+\.?$/.test(text) || /^(?:CONTINUED:|\(CONTINUED\))$/i.test(text)) return;
+      if (/^Cast of Characters$/i.test(text)) {
+        pushBlank(); output.push("# Cast of Characters", ""); mode = "action"; return;
+      }
+      if (/^ACT (?:ONE|TWO|THREE|FOUR|FIVE|[IVX]+|\d+)$/i.test(text)) {
+        pushBlank(); output.push(`# ${text.toUpperCase()}`, ""); mode = "action"; return;
+      }
+      const castEntry = text.match(/^([A-Z][A-Z .'-]{1,38}):\s*(.*)$/);
+      if (castEntry) {
+        pushBlank(); output.push(`**${castEntry[1].trim()}**: ${castEntry[2]}`); mode = "action"; return;
+      }
+      const cue = matchCue(text);
+      if (cue && indent < 10) {
+        pushBlank();
+        output.push(`@${cue.name}`);
+        if (cue.remainder) output.push(cue.remainder);
+        mode = "dialogue";
+        return;
+      }
+      if (mode === "dialogue" && /^\(.+\)$/.test(text)) {
+        output.push(text);
+        return;
+      }
+      if (mode === "dialogue" && indent < 10) {
+        output.push(text);
+        return;
+      }
+      if (mode === "dialogue") pushBlank();
+      output.push(text);
+      mode = "action";
     });
     pushBlank();
   });
