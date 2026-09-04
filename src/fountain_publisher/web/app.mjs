@@ -2258,10 +2258,19 @@ function pdfLayoutToFountain(pages) {
 async function importPdfFile(file) {
   $("#compile-status").textContent = "Importing PDF…";
   try {
-    const pyodide = await getBrowserScreenplain();
-    pyodide.FS.writeFile("/tmp/fountain-publisher-import.pdf", new Uint8Array(await file.arrayBuffer()));
-    const extracted = pyodide.runPython(`_fp_extract_pdf("/tmp/fountain-publisher-import.pdf")`);
-    const pages = JSON.parse(String(extracted));
+    const bytes = await file.arrayBuffer();
+    let pages;
+    if (STATIC_HOST) {
+      const pyodide = await getBrowserScreenplain();
+      pyodide.FS.writeFile("/tmp/fountain-publisher-import.pdf", new Uint8Array(bytes));
+      const extracted = pyodide.runPython(`_fp_extract_pdf("/tmp/fountain-publisher-import.pdf")`);
+      pages = JSON.parse(String(extracted));
+    } else {
+      const response = await fetch("/api/import/pdf", { method: "POST", headers: { "Content-Type": "application/pdf" }, body: bytes });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || `Local PDF import failed (${response.status})`);
+      pages = payload.pages;
+    }
     if (!pages.some((page) => page.trim())) throw new Error("No selectable text was found. This PDF may be an image-only scan.");
     const imported = pdfLayoutToFountain(pages);
     const filename = file.name.replace(/\.pdf$/i, "") + ".fountain";

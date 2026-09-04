@@ -81,6 +81,22 @@ class ServerTests(unittest.TestCase):
             payload = response.read()
         self.assertTrue(payload.startswith(b"%PDF"))
 
+    def test_desktop_pdf_import_extracts_layout_text(self):
+        with self.render_pdf("INT. OFFICE - DAY\n\nMAYA\nThe local importer works.\n") as response:
+            pdf_payload = response.read()
+        request = Request(
+            f"{self.base_url}/api/import/pdf",
+            data=pdf_payload,
+            headers={"Content-Type": "application/pdf"},
+            method="POST",
+        )
+        with urlopen(request) as response:
+            payload = json.load(response)
+        self.assertTrue(payload["pages"])
+        extracted = "\n".join(payload["pages"])
+        self.assertIn("INT. OFFICE - DAY", extracted)
+        self.assertIn("MAYA", extracted)
+
 
     def test_unexpected_exception_returns_json_error_not_html(self):
         """Any exception from the compiler must produce a JSON 400, not an HTML 500."""
