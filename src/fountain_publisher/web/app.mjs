@@ -1690,16 +1690,48 @@ function fitCanvasText(context, value, width) {
   return clipped ? `${clipped}…` : "";
 }
 
-function sceneCharacterWordSegments(sceneIndex) {
+function characterAnalyticsGroups() {
   const scenes = state.metadata.scenes || [];
+  if (scenes.length) return scenes.map((scene, index) => ({ ...scene, kind: "scene", start: scene.line - 1, end: (scenes[index + 1]?.line || Infinity) - 1 }));
+  const acts = characterAnalyticsActGroups();
+  if (acts.length) return acts;
+  return [characterAnalyticsDocumentGroup()];
+}
+
+function characterAnalyticsActGroups() {
+  const acts = (state.metadata.sections || []).filter((section) => section.level === 1);
+  return acts.map((act, index) => ({
+    heading: act.title, act: "Acts", actNumber: 0, kind: "act", start: act.line - 1, end: (acts[index + 1]?.line || Infinity) - 1,
+  }));
+}
+
+function characterAnalyticsDocumentGroup() {
+  return { heading: "Entire Document", act: "Screenplay", actNumber: 0, kind: "document", start: 0, end: Infinity };
+}
+
+function characterGroupLineUsage(group) {
   const typed = classifyLines(source.value);
-  const start = Math.max(0, (scenes[sceneIndex]?.line || 1) - 1);
-  const end = sceneIndex + 1 < scenes.length ? Math.max(start, scenes[sceneIndex + 1].line - 1) : typed.length;
+  const usage = new Map();
+  let active = "";
+  for (let index = group.start; index < Math.min(group.end, typed.length); index += 1) {
+    const line = typed[index];
+    if (line.type === "character") active = cleanCharacter(line.display);
+    else if (line.type === "dialogue" && active) usage.set(active, (usage.get(active) || 0) + 1);
+    else if (!["parenthetical", "empty", "note"].includes(line.type)) active = "";
+  }
+  return usage;
+}
+
+function sceneCharacterWordSegments(sceneIndex) {
+  const typed = classifyLines(source.value);
+  const group = typeof sceneIndex === "object" ? sceneIndex : characterAnalyticsGroups()[sceneIndex] || characterAnalyticsDocumentGroup();
+  const start = Math.max(0, group.start);
+  const end = Math.min(group.end, typed.length);
   const segments = [];
   let active = "";
   let position = 0;
   const ignored = new Set(["empty", "parenthetical", "section", "synopsis", "note", "boneyard", "title-value", "title-value title", "character", "scene", "page-break"]);
-  for (let index = start + 1; index < end; index += 1) {
+  for (let index = start; index < end; index += 1) {
     const line = typed[index];
     if (line.type === "character") { active = cleanCharacter(line.display); continue; }
     const words = ignored.has(line.type) ? 0 : (line.display.match(/[\p{L}\p{N}'’-]+/gu) || []).length;
@@ -1713,7 +1745,8 @@ function sceneCharacterWordSegments(sceneIndex) {
 function renderSceneCharacterAnalytics(sceneIndex) {
   const canvas = $("#character-analytics-chart");
   const chartViewport = $(".analytics-chart-scroll", $("#character-analytics-dialog"));
-  const scene = state.metadata.scenes[sceneIndex];
+  const groups = characterAnalyticsGroups();
+  const scene = typeof sceneIndex === "object" ? sceneIndex : groups[sceneIndex];
   const { segments, total } = sceneCharacterWordSegments(sceneIndex);
   const presentCharacters = new Set(segments.map((segment) => segment.character));
   const rollupOrder = (state.metadata.characters || []).map((character) => character.name);
@@ -1739,7 +1772,7 @@ function renderSceneCharacterAnalytics(sceneIndex) {
   context.font = "600 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   context.fillText(fitCanvasText(context, scene?.heading || `Scene ${sceneIndex + 1}`, labelWidth - 20), 12, 20);
   context.fillStyle = muted; context.font = "9px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-  context.fillText(`${total.toLocaleString()} scene words`, 12, 40);
+  context.fillText(`${total.toLocaleString()} ${scene.kind === "scene" ? "scene" : scene.kind} words`, 12, 40);
   [0, .25, .5, .75, 1].forEach((ratio) => {
     const x = labelWidth + plotWidth * ratio;
     context.strokeStyle = border; context.beginPath(); context.moveTo(x + .5, headerHeight); context.lineTo(x + .5, height); context.stroke();
@@ -1759,18 +1792,20 @@ function renderSceneCharacterAnalytics(sceneIndex) {
     });
   });
   if (!characters.length) { context.fillStyle = muted; context.textAlign = "center"; context.fillText("No character dialogue in this scene.", width / 2, headerHeight + rowHeight / 2); }
-  $("#character-analytics-title").textContent = `Scene ${sceneIndex + 1} Character Gantt`;
-  $("#character-analytics-description").textContent = `${scene?.heading || "Scene"} · Solid bars show dialogue word count and position within the scene.`;
-  $("#character-analytics-back").hidden = state.metadata.scenes.length <= 1;
+  const sceneNumber = scene.kind === "scene" ? (scene.number || groups.findIndex((group) => group.line === scene.line) + 1) : 0;
+  $("#character-analytics-title").textContent = `${scene.kind === "scene" ? `Scene ${sceneNumber}` : scene.heading} Character Gantt`;
+  $("#character-analytics-description").textContent = `${scene?.heading || "Document"} · Solid bars show dialogue word count and position within this ${scene.kind}.`;
+  $("#character-analytics-back").hidden = groups.length <= 1;
   $("#character-analytics-legend").hidden = true;
-  canvas.setAttribute("aria-label", `Character dialogue word-position Gantt for scene ${sceneIndex + 1}, ${scene?.heading || "scene"}, with ${total} words`);
+  canvas.setAttribute("aria-label", `Character dialogue word-position Gantt for ${scene?.heading || "document"}, with ${total} words`);
 }
 
 function renderCharacterAnalytics() {
-  if (state.characterAnalyticsScene !== null && state.metadata.scenes[state.characterAnalyticsScene]) { renderSceneCharacterAnalytics(state.characterAnalyticsScene); return; }
+  const groups = characterAnalyticsGroups();
+  if (state.characterAnalyticsScene !== null) { renderSceneCharacterAnalytics(state.characterAnalyticsScene); return; }
   const canvas = $("#character-analytics-chart");
   const characters = state.metadata.characters;
-  const scenes = state.metadata.scenes;
+  const scenes = groups;
   const scale = Math.min(window.devicePixelRatio || 1, 2);
   const labelWidth = 150;
   const sceneWidth = 92;
@@ -1787,7 +1822,9 @@ function renderCharacterAnalytics() {
   context.scale(scale, scale);
   canvas.style.cursor = scenes.length ? "pointer" : "default";
   $("#character-analytics-title").textContent = "Character Analytics";
-  $("#character-analytics-description").textContent = "Dialogue lines by character across acts and scenes. Select a scene header for word-position detail.";
+  $("#character-analytics-description").textContent = state.metadata.scenes.length
+    ? "Dialogue lines by character across acts and scenes. Select a scene header for word-position detail."
+    : "Dialogue lines by character across the document structure. Select a header for word-position detail.";
   $("#character-analytics-back").hidden = true;
 
   const surface = canvasColor("--surface", "#fff");
@@ -1795,7 +1832,8 @@ function renderCharacterAnalytics() {
   const ink = canvasColor("--ink", "#202124");
   const muted = canvasColor("--muted", "#6b7280");
   const border = canvasColor("--border", "#d7d9dd");
-  const lineCounts = characters.flatMap((character) => (character.sceneLines || []).map((item) => item.lines)).filter((lines) => lines > 0);
+  const groupUsage = scenes.map(characterGroupLineUsage);
+  const lineCounts = groupUsage.flatMap((usage) => [...usage.values()]).filter((lines) => lines > 0);
   const minLines = lineCounts.length ? Math.min(...lineCounts) : 0;
   const maxLines = lineCounts.length ? Math.max(...lineCounts) : 0;
   const legend = $("#character-analytics-legend");
@@ -1859,10 +1897,9 @@ function renderCharacterAnalytics() {
     context.fillStyle = ink;
     context.textAlign = "left";
     context.fillText(fitCanvasText(context, character.name, labelWidth - 20), 12, y + rowHeight / 2);
-    const usage = new Map((character.sceneLines || []).map((item) => [item.scene, item.lines]));
     const characterColor = characterChartColor(character.name);
     scenes.forEach((scene, index) => {
-      const lineCount = usage.get(index + 1) || 0;
+      const lineCount = groupUsage[index].get(character.name) || 0;
       if (!lineCount) return;
       const x = labelWidth + index * sceneWidth + 4;
       const intensity = maxLines === minLines ? 1 : 0.3 + 0.7 * ((lineCount - minLines) / (maxLines - minLines));
@@ -1876,12 +1913,7 @@ function renderCharacterAnalytics() {
       context.fillText(String(lineCount), x + (sceneWidth - 8) / 2, y + rowHeight / 2);
     });
   });
-  if (!scenes.length) {
-    context.fillStyle = muted;
-    context.textAlign = "center";
-    context.fillText("Add scene headings to build the timeline.", width / 2, actHeight + sceneHeight + rowHeight / 2);
-  }
-  canvas.setAttribute("aria-label", `Character dialogue timeline with ${characters.length} characters across ${scenes.length} scenes; usage ranges from ${minLines} to ${maxLines} dialogue lines`);
+  canvas.setAttribute("aria-label", `Character dialogue timeline with ${characters.length} characters across ${scenes.length} ${state.metadata.scenes.length ? "scenes" : "groups"}; usage ranges from ${minLines} to ${maxLines} dialogue lines`);
 }
 
 function characterLineUsageCsv() {
@@ -1889,7 +1921,8 @@ function characterLineUsageCsv() {
 }
 
 function openCharacterAnalytics() {
-  state.characterAnalyticsScene = state.metadata.scenes.length === 1 ? 0 : null;
+  const groups = characterAnalyticsGroups();
+  state.characterAnalyticsScene = groups.length === 1 ? groups[0] : null;
   $("#character-analytics-dialog").showModal();
   renderCharacterAnalytics();
 }
@@ -4504,16 +4537,22 @@ $("#close-character-analytics").addEventListener("click", () => $("#character-an
 $("#character-analytics-back").addEventListener("click", () => { state.characterAnalyticsScene = null; renderCharacterAnalytics(); });
 $("#character-analytics-chart").addEventListener("click", (event) => {
   if (state.characterAnalyticsScene !== null) return;
-  const scenes = state.metadata.scenes || [];
-  if (!scenes.length) return;
+  const scenes = characterAnalyticsGroups();
   const canvas = event.currentTarget;
   const bounds = canvas.getBoundingClientRect();
   const x = (event.clientX - bounds.left) * (parseFloat(canvas.style.width) / bounds.width);
   const y = (event.clientY - bounds.top) * (parseFloat(canvas.style.height) / bounds.height);
-  if (y < 28 || y > 82 || x < 150) return;
+  if (y > 82 || x < 150) return;
   const sceneIndex = Math.floor((x - 150) / 92);
   if (sceneIndex < 0 || sceneIndex >= scenes.length) return;
-  state.characterAnalyticsScene = sceneIndex;
+  if (y < 28) {
+    if (!state.metadata.scenes.length) state.characterAnalyticsScene = characterAnalyticsDocumentGroup();
+    else {
+      const act = scenes[sceneIndex].act;
+      state.characterAnalyticsScene = characterAnalyticsActGroups().find((group) => group.heading === act) || characterAnalyticsDocumentGroup();
+    }
+  } else if (y >= 28) state.characterAnalyticsScene = scenes[sceneIndex];
+  else return;
   renderCharacterAnalytics();
 });
 $("#copy-character-lines").addEventListener("click", copyCharacterLineUsage);

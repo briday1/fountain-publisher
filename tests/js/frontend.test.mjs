@@ -639,7 +639,8 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   assert.match(html, /class="character-analytics-button"[^>]*data-character-analytics>Character Analytics/);
   assert.match(css, /\.character-analytics-button, \.character-csv-button\s*\{[^}]*width:\s*100%;[^}]*text-align:\s*center;/s);
   assert.match(html, /id="character-analytics-chart"/);
-  assert.match(html, /id="character-analytics-back"[^>]*>← All scenes</);
+  assert.doesNotMatch(html, /id="character-analytics-full"/);
+  assert.match(html, /id="character-analytics-back"[^>]*>← Overview</);
   assert.match(html, /id="copy-character-lines"[^>]*>Copy line usage CSV/);
   assert.match(app, /navigator\.clipboard\.writeText\(characterLineUsageCsv\(\)\)/);
   assert.match(app, /characters\.map\(\(character\) => `\$\{character\.name\}, \$\{character\.lines\}`\)/);
@@ -664,7 +665,12 @@ test("character analytics supports a scrollable timeline, PNG save, and CSV copy
   const sceneGantt = app.slice(app.indexOf("function renderSceneCharacterAnalytics"), app.indexOf("function renderCharacterAnalytics"));
   assert.doesNotMatch(sceneGantt, /fillText\(String\(segment\.words\)/);
   assert.match(app, /fillText\(String\(lineCount\)/);
-  assert.match(app, /state\.metadata\.scenes\.length === 1 \? 0 : null/);
+  assert.match(app, /function characterAnalyticsGroups\(\)[\s\S]*characterAnalyticsActGroups[\s\S]*characterAnalyticsDocumentGroup/);
+  assert.match(app, /function characterAnalyticsActGroups\(\)[\s\S]*sections[\s\S]*kind: "act"/);
+  assert.match(app, /function characterAnalyticsDocumentGroup\(\)[\s\S]*kind: "document"/);
+  assert.match(app, /function characterGroupLineUsage\(group\)[\s\S]*line\.type === "dialogue"[\s\S]*usage\.set/);
+  assert.match(app, /groups\.length === 1 \? groups\[0\] : null/);
+  assert.match(app, /y < 28[\s\S]*!state\.metadata\.scenes\.length[\s\S]*characterAnalyticsDocumentGroup\(\)[\s\S]*characterAnalyticsActGroups\(\)\.find/);
   assert.match(app, /character-analytics-chart"\)\.addEventListener\("click"[\s\S]*sceneIndex[\s\S]*renderCharacterAnalytics\(\)/);
   assert.match(app, /function renderSceneCharacterAnalytics\(sceneIndex\)[\s\S]*chartViewport\.clientWidth - labelWidth/);
   assert.match(app, /function openCharacterAnalytics\(\)[\s\S]*showModal\(\);[\s\S]*renderCharacterAnalytics\(\)/);
