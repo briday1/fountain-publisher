@@ -101,10 +101,13 @@ test("Zen mode leaves only work and compact view controls", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="toggle-zen"[\s\S]*id="zen-controls"[^>]*hidden[\s\S]*data-preview-mode="source"[\s\S]*data-preview-mode="live"[\s\S]*data-preview-mode="beats"[\s\S]*id="exit-zen"/);
   assert.match(app, /async function setZenMode\(enabled[\s\S]*zen-controls[\s\S]*requestFullscreen/);
+  assert.match(app, /function renderBeatGuide\(\)[\s\S]*--zen-beat-guide-height[\s\S]*layer\.offsetHeight/);
   assert.match(app, /function handleFullscreenChange\(\)[\s\S]*setZenMode\(false, \{ syncFullscreen: false \}\)/);
   assert.match(app, /event\.key === "Escape" && document\.body\.classList\.contains\("zen-mode"\)/);
   assert.match(css, /body\.zen-mode \.app-toolbar[\s\S]*body\.zen-mode #workspace[\s\S]*height:\s*100vh !important/);
   assert.match(css, /\.zen-controls\s*\{[^}]*left:\s*50%;[^}]*transform:\s*translateX\(-50%\)/);
+  assert.match(css, /body\.zen-mode \.beat-guide-layer\s*\{[^}]*top:\s*0;/);
+  assert.match(css, /body\.zen-mode \.zen-controls\s*\{[^}]*--zen-beat-guide-height/);
   assert.match(css, /body\.zen-mode #source-panel \.editor-shell\s*\{[^}]*margin:\s*34px auto;[^}]*border-bottom:\s*1px solid var\(--border\)/);
   assert.match(css, /body\.source-tab-hidden \[data-preview-mode="source"\]/);
 });
