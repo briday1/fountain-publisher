@@ -2255,6 +2255,20 @@ function pdfLayoutToFountain(pages) {
   return output.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
 }
 
+function normalizeScreenplayPaste(value) {
+  const text = value.replace(/\r\n?/g, "\n");
+  if (!text.includes("\n")) return { text, reconstructed: false };
+  const lines = text.split("\n");
+  const alreadyFountain = lines.some((line) => /^(?:Title|Credit|Author|Draft date):/i.test(line.trim()) || /^[.@!#~=]/.test(line.trim()));
+  if (alreadyFountain) return { text, reconstructed: false };
+  const hasScene = lines.some((line) => /^(?:\s*\d+[A-Z]?\.?\s+)?(?:INT\.?|EXT\.?|EST\.?|INT\.?\/?EXT\.?|I\/?E\.?)\b/i.test(line));
+  const indentedLines = lines.filter((line) => /^\s{5,}\S/.test(line)).length;
+  const positionedCue = lines.some((line) => /^\s{10,}[A-Z][A-Z0-9 ._'-]*(?:\s+\([^)]*\))?\s*$/.test(line));
+  const pageArtifacts = lines.some((line) => /^\s*\d+\.?\s*$/.test(line) || /^\s*\d+[A-Z]?\.?\s+(?:INT|EXT)\.?/i.test(line));
+  const formattedLayout = hasScene && (positionedCue || indentedLines >= 3 || pageArtifacts);
+  return formattedLayout ? { text: pdfLayoutToFountain([text]), reconstructed: true } : { text, reconstructed: false };
+}
+
 async function importPdfFile(file) {
   $("#compile-status").textContent = "Importing PDF…";
   try {
@@ -4099,6 +4113,15 @@ source.addEventListener("input", (event) => {
   if (event.inputType === "insertText") showCompletions();
   else hideCompletions();
 });
+source.addEventListener("paste", (event) => {
+  const pasted = event.clipboardData?.getData("text/plain");
+  if (pasted === undefined) return;
+  event.preventDefault();
+  const normalized = normalizeScreenplayPaste(pasted);
+  source.setRangeText(normalized.text, source.selectionStart, source.selectionEnd, "end");
+  sourceChanged();
+  if (normalized.reconstructed) toast("Formatted screenplay text reconstructed as Fountain");
+});
 source.addEventListener("beforeinput", (event) => { if (vimActive() && state.vimMode === "normal") event.preventDefault(); });
 source.addEventListener("scroll", () => { $("#line-numbers").scrollTop = source.scrollTop; syncSourceOverlay(); updateCursor(); scheduleWorkspaceCache(); });
 const sourceResizeObserver = new ResizeObserver(() => requestAnimationFrame(renderEditorChrome));
@@ -4154,6 +4177,7 @@ page.addEventListener("beforeinput", (event) => {
   const insertionTypes = new Set(["insertText", "insertReplacementText", "insertFromPaste", "insertFromDrop", "insertParagraph", "insertLineBreak"]);
   const deletionTypes = new Set(["deleteContentBackward", "deleteContentForward", "deleteWordBackward", "deleteWordForward", "deleteSoftLineBackward", "deleteSoftLineForward", "deleteByCut", "deleteByDrag"]);
   if (!insertionTypes.has(event.inputType) && !deletionTypes.has(event.inputType)) return;
+  if (event.inputType === "insertFromPaste") return;
   event.preventDefault();
   hidePreviewCompletions();
   if (deletionTypes.has(event.inputType)) {
@@ -4171,7 +4195,9 @@ page.addEventListener("paste", (event) => {
   const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); if (!line) return;
   const edit = previewSelection(line); if (!edit) return;
   event.preventDefault();
-  replacePreviewSelection(edit, event.clipboardData?.getData("text/plain") || "");
+  const normalized = normalizeScreenplayPaste(event.clipboardData?.getData("text/plain") || "");
+  replacePreviewSelection(edit, normalized.text);
+  if (normalized.reconstructed) toast("Formatted screenplay text reconstructed as Fountain");
 });
 page.addEventListener("keydown", (event) => {
   if (handleVimKey(event, "preview")) return;
