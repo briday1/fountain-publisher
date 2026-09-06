@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 
 const appPath = new URL("../../src/fountain_publisher/web/app.mjs", import.meta.url);
 const htmlPath = new URL("../../src/fountain_publisher/web/index.html", import.meta.url);
@@ -760,6 +761,63 @@ test("the annotation editor uses one compact field heading", async () => {
   assert.doesNotMatch(html, /<small>SCREENPLAY<\/small><h2 id="annotation-heading"/);
   assert.match(app, /line === null \? "Add Annotation" : "Edit Annotation"/);
   assert.match(css, /\.note-form > \.annotation-field\s*\{\s*margin-top:\s*0;/);
+});
+
+test("Beat Sheet Enter inserts and focuses a new beat after the current beat", async () => {
+  const app = await readFile(appPath, "utf8");
+  const handlerSource = app.slice(
+    app.indexOf('$("#beat-list").addEventListener("keydown"'),
+    app.indexOf("let beatSheetSaveTimer"),
+  );
+  for (const currentIndex of [0, 1, 2]) {
+    const cards = ["First", "Middle", "Last"].map((text) => ({
+      text,
+      range: { startLine: 1, endLine: 3 },
+      get nextElementSibling() { return cards[cards.indexOf(this) + 1] || null; },
+      insertAdjacentHTML(position, html) {
+        assert.equal(position, "afterend");
+        assert.equal(html, "<li></li>");
+        cards.splice(cards.indexOf(this) + 1, 0, { text: "", range: null });
+      },
+    }));
+    const originalCards = [...cards];
+    const current = cards[currentIndex];
+    let handler;
+    let focused;
+    let renumbered = 0;
+    let saved = 0;
+    let prevented = 0;
+    runInNewContext(handlerSource, {
+      $: (selector, card) => {
+        if (selector === "#beat-list") {
+          return { addEventListener: (type, listener) => {
+            assert.equal(type, "keydown");
+            handler = listener;
+          } };
+        }
+        assert.equal(selector, ".beat-text");
+        return { focus: () => { focused = card; } };
+      },
+      beatCard: () => "<li></li>",
+      renumberBeatCards: () => { renumbered += 1; },
+      scheduleBeatSheetSave: () => { saved += 1; },
+    });
+    const target = {
+      closest: (selector) => selector === ".beat-card" ? current : null,
+      matches: (selector) => selector === ".beat-text",
+    };
+    handler({ key: "Tab", target, preventDefault: () => { prevented += 1; } });
+    assert.deepEqual(cards, originalCards);
+    assert.equal(prevented, 0);
+    handler({ key: "Enter", target, preventDefault: () => { prevented += 1; } });
+    const expected = [...originalCards];
+    expected.splice(currentIndex + 1, 0, { text: "", range: null });
+    assert.deepEqual(cards, expected);
+    assert.equal(focused, cards[currentIndex + 1]);
+    assert.equal(renumbered, 1);
+    assert.equal(saved, 1);
+    assert.equal(prevented, 1);
+  }
 });
 
 test("Beat Sheet provides a source-backed draggable story map and Preview guide", async () => {
