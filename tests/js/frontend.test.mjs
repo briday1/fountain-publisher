@@ -986,7 +986,11 @@ test("desktop Vim mode is persistent and shared by Source and Preview", async ()
   assert.match(app, /function handleVimKey\(event, surface\)/);
   assert.match(app, /handleVimKey\(event, "source"\)/);
   assert.match(app, /handleVimKey\(event, "preview"\)/);
-  assert.match(app, /\["h", "j", "k", "l", "0", "\^", "\$", "w", "b", "G"\]/);
+  assert.match(app, /\["h", "j", "k", "l", "0", "\^", "\$", "w", "b", "e", "G"\]/);
+  assert.match(app, /function vimWordRange\(offset, around = false\)/);
+  assert.match(app, /key === "w" && \["i", "a"\]\.includes\(state\.vimPending\)/);
+  assert.match(app, /vimVisualLine:\s*false/);
+  assert.match(app, /state\.vimVisualLine = key === "V"/);
   assert.match(app, /state\.vimYank = `\$\{position\.lines\[position\.line\]\}\\n`/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.vim-mode", String\(state\.vimEnabled\)\)/);
   assert.match(app, /function vimPreviewTargetLine\(currentLine, command\)[\s\S]*\.script-line\[data-line\][\s\S]*!line\.classList\.contains\("empty"\)[\s\S]*line > currentLine[\s\S]*line < currentLine/);
@@ -996,6 +1000,7 @@ test("desktop Vim mode is persistent and shared by Source and Preview", async ()
   assert.match(app, /state\.vimMode === "visual" && event\.ctrlKey && event\.key\.toLowerCase\(\) === "c"/);
   assert.match(app, /function renderedTextOffsetRect\(element, offset\)[\s\S]*getClientRects/);
   assert.match(app, /function moveVimDisplayLine\(command, previewFocus, visual = false\)[\s\S]*previewWrappedRowOffset[\s\S]*sourceWrappedRowOffset/);
+  assert.match(app, /function previewNativeDisplayRowOffset\(command, startOffset\)[\s\S]*selection\.modify\("move"[\s\S]*"line"/);
   assert.match(app, /state\.vimPending === "g"[\s\S]*moveVimDisplayLine\(`g\$\{key\}`/);
   assert.match(app, /function moveVimHalfPage\(command, previewFocus, visual = false\)[\s\S]*viewportHeight \/ lineHeight \/ 2[\s\S]*previewWrappedRowOffset[\s\S]*sourceWrappedRowOffset/);
   assert.match(app, /event\.ctrlKey && \["d", "u"\]\.includes\(event\.key\.toLowerCase\(\)\)[\s\S]*moveVimHalfPage/);
