@@ -259,6 +259,19 @@ test("third-party license notices accompany local and static distributions", asy
   assert.match(build, /THIRD_PARTY_NOTICES\.md/);
 });
 
+test("public privacy and terms pages disclose connected-service data use", async () => {
+  const [privacy, terms, build] = await Promise.all([
+    readFile(new URL("../../src/fountain_publisher/web/privacy.html", import.meta.url), "utf8"),
+    readFile(new URL("../../src/fountain_publisher/web/terms.html", import.meta.url), "utf8"),
+    readFile(new URL("../../scripts/build-web.mjs", import.meta.url), "utf8"),
+  ]);
+  assert.match(privacy, /Google API Services User Data Policy/);
+  assert.match(privacy, /Cloudflare Durable Object/);
+  assert.match(terms, /Your work and accounts/);
+  assert.match(build, /privacy\.html/);
+  assert.match(build, /terms\.html/);
+});
+
 test("source and preview share syntax, cursor synchronization, and character completion behavior", async () => {
   const [html, app, css] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.match(html, /id="source-highlight"/);
