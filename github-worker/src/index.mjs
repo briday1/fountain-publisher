@@ -351,8 +351,12 @@ async function authorizeCollaboration(request, env, url) {
   const match = url.pathname.match(/^\/api\/collaboration\/([a-f0-9]{48})$/);
   const fileId = url.searchParams.get("fileId");
   if (!match || !safeDriveId(fileId)) return json({ error: "Invalid collaboration room" }, 400);
-  const fields = "id,appProperties,capabilities(canEdit)";
-  const file = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?fields=${encodeURIComponent(fields)}`, session.access_token)).json();
+  // A fresh namespace cannot merge safely with an old browser's in-memory Yjs
+  // document. Require a reloaded client before joining the file-bound rooms.
+  if (url.searchParams.get("roomProtocol") !== "2") return json({ error: "Reload Fountain Publisher to reconnect securely" }, 409);
+  const fields = "id,trashed,appProperties,capabilities(canEdit)";
+  const file = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=${encodeURIComponent(fields)}`, session.access_token)).json();
+  if (file.id !== fileId || file.trashed === true) return json({ error: "Drive file is unavailable" }, 403);
   if (file.appProperties?.fountainPublisherDocumentId !== match[1]) return json({ error: "Document identity mismatch" }, 403);
   const headers = new Headers(request.headers);
   headers.set("x-fp-user-id", session.google_sub);
@@ -360,11 +364,16 @@ async function authorizeCollaboration(request, env, url) {
   headers.set("x-fp-user-email", session.email);
   headers.set("x-fp-can-edit", String(file.capabilities?.canEdit === true));
   headers.set("x-fp-authorized-until", String(Math.floor(Date.now() / 1000) + 300));
-  const room = env.COLLAB_ROOMS.get(env.COLLAB_ROOMS.idFromName(match[1]));
+  headers.set("x-fp-room-protocol", "2");
+  // appProperties can be copied or edited by a caller. They are not proof of
+  // access to another Drive file. Never consult the old metadata-only room.
+  const roomName = JSON.stringify(["drive-file-v2", file.id, match[1]]);
+  const room = env.COLLAB_ROOMS.get(env.COLLAB_ROOMS.idFromName(roomName));
   const initialized = await room.fetch("https://room.internal/initialized");
   if (!(await initialized.json()).initialized) {
-    const content = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, session.access_token)).text();
-    await room.fetch(new Request("https://room.internal/initialize", { method: "POST", body: content }));
+    const content = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`, session.access_token)).text();
+    const result = await room.fetch(new Request("https://room.internal/initialize", { method: "POST", body: content }));
+    if (!result.ok) return result;
   }
   return room.fetch(new Request(request, { headers }));
 }
@@ -634,6 +643,7 @@ export class CollaborationRoom {
       email: request.headers.get("x-fp-user-email"),
       canEdit: request.headers.get("x-fp-can-edit") === "true",
       authorizedUntil: Number(request.headers.get("x-fp-authorized-until")),
+      roomProtocol: request.headers.get("x-fp-room-protocol"),
       connectionId: randomToken(12),
     };
     this.state.acceptWebSocket(server);
@@ -641,7 +651,7 @@ export class CollaborationRoom {
     server.send(JSON.stringify({ type: "sync", update: base64Url(Y.encodeStateAsUpdate(this.document)), self: identity }));
     for (const existing of this.state.getWebSockets()) {
       if (existing === server) continue;
-      const user = existing.deserializeAttachment();
+      const user = this.authorizedIdentity(existing);
       if (user) server.send(JSON.stringify({ type: "presence", action: "join", user, presence: user.presence || null }));
     }
     this.broadcast({ type: "presence", action: "join", user: identity }, server);
@@ -652,8 +662,8 @@ export class CollaborationRoom {
     if (typeof message !== "string" || message.length > 100_000) return socket.close(1009, "Message too large");
     let payload;
     try { payload = JSON.parse(message); } catch { return socket.close(1003, "Invalid message"); }
-    const identity = socket.deserializeAttachment();
-    if (!identity?.authorizedUntil || identity.authorizedUntil <= Math.floor(Date.now() / 1000)) return socket.close(4003, "Authorization expired");
+    const identity = this.authorizedIdentity(socket);
+    if (!identity) return;
     if (payload.type === "update") {
       if (!identity?.canEdit) return socket.send(JSON.stringify({ type: "error", error: "Read-only access" }));
       let update;
@@ -684,13 +694,24 @@ export class CollaborationRoom {
     this.broadcast({ type: "presence", action: "leave", user: socket.deserializeAttachment() }, socket);
   }
 
+  authorizedIdentity(socket) {
+    const identity = socket.deserializeAttachment();
+    if (identity?.roomProtocol !== "2") {
+      socket.close(4003, "Reload Fountain Publisher to reconnect securely");
+      return null;
+    }
+    if (!identity?.authorizedUntil || identity.authorizedUntil <= Math.floor(Date.now() / 1000)) {
+      socket.close(4003, "Authorization expired");
+      return null;
+    }
+    return identity;
+  }
+
   broadcast(payload, except = null) {
     const message = JSON.stringify(payload);
     for (const socket of this.state.getWebSockets()) if (socket !== except) {
       try {
-        const identity = socket.deserializeAttachment();
-        if (!identity?.authorizedUntil || identity.authorizedUntil <= Math.floor(Date.now() / 1000)) socket.close(4003, "Authorization expired");
-        else socket.send(message);
+        if (this.authorizedIdentity(socket)) socket.send(message);
       } catch { /* stale sockets are removed by the runtime */ }
     }
   }
