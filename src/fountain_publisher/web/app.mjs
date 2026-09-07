@@ -2919,6 +2919,98 @@ async function finishGithubSave(target, content, result, resolution = false) {
   if (!unchanged) toast("Saved the submitted version to GitHub. Your newer editor changes were kept.");
 }
 
+function conflictLines(text) {
+  return text.match(/.*(?:\n|$)/g)?.filter(Boolean) || [];
+}
+
+function buildGithubConflictHunks(mine, theirs) {
+  const left = conflictLines(mine);
+  const right = conflictLines(theirs);
+  let prefix = 0;
+  while (prefix < left.length && prefix < right.length && left[prefix] === right[prefix]) prefix += 1;
+  let suffix = 0;
+  while (suffix < left.length - prefix && suffix < right.length - prefix && left[left.length - 1 - suffix] === right[right.length - 1 - suffix]) suffix += 1;
+  const a = left.slice(prefix, left.length - suffix);
+  const b = right.slice(prefix, right.length - suffix);
+  const operations = [];
+  if (prefix) operations.push({ type: "same", text: left.slice(0, prefix).join("") });
+  if (a.length * b.length <= 1_000_000) {
+    const table = Array.from({ length: a.length + 1 }, () => new Uint32Array(b.length + 1));
+    for (let i = a.length - 1; i >= 0; i -= 1) for (let j = b.length - 1; j >= 0; j -= 1) {
+      table[i][j] = a[i] === b[j] ? table[i + 1][j + 1] + 1 : Math.max(table[i + 1][j], table[i][j + 1]);
+    }
+    let i = 0; let j = 0;
+    while (i < a.length || j < b.length) {
+      if (i < a.length && j < b.length && a[i] === b[j]) { operations.push({ type: "same", text: a[i] }); i += 1; j += 1; }
+      else if (j < b.length && (i === a.length || table[i][j + 1] >= table[i + 1][j])) { operations.push({ type: "theirs", text: b[j] }); j += 1; }
+      else { operations.push({ type: "mine", text: a[i] }); i += 1; }
+    }
+  } else if (a.length || b.length) {
+    operations.push({ type: "mine", text: a.join("") }, { type: "theirs", text: b.join("") });
+  }
+  if (suffix) operations.push({ type: "same", text: left.slice(left.length - suffix).join("") });
+  const hunks = [];
+  for (const operation of operations) {
+    const previous = hunks.at(-1);
+    if (operation.type === "same") {
+      if (previous?.kind === "common") previous.text += operation.text;
+      else hunks.push({ kind: "common", text: operation.text });
+    } else {
+      const change = previous?.kind === "change" ? previous : (hunks.push({ kind: "change", mine: "", theirs: "", choice: "mine", result: "" }), hunks.at(-1));
+      change[operation.type] += operation.text;
+    }
+  }
+  for (const hunk of hunks) if (hunk.kind === "change") hunk.result = hunk.mine;
+  return hunks;
+}
+
+function githubConflictResult() {
+  const conflict = state.githubConflict;
+  if (!conflict?.hunks) return $("#github-conflict-result").value;
+  const legacy = $("#github-conflict-result").value;
+  if (conflict.composedResult !== undefined && legacy !== conflict.composedResult) return legacy;
+  return conflict.hunks.map((hunk) => hunk.kind === "common" ? hunk.text : hunk.result).join("");
+}
+
+function sizeGithubMergeTextarea(textarea) {
+  textarea.style.height = "1px";
+  textarea.style.height = `${Math.max(26, textarea.scrollHeight)}px`;
+}
+
+function updateGithubConflictProgress() {
+  const conflict = state.githubConflict;
+  if (!conflict?.hunks || !$("#github-conflict-progress")) return;
+  const changes = conflict.hunks.filter((hunk) => hunk.kind === "change");
+  $("#github-conflict-progress").textContent = changes.length ? `${Math.min(conflict.activeChange + 1, changes.length)} of ${changes.length}` : "No changes";
+  $("#github-conflict-previous").disabled = !changes.length;
+  $("#github-conflict-next").disabled = !changes.length;
+}
+
+function renderGithubConflictDocument() {
+  const conflict = state.githubConflict;
+  const container = $("#github-conflict-document");
+  if (!conflict?.hunks || !container || typeof container.querySelectorAll !== "function") return;
+  let changeIndex = 0;
+  container.innerHTML = conflict.hunks.map((hunk, index) => {
+    if (hunk.kind === "common") return `<textarea class="github-merge-common" data-hunk="${index}" aria-label="Editable unchanged text">${escapeHtml(hunk.text)}</textarea>`;
+    const current = changeIndex++;
+    return `<section class="github-merge-change${current === conflict.activeChange ? " active" : ""}" data-change="${current}" data-hunk="${index}"><div class="github-merge-options"><button class="github-merge-option${hunk.choice === "mine" ? " selected" : ""}" data-version="mine" type="button"><strong>Mine</strong><pre>${escapeHtml(hunk.mine || "(remove this text)")}</pre></button><button class="github-merge-option${hunk.choice === "theirs" ? " selected" : ""}" data-version="theirs" type="button"><strong>Theirs</strong><pre>${escapeHtml(hunk.theirs || "(remove this text)")}</pre></button></div><textarea class="github-merge-result" data-hunk="${index}" aria-label="Editable result for change ${current + 1}" spellcheck="false" autocapitalize="off" autocorrect="off">${escapeHtml(hunk.result)}</textarea></section>`;
+  }).join("");
+  container.querySelectorAll("textarea").forEach(sizeGithubMergeTextarea);
+  conflict.composedResult = conflict.hunks.map((hunk) => hunk.kind === "common" ? hunk.text : hunk.result).join("");
+  $("#github-conflict-result").value = conflict.composedResult;
+  updateGithubConflictProgress();
+}
+
+function navigateGithubConflict(direction) {
+  const conflict = state.githubConflict;
+  const changes = conflict?.hunks?.filter((hunk) => hunk.kind === "change").length || 0;
+  if (!changes) return;
+  conflict.activeChange = (conflict.activeChange + direction + changes) % changes;
+  renderGithubConflictDocument();
+  $("#github-conflict-document").querySelector(`[data-change="${conflict.activeChange}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
 function updateGithubConflictControls() {
   const conflict = state.githubConflict;
   if (!conflict) return;
@@ -2934,14 +3026,16 @@ function updateGithubConflictControls() {
 }
 
 function showGithubConflict(target, remote) {
-  state.githubConflict = { target, remote, busy: false, needsRefresh: false };
+  state.githubConflict = { target, remote, busy: false, needsRefresh: false, hunks: buildGithubConflictHunks(target.content, remote.content), activeChange: 0 };
   $("#github-conflict-target").textContent = `${target.owner}/${target.repo} · ${target.branch} · ${target.path}`;
   $("#github-conflict-local").value = target.content;
   $("#github-conflict-remote").value = remote.content;
   $("#github-conflict-result").value = target.content;
+  state.githubConflict.composedResult = target.content;
   $("#github-conflict-reviewed").checked = false;
   $("#github-conflict-status").textContent = "GitHub has a newer version. Review both versions, then edit the result below.";
   updateGithubConflictControls();
+  renderGithubConflictDocument();
   $("#github-conflict-dialog").showModal();
 }
 
@@ -2952,6 +3046,10 @@ function chooseGithubConflictVersion(version) {
   const text = version === "mine" ? conflict.target.content : conflict.remote.content;
   if (result.value !== text && !window.confirm("Replace the entire resolution draft with this version? Your current result edits will be lost.")) return;
   result.value = text;
+  if (conflict.hunks) {
+    for (const hunk of conflict.hunks) if (hunk.kind === "change") { hunk.choice = version; hunk.result = hunk[version]; }
+    renderGithubConflictDocument();
+  }
   $("#github-conflict-reviewed").checked = false;
   updateGithubConflictControls();
   result.focus();
@@ -2969,6 +3067,7 @@ function cancelGithubConflict() {
 async function refreshGithubConflict() {
   const conflict = state.githubConflict;
   if (!conflict || conflict.busy) return;
+  const draft = githubConflictResult();
   conflict.busy = true;
   conflict.needsRefresh = true;
   $("#github-conflict-reviewed").checked = false;
@@ -2977,6 +3076,9 @@ async function refreshGithubConflict() {
     const previousSha = conflict.remote.sha;
     conflict.remote = await readGithubVersion(conflict.target);
     $("#github-conflict-remote").value = conflict.remote.content;
+    conflict.hunks = buildGithubConflictHunks(draft, conflict.remote.content);
+    conflict.activeChange = 0;
+    renderGithubConflictDocument();
     conflict.needsRefresh = false;
     $("#github-conflict-status").textContent = conflict.remote.sha === previousSha && conflict.refreshError
       ? `${conflict.refreshError} The GitHub file version is unchanged; check repository settings before retrying. Your result draft was kept.`
@@ -2994,7 +3096,7 @@ async function saveGithubResolution() {
   if (!conflict || conflict.busy || conflict.needsRefresh || !$("#github-conflict-reviewed").checked) return;
   conflict.busy = true;
   updateGithubConflictControls();
-  const content = $("#github-conflict-result").value;
+  const content = githubConflictResult();
   let refresh = false;
   try {
     let result;
@@ -4975,6 +5077,33 @@ $("#github-conflict-save").addEventListener("click", saveGithubResolution);
 $("#github-conflict-refresh").addEventListener("click", refreshGithubConflict);
 $("#github-conflict-mine").addEventListener("click", () => chooseGithubConflictVersion("mine"));
 $("#github-conflict-theirs").addEventListener("click", () => chooseGithubConflictVersion("theirs"));
+$("#github-conflict-previous").addEventListener("click", () => navigateGithubConflict(-1));
+$("#github-conflict-next").addEventListener("click", () => navigateGithubConflict(1));
+$("#github-conflict-close").addEventListener("click", cancelGithubConflict);
+$("#github-conflict-document").addEventListener("click", (event) => {
+  const option = event.target.closest?.("[data-version]");
+  if (!option || state.githubConflict?.busy) return;
+  const section = option.closest("[data-hunk]");
+  const hunk = state.githubConflict.hunks[Number(section.dataset.hunk)];
+  hunk.choice = option.dataset.version;
+  hunk.result = hunk[hunk.choice];
+  state.githubConflict.activeChange = Number(section.dataset.change);
+  $("#github-conflict-reviewed").checked = false;
+  renderGithubConflictDocument();
+  updateGithubConflictControls();
+  $("#github-conflict-document").querySelector(`[data-hunk="${section.dataset.hunk}"] .github-merge-result`)?.focus();
+});
+$("#github-conflict-document").addEventListener("input", (event) => {
+  const textarea = event.target.closest?.("textarea[data-hunk]");
+  if (!textarea || !state.githubConflict?.hunks) return;
+  const hunk = state.githubConflict.hunks[Number(textarea.dataset.hunk)];
+  if (hunk.kind === "common") hunk.text = textarea.value;
+  else { hunk.result = textarea.value; hunk.choice = "edited"; }
+  $("#github-conflict-result").value = githubConflictResult();
+  $("#github-conflict-reviewed").checked = false;
+  sizeGithubMergeTextarea(textarea);
+  updateGithubConflictControls();
+});
 $("#github-conflict-reviewed").addEventListener("change", updateGithubConflictControls);
 $("#github-conflict-cancel").addEventListener("click", cancelGithubConflict);
 $("#github-conflict-dialog").addEventListener("cancel", (event) => { event.preventDefault(); cancelGithubConflict(); });

@@ -103,6 +103,29 @@ test("stale linked SHA opens whole-file conflict references without modifying so
   assert.equal(h.requests[1].cache, "no-store");
 });
 
+test("conflict review builds one editable document with distinct change hunks", () => {
+  const h = harness();
+  const hunks = h.context.buildGithubConflictHunks(
+    "INT. ROOM - DAY\n\nMine action.\n\nCUT TO:\n",
+    "INT. ROOM - DAY\n\nTheir action.\n\nCUT TO:\n",
+  );
+  assert.equal(hunks.map(({ kind }) => kind).join(","), "common,change,common");
+  assert.equal(hunks[1].mine, "Mine action.\n");
+  assert.equal(hunks[1].theirs, "Their action.\n");
+  assert.equal(hunks.map((hunk) => hunk.kind === "common" ? hunk.text : hunk.result).join(""), "INT. ROOM - DAY\n\nMine action.\n\nCUT TO:\n");
+});
+
+test("conflict line comparison handles insertions and removals independently", () => {
+  const h = harness();
+  const hunks = h.context.buildGithubConflictHunks("A\nlocal only\nB\n", "A\nB\nremote only\n");
+  const changes = hunks.filter(({ kind }) => kind === "change");
+  assert.equal(changes.length, 2);
+  assert.equal(changes[0].mine, "local only\n");
+  assert.equal(changes[0].theirs, "");
+  assert.equal(changes[1].mine, "");
+  assert.equal(changes[1].theirs, "remote only\n");
+});
+
 test("folder SHA conflicts and new-file 422 collisions are recoverable", async () => {
   for (const options of [{ linked: false }, { sha: null, linked: false }]) {
     const h = harness(options);
