@@ -274,6 +274,7 @@ const state = {
   vimPending: "",
   vimVisualAnchor: 0,
   vimVisualFocus: 0,
+  vimVisualLine: false,
   vimYank: "",
   vimYankLine: false,
   beatGuide: localStorage.getItem("fountain-publisher.beat-guide") === "true",
@@ -4300,6 +4301,14 @@ function vimLinePosition(offset = vimCursorOffset()) {
 }
 
 function vimVisualRange(anchor = state.vimVisualAnchor, focus = state.vimVisualFocus) {
+  if (state.vimVisualLine) {
+    const first = vimLinePosition(Math.min(anchor, focus));
+    const last = vimLinePosition(Math.max(anchor, focus));
+    return {
+      start: first.start,
+      end: Math.min(source.value.length, last.end + (last.line < last.lines.length - 1 ? 1 : 0)),
+    };
+  }
   return { start: Math.min(anchor, focus), end: Math.min(source.value.length, Math.max(anchor, focus) + 1) };
 }
 
@@ -4329,8 +4338,13 @@ function focusVimSelection(previewFocus, anchor, focus) {
     updateCursor({ scrollPreview: true });
     return;
   }
-  const anchorPoint = vimPreviewEndpoint(Math.min(source.value.length, anchor + (focus < anchor ? 1 : 0)));
-  const focusPoint = vimPreviewEndpoint(Math.min(source.value.length, focus + (focus >= anchor ? 1 : 0)));
+  const previewAnchor = state.vimVisualLine ? vimVisualRange(anchor, anchor).start : Math.min(source.value.length, anchor + (focus < anchor ? 1 : 0));
+  const focusRange = vimVisualRange(focus, focus);
+  const previewFocusOffset = state.vimVisualLine
+    ? (focus >= anchor ? Math.max(focusRange.start, focusRange.end - 1) : focusRange.start)
+    : Math.min(source.value.length, focus + (focus >= anchor ? 1 : 0));
+  const anchorPoint = vimPreviewEndpoint(previewAnchor);
+  const focusPoint = vimPreviewEndpoint(previewFocusOffset);
   if (!anchorPoint || !focusPoint) return;
   page.focus({ preventScroll: true });
   const selection = getSelection(); selection.removeAllRanges();
@@ -4432,9 +4446,25 @@ function previewWrappedRowOffset(command, startOffset) {
   return sourceColumn === null ? null : position.start + sourceColumn;
 }
 
+function previewNativeDisplayRowOffset(command, startOffset) {
+  focusVimCursor(true, startOffset);
+  const selection = getSelection();
+  if (typeof selection?.modify !== "function") return null;
+  selection.modify("move", command === "gj" ? "forward" : "backward", "line");
+  const line = previewLineForNode(selection.focusNode);
+  const edit = previewSelection(line);
+  if (!previewLineIsEditable(line) || !edit) return null;
+  const lines = sourceLines();
+  const index = Number(line.dataset.line);
+  const column = previewSourceOffset(line, lines[index] || "", edit.startOffset);
+  return sourceOffsetForLine(lines, index, column);
+}
+
 function moveVimDisplayLine(command, previewFocus, visual = false) {
   const start = visual ? state.vimVisualFocus : vimCursorOffset();
-  const wrapped = previewFocus ? previewWrappedRowOffset(command, start) : sourceWrappedRowOffset(command, start);
+  const wrapped = previewFocus
+    ? previewNativeDisplayRowOffset(command, start) ?? previewWrappedRowOffset(command, start)
+    : sourceWrappedRowOffset(command, start);
   const offset = wrapped ?? moveVimCursor(command === "gj" ? "j" : "k", previewFocus, start);
   if (visual) focusVimSelection(previewFocus, state.vimVisualAnchor, offset);
   else focusVimCursor(previewFocus, offset);
@@ -4459,7 +4489,11 @@ function moveVimCursor(command, previewFocus = false, startOffset = vimCursorOff
   let offset = startOffset;
   if (command === "h") offset = Math.max(position.start, offset - 1);
   else if (command === "l") offset = Math.min(position.end, offset + 1);
-  else if (command === "0" || command === "^") offset = position.start;
+  else if (command === "0") offset = position.start;
+  else if (command === "^") {
+    const firstNonBlank = position.lines[position.line].search(/\S/);
+    offset = position.start + (firstNonBlank < 0 ? 0 : firstNonBlank);
+  }
   else if (command === "$") offset = position.end;
   else if (command === "j" || command === "k") {
     const line = previewFocus
@@ -4470,11 +4504,86 @@ function moveVimCursor(command, previewFocus = false, startOffset = vimCursorOff
     const match = source.value.slice(offset + 1).match(/\b\w/);
     offset = match ? offset + 1 + match.index : source.value.length;
   } else if (command === "b") {
-    const before = source.value.slice(0, Math.max(0, offset)).replace(/\W+$/, "");
-    const match = [...before.matchAll(/\b\w/g)].at(-1);
+    const rest = source.value.slice(0, Math.max(0, offset)).replace(/\W+$/, "");
+    const match = [...rest.matchAll(/\b\w/g)].at(-1);
     offset = match?.index ?? 0;
+  } else if (command === "e") {
+    const match = source.value.slice(offset + 1).match(/\w\b/);
+    offset = match ? offset + 1 + match.index : Math.max(0, source.value.length - 1);
   } else if (command === "G") offset = source.value.length;
   return offset;
+}
+
+function vimWordRange(offset, around = false, big = false) {
+  const value = source.value;
+  if (!value.length) return { start: 0, end: 0 };
+  const wordChar = big ? /\S/ : /\w/;
+  let cursor = Math.min(offset, value.length - 1);
+  if (!wordChar.test(value[cursor])) {
+    const next = value.slice(cursor).search(wordChar);
+    if (next < 0) return { start: cursor, end: cursor };
+    cursor += next;
+  }
+  let start = cursor;
+  let end = cursor + 1;
+  while (start > 0 && wordChar.test(value[start - 1])) start -= 1;
+  while (end < value.length && wordChar.test(value[end])) end += 1;
+  if (around) {
+    const trailing = value.slice(end).match(/^[^\S\n]+/);
+    if (trailing) end += trailing[0].length;
+    else {
+      const leading = value.slice(0, start).match(/[^\S\n]+$/);
+      if (leading) start -= leading[0].length;
+    }
+  }
+  return { start, end };
+}
+
+function applyVimTextObject(operator, inner, big, offset, previewFocus) {
+  const range = vimWordRange(offset, !inner, big);
+  if (range.end <= range.start) return false;
+  state.vimYank = source.value.slice(range.start, range.end);
+  state.vimYankLine = false;
+  if (operator === "y") focusVimCursor(previewFocus, range.start);
+  else if (operator === "d") changeVimSource(source.value.slice(0, range.start) + source.value.slice(range.end), range.start, previewFocus);
+  else if (operator === "c") {
+    changeVimSource(source.value.slice(0, range.start) + source.value.slice(range.end), range.start, previewFocus);
+    setVimMode("insert");
+  }
+  return true;
+}
+
+function applyVimOperatorMotion(operator, motion, offset, previewFocus) {
+  const big = motion === motion.toUpperCase();
+  const lower = motion.toLowerCase();
+  const position = vimLinePosition(offset);
+  const end = lower === "w"
+    ? (() => {
+      if (operator === "c") {
+        const match = source.value.slice(offset).search(big ? /\s/ : /\W/);
+        return match < 0 ? source.value.length : offset + match;
+      }
+      const match = source.value.slice(offset).search(big ? /\s/ : /\W/);
+      if (match < 0) return source.value.length;
+      if (!big) return offset + match;
+      const rest = source.value.slice(offset + match);
+      return offset + match + (rest.match(/^\s*/)?.[0].length || 0);
+    })()
+    : lower === "e"
+      ? Math.min(position.end, moveVimCursor(lower, previewFocus, offset) + 1)
+      : Math.max(position.start, moveVimCursor(lower, previewFocus, offset));
+  const start = Math.min(offset, end);
+  const finish = Math.max(offset, end);
+  if (finish <= start) return false;
+  state.vimYank = source.value.slice(start, finish);
+  state.vimYankLine = false;
+  if (operator === "y") focusVimCursor(previewFocus, start);
+  else if (operator === "d") changeVimSource(source.value.slice(0, start) + source.value.slice(finish), start, previewFocus);
+  else if (operator === "c") {
+    changeVimSource(source.value.slice(0, start) + source.value.slice(finish), start, previewFocus);
+    setVimMode("insert");
+  }
+  return true;
 }
 
 function handleVimKey(event, surface) {
@@ -4491,6 +4600,7 @@ function handleVimKey(event, surface) {
   if (state.vimMode === "visual" && event.ctrlKey && event.key.toLowerCase() === "c") {
     event.preventDefault();
     const focus = state.vimVisualFocus;
+    state.vimVisualLine = false;
     setVimMode("normal"); focusVimCursor(previewFocus, focus); return true;
   }
   if (event.ctrlKey && ["d", "u"].includes(event.key.toLowerCase())) {
@@ -4501,17 +4611,28 @@ function handleVimKey(event, surface) {
   event.preventDefault();
   const key = event.key;
   if (state.vimMode === "visual") {
+    if (["i", "a"].includes(key)) {
+      state.vimPending = key;
+      return true;
+    }
+    if (["w", "W"].includes(key) && ["i", "a"].includes(state.vimPending)) {
+      const range = vimWordRange(state.vimVisualFocus, state.vimPending === "a", key === "W");
+      state.vimPending = "";
+      focusVimSelection(previewFocus, range.start, Math.max(range.start, range.end - 1));
+      return true;
+    }
     if (["j", "k"].includes(key) && state.vimPending === "g") {
       state.vimPending = ""; moveVimDisplayLine(`g${key}`, previewFocus, true); return true;
     }
     if (key === "g") { state.vimPending = state.vimPending === "g" ? "" : "g"; return true; }
-    if (["h", "j", "k", "l", "0", "^", "$", "w", "b", "G"].includes(key)) {
+    if (["h", "j", "k", "l", "0", "^", "$", "w", "b", "e", "G"].includes(key)) {
       const focus = moveVimCursor(key, previewFocus, state.vimVisualFocus);
       focusVimSelection(previewFocus, state.vimVisualAnchor, focus);
       return true;
     }
-    if (key === "v" || key === "Escape") {
+    if (key === "v" || key === "V" || key === "Escape") {
       const focus = state.vimVisualFocus;
+      state.vimVisualLine = false;
       setVimMode("normal"); focusVimCursor(previewFocus, focus); return true;
     }
     if (["y", "d", "x"].includes(key)) {
@@ -4519,6 +4640,7 @@ function handleVimKey(event, surface) {
       state.vimYank = source.value.slice(visual.start, visual.end); state.vimYankLine = false;
       const focus = visual.start;
       if (key === "d" || key === "x") changeVimSource(source.value.slice(0, visual.start) + source.value.slice(visual.end), focus, previewFocus);
+      state.vimVisualLine = false;
       setVimMode("normal"); focusVimCursor(previewFocus, focus); return true;
     }
     return true;
@@ -4528,7 +4650,7 @@ function handleVimKey(event, surface) {
   if (["j", "k"].includes(key) && state.vimPending === "g") {
     state.vimPending = ""; moveVimDisplayLine(`g${key}`, previewFocus); return true;
   }
-  if (["h", "j", "k", "l", "0", "^", "$", "w", "b", "G"].includes(key)) {
+  if (["h", "j", "k", "l", "0", "^", "$", "w", "b", "e", "G"].includes(key)) {
     state.vimPending = "";
     focusVimCursor(previewFocus, moveVimCursor(key, previewFocus)); return true;
   }
@@ -4537,8 +4659,9 @@ function handleVimKey(event, surface) {
     else state.vimPending = "g";
     return true;
   }
-  if (key === "v") {
+  if (key === "v" || key === "V") {
     const anchor = vimCursorOffset();
+    state.vimVisualLine = key === "V";
     setVimMode("visual"); focusVimSelection(previewFocus, anchor, anchor); return true;
   }
   if (key === "i" || key === "a" || key === "I" || key === "A") {
@@ -4557,16 +4680,37 @@ function handleVimKey(event, surface) {
     const offset = source.selectionStart;
     changeVimSource(source.value.slice(0, offset) + source.value.slice(offset + 1), offset, previewFocus); return true;
   }
-  if (key === "d" || key === "y") {
-    if (state.vimPending !== key) { state.vimPending = key; return true; }
-    state.vimPending = "";
-    state.vimYank = `${position.lines[position.line]}\n`; state.vimYankLine = true;
-    if (key === "d") {
-      position.lines.splice(position.line, 1);
-      if (!position.lines.length) position.lines.push("");
-      const line = Math.min(position.line, position.lines.length - 1);
-      changeVimSource(position.lines.join("\n"), sourceOffsetForLine(position.lines, line, 0), previewFocus);
+  if (["d", "c", "y"].includes(key)) {
+    if (state.vimPending === key) {
+      state.vimPending = "";
+      state.vimYank = `${position.lines[position.line]}\n`; state.vimYankLine = true;
+      if (key === "d" || key === "c") {
+        position.lines.splice(position.line, 1);
+        if (!position.lines.length) position.lines.push("");
+        const line = Math.min(position.line, position.lines.length - 1);
+        changeVimSource(position.lines.join("\n"), sourceOffsetForLine(position.lines, line, 0), previewFocus);
+        if (key === "c") setVimMode("insert");
+      }
+      return true;
     }
+    state.vimPending = key;
+    return true;
+  }
+  if (["i", "a"].includes(key) && ["d", "c", "y"].includes(state.vimPending)) {
+    state.vimPending = `${state.vimPending}${key}`;
+    return true;
+  }
+  if (["w", "W"].includes(key) && ["di", "da", "ci", "ca", "yi", "ya"].includes(state.vimPending)) {
+    const operator = state.vimPending[0];
+    const inner = state.vimPending[1] === "i";
+    state.vimPending = "";
+    applyVimTextObject(operator, inner, key === "W", source.selectionStart, previewFocus);
+    return true;
+  }
+  if (["w", "W", "e", "b"].includes(key) && ["d", "c", "y"].includes(state.vimPending)) {
+    const operator = state.vimPending;
+    state.vimPending = "";
+    applyVimOperatorMotion(operator, key, source.selectionStart, previewFocus);
     return true;
   }
   if (key === "p" && state.vimYank) {

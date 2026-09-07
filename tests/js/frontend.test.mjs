@@ -986,7 +986,21 @@ test("desktop Vim mode is persistent and shared by Source and Preview", async ()
   assert.match(app, /function handleVimKey\(event, surface\)/);
   assert.match(app, /handleVimKey\(event, "source"\)/);
   assert.match(app, /handleVimKey\(event, "preview"\)/);
-  assert.match(app, /\["h", "j", "k", "l", "0", "\^", "\$", "w", "b", "G"\]/);
+  assert.match(app, /\["h", "j", "k", "l", "0", "\^", "\$", "w", "b", "e", "G"\]/);
+  assert.match(app, /function vimWordRange\(offset, around = false, big = false\)/);
+  assert.match(app, /\["w", "W"\]\.includes\(key\) && \["i", "a"\]\.includes\(state\.vimPending\)/);
+  assert.match(app, /vimWordRange\(state\.vimVisualFocus, state\.vimPending === "a", key === "W"\)/);
+  assert.match(app, /function applyVimTextObject\(operator, inner, big, offset, previewFocus\)/);
+  assert.match(app, /function applyVimOperatorMotion\(operator, motion, offset, previewFocus\)/);
+  assert.match(app, /\["i", "a"\]\.includes\(key\) && \["d", "c", "y"\]\.includes\(state\.vimPending\)/);
+  assert.match(app, /\["w", "W"\]\.includes\(key\) && \["di", "da", "ci", "ca", "yi", "ya"\]\.includes\(state\.vimPending\)/);
+  assert.match(app, /\["w", "W", "e", "b"\]\.includes\(key\) && \["d", "c", "y"\]\.includes\(state\.vimPending\)/);
+  assert.match(app, /applyVimTextObject\(operator, inner, key === "W", source\.selectionStart, previewFocus\)/);
+  assert.match(app, /applyVimOperatorMotion\(operator, key, source\.selectionStart, previewFocus\)/);
+  assert.match(app, /state\.vimYank = source\.value\.slice\(range\.start, range\.end\)/);
+  assert.match(app, /wordChar = big \? \/\\S\/ : \/\\w\//);
+  assert.match(app, /vimVisualLine:\s*false/);
+  assert.match(app, /state\.vimVisualLine = key === "V"/);
   assert.match(app, /state\.vimYank = `\$\{position\.lines\[position\.line\]\}\\n`/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.vim-mode", String\(state\.vimEnabled\)\)/);
   assert.match(app, /function vimPreviewTargetLine\(currentLine, command\)[\s\S]*\.script-line\[data-line\][\s\S]*!line\.classList\.contains\("empty"\)[\s\S]*line > currentLine[\s\S]*line < currentLine/);
@@ -996,11 +1010,138 @@ test("desktop Vim mode is persistent and shared by Source and Preview", async ()
   assert.match(app, /state\.vimMode === "visual" && event\.ctrlKey && event\.key\.toLowerCase\(\) === "c"/);
   assert.match(app, /function renderedTextOffsetRect\(element, offset\)[\s\S]*getClientRects/);
   assert.match(app, /function moveVimDisplayLine\(command, previewFocus, visual = false\)[\s\S]*previewWrappedRowOffset[\s\S]*sourceWrappedRowOffset/);
+  assert.match(app, /function previewNativeDisplayRowOffset\(command, startOffset\)[\s\S]*selection\.modify\("move"[\s\S]*"line"/);
   assert.match(app, /state\.vimPending === "g"[\s\S]*moveVimDisplayLine\(`g\$\{key\}`/);
   assert.match(app, /function moveVimHalfPage\(command, previewFocus, visual = false\)[\s\S]*viewportHeight \/ lineHeight \/ 2[\s\S]*previewWrappedRowOffset[\s\S]*sourceWrappedRowOffset/);
   assert.match(app, /event\.ctrlKey && \["d", "u"\]\.includes\(event\.key\.toLowerCase\(\)\)[\s\S]*moveVimHalfPage/);
   assert.match(css, /\.vim-status\[data-mode="normal"\][^}]*var\(--metric-pages-ink\)[\s\S]*\.vim-status\[data-mode="insert"\][^}]*var\(--metric-words-ink\)[\s\S]*\.vim-status\[data-mode="visual"\][^}]*var\(--metric-scenes-ink\)/);
   assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.desktop-setting, \.vim-status\s*\{\s*display:\s*none !important;/s);
+  assert.match(html, /<kbd>diw<\/kbd>\/<kbd>daw<\/kbd>\/<kbd>diW<\/kbd>\/<kbd>daW<\/kbd>/);
+  assert.match(html, /<kbd>ciw<\/kbd>\/<kbd>caw<\/kbd>\/<kbd>ciW<\/kbd>\/<kbd>caW<\/kbd>/);
+  assert.match(html, /<kbd>iw<\/kbd>\/<kbd>aw<\/kbd>\/<kbd>iW<\/kbd>\/<kbd>aW<\/kbd>/);
+});
+
+test("Vim word text objects and operator motions edit and yank correctly", async () => {
+  const app = await readFile(appPath, "utf8");
+  const helpers = app.slice(app.indexOf("function vimWordRange"), app.indexOf("function handleVimKey"));
+  const makeContext = (value) => {
+    const state = { vimYank: "", vimYankLine: false, vimMode: "normal", vimVisualLine: false, vimVisualAnchor: 0, vimVisualFocus: 0 };
+    const source = { value, selectionStart: 0, selectionEnd: 0 };
+    const calls = { changes: [], modes: [], cursors: [] };
+    const sandbox = {
+      state,
+      source,
+      sourceLines: () => source.value.split("\n"),
+      sourceOffsetForLine: (lines, line, column) => lines.slice(0, line).reduce((sum, text) => sum + text.length + 1, 0) + column,
+      vimLinePosition: (offset = 0) => {
+        const before = source.value.slice(0, offset);
+        const line = before.split("\n").length - 1;
+        const start = before.lastIndexOf("\n") + 1;
+        const lines = source.value.split("\n");
+        return { lines, line, start, column: offset - start, end: start + (lines[line]?.length || 0) };
+      },
+      moveVimCursor: (command, _previewFocus, startOffset = source.selectionStart) => {
+        let offset = startOffset;
+        if (command === "b") {
+          const rest = source.value.slice(0, Math.max(0, offset)).replace(/\W+$/, "");
+          const match = [...rest.matchAll(/\b\w/g)].at(-1);
+          offset = match?.index ?? 0;
+        } else if (command === "e") {
+          const match = source.value.slice(offset + 1).match(/\w\b/);
+          offset = match ? offset + 1 + match.index : Math.max(0, source.value.length - 1);
+        }
+        return offset;
+      },
+      focusVimCursor: (_previewFocus, offset) => { calls.cursors.push(offset); },
+      changeVimSource: (next, offset) => { source.value = next; calls.changes.push([next, offset]); },
+      setVimMode: (mode) => { state.vimMode = mode; calls.modes.push(mode); },
+    };
+    runInNewContext(`${helpers}
+this.run = {
+  wordRange: (offset, around, big) => { const { start, end } = vimWordRange(offset, around, big); return start + ":" + end; },
+  textObject: (op, inner, big, offset) => applyVimTextObject(op, inner, big, offset, false),
+  motion: (op, motion, offset) => applyVimOperatorMotion(op, motion, offset, false),
+};`, sandbox);
+    return { ...sandbox.run, state, source, calls };
+  };
+
+  // word vs WORD ranges
+  let ctx = makeContext("foo.bar baz");
+  assert.equal(ctx.wordRange(1, false, false), "0:3", "iw stops at punctuation");
+  assert.equal(ctx.wordRange(1, false, true), "0:7", "iW spans punctuation");
+  assert.equal(ctx.wordRange(1, true, true), "0:8", "aW adds trailing space");
+
+  // diw / daw / ciw / caw
+  ctx = makeContext("alpha beta gamma");
+  assert.equal(ctx.textObject("d", true, false, 8), true);
+  assert.equal(ctx.source.value, "alpha  gamma", "diw removes the word");
+  assert.equal(ctx.state.vimYank, "beta");
+  assert.equal(ctx.state.vimMode, "normal");
+
+  ctx = makeContext("alpha beta gamma");
+  ctx.textObject("d", false, false, 8);
+  assert.equal(ctx.source.value, "alpha gamma", "daw removes word + trailing space");
+  assert.equal(ctx.state.vimYank, "beta ");
+
+  ctx = makeContext("alpha beta gamma");
+  ctx.textObject("c", true, false, 8);
+  assert.equal(ctx.source.value, "alpha  gamma", "ciw removes the word");
+  assert.deepEqual([...ctx.calls.modes], ["insert"], "ciw enters insert");
+
+  ctx = makeContext("alpha be-ta gamma");
+  ctx.textObject("c", false, true, 8);
+  assert.equal(ctx.source.value, "alpha gamma", "caW removes WORD + trailing space");
+  assert.equal(ctx.state.vimYank, "be-ta ");
+  assert.deepEqual([...ctx.calls.modes], ["insert"], "caW enters insert");
+
+  ctx = makeContext("alpha be-ta gamma");
+  ctx.textObject("d", true, true, 8);
+  assert.equal(ctx.source.value, "alpha  gamma", "diW removes the WORD");
+  assert.equal(ctx.state.vimYank, "be-ta");
+
+  ctx = makeContext("alpha beta gamma");
+  ctx.textObject("y", true, false, 8);
+  assert.equal(ctx.source.value, "alpha beta gamma", "yiw does not modify text");
+  assert.equal(ctx.state.vimYank, "beta");
+  assert.deepEqual([...ctx.calls.cursors], [6], "yiw moves cursor to word start");
+
+  // operator motions
+  ctx = makeContext("foo, bar");
+  ctx.motion("d", "w", 0);
+  assert.equal(ctx.source.value, ", bar", "dw stops at punctuation");
+  assert.equal(ctx.state.vimYank, "foo");
+
+  ctx = makeContext("foo, bar");
+  ctx.motion("d", "W", 0);
+  assert.equal(ctx.source.value, "bar", "dW consumes trailing whitespace");
+  assert.equal(ctx.state.vimYank, "foo, ");
+
+  ctx = makeContext("foo bar");
+  ctx.motion("c", "w", 0);
+  assert.equal(ctx.source.value, " bar", "cw behaves like ce");
+  assert.equal(ctx.state.vimYank, "foo");
+  assert.deepEqual([...ctx.calls.modes], ["insert"], "cw enters insert");
+
+  ctx = makeContext("foo, bar");
+  ctx.motion("c", "W", 0);
+  assert.equal(ctx.source.value, " bar", "cW excludes trailing whitespace");
+  assert.equal(ctx.state.vimYank, "foo,");
+
+  ctx = makeContext("foo bar");
+  ctx.motion("d", "e", 0);
+  assert.equal(ctx.source.value, " bar", "de deletes through end of word");
+  assert.equal(ctx.state.vimYank, "foo");
+
+  ctx = makeContext("foo bar baz");
+  ctx.motion("d", "b", 5);
+  assert.equal(ctx.source.value, "foo ar baz", "db deletes back to word start");
+  assert.equal(ctx.state.vimYank, "b");
+
+  ctx = makeContext("foo bar");
+  ctx.motion("y", "w", 0);
+  assert.equal(ctx.source.value, "foo bar", "yw does not modify text");
+  assert.equal(ctx.state.vimYank, "foo");
+  assert.deepEqual([...ctx.calls.cursors], [0], "yw moves cursor to range start");
 });
 
 test("dual dialogue renders concurrently in the live screenplay", async () => {
