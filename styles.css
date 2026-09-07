@@ -651,6 +651,23 @@ body.preview-colors .script-line.section.act { color: color-mix(in srgb, var(--s
 .github-save-fields #github-save-status { grid-column: 1 / -1; min-height: 17px; margin: 0; color: var(--muted); font-size: 11px; }
 #github-save-status.success, #github-save-status.success a { color: var(--accent); }
 #github-save-status.error { color: var(--danger); }
+#github-conflict-dialog { width: min(960px, calc(var(--visual-viewport-width) - 24px)); max-width: none; max-height: calc(var(--visual-viewport-height) - 24px); overflow: auto; padding: 20px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--ink); }
+#github-conflict-dialog::backdrop { background: rgb(0 0 0 / 42%); }
+#github-conflict-dialog p { line-height: 1.5; overflow-wrap: anywhere; }
+#github-conflict-dialog label { display: flex; flex-direction: column; gap: 8px; }
+.github-conflict-references { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+#github-conflict-dialog textarea { width: 100%; min-height: 180px; resize: vertical; padding: 10px; font: 16px/1.5 monospace; border: 1px solid var(--border); border-radius: 5px; background: var(--panel); color: var(--ink); }
+#github-conflict-dialog #github-conflict-result { min-height: 260px; }
+#github-conflict-dialog .dialog-actions { flex-wrap: wrap; }
+#github-conflict-dialog button { min-height: 44px; }
+#github-conflict-dialog .github-conflict-choices { justify-content: flex-start; margin: 12px 0 20px; }
+#github-conflict-dialog .github-conflict-review { flex-direction: row; align-items: center; min-height: 44px; margin-top: 12px; }
+#github-conflict-reviewed { flex: 0 0 24px; width: 24px; height: 24px; }
+@media (max-width: 820px) {
+  #github-conflict-dialog { padding: 14px; }
+  .github-conflict-references { grid-template-columns: minmax(0, 1fr); }
+  #github-conflict-dialog .dialog-actions button { flex: 1 1 140px; }
+}
 button:disabled { cursor: default; opacity: .45; }
 
 #character-analytics-dialog, #beat-progress-dialog { width: min(1100px, calc(100vw - 32px)); height: min(760px, calc(100vh - 32px)); max-width: none; max-height: none; padding: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
