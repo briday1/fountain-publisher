@@ -115,6 +115,8 @@ test("Worker establishes hardened Google sessions and limits Drive access", asyn
   assert.match(worker, /\["reader", "writer"\]\.includes\(body\.role\)/);
   assert.match(worker, /permissions\(id,type,role,emailAddress,displayName,photoLink,pendingOwner\)/);
   assert.match(worker, /permissionDeleteMatch/);
+  assert.match(worker, /\/api\/google\/picker\/config/);
+  assert.match(worker, /adoptMatch/);
   assert.match(worker, /request\.headers\.get\("origin"\) !== env\.APP_ORIGIN/);
   assert.match(config, /"class_name": "CollaborationRoom"/);
   assert.match(worker, /export class CollaborationRoom/);
@@ -135,12 +137,16 @@ test("browser connects Drive documents to resumable Yjs collaboration", async ()
   assert.match(html, /id="google-drive-filter"/);
   assert.match(html, /id="google-share-panel"/);
   assert.match(html, /id="google-permissions"/);
+  assert.match(html, /id="google-picker-open"/);
   assert.match(html, /wss:\/\/api\.fountain-publisher\.com/);
   assert.match(app, /new CollaborationClient/);
   assert.match(app, /function connectDriveCollaboration/);
   assert.match(app, /scheduleCollaborationPresence/);
+  assert.match(app, /function renderCollaborationPresence/);
+  assert.match(app, /function openGooglePicker/);
   assert.match(collaboration, /import \* as Y/);
   assert.match(collaboration, /Y\.applyUpdate/);
   assert.match(collaboration, /while \(start < current\.length/);
   assert.match(collaboration, /setTimeout\(\(\) => this\.checkpoint\(\), 2000\)/);
+  assert.match(html, /id="collaboration-cursors"/);
 });

@@ -10,7 +10,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Fountain Publisher" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:; worker-src 'self' blob:; connect-src 'self' https://api.fountain-publisher.com wss://api.fountain-publisher.com" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval' https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; frame-src blob: https://docs.google.com https://accounts.google.com; worker-src 'self' blob:; connect-src 'self' https://api.fountain-publisher.com wss://api.fountain-publisher.com" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23000'/><text x='16' y='23' text-anchor='middle' font-family='Georgia,serif' font-weight='700' font-size='20' fill='%23fff'>F</text></svg>" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link rel="manifest" href="app.webmanifest" />
@@ -135,7 +135,7 @@
       <article class="github-shell">
         <header class="github-header"><div><small>GOOGLE DRIVE</small><h2 id="google-drive-title">Open screenplay</h2></div><button id="google-drive-close" type="button" aria-label="Close Google Drive browser">×</button></header>
         <div class="github-account-row"><span id="google-account">Not signed in</span><button id="google-drive-refresh" type="button">Refresh</button><button id="google-disconnect" type="button">Sign out</button></div>
-        <div class="google-drive-toolbar"><label>Find screenplay<input id="google-drive-filter" type="search" placeholder="Search Drive files" autocomplete="off" /></label><button id="google-save-current" class="primary" type="button">Save current screenplay</button></div>
+        <div class="google-drive-toolbar"><label>Find screenplay<input id="google-drive-filter" type="search" placeholder="Search Drive files" autocomplete="off" /></label><button id="google-picker-open" type="button">Browse Drive…</button><button id="google-save-current" class="primary" type="button">Save current screenplay</button></div>
         <div class="google-drive-body">
           <div id="google-drive-files" class="github-files google-drive-files-pane" role="listbox" aria-label="Fountain Publisher files in Google Drive"></div>
           <aside id="google-share-panel" aria-label="Document sharing">
@@ -172,6 +172,7 @@
           <div id="current-line" class="current-line" aria-hidden="true"></div>
           <div id="line-numbers" class="line-numbers" aria-hidden="true"></div>
           <pre id="source-highlight" class="source-highlight" aria-hidden="true"></pre>
+          <div id="collaboration-cursors" aria-hidden="true"></div>
           <textarea id="source" aria-label="Fountain source" aria-describedby="editor-status spellcheck-help" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" wrap="soft"></textarea>
           <div id="completion-menu" class="completion-menu" role="listbox" aria-label="Fountain suggestions" hidden></div>
         </div>

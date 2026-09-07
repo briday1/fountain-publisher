@@ -1049,6 +1049,7 @@ function renderPreview({ focusLine = null, focusOffset = null, revealEmptyBefore
   });
   updatePreviewCursor(false, "nearest", revealEmptyBefore);
   applyZoom();
+  renderCollaborationPresence();
   requestAnimationFrame(alignAnnotationOrbs);
 }
 
@@ -1226,6 +1227,7 @@ function setSourceCursorFromPreview(element, displayOffset = element.textContent
   source.setSelectionRange(offset, offset);
   scrollSourceTarget(index);
   updateCursor();
+  renderCollaborationPresence();
 }
 
 function setSourceSelectionFromPreview(edit) {
@@ -1473,6 +1475,10 @@ function syncSourceOverlay() {
   if (scrollLeft !== source.scrollLeft) source.scrollLeft = scrollLeft;
   highlight.scrollTop = source.scrollTop;
   highlight.scrollLeft = boundedScrollLeft(highlight, scrollLeft);
+  for (const layer of $$(".collaboration-cursor-layer", $("#collaboration-cursors"))) {
+    layer.scrollTop = source.scrollTop;
+    layer.scrollLeft = scrollLeft;
+  }
 }
 
 function currentPosition() {
@@ -2555,14 +2561,14 @@ const collaboration = typeof CollaborationClient === "function" ? new Collaborat
     source.setSelectionRange(start, end);
     sourceChanged({ rebaseBeats: false });
     state.collaborationApplying = false;
+    renderCollaborationPresence();
   },
   onPresence(payload) {
     const id = payload.user?.connectionId;
     if (!id) return;
     if (payload.action === "leave") state.collaborators.delete(id);
     else state.collaborators.set(id, { ...payload.user, presence: payload.presence || null });
-    const names = [...state.collaborators.values()].map((user) => user.name).filter(Boolean);
-    $("#collaboration-presence").textContent = names.length ? `${names.length} collaborator${names.length === 1 ? "" : "s"}: ${names.join(", ")}` : "";
+    renderCollaborationPresence();
   },
   onStatus(status, detail = "") {
     const labels = { connected: "Live", reconnecting: "Reconnecting…", saved: "Saved to Drive", "save-error": "Drive save failed", "read-only": "View only", error: "Collaboration error" };
@@ -2571,6 +2577,52 @@ const collaboration = typeof CollaborationClient === "function" ? new Collaborat
     $("#collaboration-status").title = detail;
   },
 }) : { connect() {}, disconnect() {}, replace() {}, updatePresence() {} };
+
+const COLLABORATOR_COLORS = ["#d1495b", "#2b7a78", "#7b61a8", "#c56b18", "#2878b5", "#8b5e34"];
+function collaboratorColor(id) {
+  let hash = 0;
+  for (const character of id || "") hash = ((hash << 5) - hash + character.charCodeAt(0)) | 0;
+  return COLLABORATOR_COLORS[Math.abs(hash) % COLLABORATOR_COLORS.length];
+}
+
+function remoteCursorHtml(user) {
+  const presence = user.presence;
+  if (!presence || !Number.isSafeInteger(presence.cursor)) return "";
+  const cursor = Math.max(0, Math.min(presence.cursor, source.value.length));
+  const start = Math.max(0, Math.min(presence.selectionStart ?? cursor, source.value.length));
+  const end = Math.max(start, Math.min(presence.selectionEnd ?? cursor, source.value.length));
+  const caret = `<span class="remote-caret" data-name="${escapeHtml(user.name || user.email || "Collaborator")}"></span>`;
+  if (start === end) return `${escapeHtml(source.value.slice(0, cursor))}${caret}${escapeHtml(source.value.slice(cursor))}`;
+  const selection = `<span class="remote-selection">${escapeHtml(source.value.slice(start, end))}</span>`;
+  return cursor <= start
+    ? `${escapeHtml(source.value.slice(0, start))}${caret}${selection}${escapeHtml(source.value.slice(end))}`
+    : `${escapeHtml(source.value.slice(0, start))}${selection}${caret}${escapeHtml(source.value.slice(end))}`;
+}
+
+function renderCollaborationPresence() {
+  const users = [...state.collaborators.values()];
+  $("#collaboration-cursors").innerHTML = users.map((user) => `<pre class="collaboration-cursor-layer" style="--collaborator-color:${collaboratorColor(user.connectionId)}">${remoteCursorHtml(user)}</pre>`).join("");
+  $("#collaboration-presence").innerHTML = users.map((user) => {
+    const name = user.name || user.email || "Collaborator";
+    const position = user.presence?.cursor;
+    const line = Number.isSafeInteger(position) ? source.value.slice(0, position).split("\n").length : null;
+    const location = user.presence?.mode ? `${user.presence.mode}${line ? ` · line ${line}` : ""}` : "Connected";
+    return `<span class="collaborator-chip" style="--collaborator-color:${collaboratorColor(user.connectionId)}" title="${escapeHtml(`${name} — ${location}${user.canEdit ? " — can edit" : " — view only"}`)}"><i>${escapeHtml(name.slice(0, 2).toUpperCase())}</i><small>${escapeHtml(location)}</small></span>`;
+  }).join("");
+  $$(".remote-preview-presence", page).forEach((marker) => marker.remove());
+  for (const user of users) {
+    if (!Number.isSafeInteger(user.presence?.cursor)) continue;
+    const line = source.value.slice(0, user.presence.cursor).split("\n").length - 1;
+    const target = $(`[data-line="${line}"]`, page);
+    if (!target) continue;
+    const marker = document.createElement("span");
+    marker.className = "remote-preview-presence";
+    marker.style.setProperty("--collaborator-color", collaboratorColor(user.connectionId));
+    marker.textContent = user.name || user.email || "Collaborator";
+    target.append(marker);
+  }
+  syncSourceOverlay();
+}
 
 function scheduleCollaborationPresence() {
   clearTimeout(state.collaborationPresenceTimer);
@@ -2678,6 +2730,42 @@ async function openGoogleDriveFile(fileId) {
   connectDriveCollaboration(result.file);
   $("#google-drive-dialog").close();
   toast(`Opened ${result.file.name} from Drive`);
+}
+
+let googlePickerPromise;
+function loadGooglePicker() {
+  if (googlePickerPromise) return googlePickerPromise;
+  googlePickerPromise = new Promise((resolve, reject) => {
+    const ready = () => window.gapi.load("picker", { callback: resolve, onerror: () => reject(new Error("Google Drive browser failed to load")) });
+    if (window.gapi) return ready();
+    const script = document.createElement("script");
+    script.src = "https://apis.google.com/js/api.js";
+    script.onload = ready;
+    script.onerror = () => reject(new Error("Google Drive browser failed to load"));
+    document.head.append(script);
+  });
+  return googlePickerPromise;
+}
+
+async function openGooglePicker() {
+  try {
+    const config = await googleRequest("/api/google/picker/config");
+    if (!config.apiKey || !config.appId) throw new Error("Google Picker is not configured yet");
+    await loadGooglePicker();
+    const view = new window.google.picker.DocsView().setIncludeFolders(true).setSelectFolderEnabled(false).setMimeTypes("text/plain");
+    new window.google.picker.PickerBuilder()
+      .setAppId(config.appId).setDeveloperKey(config.apiKey).setOAuthToken(config.accessToken)
+      .addView(view).enableFeature(window.google.picker.Feature.SUPPORT_DRIVES)
+      .setCallback(async (data) => {
+        if (data.action !== window.google.picker.Action.PICKED) return;
+        const fileId = data.docs?.[0]?.id;
+        if (!fileId) return;
+        try {
+          await googleRequest(`/api/google/drive/files/${encodeURIComponent(fileId)}/adopt`, { method: "POST" });
+          await openGoogleDriveFile(fileId);
+        } catch (error) { toast(error.message); }
+      }).build().setVisible(true);
+  } catch (error) { toast(error.message); }
 }
 
 async function saveGoogleDrive({ keepBrowser = false } = {}) {
@@ -5367,6 +5455,7 @@ $("#google-save").addEventListener("click", saveGoogleDrive);
 $("#google-share").addEventListener("click", shareGoogleDrive);
 $("#google-drive-close").addEventListener("click", () => $("#google-drive-dialog").close());
 $("#google-drive-refresh").addEventListener("click", openGoogleDrive);
+$("#google-picker-open").addEventListener("click", openGooglePicker);
 $("#google-drive-filter").addEventListener("input", renderGoogleDriveFiles);
 $("#google-save-current").addEventListener("click", () => saveGoogleDrive({ keepBrowser: true }));
 $("#google-drive-open-selected").addEventListener("click", () => {

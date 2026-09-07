@@ -257,6 +257,11 @@ async function googleApiRequest(request, env, url) {
     connected: true,
     account: { id: session.google_sub, email: session.email, name: session.display_name, picture: session.picture_url },
   });
+  if (url.pathname === "/api/google/picker/config" && request.method === "GET") return json({
+    accessToken: session.access_token,
+    apiKey: env.GOOGLE_API_KEY || "",
+    appId: env.GOOGLE_APP_ID || "",
+  }, 200, { "cache-control": "no-store" });
   if (url.pathname === "/api/google/drive/files" && request.method === "GET") {
     const fileId = url.searchParams.get("fileId");
     if (!fileId) {
@@ -281,6 +286,21 @@ async function googleApiRequest(request, env, url) {
       method: "POST", headers: { "content-type": upload.contentType }, body: upload.body,
     })).json();
     return json({ file }, 201);
+  }
+  const adoptMatch = url.pathname.match(/^\/api\/google\/drive\/files\/([^/]+)\/adopt$/);
+  if (adoptMatch && request.method === "POST") {
+    const fileId = decodeURIComponent(adoptMatch[1]);
+    if (!safeDriveId(fileId)) return json({ error: "Invalid Drive file" }, 400);
+    const fields = encodeURIComponent("id,name,mimeType,modifiedTime,appProperties,capabilities(canEdit,canShare)");
+    const existing = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?fields=${fields}`, session.access_token)).json();
+    if (existing.mimeType !== "text/plain" || !/\.(?:fountain|txt)$/i.test(existing.name || "")) return json({ error: "Choose a .fountain or .txt screenplay" }, 400);
+    if (existing.appProperties?.fountainPublisherDocumentId) return json({ file: existing });
+    if (existing.capabilities?.canEdit !== true) return json({ error: "This screenplay is view-only and has not been prepared for live collaboration by its owner" }, 403);
+    const documentId = randomToken(24);
+    const file = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?fields=${fields}`, session.access_token, {
+      method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ appProperties: { fountainPublisherDocument: "true", fountainPublisherDocumentId: documentId } }),
+    })).json();
+    return json({ file });
   }
   const fileMatch = url.pathname.match(/^\/api\/google\/drive\/files\/([^/]+)$/);
   if (fileMatch && request.method === "PUT") {
@@ -619,6 +639,11 @@ export class CollaborationRoom {
     this.state.acceptWebSocket(server);
     server.serializeAttachment(identity);
     server.send(JSON.stringify({ type: "sync", update: base64Url(Y.encodeStateAsUpdate(this.document)), self: identity }));
+    for (const existing of this.state.getWebSockets()) {
+      if (existing === server) continue;
+      const user = existing.deserializeAttachment();
+      if (user) server.send(JSON.stringify({ type: "presence", action: "join", user, presence: user.presence || null }));
+    }
     this.broadcast({ type: "presence", action: "join", user: identity }, server);
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -647,6 +672,8 @@ export class CollaborationRoom {
         selectionEnd: Number.isSafeInteger(presence.selectionEnd) ? presence.selectionEnd : null,
         mode: ["source", "preview", "beats"].includes(presence.mode) ? presence.mode : null,
       };
+      identity.presence = safePresence;
+      socket.serializeAttachment(identity);
       this.broadcast({ type: "presence", action: "update", user: identity, presence: safePresence }, socket);
       return;
     }
