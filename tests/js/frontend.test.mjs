@@ -299,6 +299,18 @@ test("preview edits keep the source cursor on the edited line", async () => {
   assert.doesNotMatch(app, /page\.addEventListener\("focusin"[^\n]*jumpToLine/);
 });
 
+test("screenplay editors disable automatic capitalization and word replacement", async () => {
+  const html = await readFile(htmlPath, "utf8");
+  for (const id of ["source", "screenplay-page"]) {
+    const editor = html.match(new RegExp(`<[^>]+id="${id}"[^>]*>`))?.[0];
+    assert.ok(editor, `${id} editor exists`);
+    assert.match(editor, /autocapitalize="off"/);
+    assert.match(editor, /autocorrect="off"/);
+    assert.match(editor, /autocomplete="off"/);
+  }
+  assert.match(html, /id="screenplay-page"[^>]*spellcheck="true"/);
+});
+
 test("iPad hardware Enter edits Preview directly without waiting for beforeinput", async () => {
   const app = await readFile(appPath, "utf8");
   assert.match(app, /page\.addEventListener\("keydown"[\s\S]*event\.key === "Enter"[\s\S]*event\.preventDefault\(\);[\s\S]*replacePreviewSelection\(edit, "\\n"\)/);
