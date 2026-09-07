@@ -29,6 +29,6 @@
     { "tag": "v1-collaboration-rooms", "new_sqlite_classes": ["CollaborationRoom"] }
   ],
   "secrets": {
-    "required": ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "GITHUB_APP_SLUG", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_API_KEY", "GOOGLE_APP_ID", "TOKEN_ENCRYPTION_KEY"]
+    "required": ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "GITHUB_APP_SLUG", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "TOKEN_ENCRYPTION_KEY"]
   }
 }
