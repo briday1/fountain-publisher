@@ -134,9 +134,21 @@
     <dialog id="google-drive-dialog" aria-labelledby="google-drive-title">
       <article class="github-shell">
         <header class="github-header"><div><small>GOOGLE DRIVE</small><h2 id="google-drive-title">Open screenplay</h2></div><button id="google-drive-close" type="button" aria-label="Close Google Drive browser">×</button></header>
-        <p id="google-account">Not signed in</p>
-        <button id="google-disconnect" type="button">Sign out of Google</button>
-        <div id="google-drive-files" class="github-files" role="list"></div>
+        <div class="github-account-row"><span id="google-account">Not signed in</span><button id="google-drive-refresh" type="button">Refresh</button><button id="google-disconnect" type="button">Sign out</button></div>
+        <div class="google-drive-toolbar"><label>Find screenplay<input id="google-drive-filter" type="search" placeholder="Search Drive files" autocomplete="off" /></label><button id="google-save-current" class="primary" type="button">Save current screenplay</button></div>
+        <div class="google-drive-body">
+          <div id="google-drive-files" class="github-files google-drive-files-pane" role="listbox" aria-label="Fountain Publisher files in Google Drive"></div>
+          <aside id="google-share-panel" aria-label="Document sharing">
+            <div id="google-share-empty">Select a Drive screenplay to manage sharing.</div>
+            <div id="google-share-controls" hidden>
+              <small>SHARING</small><h3 id="google-share-filename"></h3>
+              <div class="google-share-invite"><input id="google-share-email" type="email" placeholder="name@example.com" autocomplete="email" /><select id="google-share-role" aria-label="Access role"><option value="writer">Can edit</option><option value="reader">Can view</option></select><button id="google-share-invite" type="button">Invite</button></div>
+              <p id="google-share-status" role="status"></p>
+              <div id="google-permissions" class="google-permissions"></div>
+            </div>
+          </aside>
+        </div>
+        <footer class="google-drive-footer"><span id="google-drive-selection">No file selected</span><button id="google-drive-open-selected" class="primary" type="button" disabled>Open selected</button></footer>
       </article>
     </dialog>
     <button id="mobile-menu-backdrop" class="mobile-menu-backdrop" type="button" aria-label="Close menu" tabindex="-1"></button>

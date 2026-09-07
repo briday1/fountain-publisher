@@ -113,6 +113,8 @@ test("Worker establishes hardened Google sessions and limits Drive access", asyn
   assert.match(worker, /encryptToken\(token\.access_token, env\)/);
   assert.match(worker, /fountainPublisherDocument/);
   assert.match(worker, /\["reader", "writer"\]\.includes\(body\.role\)/);
+  assert.match(worker, /permissions\(id,type,role,emailAddress,displayName,photoLink,pendingOwner\)/);
+  assert.match(worker, /permissionDeleteMatch/);
   assert.match(worker, /request\.headers\.get\("origin"\) !== env\.APP_ORIGIN/);
   assert.match(config, /"class_name": "CollaborationRoom"/);
   assert.match(worker, /export class CollaborationRoom/);
@@ -128,6 +130,9 @@ test("browser connects Drive documents to resumable Yjs collaboration", async ()
   ]);
   assert.match(html, /id="google-connect"/);
   assert.match(html, /id="google-drive-dialog"/);
+  assert.match(html, /id="google-drive-filter"/);
+  assert.match(html, /id="google-share-panel"/);
+  assert.match(html, /id="google-permissions"/);
   assert.match(html, /wss:\/\/api\.fountain-publisher\.com/);
   assert.match(app, /new CollaborationClient/);
   assert.match(app, /function connectDriveCollaboration/);

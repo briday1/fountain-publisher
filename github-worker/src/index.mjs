@@ -294,6 +294,13 @@ async function googleApiRequest(request, env, url) {
     return json({ file });
   }
   const permissionMatch = url.pathname.match(/^\/api\/google\/drive\/files\/([^/]+)\/permissions$/);
+  if (permissionMatch && request.method === "GET") {
+    const fileId = decodeURIComponent(permissionMatch[1]);
+    if (!safeDriveId(fileId)) return json({ error: "Invalid Drive file" }, 400);
+    const fields = encodeURIComponent("permissions(id,type,role,emailAddress,displayName,photoLink,pendingOwner)");
+    const result = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}/permissions?fields=${fields}`, session.access_token)).json();
+    return json({ permissions: result.permissions || [] });
+  }
   if (permissionMatch && request.method === "POST") {
     const fileId = decodeURIComponent(permissionMatch[1]);
     const body = await request.json();
@@ -304,6 +311,14 @@ async function googleApiRequest(request, env, url) {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: "user", role: body.role, emailAddress: body.email }),
     })).json();
     return json({ permission }, 201);
+  }
+  const permissionDeleteMatch = url.pathname.match(/^\/api\/google\/drive\/files\/([^/]+)\/permissions\/([^/]+)$/);
+  if (permissionDeleteMatch && request.method === "DELETE") {
+    const fileId = decodeURIComponent(permissionDeleteMatch[1]);
+    const permissionId = decodeURIComponent(permissionDeleteMatch[2]);
+    if (!safeDriveId(fileId) || !safeDriveId(permissionId)) return json({ error: "Invalid Drive permission" }, 400);
+    await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}/permissions/${encodeURIComponent(permissionId)}`, session.access_token, { method: "DELETE" });
+    return json({ removed: true });
   }
   return json({ error: "Not found" }, 404);
 }

@@ -272,6 +272,8 @@ const state = {
   googleConnected: false,
   googleAccount: null,
   googleDriveFile: null,
+  googleDriveFiles: [],
+  googleDriveSelected: null,
   collaborationApplying: false,
   collaborationPresenceTimer: 0,
   collaborators: new Map(),
@@ -2627,11 +2629,46 @@ async function openGoogleDrive() {
   const dialog = $("#google-drive-dialog");
   const files = $("#google-drive-files");
   files.innerHTML = '<div class="github-empty">Loading Drive files…</div>';
-  dialog.showModal();
+  if (!dialog.open) dialog.showModal();
   try {
     const result = await googleRequest("/api/google/drive/files");
-    files.innerHTML = result.files.length ? result.files.map((file) => `<button type="button" data-google-file="${escapeHtml(file.id)}"><strong>${escapeHtml(file.name)}</strong><small>${new Date(file.modifiedTime).toLocaleString()}</small></button>`).join("") : '<div class="github-empty"><span>No Fountain Publisher screenplays are in this Drive yet.</span><button type="button" data-google-save-current>Save current screenplay to Drive</button></div>';
+    state.googleDriveFiles = result.files;
+    if (state.googleDriveSelected && !result.files.some((file) => file.id === state.googleDriveSelected.id)) await selectGoogleDriveFile(null);
+    renderGoogleDriveFiles();
   } catch (error) { files.innerHTML = `<div class="github-empty">${escapeHtml(error.message)}</div>`; }
+}
+
+function renderGoogleDriveFiles() {
+  const query = $("#google-drive-filter").value.trim().toLowerCase();
+  const files = state.googleDriveFiles.filter((file) => !query || file.name.toLowerCase().includes(query));
+  $("#google-drive-files").innerHTML = files.length ? files.map((file) => `<button type="button" role="option" aria-selected="${file.id === state.googleDriveSelected?.id}" data-google-file="${escapeHtml(file.id)}"><strong>${escapeHtml(file.name)}</strong><small>${new Date(file.modifiedTime).toLocaleString()}</small></button>`).join("") : '<div class="github-empty"><span>No matching Fountain Publisher screenplays.</span><button type="button" data-google-save-current>Save current screenplay to Drive</button></div>';
+}
+
+async function selectGoogleDriveFile(fileId) {
+  state.googleDriveSelected = state.googleDriveFiles.find((file) => file.id === fileId) || null;
+  renderGoogleDriveFiles();
+  $("#google-drive-open-selected").disabled = !state.googleDriveSelected;
+  $("#google-drive-selection").textContent = state.googleDriveSelected?.name || "No file selected";
+  $("#google-share-empty").hidden = Boolean(state.googleDriveSelected);
+  $("#google-share-controls").hidden = !state.googleDriveSelected;
+  if (!state.googleDriveSelected) return;
+  $("#google-share-filename").textContent = state.googleDriveSelected.name;
+  await loadGooglePermissions();
+}
+
+async function loadGooglePermissions() {
+  const selected = state.googleDriveSelected;
+  if (!selected) return;
+  const container = $("#google-permissions");
+  container.innerHTML = '<div class="github-empty">Loading access…</div>';
+  try {
+    const result = await googleRequest(`/api/google/drive/files/${encodeURIComponent(selected.id)}/permissions`);
+    container.innerHTML = result.permissions.map((permission) => {
+      const label = permission.displayName || permission.emailAddress || permission.type;
+      const removable = permission.role !== "owner" && selected.capabilities?.canShare;
+      return `<div class="google-permission"><span title="${escapeHtml(permission.emailAddress || "")}">${escapeHtml(label)}</span><small>${escapeHtml(permission.role)}</small>${removable ? `<button type="button" data-google-permission-remove="${escapeHtml(permission.id)}" aria-label="Remove ${escapeHtml(label)}">Remove</button>` : ""}</div>`;
+    }).join("") || '<div class="github-empty">Only you have access.</div>';
+  } catch (error) { container.innerHTML = `<div class="github-empty">${escapeHtml(error.message)}</div>`; }
 }
 
 async function openGoogleDriveFile(fileId) {
@@ -2642,7 +2679,7 @@ async function openGoogleDriveFile(fileId) {
   toast(`Opened ${result.file.name} from Drive`);
 }
 
-async function saveGoogleDrive() {
+async function saveGoogleDrive({ keepBrowser = false } = {}) {
   try {
     if (state.googleDriveFile) {
       const result = await googleRequest(`/api/google/drive/files/${encodeURIComponent(state.googleDriveFile.id)}`, { method: "PUT", body: JSON.stringify({ content: source.value }) });
@@ -2654,20 +2691,31 @@ async function saveGoogleDrive() {
     }
     state.savedSource = source.value;
     updateGoogleMenu();
-    if ($("#google-drive-dialog").open) $("#google-drive-dialog").close();
+    if ($("#google-drive-dialog").open && !keepBrowser) $("#google-drive-dialog").close();
+    if (keepBrowser) await openGoogleDrive();
     toast("Saved to Google Drive");
   } catch (error) { toast(error.message); }
 }
 
 async function shareGoogleDrive() {
   if (!state.googleDriveFile) return;
-  const email = window.prompt("Google account email to share with:");
-  if (!email) return;
-  const editable = window.confirm("Allow this person to edit? Choose Cancel for view-only access.");
+  if (!$("#google-drive-dialog").open) await openGoogleDrive();
+  await selectGoogleDriveFile(state.googleDriveFile.id);
+}
+
+async function inviteGoogleCollaborator() {
+  const selected = state.googleDriveSelected;
+  const email = $("#google-share-email").value.trim();
+  const role = $("#google-share-role").value;
+  if (!selected || !email) return;
+  const status = $("#google-share-status");
+  status.textContent = "Sending invitation…";
   try {
-    await googleRequest(`/api/google/drive/files/${encodeURIComponent(state.googleDriveFile.id)}/permissions`, { method: "POST", body: JSON.stringify({ email: email.trim(), role: editable ? "writer" : "reader" }) });
-    toast(`Shared with ${email.trim()}`);
-  } catch (error) { toast(error.message); }
+    await googleRequest(`/api/google/drive/files/${encodeURIComponent(selected.id)}/permissions`, { method: "POST", body: JSON.stringify({ email, role }) });
+    $("#google-share-email").value = "";
+    status.textContent = `Invitation sent to ${email}`;
+    await loadGooglePermissions();
+  } catch (error) { status.textContent = error.message; }
 }
 
 async function saveFile(saveAs = false) {
@@ -5317,6 +5365,16 @@ $("#google-open").addEventListener("click", openGoogleDrive);
 $("#google-save").addEventListener("click", saveGoogleDrive);
 $("#google-share").addEventListener("click", shareGoogleDrive);
 $("#google-drive-close").addEventListener("click", () => $("#google-drive-dialog").close());
+$("#google-drive-refresh").addEventListener("click", openGoogleDrive);
+$("#google-drive-filter").addEventListener("input", renderGoogleDriveFiles);
+$("#google-save-current").addEventListener("click", () => saveGoogleDrive({ keepBrowser: true }));
+$("#google-drive-open-selected").addEventListener("click", () => {
+  if (state.googleDriveSelected) openGoogleDriveFile(state.googleDriveSelected.id).catch((error) => toast(error.message));
+});
+$("#google-share-invite").addEventListener("click", inviteGoogleCollaborator);
+$("#google-share-email").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") { event.preventDefault(); inviteGoogleCollaborator(); }
+});
 $("#google-disconnect").addEventListener("click", async () => {
   try { await googleRequest("/auth/google/logout", { method: "POST" }); } catch { /* local sign-out still applies */ }
   collaboration.disconnect();
@@ -5331,9 +5389,22 @@ $("#google-disconnect").addEventListener("click", async () => {
   toast("Signed out of Google");
 });
 $("#google-drive-files").addEventListener("click", (event) => {
-  if (event.target.closest("[data-google-save-current]")) return void saveGoogleDrive();
+  if (event.target.closest("[data-google-save-current]")) return void saveGoogleDrive({ keepBrowser: true });
+  const file = event.target.closest("[data-google-file]");
+  if (file) selectGoogleDriveFile(file.dataset.googleFile).catch((error) => toast(error.message));
+});
+$("#google-drive-files").addEventListener("dblclick", (event) => {
   const file = event.target.closest("[data-google-file]");
   if (file) openGoogleDriveFile(file.dataset.googleFile).catch((error) => toast(error.message));
+});
+$("#google-permissions").addEventListener("click", async (event) => {
+  const remove = event.target.closest("[data-google-permission-remove]");
+  if (!remove || !state.googleDriveSelected) return;
+  remove.disabled = true;
+  try {
+    await googleRequest(`/api/google/drive/files/${encodeURIComponent(state.googleDriveSelected.id)}/permissions/${encodeURIComponent(remove.dataset.googlePermissionRemove)}`, { method: "DELETE" });
+    await loadGooglePermissions();
+  } catch (error) { toast(error.message); remove.disabled = false; }
 });
 $("#close-github-dialog").addEventListener("click", () => $("#github-dialog").close());
 $("#github-install").addEventListener("click", () => { if (state.githubInstallUrl) openGithubPopup(state.githubInstallUrl); });
