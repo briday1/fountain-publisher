@@ -22,6 +22,7 @@
   "dependencies": {
     "dictionary-en": "^4.0.0",
     "nspell": "^2.1.5",
-    "pyodide": "314.0.6"
+    "pyodide": "314.0.6",
+    "yjs": "^13.6.32"
   }
 }

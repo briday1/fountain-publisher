@@ -7,10 +7,12 @@ import { pathToFileURL } from "node:url";
 const root = process.cwd();
 const htmlPath = join(root, "src/fountain_publisher/web/index.html");
 const appPath = join(root, "src/fountain_publisher/web/app.mjs");
+const collaborationPath = join(root, "src/fountain_publisher/web/collaboration.mjs");
 const workerPath = join(root, "github-worker/src/index.mjs");
 const workerConfigPath = join(root, "github-worker/wrangler.jsonc");
 const migrationPath = join(root, "github-worker/migrations/0001_sessions.sql");
 const hardeningMigrationPath = join(root, "github-worker/migrations/0002_security_hardening.sql");
+const googleMigrationPath = join(root, "github-worker/migrations/0003_google_accounts.sql");
 
 test("app exposes a credentialed GitHub repository browser", async () => {
   const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
@@ -92,4 +94,59 @@ test("Worker encrypts and isolates GitHub sessions with lifecycle controls", asy
   assert.match(worker, /GitHub did not confirm the commit/);
   assert.match(worker, /body: JSON\.stringify\(\{ message: body\.message, content: encodeContent\(body\.content\)/);
   assert.doesNotMatch(worker, /access_token[^\n]+localStorage/);
+});
+
+test("Worker establishes hardened Google sessions and limits Drive access", async () => {
+  const [worker, config, migration] = await Promise.all([
+    readFile(workerPath, "utf8"),
+    readFile(workerConfigPath, "utf8"),
+    readFile(googleMigrationPath, "utf8"),
+  ]);
+  assert.match(config, /GOOGLE_CLIENT_ID/);
+  assert.match(config, /GOOGLE_CLIENT_SECRET/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS google_oauth_states/);
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS google_sessions/);
+  assert.match(worker, /GOOGLE_SCOPES = "openid email profile https:\/\/www\.googleapis\.com\/auth\/drive\.file"/);
+  assert.match(worker, /code_challenge_method: "S256"/);
+  assert.match(worker, /DELETE FROM google_oauth_states[\s\S]*RETURNING pkce_verifier/);
+  assert.match(worker, /profile\.email_verified !== true/);
+  assert.match(worker, /encryptToken\(token\.access_token, env\)/);
+  assert.match(worker, /fountainPublisherDocument/);
+  assert.match(worker, /\["reader", "writer"\]\.includes\(body\.role\)/);
+  assert.match(worker, /permissions\(id,type,role,emailAddress,displayName,photoLink,pendingOwner\)/);
+  assert.match(worker, /permissionDeleteMatch/);
+  assert.match(worker, /\/api\/google\/picker\/config/);
+  assert.match(worker, /adoptMatch/);
+  assert.match(worker, /request\.headers\.get\("origin"\) !== env\.APP_ORIGIN/);
+  assert.match(config, /"class_name": "CollaborationRoom"/);
+  assert.match(worker, /export class CollaborationRoom/);
+  assert.match(worker, /Y\.applyUpdate\(this\.document, update\)/);
+  assert.match(worker, /authorizedUntil <= Math\.floor\(Date\.now\(\) \/ 1000\)/);
+  assert.match(worker, /!identity\?\.canEdit/);
+  assert.match(worker, /update\.length > 65_536/);
+  assert.ok(worker.indexOf("this.state.acceptWebSocket(server)") < worker.indexOf("server.serializeAttachment(identity)"));
+  assert.match(worker, /response\.status !== 101/);
+});
+
+test("browser connects Drive documents to resumable Yjs collaboration", async () => {
+  const [html, app, collaboration] = await Promise.all([
+    readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(collaborationPath, "utf8"),
+  ]);
+  assert.match(html, /id="google-connect"/);
+  assert.match(html, /id="google-drive-dialog"/);
+  assert.match(html, /id="google-drive-filter"/);
+  assert.match(html, /id="google-share-panel"/);
+  assert.match(html, /id="google-permissions"/);
+  assert.match(app, /\$\("#google-open"\)\.addEventListener\("click", openGooglePicker\)/);
+  assert.match(html, /wss:\/\/api\.fountain-publisher\.com/);
+  assert.match(app, /new CollaborationClient/);
+  assert.match(app, /function connectDriveCollaboration/);
+  assert.match(app, /scheduleCollaborationPresence/);
+  assert.match(app, /function renderCollaborationPresence/);
+  assert.match(app, /function openGooglePicker/);
+  assert.match(collaboration, /import \* as Y/);
+  assert.match(collaboration, /Y\.applyUpdate/);
+  assert.match(collaboration, /while \(start < current\.length/);
+  assert.match(collaboration, /setTimeout\(\(\) => this\.checkpoint\(\), 2000\)/);
+  assert.match(html, /id="collaboration-cursors"/);
 });

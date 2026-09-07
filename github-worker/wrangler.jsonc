@@ -20,7 +20,15 @@
       "migrations_dir": "migrations"
     }
   ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "COLLAB_ROOMS", "class_name": "CollaborationRoom" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1-collaboration-rooms", "new_sqlite_classes": ["CollaborationRoom"] }
+  ],
   "secrets": {
-    "required": ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "GITHUB_APP_SLUG", "TOKEN_ENCRYPTION_KEY"]
+    "required": ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "GITHUB_APP_SLUG", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "TOKEN_ENCRYPTION_KEY"]
   }
 }
