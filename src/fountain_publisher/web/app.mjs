@@ -223,6 +223,10 @@ const state = {
   filename: "Untitled.fountain",
   handle: null,
   savedSource: "",
+  documentRevision: 0,
+  editRevision: 0,
+  githubSaving: false,
+  githubConflict: null,
   metadata: emptyMetadata(),
   compileTimer: 0,
   compileRevision: 0,
@@ -2022,6 +2026,7 @@ function rebaseBeatRanges(previousValue, nextValue) {
 }
 
 function sourceChanged({ fromPreview = false, record = true, rebaseBeats = true } = {}) {
+  state.editRevision += 1;
   if (rebaseBeats) {
     const selectionStart = source.selectionStart;
     const selectionEnd = source.selectionEnd;
@@ -2519,6 +2524,7 @@ async function importPdfFile(file) {
 }
 
 function setDocument(text, filename, saved = false, githubFile = null) {
+  state.documentRevision += 1;
   source.value = text; state.history = [text]; state.historyIndex = 0; state.filename = filename || "Untitled.fountain"; if (saved) state.savedSource = text;
   state.lastSourceValue = text;
   state.githubFile = githubFile;
@@ -2543,7 +2549,11 @@ async function saveFile(saveAs = false) {
 async function githubRequest(path, options = {}) {
   const response = await fetch(`${GITHUB_API}${path}`, { credentials: "include", ...options });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || `GitHub request failed (${response.status})`);
+  if (!response.ok) {
+    const error = new Error(result.error || `GitHub request failed (${response.status})`);
+    error.status = response.status;
+    throw error;
+  }
   return result;
 }
 
@@ -2793,7 +2803,10 @@ async function openGithubFile(path, trigger) {
   try {
     const repository = selectedGithubRepository();
     const branch = $("#github-branch").value;
-    const file = await githubRequest(githubContentPath(path));
+    const documentRevision = state.documentRevision;
+    const editRevision = state.editRevision;
+    const file = await githubRequest(githubContentPath(path, repository, branch));
+    if (documentRevision !== state.documentRevision || editRevision !== state.editRevision) throw new Error("The editor changed while opening. Open the GitHub file again when ready.");
     const remote = { owner: repository.owner, repo: repository.repo, branch, path, sha: file.sha };
     state.handle = null;
     setDocument(decodeGithubContent(file.content), file.name, true, remote);
@@ -2810,6 +2823,8 @@ async function openGithubFile(path, trigger) {
 }
 
 async function saveGithubFile() {
+  if (state.githubSaving) return;
+  if (state.githubConflict) return $("#github-conflict-dialog").showModal();
   const repository = selectedGithubRepository();
   const branch = $("#github-branch").value;
   const folder = state.githubPath;
@@ -2823,37 +2838,187 @@ async function saveGithubFile() {
   const sha = linked && linked.owner === repository.owner && linked.repo === repository.repo && linked.branch === branch && linked.path === path
     ? linked.sha
     : existing?.sha;
+  const attempt = {
+    owner: repository.owner, repo: repository.repo, branch, path, filename, sha,
+    content: source.value, message: message || `Update ${filename}`,
+    documentRevision: state.documentRevision, editRevision: state.editRevision,
+  };
   const button = $("#github-save-here");
   const status = $("#github-save-status");
+  state.githubSaving = true;
   button.disabled = true;
   button.textContent = "Saving…";
   status.className = "";
   status.textContent = `Saving to ${repository.fullName} · ${branch} · ${folder || "Root"}…`;
   try {
-    const result = await githubRequest(githubContentPath(path, repository, branch), {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ content: source.value, message: message || `Update ${filename}`, sha }),
-    });
-    if (!result.sha || !result.commit) throw new Error("GitHub did not confirm the commit");
-    const saved = await githubRequest(githubContentPath(path, repository, branch));
-    if (saved.sha !== result.sha) throw new Error("GitHub could not verify the saved file");
-    state.githubFile = { owner: repository.owner, repo: repository.repo, branch, path, sha: result.sha };
-    state.filename = filename;
-    state.savedSource = source.value;
-    $("#filename").textContent = filename;
-    document.title = `${filename} — Fountain Publisher`;
-    document.body.classList.remove("dirty");
-    status.className = "success";
-    status.innerHTML = `Saved to ${escapeHtml(branch)} · <a href="${escapeHtml(result.commit)}" target="_blank" rel="noopener noreferrer">View commit</a>`;
+    let result;
+    try {
+      result = await writeGithubFile(attempt, attempt.content, sha);
+    } catch (error) {
+      if (!isGithubConflict(error, sha)) throw error;
+      const remote = await readGithubVersion(attempt);
+      if (remote.sha === sha) throw error;
+      showGithubConflict(attempt, remote);
+      status.textContent = "GitHub changed. Review both versions in the conflict dialog.";
+      return;
+    }
+    await finishGithubSave(attempt, attempt.content, result);
   } catch (error) {
     status.className = "error";
     status.textContent = error.message;
     toast(error.message);
   } finally {
+    state.githubSaving = false;
     button.disabled = false;
     button.textContent = "Save here";
   }
+}
+
+function isGithubConflict(error, sha) {
+  return error.status === 409 || (error.status === 422 && !sha);
+}
+
+async function readGithubVersion(target) {
+  const file = await githubRequest(githubContentPath(target.path, target, target.branch), { cache: "no-store" });
+  if (!file.sha || file.encoding !== "base64" || typeof file.content !== "string" || (file.type && file.type !== "file")) {
+    throw new Error("GitHub did not return a readable file. Your text has not been changed.");
+  }
+  return { sha: file.sha, content: decodeGithubContent(file.content) };
+}
+
+async function writeGithubFile(target, content, sha) {
+  return githubRequest(githubContentPath(target.path, target, target.branch), {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ content, message: target.message, sha }),
+  });
+}
+
+async function finishGithubSave(target, content, result, resolution = false) {
+  if (!result.sha || !result.commit) throw new Error("GitHub did not confirm the commit");
+  const saved = await readGithubVersion(target);
+  if (saved.sha !== result.sha) throw new Error("GitHub could not verify the saved file. The commit may have succeeded; retry to review the latest version.");
+  const sameDocument = state.documentRevision === target.documentRevision;
+  const unchanged = sameDocument && state.editRevision === target.editRevision && source.value === target.content;
+  if (sameDocument) {
+    state.githubFile = { owner: target.owner, repo: target.repo, branch: target.branch, path: target.path, sha: result.sha };
+    state.filename = target.filename;
+    state.savedSource = content;
+    $("#filename").textContent = target.filename;
+    document.title = `${target.filename} — Fountain Publisher`;
+    if (resolution && unchanged) {
+      source.value = content;
+      sourceChanged({ rebaseBeats: false });
+    }
+    document.body.classList.toggle("dirty", source.value !== content);
+    persistWorkspaceNow();
+  }
+  const status = $("#github-save-status");
+  status.className = "success";
+  status.innerHTML = `Saved ${escapeHtml(target.owner)}/${escapeHtml(target.repo)}/${escapeHtml(target.path)} to ${escapeHtml(target.branch)} · <a href="${escapeHtml(result.commit)}" target="_blank" rel="noopener noreferrer">View commit</a>`;
+  if (!unchanged) toast("Saved the submitted version to GitHub. Your newer editor changes were kept.");
+}
+
+function updateGithubConflictControls() {
+  const conflict = state.githubConflict;
+  if (!conflict) return;
+  $("#github-conflict-save").disabled = conflict.busy || conflict.needsRefresh || !$("#github-conflict-reviewed").checked;
+  $("#github-conflict-save").textContent = conflict.busy ? "Please wait…" : "Save resolution";
+  $("#github-conflict-refresh").hidden = !conflict.needsRefresh;
+  $("#github-conflict-refresh").disabled = conflict.busy;
+  $("#github-conflict-result").readOnly = conflict.busy;
+  $("#github-conflict-reviewed").disabled = conflict.busy || conflict.needsRefresh;
+  $("#github-conflict-mine").disabled = conflict.busy;
+  $("#github-conflict-theirs").disabled = conflict.busy || conflict.needsRefresh;
+  $("#github-conflict-cancel").disabled = conflict.busy;
+}
+
+function showGithubConflict(target, remote) {
+  state.githubConflict = { target, remote, busy: false, needsRefresh: false };
+  $("#github-conflict-target").textContent = `${target.owner}/${target.repo} · ${target.branch} · ${target.path}`;
+  $("#github-conflict-local").value = target.content;
+  $("#github-conflict-remote").value = remote.content;
+  $("#github-conflict-result").value = target.content;
+  $("#github-conflict-reviewed").checked = false;
+  $("#github-conflict-status").textContent = "GitHub has a newer version. Review both versions, then edit the result below.";
+  updateGithubConflictControls();
+  $("#github-conflict-dialog").showModal();
+}
+
+function chooseGithubConflictVersion(version) {
+  const conflict = state.githubConflict;
+  if (!conflict || conflict.busy || (version === "theirs" && conflict.needsRefresh)) return;
+  const result = $("#github-conflict-result");
+  const text = version === "mine" ? conflict.target.content : conflict.remote.content;
+  if (result.value !== text && !window.confirm("Replace the entire resolution draft with this version? Your current result edits will be lost.")) return;
+  result.value = text;
+  $("#github-conflict-reviewed").checked = false;
+  updateGithubConflictControls();
+  result.focus();
+}
+
+function cancelGithubConflict() {
+  const conflict = state.githubConflict;
+  if (!conflict || conflict.busy) return;
+  if ($("#github-conflict-result").value !== conflict.target.content && !window.confirm("Discard the resolution draft? The original editor text will be kept.")) return;
+  state.githubConflict = null;
+  $("#github-conflict-dialog").close();
+  $("#github-save-status").textContent = "Resolution canceled. Your editor text was not changed.";
+}
+
+async function refreshGithubConflict() {
+  const conflict = state.githubConflict;
+  if (!conflict || conflict.busy) return;
+  conflict.busy = true;
+  conflict.needsRefresh = true;
+  $("#github-conflict-reviewed").checked = false;
+  updateGithubConflictControls();
+  try {
+    const previousSha = conflict.remote.sha;
+    conflict.remote = await readGithubVersion(conflict.target);
+    $("#github-conflict-remote").value = conflict.remote.content;
+    conflict.needsRefresh = false;
+    $("#github-conflict-status").textContent = conflict.remote.sha === previousSha && conflict.refreshError
+      ? `${conflict.refreshError} The GitHub file version is unchanged; check repository settings before retrying. Your result draft was kept.`
+      : "Latest GitHub version loaded. Your result draft was kept. Review the updated reference and confirm again before saving.";
+  } catch (error) {
+    $("#github-conflict-status").textContent = `${error.message} Your result draft was kept. Load the latest version before saving.`;
+  } finally {
+    conflict.busy = false;
+    updateGithubConflictControls();
+  }
+}
+
+async function saveGithubResolution() {
+  const conflict = state.githubConflict;
+  if (!conflict || conflict.busy || conflict.needsRefresh || !$("#github-conflict-reviewed").checked) return;
+  conflict.busy = true;
+  updateGithubConflictControls();
+  const content = $("#github-conflict-result").value;
+  let refresh = false;
+  try {
+    let result;
+    try {
+      result = await writeGithubFile(conflict.target, content, conflict.remote.sha);
+    } catch (error) {
+      if (isGithubConflict(error, conflict.remote.sha)) {
+        conflict.refreshError = error.message;
+        conflict.needsRefresh = true;
+        $("#github-conflict-reviewed").checked = false;
+        refresh = true;
+      }
+      throw error;
+    }
+    await finishGithubSave(conflict.target, content, result, true);
+    state.githubConflict = null;
+    $("#github-conflict-dialog").close();
+  } catch (error) {
+    $("#github-conflict-status").textContent = `${error.message} Your result draft and editor text were kept.`;
+  } finally {
+    conflict.busy = false;
+    updateGithubConflictControls();
+  }
+  if (refresh) await refreshGithubConflict();
 }
 
 function normalizedFilename(extension) {
@@ -4806,6 +4971,15 @@ $("#github-files").addEventListener("click", (event) => {
   } else openGithubFile(entry.dataset.githubEntry, entry);
 });
 $("#github-save-here").addEventListener("click", saveGithubFile);
+$("#github-conflict-save").addEventListener("click", saveGithubResolution);
+$("#github-conflict-refresh").addEventListener("click", refreshGithubConflict);
+$("#github-conflict-mine").addEventListener("click", () => chooseGithubConflictVersion("mine"));
+$("#github-conflict-theirs").addEventListener("click", () => chooseGithubConflictVersion("theirs"));
+$("#github-conflict-reviewed").addEventListener("change", updateGithubConflictControls);
+$("#github-conflict-cancel").addEventListener("click", cancelGithubConflict);
+$("#github-conflict-dialog").addEventListener("cancel", (event) => { event.preventDefault(); cancelGithubConflict(); });
+$("#github-conflict-dialog").addEventListener("keydown", (event) => event.stopPropagation());
+$("#github-conflict-dialog").addEventListener("beforeinput", (event) => event.stopPropagation());
 window.addEventListener("message", async (event) => {
   if (event.origin !== GITHUB_API || !["github-connected", "github-installed", "github-error"].includes(event.data?.type)) return;
   if (event.data.type === "github-error") return toast(event.data.message || "GitHub connection failed");
