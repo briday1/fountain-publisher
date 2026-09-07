@@ -2630,7 +2630,7 @@ async function openGoogleDrive() {
   dialog.showModal();
   try {
     const result = await googleRequest("/api/google/drive/files");
-    files.innerHTML = result.files.length ? result.files.map((file) => `<button type="button" data-google-file="${escapeHtml(file.id)}"><strong>${escapeHtml(file.name)}</strong><small>${new Date(file.modifiedTime).toLocaleString()}</small></button>`).join("") : '<div class="github-empty">No Fountain Publisher files in Drive yet.</div>';
+    files.innerHTML = result.files.length ? result.files.map((file) => `<button type="button" data-google-file="${escapeHtml(file.id)}"><strong>${escapeHtml(file.name)}</strong><small>${new Date(file.modifiedTime).toLocaleString()}</small></button>`).join("") : '<div class="github-empty"><span>No Fountain Publisher screenplays are in this Drive yet.</span><button type="button" data-google-save-current>Save current screenplay to Drive</button></div>';
   } catch (error) { files.innerHTML = `<div class="github-empty">${escapeHtml(error.message)}</div>`; }
 }
 
@@ -2654,6 +2654,7 @@ async function saveGoogleDrive() {
     }
     state.savedSource = source.value;
     updateGoogleMenu();
+    if ($("#google-drive-dialog").open) $("#google-drive-dialog").close();
     toast("Saved to Google Drive");
   } catch (error) { toast(error.message); }
 }
@@ -5330,6 +5331,7 @@ $("#google-disconnect").addEventListener("click", async () => {
   toast("Signed out of Google");
 });
 $("#google-drive-files").addEventListener("click", (event) => {
+  if (event.target.closest("[data-google-save-current]")) return void saveGoogleDrive();
   const file = event.target.closest("[data-google-file]");
   if (file) openGoogleDriveFile(file.dataset.googleFile).catch((error) => toast(error.message));
 });
