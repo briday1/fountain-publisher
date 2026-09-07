@@ -137,7 +137,7 @@ test("browser connects Drive documents to resumable Yjs collaboration", async ()
   assert.match(html, /id="google-drive-filter"/);
   assert.match(html, /id="google-share-panel"/);
   assert.match(html, /id="google-permissions"/);
-  assert.match(html, /id="google-picker-open"/);
+  assert.match(app, /\$\("#google-open"\)\.addEventListener\("click", openGooglePicker\)/);
   assert.match(html, /wss:\/\/api\.fountain-publisher\.com/);
   assert.match(app, /new CollaborationClient/);
   assert.match(app, /function connectDriveCollaboration/);

@@ -2658,13 +2658,13 @@ async function refreshGoogleSession({ notify = false } = {}) {
 }
 
 async function connectGoogle() {
-  if (state.googleConnected) return openGoogleDrive();
+  if (state.googleConnected) return openGooglePicker();
   const popup = openGoogleSignIn();
   if (!popup) return toast("Allow popups to sign in with Google");
   const started = Date.now();
   while (!popup.closed && Date.now() - started < 120000) await new Promise((resolve) => setTimeout(resolve, 400));
   for (let attempt = 0; attempt < 4; attempt += 1) {
-    if (await refreshGoogleSession({ notify: true })) return openGoogleDrive();
+    if (await refreshGoogleSession({ notify: true })) return openGooglePicker();
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   toast("Google sign-in did not complete");
@@ -2750,11 +2750,12 @@ function loadGooglePicker() {
 async function openGooglePicker() {
   try {
     const config = await googleRequest("/api/google/picker/config");
-    if (!config.apiKey || !config.appId) throw new Error("Google Picker is not configured yet");
+    if (!config.apiKey || !config.appId) throw new Error("Google Drive browser setup is incomplete: add GOOGLE_API_KEY and GOOGLE_APP_ID to the Worker");
     await loadGooglePicker();
     const view = new window.google.picker.DocsView().setIncludeFolders(true).setSelectFolderEnabled(false).setMimeTypes("text/plain");
     new window.google.picker.PickerBuilder()
       .setAppId(config.appId).setDeveloperKey(config.apiKey).setOAuthToken(config.accessToken)
+      .setOrigin(window.location.origin)
       .addView(view).enableFeature(window.google.picker.Feature.SUPPORT_DRIVES)
       .setCallback(async (data) => {
         if (data.action !== window.google.picker.Action.PICKED) return;
@@ -5450,12 +5451,11 @@ $("#github-connect").addEventListener("click", connectGithub);
 $("#github-open").addEventListener("click", () => openGithubBrowser("open"));
 $("#github-save").addEventListener("click", () => openGithubBrowser("save"));
 $("#google-connect").addEventListener("click", connectGoogle);
-$("#google-open").addEventListener("click", openGoogleDrive);
+$("#google-open").addEventListener("click", openGooglePicker);
 $("#google-save").addEventListener("click", saveGoogleDrive);
 $("#google-share").addEventListener("click", shareGoogleDrive);
 $("#google-drive-close").addEventListener("click", () => $("#google-drive-dialog").close());
 $("#google-drive-refresh").addEventListener("click", openGoogleDrive);
-$("#google-picker-open").addEventListener("click", openGooglePicker);
 $("#google-drive-filter").addEventListener("input", renderGoogleDriveFiles);
 $("#google-save-current").addEventListener("click", () => saveGoogleDrive({ keepBrowser: true }));
 $("#google-drive-open-selected").addEventListener("click", () => {
