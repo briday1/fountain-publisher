@@ -68,9 +68,9 @@ export class CollaborationClient {
     this.socket = new WebSocket(url);
     this.socket.addEventListener("open", () => this.onStatus("connected"));
     this.socket.addEventListener("message", (event) => this.receive(event.data));
-    this.socket.addEventListener("close", () => {
+    this.socket.addEventListener("close", (event) => {
       if (this.closed) return;
-      this.onStatus("reconnecting");
+      this.onStatus("reconnecting", event.reason || `Connection closed (${event.code})`);
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = setTimeout(() => this.openSocket(), 1000 + Math.random() * 2000);
     });

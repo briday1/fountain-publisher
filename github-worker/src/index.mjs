@@ -562,13 +562,15 @@ export default {
     if (Math.random() < 0.01) context.waitUntil(cleanupExpired(env));
     try {
       const response = await handle(request, env);
-      Object.entries(cors).forEach(([key, value]) => response.headers.set(key, value));
+      // WebSocket upgrade responses have immutable headers in the Workers runtime.
+      if (response.status !== 101) Object.entries(cors).forEach(([key, value]) => response.headers.set(key, value));
       return response;
     } catch (error) {
       if (error instanceof Response) {
         Object.entries(cors).forEach(([key, value]) => error.headers.set(key, value));
         return error;
       }
+      console.error("Worker request failed", error?.stack || error);
       return json({ error: "GitHub integration failed" }, 500, cors);
     }
   },
@@ -614,8 +616,8 @@ export class CollaborationRoom {
       authorizedUntil: Number(request.headers.get("x-fp-authorized-until")),
       connectionId: randomToken(12),
     };
-    server.serializeAttachment(identity);
     this.state.acceptWebSocket(server);
+    server.serializeAttachment(identity);
     server.send(JSON.stringify({ type: "sync", update: base64Url(Y.encodeStateAsUpdate(this.document)), self: identity }));
     this.broadcast({ type: "presence", action: "join", user: identity }, server);
     return new Response(null, { status: 101, webSocket: client });

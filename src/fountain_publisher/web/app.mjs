@@ -2564,10 +2564,11 @@ const collaboration = typeof CollaborationClient === "function" ? new Collaborat
     const names = [...state.collaborators.values()].map((user) => user.name).filter(Boolean);
     $("#collaboration-presence").textContent = names.length ? `${names.length} collaborator${names.length === 1 ? "" : "s"}: ${names.join(", ")}` : "";
   },
-  onStatus(status) {
+  onStatus(status, detail = "") {
     const labels = { connected: "Live", reconnecting: "Reconnecting…", saved: "Saved to Drive", "save-error": "Drive save failed", "read-only": "View only", error: "Collaboration error" };
     $("#collaboration-status").textContent = labels[status] || "";
     $("#collaboration-status").dataset.status = status;
+    $("#collaboration-status").title = detail;
   },
 }) : { connect() {}, disconnect() {}, replace() {}, updatePresence() {} };
 
