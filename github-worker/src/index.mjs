@@ -271,8 +271,8 @@ async function googleApiRequest(request, env, url) {
       return json({ files: result.files || [] });
     }
     if (!safeDriveId(fileId)) return json({ error: "Invalid Drive file" }, 400);
-    const metadata = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,name,modifiedTime,owners,appProperties,capabilities(canEdit,canShare)`, session.access_token)).json();
-    const content = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, session.access_token)).text();
+    const metadata = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=id,name,modifiedTime,owners,appProperties,capabilities(canEdit,canShare)`, session.access_token)).json();
+    const content = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&alt=media`, session.access_token)).text();
     return json({ file: metadata, content });
   }
   if (url.pathname === "/api/google/drive/files" && request.method === "POST") {
@@ -280,9 +280,16 @@ async function googleApiRequest(request, env, url) {
     if (typeof body.content !== "string" || body.content.length > 5_000_000) return json({ error: "Document content is required and must be under 5 MB" }, 400);
     const name = String(body.name || "Untitled.fountain").trim();
     if (!name || name.length > 200 || /[\\/\0]/.test(name)) return json({ error: "Invalid filename" }, 400);
+    const parentId = body.parentId ?? "root";
+    if (parentId !== "root" && !safeDriveId(parentId)) return json({ error: "Invalid destination folder" }, 400);
+    if (parentId !== "root") {
+      const parent = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(parentId)}?supportsAllDrives=true&fields=id,mimeType,trashed,capabilities(canAddChildren)`, session.access_token)).json();
+      if (parent.trashed || parent.mimeType !== "application/vnd.google-apps.folder") return json({ error: "Choose an existing Drive folder" }, 400);
+      if (parent.capabilities?.canAddChildren !== true) return json({ error: "You cannot save files in this folder. Choose another folder." }, 403);
+    }
     const documentId = randomToken(24);
-    const upload = driveMultipart({ name, mimeType: "text/plain", appProperties: { fountainPublisherDocument: "true", fountainPublisherDocumentId: documentId } }, body.content);
-    const file = await (await driveFetch("/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime,appProperties,capabilities(canEdit,canShare)", session.access_token, {
+    const upload = driveMultipart({ name, parents: [parentId], mimeType: "text/plain", appProperties: { fountainPublisherDocument: "true", fountainPublisherDocumentId: documentId } }, body.content);
+    const file = await (await driveFetch("/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,parents,modifiedTime,appProperties,capabilities(canEdit,canShare)", session.access_token, {
       method: "POST", headers: { "content-type": upload.contentType }, body: upload.body,
     })).json();
     return json({ file }, 201);
@@ -292,12 +299,12 @@ async function googleApiRequest(request, env, url) {
     const fileId = decodeURIComponent(adoptMatch[1]);
     if (!safeDriveId(fileId)) return json({ error: "Invalid Drive file" }, 400);
     const fields = encodeURIComponent("id,name,mimeType,modifiedTime,appProperties,capabilities(canEdit,canShare)");
-    const existing = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?fields=${fields}`, session.access_token)).json();
+    const existing = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=${fields}`, session.access_token)).json();
     if (existing.mimeType !== "text/plain" || !/\.(?:fountain|txt)$/i.test(existing.name || "")) return json({ error: "Choose a .fountain or .txt screenplay" }, 400);
     if (existing.appProperties?.fountainPublisherDocumentId) return json({ file: existing });
     if (existing.capabilities?.canEdit !== true) return json({ error: "This screenplay is view-only and has not been prepared for live collaboration by its owner" }, 403);
     const documentId = randomToken(24);
-    const file = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?fields=${fields}`, session.access_token, {
+    const file = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=${fields}`, session.access_token, {
       method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ appProperties: { fountainPublisherDocument: "true", fountainPublisherDocumentId: documentId } }),
     })).json();
     return json({ file });
@@ -308,7 +315,7 @@ async function googleApiRequest(request, env, url) {
     if (!safeDriveId(fileId)) return json({ error: "Invalid Drive file" }, 400);
     const body = await request.json();
     if (typeof body.content !== "string" || body.content.length > 5_000_000) return json({ error: "Document content is required and must be under 5 MB" }, 400);
-    const file = await (await driveFetch(`/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id,name,modifiedTime,capabilities(canEdit,canShare)`, session.access_token, {
+    const file = await (await driveFetch(`/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=media&supportsAllDrives=true&fields=id,name,modifiedTime,capabilities(canEdit,canShare)`, session.access_token, {
       method: "PATCH", headers: { "content-type": "text/plain; charset=UTF-8" }, body: body.content,
     })).json();
     return json({ file });
@@ -352,7 +359,7 @@ async function authorizeCollaboration(request, env, url) {
   const fileId = url.searchParams.get("fileId");
   if (!match || !safeDriveId(fileId)) return json({ error: "Invalid collaboration room" }, 400);
   const fields = "id,appProperties,capabilities(canEdit)";
-  const file = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?fields=${encodeURIComponent(fields)}`, session.access_token)).json();
+  const file = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=${encodeURIComponent(fields)}`, session.access_token)).json();
   if (file.appProperties?.fountainPublisherDocumentId !== match[1]) return json({ error: "Document identity mismatch" }, 403);
   const headers = new Headers(request.headers);
   headers.set("x-fp-user-id", session.google_sub);
@@ -363,7 +370,7 @@ async function authorizeCollaboration(request, env, url) {
   const room = env.COLLAB_ROOMS.get(env.COLLAB_ROOMS.idFromName(match[1]));
   const initialized = await room.fetch("https://room.internal/initialized");
   if (!(await initialized.json()).initialized) {
-    const content = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, session.access_token)).text();
+    const content = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&alt=media`, session.access_token)).text();
     await room.fetch(new Request("https://room.internal/initialize", { method: "POST", body: content }));
   }
   return room.fetch(new Request(request, { headers }));

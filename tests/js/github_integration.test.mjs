@@ -133,10 +133,9 @@ test("browser connects Drive documents to resumable Yjs collaboration", async ()
     readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(collaborationPath, "utf8"),
   ]);
   assert.match(html, /id="google-connect"/);
-  assert.match(html, /id="google-drive-dialog"/);
-  assert.match(html, /id="google-drive-filter"/);
-  assert.match(html, /id="google-share-panel"/);
-  assert.match(html, /id="google-permissions"/);
+  assert.match(html, /id="google-save-dialog"/);
+  assert.match(html, /id="google-save-as"/);
+  assert.doesNotMatch(html, /id="google-drive-dialog"/);
   assert.match(app, /\$\("#google-open"\)\.addEventListener\("click", openGooglePicker\)/);
   assert.match(html, /wss:\/\/api\.fountain-publisher\.com/);
   assert.match(app, /new CollaborationClient/);
