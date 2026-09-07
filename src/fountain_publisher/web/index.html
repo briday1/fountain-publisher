@@ -10,7 +10,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Fountain Publisher" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:; worker-src 'self' blob:; connect-src 'self' https://api.fountain-publisher.com" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:; worker-src 'self' blob:; connect-src 'self' https://api.fountain-publisher.com wss://api.fountain-publisher.com" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23000'/><text x='16' y='23' text-anchor='middle' font-family='Georgia,serif' font-weight='700' font-size='20' fill='%23fff'>F</text></svg>" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link rel="manifest" href="app.webmanifest" />
@@ -42,6 +42,12 @@
             <button id="github-connect" type="button">Connect GitHub…</button>
             <button id="github-open" type="button" disabled>Open from GitHub…</button>
             <button id="github-save" type="button" disabled>Save to GitHub…</button>
+            <span class="menu-separator"></span>
+            <strong>GOOGLE DRIVE</strong>
+            <button id="google-connect" type="button">Sign in with Google…</button>
+            <button id="google-open" type="button" disabled>Open from Drive…</button>
+            <button id="google-save" type="button" disabled>Save to Drive</button>
+            <button id="google-share" type="button" disabled>Share document…</button>
             <span class="menu-separator"></span>
             <strong>PUBLISH</strong>
             <button id="export-pdf" type="button">Export PDF…</button>
@@ -119,10 +125,20 @@
         <span id="dirty-dot" aria-hidden="true"></span>
         <span id="filename">Untitled.fountain</span>
         <span id="compile-status" class="compile-status">Ready</span>
+        <span id="collaboration-status" class="compile-status"></span>
+        <span id="collaboration-presence" class="compile-status"></span>
       </div>
       <button id="mobile-menu-toggle" class="mobile-menu-toggle" type="button" aria-label="Open menu" aria-controls="global-actions" aria-expanded="false"><span></span><span></span><span></span></button>
       <input id="file-input" type="file" accept=".fountain,.txt,.pdf,text/plain,application/pdf" hidden />
     </header>
+    <dialog id="google-drive-dialog" aria-labelledby="google-drive-title">
+      <article class="github-shell">
+        <header class="github-header"><div><small>GOOGLE DRIVE</small><h2 id="google-drive-title">Open screenplay</h2></div><button id="google-drive-close" type="button" aria-label="Close Google Drive browser">×</button></header>
+        <p id="google-account">Not signed in</p>
+        <button id="google-disconnect" type="button">Sign out of Google</button>
+        <div id="google-drive-files" class="github-files" role="list"></div>
+      </article>
+    </dialog>
     <button id="mobile-menu-backdrop" class="mobile-menu-backdrop" type="button" aria-label="Close menu" tabindex="-1"></button>
     <nav id="zen-controls" class="zen-controls" aria-label="Zen workspace controls" hidden>
       <button data-preview-mode="source" type="button">Source</button>

@@ -269,6 +269,12 @@ const state = {
   githubBranch: "",
   githubPath: "",
   githubFile: null,
+  googleConnected: false,
+  googleAccount: null,
+  googleDriveFile: null,
+  collaborationApplying: false,
+  collaborationPresenceTimer: 0,
+  collaborators: new Map(),
   vimEnabled: localStorage.getItem("fountain-publisher.vim-mode") === "true",
   vimMode: "normal",
   vimPending: "",
@@ -2048,6 +2054,7 @@ function sourceChanged({ fromPreview = false, record = true, rebaseBeats = true 
   else renderInsights(analyzeLocally(source.value));
   scheduleCompile();
   scheduleWorkspaceCache();
+  if (!state.collaborationApplying) collaboration.replace(source.value);
 }
 
 function scheduleCompile(delay = 350) {
@@ -2524,12 +2531,142 @@ async function importPdfFile(file) {
   }
 }
 
-function setDocument(text, filename, saved = false, githubFile = null) {
+function setDocument(text, filename, saved = false, githubFile = null, googleDriveFile = null) {
   state.documentRevision += 1;
   source.value = text; state.history = [text]; state.historyIndex = 0; state.filename = filename || "Untitled.fountain"; if (saved) state.savedSource = text;
   state.lastSourceValue = text;
   state.githubFile = githubFile;
+  state.googleDriveFile = googleDriveFile;
+  const canEdit = !googleDriveFile || googleDriveFile.capabilities?.canEdit === true;
+  source.readOnly = !canEdit;
+  $("#screenplay-page").contentEditable = canEdit ? "plaintext-only" : "false";
   $("#filename").textContent = state.filename; document.title = `${state.filename} — Fountain Publisher`; sourceChanged({ rebaseBeats: false });
+}
+
+const collaboration = typeof CollaborationClient === "function" ? new CollaborationClient({
+  onDocument(value, remote) {
+    if (!remote || value === source.value) return;
+    state.collaborationApplying = true;
+    const start = Math.min(source.selectionStart, value.length);
+    const end = Math.min(source.selectionEnd, value.length);
+    source.value = value;
+    source.setSelectionRange(start, end);
+    sourceChanged({ rebaseBeats: false });
+    state.collaborationApplying = false;
+  },
+  onPresence(payload) {
+    const id = payload.user?.connectionId;
+    if (!id) return;
+    if (payload.action === "leave") state.collaborators.delete(id);
+    else state.collaborators.set(id, { ...payload.user, presence: payload.presence || null });
+    const names = [...state.collaborators.values()].map((user) => user.name).filter(Boolean);
+    $("#collaboration-presence").textContent = names.length ? `${names.length} collaborator${names.length === 1 ? "" : "s"}: ${names.join(", ")}` : "";
+  },
+  onStatus(status) {
+    const labels = { connected: "Live", reconnecting: "Reconnecting…", saved: "Saved to Drive", "save-error": "Drive save failed", "read-only": "View only", error: "Collaboration error" };
+    $("#collaboration-status").textContent = labels[status] || "";
+    $("#collaboration-status").dataset.status = status;
+  },
+}) : { connect() {}, disconnect() {}, replace() {}, updatePresence() {} };
+
+function scheduleCollaborationPresence() {
+  clearTimeout(state.collaborationPresenceTimer);
+  state.collaborationPresenceTimer = setTimeout(() => collaboration.updatePresence({
+    cursor: source.selectionDirection === "backward" ? source.selectionStart : source.selectionEnd,
+    selectionStart: source.selectionStart,
+    selectionEnd: source.selectionEnd,
+    mode: state.previewMode === "source" ? "source" : state.previewMode,
+  }), 50);
+}
+
+function updateGoogleMenu() {
+  $("#google-connect").textContent = state.googleConnected ? `Google: ${state.googleAccount?.email}` : "Sign in with Google…";
+  $("#google-open").disabled = !state.googleConnected;
+  $("#google-save").disabled = !state.googleConnected;
+  $("#google-share").disabled = !state.googleDriveFile?.capabilities?.canShare;
+}
+
+async function refreshGoogleSession({ notify = false } = {}) {
+  try {
+    const result = await googleRequest("/api/google/session");
+    state.googleConnected = true;
+    state.googleAccount = result.account;
+    $("#google-account").textContent = `Signed in as ${result.account.email}`;
+    if (notify) toast(`Signed in as ${result.account.email}`);
+  } catch {
+    state.googleConnected = false;
+    state.googleAccount = null;
+    $("#google-account").textContent = "Not signed in";
+  }
+  updateGoogleMenu();
+  return state.googleConnected;
+}
+
+async function connectGoogle() {
+  if (state.googleConnected) return openGoogleDrive();
+  const popup = openGoogleSignIn();
+  if (!popup) return toast("Allow popups to sign in with Google");
+  const started = Date.now();
+  while (!popup.closed && Date.now() - started < 120000) await new Promise((resolve) => setTimeout(resolve, 400));
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (await refreshGoogleSession({ notify: true })) return openGoogleDrive();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  toast("Google sign-in did not complete");
+}
+
+function connectDriveCollaboration(file) {
+  const documentId = file.appProperties?.fountainPublisherDocumentId;
+  if (!documentId) return toast("This Drive file predates live collaboration. Save a new Drive copy to collaborate.");
+  collaboration.connect({ fileId: file.id, documentId, canEdit: file.capabilities?.canEdit === true });
+  updateGoogleMenu();
+}
+
+async function openGoogleDrive() {
+  if (!state.googleConnected && !(await refreshGoogleSession())) return connectGoogle();
+  const dialog = $("#google-drive-dialog");
+  const files = $("#google-drive-files");
+  files.innerHTML = '<div class="github-empty">Loading Drive files…</div>';
+  dialog.showModal();
+  try {
+    const result = await googleRequest("/api/google/drive/files");
+    files.innerHTML = result.files.length ? result.files.map((file) => `<button type="button" data-google-file="${escapeHtml(file.id)}"><strong>${escapeHtml(file.name)}</strong><small>${new Date(file.modifiedTime).toLocaleString()}</small></button>`).join("") : '<div class="github-empty">No Fountain Publisher files in Drive yet.</div>';
+  } catch (error) { files.innerHTML = `<div class="github-empty">${escapeHtml(error.message)}</div>`; }
+}
+
+async function openGoogleDriveFile(fileId) {
+  const result = await googleRequest(`/api/google/drive/files?fileId=${encodeURIComponent(fileId)}`);
+  setDocument(result.content, result.file.name, true, null, result.file);
+  connectDriveCollaboration(result.file);
+  $("#google-drive-dialog").close();
+  toast(`Opened ${result.file.name} from Drive`);
+}
+
+async function saveGoogleDrive() {
+  try {
+    if (state.googleDriveFile) {
+      const result = await googleRequest(`/api/google/drive/files/${encodeURIComponent(state.googleDriveFile.id)}`, { method: "PUT", body: JSON.stringify({ content: source.value }) });
+      state.googleDriveFile = { ...state.googleDriveFile, ...result.file };
+    } else {
+      const result = await googleRequest("/api/google/drive/files", { method: "POST", body: JSON.stringify({ name: normalizedFilename("fountain"), content: source.value }) });
+      state.googleDriveFile = result.file;
+      connectDriveCollaboration(result.file);
+    }
+    state.savedSource = source.value;
+    updateGoogleMenu();
+    toast("Saved to Google Drive");
+  } catch (error) { toast(error.message); }
+}
+
+async function shareGoogleDrive() {
+  if (!state.googleDriveFile) return;
+  const email = window.prompt("Google account email to share with:");
+  if (!email) return;
+  const editable = window.confirm("Allow this person to edit? Choose Cancel for view-only access.");
+  try {
+    await googleRequest(`/api/google/drive/files/${encodeURIComponent(state.googleDriveFile.id)}/permissions`, { method: "POST", body: JSON.stringify({ email: email.trim(), role: editable ? "writer" : "reader" }) });
+    toast(`Shared with ${email.trim()}`);
+  } catch (error) { toast(error.message); }
 }
 
 async function saveFile(saveAs = false) {
@@ -4736,6 +4873,9 @@ source.addEventListener("input", (event) => {
   if (event.inputType === "insertText") showCompletions();
   else hideCompletions();
 });
+document.addEventListener("selectionchange", () => {
+  if (document.activeElement === source || page.contains(document.activeElement)) scheduleCollaborationPresence();
+});
 source.addEventListener("paste", (event) => {
   const pasted = event.clipboardData?.getData("text/plain");
   if (pasted === undefined) return;
@@ -5171,6 +5311,28 @@ $("#new-file").addEventListener("click", newFile); $("#open-file").addEventListe
 $("#github-connect").addEventListener("click", connectGithub);
 $("#github-open").addEventListener("click", () => openGithubBrowser("open"));
 $("#github-save").addEventListener("click", () => openGithubBrowser("save"));
+$("#google-connect").addEventListener("click", connectGoogle);
+$("#google-open").addEventListener("click", openGoogleDrive);
+$("#google-save").addEventListener("click", saveGoogleDrive);
+$("#google-share").addEventListener("click", shareGoogleDrive);
+$("#google-drive-close").addEventListener("click", () => $("#google-drive-dialog").close());
+$("#google-disconnect").addEventListener("click", async () => {
+  try { await googleRequest("/auth/google/logout", { method: "POST" }); } catch { /* local sign-out still applies */ }
+  collaboration.disconnect();
+  state.googleConnected = false;
+  state.googleAccount = null;
+  state.googleDriveFile = null;
+  state.collaborators.clear();
+  source.readOnly = false;
+  $("#screenplay-page").contentEditable = "plaintext-only";
+  $("#google-drive-dialog").close();
+  updateGoogleMenu();
+  toast("Signed out of Google");
+});
+$("#google-drive-files").addEventListener("click", (event) => {
+  const file = event.target.closest("[data-google-file]");
+  if (file) openGoogleDriveFile(file.dataset.googleFile).catch((error) => toast(error.message));
+});
 $("#close-github-dialog").addEventListener("click", () => $("#github-dialog").close());
 $("#github-install").addEventListener("click", () => { if (state.githubInstallUrl) openGithubPopup(state.githubInstallUrl); });
 $("#github-disconnect").addEventListener("click", async () => {
@@ -5619,6 +5781,7 @@ async function initialize() {
   const enableWorkspaceCache = params.get("demo") !== "1";
   setDocument(text, name, !restore, restore ? cached.githubFile || null : null);
   void refreshGithubSession();
+  void refreshGoogleSession();
   setMobileTab("preview");
   if (restore && ["fit", "70", "85", "100", "115", "130", "150", "175", "200"].includes(String(cached.zoom))) {
     state.previewZoom = String(cached.zoom);
@@ -5647,3 +5810,4 @@ async function initialize() {
 }
 
 initialize();
+import { CollaborationClient, googleRequest, openGoogleSignIn } from "./collaboration.mjs";

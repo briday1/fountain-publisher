@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 const root = process.cwd();
 const htmlPath = join(root, "src/fountain_publisher/web/index.html");
 const appPath = join(root, "src/fountain_publisher/web/app.mjs");
+const collaborationPath = join(root, "src/fountain_publisher/web/collaboration.mjs");
 const workerPath = join(root, "github-worker/src/index.mjs");
 const workerConfigPath = join(root, "github-worker/wrangler.jsonc");
 const migrationPath = join(root, "github-worker/migrations/0001_sessions.sql");
@@ -119,4 +120,20 @@ test("Worker establishes hardened Google sessions and limits Drive access", asyn
   assert.match(worker, /authorizedUntil <= Math\.floor\(Date\.now\(\) \/ 1000\)/);
   assert.match(worker, /!identity\?\.canEdit/);
   assert.match(worker, /update\.length > 65_536/);
+});
+
+test("browser connects Drive documents to resumable Yjs collaboration", async () => {
+  const [html, app, collaboration] = await Promise.all([
+    readFile(htmlPath, "utf8"), readFile(appPath, "utf8"), readFile(collaborationPath, "utf8"),
+  ]);
+  assert.match(html, /id="google-connect"/);
+  assert.match(html, /id="google-drive-dialog"/);
+  assert.match(html, /wss:\/\/api\.fountain-publisher\.com/);
+  assert.match(app, /new CollaborationClient/);
+  assert.match(app, /function connectDriveCollaboration/);
+  assert.match(app, /scheduleCollaborationPresence/);
+  assert.match(collaboration, /import \* as Y/);
+  assert.match(collaboration, /Y\.applyUpdate/);
+  assert.match(collaboration, /while \(start < current\.length/);
+  assert.match(collaboration, /setTimeout\(\(\) => this\.checkpoint\(\), 2000\)/);
 });

@@ -326,6 +326,11 @@ async function authorizeCollaboration(request, env, url) {
   headers.set("x-fp-can-edit", String(file.capabilities?.canEdit === true));
   headers.set("x-fp-authorized-until", String(Math.floor(Date.now() / 1000) + 300));
   const room = env.COLLAB_ROOMS.get(env.COLLAB_ROOMS.idFromName(match[1]));
+  const initialized = await room.fetch("https://room.internal/initialized");
+  if (!(await initialized.json()).initialized) {
+    const content = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, session.access_token)).text();
+    await room.fetch(new Request("https://room.internal/initialize", { method: "POST", body: content }));
+  }
   return room.fetch(new Request(request, { headers }));
 }
 
@@ -564,11 +569,24 @@ export class CollaborationRoom {
     this.ready = state.blockConcurrencyWhile(async () => {
       const snapshot = await state.storage.get("yjs-snapshot");
       if (snapshot) Y.applyUpdate(this.document, new Uint8Array(snapshot));
+      this.initialized = await state.storage.get("initialized") === true;
     });
   }
 
   async fetch(request) {
     await this.ready;
+    const url = new URL(request.url);
+    if (url.pathname === "/initialized") return json({ initialized: this.initialized });
+    if (url.pathname === "/initialize" && request.method === "POST") {
+      if (!this.initialized) {
+        const content = await request.text();
+        if (content.length > 5_000_000) return json({ error: "Document is too large" }, 413);
+        this.document.getText("source").insert(0, content);
+        await this.state.storage.put({ initialized: true, "yjs-snapshot": Y.encodeStateAsUpdate(this.document) });
+        this.initialized = true;
+      }
+      return json({ initialized: true });
+    }
     if (this.state.getWebSockets().length >= 100) return json({ error: "Collaboration room is full" }, 503);
     const pair = new WebSocketPair();
     const client = pair[0];

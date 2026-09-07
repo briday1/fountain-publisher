@@ -10,6 +10,7 @@ await Promise.all([
   cp("src/fountain_publisher/web/styles.css", `${output}/styles.css`),
   cp("src/fountain_publisher/web/app.webmanifest", `${output}/app.webmanifest`),
   cp("src/fountain_publisher/web/service-worker.js", `${output}/service-worker.js`),
+  cp("src/fountain_publisher/web/collaboration.mjs", `${output}/collaboration.mjs`),
   cp("src/fountain_publisher/web/icons", `${output}/icons`, { recursive: true }),
   cp("src/fountain_publisher/web/fonts", `${output}/fonts`, { recursive: true }),
   cp("src/fountain_publisher/web/vendor", `${output}/vendor`, { recursive: true }),
