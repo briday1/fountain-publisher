@@ -3,6 +3,11 @@
 Fountain Publisher includes and distributes third-party software. These notices
 are provided with both the local application and the static web build.
 
+## Yjs
+
+- Yjs 13.6 — MIT License. Copyright Kevin Jahns and contributors. Source:
+  https://github.com/yjs/yjs
+
 ## Browser Python Runtime
 
 - Pyodide 314.0.6 — Mozilla Public License 2.0. Source and license:

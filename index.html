@@ -10,7 +10,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Fountain Publisher" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:; worker-src 'self' blob:; connect-src 'self' https://api.fountain-publisher.com" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval' https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; frame-src blob: https://docs.google.com https://accounts.google.com; worker-src 'self' blob:; connect-src 'self' https://api.fountain-publisher.com wss://api.fountain-publisher.com" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23000'/><text x='16' y='23' text-anchor='middle' font-family='Georgia,serif' font-weight='700' font-size='20' fill='%23fff'>F</text></svg>" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link rel="manifest" href="app.webmanifest" />
@@ -25,7 +25,7 @@
           <strong>FOUNTAIN PUBLISHER</strong>
           <p>A source-first screenplay studio.</p>
           <span class="menu-separator"></span>
-          <a class="about-repo-link" href="https://github.com/briday1/fountain-publisher" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+          <a class="about-repo-link" href="https://github.com/briday1/fountain-publisher" target="_blank" rel="noopener noreferrer">View on GitHub</a><a class="about-repo-link" href="privacy.html" target="_blank">Privacy</a><a class="about-repo-link" href="terms.html" target="_blank">Terms</a>
         </div>
       </details>
       <nav id="global-actions" class="global-actions" aria-label="Application menu">
@@ -42,6 +42,12 @@
             <button id="github-connect" type="button">Connect GitHub…</button>
             <button id="github-open" type="button" disabled>Open from GitHub…</button>
             <button id="github-save" type="button" disabled>Save to GitHub…</button>
+            <span class="menu-separator"></span>
+            <strong>GOOGLE DRIVE</strong>
+            <button id="google-connect" type="button">Sign in with Google…</button>
+            <button id="google-open" type="button" disabled>Open from Drive…</button>
+            <button id="google-save" type="button" disabled>Save to Drive</button>
+            <button id="google-share" type="button" disabled>Share document…</button>
             <span class="menu-separator"></span>
             <strong>PUBLISH</strong>
             <button id="export-pdf" type="button">Export PDF…</button>
@@ -119,10 +125,32 @@
         <span id="dirty-dot" aria-hidden="true"></span>
         <span id="filename">Untitled.fountain</span>
         <span id="compile-status" class="compile-status">Ready</span>
+        <span id="collaboration-status" class="compile-status"></span>
+        <span id="collaboration-presence" class="compile-status"></span>
       </div>
       <button id="mobile-menu-toggle" class="mobile-menu-toggle" type="button" aria-label="Open menu" aria-controls="global-actions" aria-expanded="false"><span></span><span></span><span></span></button>
       <input id="file-input" type="file" accept=".fountain,.txt,.pdf,text/plain,application/pdf" hidden />
     </header>
+    <dialog id="google-drive-dialog" aria-labelledby="google-drive-title">
+      <article class="github-shell">
+        <header class="github-header"><div><small>GOOGLE DRIVE</small><h2 id="google-drive-title">Manage sharing</h2></div><button id="google-drive-close" type="button" aria-label="Close Google Drive sharing">×</button></header>
+        <div class="github-account-row"><span id="google-account">Not signed in</span><button id="google-drive-refresh" type="button">Refresh</button><button id="google-disconnect" type="button">Sign out</button></div>
+        <div class="google-drive-toolbar"><label>Find screenplay<input id="google-drive-filter" type="search" placeholder="Search shared screenplays" autocomplete="off" /></label><button id="google-save-current" class="primary" type="button">Save current screenplay</button></div>
+        <div class="google-drive-body">
+          <div id="google-drive-files" class="github-files google-drive-files-pane" role="listbox" aria-label="Fountain Publisher files in Google Drive"></div>
+          <aside id="google-share-panel" aria-label="Document sharing">
+            <div id="google-share-empty">Select a Drive screenplay to manage sharing.</div>
+            <div id="google-share-controls" hidden>
+              <small>SHARING</small><h3 id="google-share-filename"></h3>
+              <div class="google-share-invite"><input id="google-share-email" type="email" placeholder="name@example.com" autocomplete="email" /><select id="google-share-role" aria-label="Access role"><option value="writer">Can edit</option><option value="reader">Can view</option></select><button id="google-share-invite" type="button">Invite</button></div>
+              <p id="google-share-status" role="status"></p>
+              <div id="google-permissions" class="google-permissions"></div>
+            </div>
+          </aside>
+        </div>
+        <footer class="google-drive-footer"><span id="google-drive-selection">No file selected</span><button id="google-drive-open-selected" class="primary" type="button" disabled>Open selected</button></footer>
+      </article>
+    </dialog>
     <button id="mobile-menu-backdrop" class="mobile-menu-backdrop" type="button" aria-label="Close menu" tabindex="-1"></button>
     <nav id="zen-controls" class="zen-controls" aria-label="Zen workspace controls" hidden>
       <button data-preview-mode="source" type="button">Source</button>
@@ -144,6 +172,7 @@
           <div id="current-line" class="current-line" aria-hidden="true"></div>
           <div id="line-numbers" class="line-numbers" aria-hidden="true"></div>
           <pre id="source-highlight" class="source-highlight" aria-hidden="true"></pre>
+          <div id="collaboration-cursors" aria-hidden="true"></div>
           <textarea id="source" aria-label="Fountain source" aria-describedby="editor-status spellcheck-help" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" wrap="soft"></textarea>
           <div id="completion-menu" class="completion-menu" role="listbox" aria-label="Fountain suggestions" hidden></div>
         </div>
