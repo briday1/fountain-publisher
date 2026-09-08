@@ -227,7 +227,9 @@ async function getGoogleSession(request, env) {
 }
 
 async function driveFetch(path, token, init = {}) {
-  const response = await fetch(path.startsWith("http") ? path : `https://www.googleapis.com${path}`, {
+  const url = new URL(path, "https://www.googleapis.com");
+  url.searchParams.set("supportsAllDrives", "true");
+  const response = await fetch(url, {
     ...init,
     headers: { authorization: `Bearer ${token}`, ...init.headers },
   });
@@ -293,9 +295,10 @@ async function googleApiRequest(request, env, url) {
     if (!safeDriveId(fileId)) return json({ error: "Invalid Drive file" }, 400);
     const fields = encodeURIComponent("id,name,mimeType,modifiedTime,appProperties,capabilities(canEdit,canShare)");
     const existing = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?fields=${fields}`, session.access_token)).json();
-    if (existing.mimeType !== "text/plain" || !/\.(?:fountain|txt)$/i.test(existing.name || "")) return json({ error: "Choose a .fountain or .txt screenplay" }, 400);
+    const screenplayTypes = ["text/plain", "text/x-fountain", "application/x-fountain", "application/octet-stream"];
+    if (!screenplayTypes.includes(existing.mimeType) || !/\.(?:fountain|txt)$/i.test(existing.name || "")) return json({ error: "Choose a .fountain or .txt screenplay" }, 400);
     if (existing.appProperties?.fountainPublisherDocumentId) return json({ file: existing });
-    if (existing.capabilities?.canEdit !== true) return json({ error: "This screenplay is view-only and has not been prepared for live collaboration by its owner" }, 403);
+    if (existing.capabilities?.canEdit !== true) return json({ file: existing });
     const documentId = randomToken(24);
     const file = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?fields=${fields}`, session.access_token, {
       method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ appProperties: { fountainPublisherDocument: "true", fountainPublisherDocumentId: documentId } }),
