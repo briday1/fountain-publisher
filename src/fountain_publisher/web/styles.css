@@ -630,6 +630,24 @@ body.preview-colors .script-line.section.act { color: color-mix(in srgb, var(--s
 
 #github-dialog { width: min(520px, calc(100vw - 32px)); height: min(480px, calc(var(--visual-viewport-height) - 32px)); max-width: none; max-height: none; padding: 0; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 #github-dialog::backdrop { background: rgb(0 0 0 / 42%); backdrop-filter: blur(2px); }
+html.google-picker-open, .google-picker-open body { overscroll-behavior: none; }
+.google-picker-open body { position: fixed; inset: 0; width: 100%; height: 100%; }
+/* Google's default absolute positioning can scroll the workspace when its iframe receives focus. */
+.google-picker-open .picker-dialog {
+  position: fixed !important; top: var(--visual-viewport-top) !important; left: var(--visual-viewport-left) !important;
+  width: var(--visual-viewport-width) !important; height: var(--visual-viewport-height) !important;
+  max-width: 1051px; max-height: 650px; min-width: 0 !important; min-height: 0 !important; margin: 0 !important; box-sizing: border-box;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.google-picker-open .picker-dialog-content { flex: 1; min-height: 0; width: 100% !important; height: auto !important; overflow: hidden; }
+.google-picker-open .picker-dialog-content iframe { display: block; width: 100% !important; height: 100% !important; }
+.google-picker-open .picker-dialog-bg { position: fixed !important; inset: 0 !important; width: 100% !important; height: 100% !important; }
+#google-picker-help { position: fixed; top: var(--visual-viewport-top); left: var(--visual-viewport-left); width: min(540px, calc(var(--visual-viewport-width) - 24px)); max-height: calc(var(--visual-viewport-height) - 24px); box-sizing: border-box; margin: 12px; padding: 0; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--ink); }
+#google-picker-help::backdrop { background: rgb(0 0 0 / 42%); }
+.google-picker-help-body { padding: 0 16px 16px; }
+.google-picker-help-body a { color: var(--accent); }
+.google-picker-help-body .dialog-actions { flex-wrap: wrap; }
+#google-picker-status { font-weight: 600; }
 #google-drive-dialog { width: min(900px, calc(100vw - 32px)); height: min(650px, calc(var(--visual-viewport-height) - 32px)); max-width: none; max-height: none; padding: 0; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 #google-drive-dialog::backdrop { background: rgb(0 0 0 / 42%); backdrop-filter: blur(2px); }
 #google-drive-dialog button, #google-drive-dialog input, #google-drive-dialog select { min-height: 32px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--ink); padding: 6px 9px; }

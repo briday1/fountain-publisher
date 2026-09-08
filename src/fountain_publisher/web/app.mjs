@@ -2744,12 +2744,43 @@ function loadGooglePicker() {
     script.onload = ready;
     script.onerror = () => reject(new Error("Google Drive browser failed to load"));
     document.head.append(script);
+  }).catch((error) => {
+    googlePickerPromise = null;
+    throw error;
   });
   return googlePickerPromise;
 }
 
+let googlePickerActive = false;
+
+function showGooglePickerStatus(message) {
+  $("#google-picker-status").textContent = message;
+  $("#google-picker-retry").disabled = googlePickerActive;
+  $("#google-picker-local").disabled = googlePickerActive;
+  const dialog = $("#google-picker-help");
+  if (!dialog.open) dialog.showModal();
+}
+
 async function openGooglePicker() {
+  if (googlePickerActive) return;
+  googlePickerActive = true;
+  const focus = document.activeElement;
+  const scrollX = window.scrollX;
+  const scrollY = window.scrollY;
+  let browser;
+  let finished = false;
+  const cleanup = () => {
+    browser?.dispose();
+    document.documentElement.classList.remove("google-picker-open");
+    googlePickerActive = false;
+    focus?.focus({ preventScroll: true });
+    window.scrollTo(scrollX, scrollY);
+  };
   try {
+    $("#google-drive-dialog").close();
+    $("#google-picker-help").close();
+    focus?.blur();
+    document.documentElement.classList.add("google-picker-open");
     const config = await googleRequest("/api/google/picker/config");
     if (!config.apiKey || !config.appId) throw new Error("Google Drive browser setup is incomplete: add GOOGLE_API_KEY and GOOGLE_APP_ID to the Worker");
     await loadGooglePicker();
@@ -2760,23 +2791,50 @@ async function openGooglePicker() {
     const myDrive = docsView().setParent("root").setLabel("My Drive");
     const allFiles = docsView().setLabel("All files");
     const sharedDrives = docsView().setEnableDrives(true).setLabel("Shared drives");
-    $("#google-drive-dialog").close();
-    new window.google.picker.PickerBuilder()
+    const viewport = window.visualViewport;
+    browser = new picker.PickerBuilder()
       .setAppId(config.appId).setDeveloperKey(config.apiKey).setOAuthToken(config.accessToken)
       .setOrigin(window.location.origin)
-      .setTitle("Open a .fountain or .txt screenplay")
+      .setTitle("Choose a .fountain or .txt screenplay, then tap Select")
+      .setSize(Math.min(1051, viewport?.width || window.innerWidth), Math.min(650, viewport?.height || window.innerHeight))
       .addView(shared).addView(myDrive).addView(allFiles).addView(sharedDrives)
       .enableFeature(picker.Feature.SUPPORT_DRIVES)
       .setCallback(async (data) => {
-        if (data.action !== window.google.picker.Action.PICKED) return;
+        if (finished || ![picker.Action.PICKED, picker.Action.CANCEL, picker.Action.ERROR].includes(data.action)) return;
+        finished = true;
+        cleanup();
+        if (data.action === picker.Action.CANCEL) {
+          showGooglePickerStatus("No file opened. You can retry the Drive browser or open a downloaded copy.");
+          return;
+        }
+        if (data.action === picker.Action.ERROR) {
+          showGooglePickerStatus("Google's Drive browser could not access your account or files. Your Fountain Publisher connection may still be working.");
+          return;
+        }
         const fileId = data.docs?.[0]?.id;
-        if (!fileId) return;
+        if (!fileId) {
+          showGooglePickerStatus("Google did not return a selected file. Try again and tap Select after choosing a screenplay.");
+          return;
+        }
+        googlePickerActive = true;
+        showGooglePickerStatus("Opening selected screenplay…");
         try {
           await googleRequest(`/api/google/drive/files/${encodeURIComponent(fileId)}/adopt`, { method: "POST" });
           await openGoogleDriveFile(fileId);
-        } catch (error) { toast(error.message); }
-      }).build().setVisible(true);
-  } catch (error) { toast(error.message); }
+          $("#google-picker-help").close();
+        } catch (error) { showGooglePickerStatus(`Could not open the screenplay: ${error.message}`); }
+        finally {
+          googlePickerActive = false;
+          $("#google-picker-retry").disabled = false;
+          $("#google-picker-local").disabled = false;
+        }
+      }).build();
+    browser.setVisible(true);
+  } catch (error) {
+    finished = true;
+    cleanup();
+    showGooglePickerStatus(error.message);
+  }
 }
 
 async function saveGoogleDrive({ keepBrowser = false } = {}) {
@@ -5467,6 +5525,12 @@ $("#google-share").addEventListener("click", shareGoogleDrive);
 $("#google-drive-close").addEventListener("click", () => $("#google-drive-dialog").close());
 $("#google-drive-refresh").addEventListener("click", openGoogleDrive);
 $("#google-drive-browse").addEventListener("click", openGooglePicker);
+$("#google-picker-retry").addEventListener("click", openGooglePicker);
+$("#google-picker-close").addEventListener("click", () => $("#google-picker-help").close());
+$("#google-picker-local").addEventListener("click", () => {
+  $("#google-picker-help").close();
+  openFile();
+});
 $("#google-drive-filter").addEventListener("input", renderGoogleDriveFiles);
 $("#google-save-current").addEventListener("click", () => saveGoogleDrive({ keepBrowser: true }));
 $("#google-drive-open-selected").addEventListener("click", () => {
