@@ -2256,14 +2256,20 @@ async function openFile() {
   if (!(await confirmDiscard())) return;
   if (window.showOpenFilePicker) {
     try {
-      [state.handle] = await window.showOpenFilePicker({ types: [{ description: "Screenplay", accept: { "text/plain": [".fountain", ".txt"], "application/pdf": [".pdf"] } }], multiple: false });
-      const file = await state.handle.getFile();
-      if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) { state.handle = null; await importPdfFile(file); }
-      else setDocument(await file.text(), file.name, true);
+      const [handle] = await window.showOpenFilePicker({ types: [{ description: "Screenplay", accept: { "text/plain": [".fountain", ".txt"], "application/pdf": [".pdf"] } }], multiple: false });
+      await openLocalFile(await handle.getFile(), handle);
       return;
     } catch (error) { if (error.name !== "AbortError") toast(error.message); return; }
   }
   $("#file-input").click();
+}
+
+async function openLocalFile(file, handle = null) {
+  if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) return importPdfFile(file);
+  const content = await file.text();
+  collaboration.disconnect();
+  state.handle = handle;
+  setDocument(content, file.name, true);
 }
 
 function pdfLayoutToFountain(pages) {
@@ -2529,6 +2535,8 @@ async function importPdfFile(file) {
     if (!pages.some((page) => page.trim())) throw new Error("No selectable text was found. This PDF may be an image-only scan.");
     const imported = pdfLayoutToFountain(pages);
     const filename = file.name.replace(/\.pdf$/i, "") + ".fountain";
+    collaboration.disconnect();
+    state.handle = null;
     setDocument(imported, filename, false);
     state.savedSource = "";
     document.body.classList.add("dirty");
@@ -5658,7 +5666,12 @@ window.addEventListener("message", async (event) => {
   if (event.data.type === "github-error") return toast(event.data.message || "GitHub connection failed");
   if (await refreshGithubSession({ notify: true })) await openGithubBrowser();
 });
-$("#file-input").addEventListener("change", async (event) => { const file = event.target.files?.[0]; if (file) { state.handle = null; if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) await importPdfFile(file); else setDocument(await file.text(), file.name, true); } event.target.value = ""; });
+$("#file-input").addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  try { if (file) await openLocalFile(file); }
+  catch (error) { toast(error.message); }
+  finally { event.target.value = ""; }
+});
 $("#export-pdf").addEventListener("click", () => openExport("pdf")); $("#export-fdx").addEventListener("click", () => openExport("fdx"));
 $("#export-format").addEventListener("change", (event) => { $("#dialog-page-size").hidden = event.target.value !== "pdf"; });
 $("#export-form").addEventListener("submit", (event) => { if (event.submitter?.value !== "default") return; event.preventDefault(); exportDocument($("#export-format").value); });

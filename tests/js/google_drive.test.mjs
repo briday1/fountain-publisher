@@ -222,6 +222,37 @@ test("picker CSS bounds its iframe to the visual viewport and recovery explains 
   assert.match(app, /\$\("#google-picker-local"\)\.addEventListener\("click", \(\) => \{[\s\S]*?openFile\(\)/);
 });
 
+test("opening a downloaded copy disconnects Drive only after a successful read", async () => {
+  const calls = [];
+  const oldHandle = {};
+  const context = {
+    state: { handle: oldHandle },
+    collaboration: { disconnect: () => calls.push("disconnect") },
+    setDocument: (...args) => calls.push(args),
+  };
+  runInNewContext(app.slice(app.indexOf("async function openLocalFile("), app.indexOf("function pdfLayoutToFountain(")), context);
+  await assert.rejects(context.openLocalFile({ name: "Script.fountain", text: async () => { throw new Error("Read failed"); } }), /Read failed/);
+  assert.deepEqual(calls, []);
+  assert.equal(context.state.handle, oldHandle);
+  await context.openLocalFile({ name: "Script.fountain", text: async () => "INT. ROOM - DAY" });
+  assert.deepEqual(calls, ["disconnect", ["INT. ROOM - DAY", "Script.fountain", true]]);
+  assert.equal(context.state.handle, null);
+});
+
+test("cancelling the native file chooser preserves the current Drive session", async () => {
+  const oldHandle = {};
+  const context = {
+    state: { handle: oldHandle },
+    confirmDiscard: async () => true,
+    window: { showOpenFilePicker: async () => { const error = new Error("Cancelled"); error.name = "AbortError"; throw error; } },
+    openLocalFile: () => assert.fail("Cancellation must not load a local file"),
+    toast: () => assert.fail("Cancellation must not report an error"),
+  };
+  runInNewContext(app.slice(app.indexOf("async function openFile("), app.indexOf("async function openLocalFile(")), context);
+  await context.openFile();
+  assert.equal(context.state.handle, oldHandle);
+});
+
 function adoptionHarness(file) {
   const requests = [];
   const context = {
