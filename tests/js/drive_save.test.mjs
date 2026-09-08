@@ -258,11 +258,11 @@ test('collaboration admission denies missing sessions, Drive denial, and mismatc
       driveFetch: async (_url, token) => {
         driveCalls++; assert.equal(token, 'user-token');
         if (scenario === 'drive-denied') throw new Error('Drive denied access');
-        return { json: async () => ({ appProperties: { fountainPublisherDocumentId: 'different-room' } }) };
+        return { json: async () => ({ id: 'file-id', appProperties: { fountainPublisherDocumentId: 'different-room' } }) };
       },
     };
     runInNewContext(code, context);
-    const url = new URL(`https://api.example/api/collaboration/${roomId}?fileId=file-id`);
+    const url = new URL(`https://api.example/api/collaboration/${roomId}?fileId=file-id&roomProtocol=2`);
     const request = new Request(url, { headers: { upgrade: 'websocket', origin: 'https://app.example' } });
     const env = { APP_ORIGIN: 'https://app.example', COLLAB_ROOMS: { idFromName() { roomCalls++; } } };
     const result = context.authorizeCollaboration(request, env, url);
