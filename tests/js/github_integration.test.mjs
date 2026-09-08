@@ -112,6 +112,8 @@ test("Worker establishes hardened Google sessions and limits Drive access", asyn
   assert.match(worker, /profile\.email_verified !== true/);
   assert.match(worker, /encryptToken\(token\.access_token, env\)/);
   assert.match(worker, /fountainPublisherDocument/);
+  assert.match(worker, /supportsAllDrives=true/);
+  assert.match(worker, /includeItemsFromAllDrives=true/);
   assert.match(worker, /\["reader", "writer"\]\.includes\(body\.role\)/);
   assert.match(worker, /permissions\(id,type,role,emailAddress,displayName,photoLink,pendingOwner\)/);
   assert.match(worker, /permissionDeleteMatch/);

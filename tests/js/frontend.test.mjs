@@ -171,7 +171,7 @@ test("Source, Preview, PDF, and Beat Sheet share the main workspace", async () =
   assert.match(css, /#stats-panel\s*\{\s*grid-column:\s*3;/);
   assert.match(html, /id="menu-toggle-source-tab"[^>]*>Show Source tab/);
   assert.match(app, /function sourceTabEnabled\(\)[\s\S]*source-tab-hidden[\s\S]*state\.previewMode === "source"/);
-  assert.match(app, /function sourceTabEnabled\(\)[\s\S]*if \(stored !== null\) return stored === "true";[\s\S]*WORKSPACE_CACHE_KEY/);
+  assert.match(app, /function sourceTabEnabled\(\)[\s\S]*if \(stored !== null\) return stored === "true";[\s\S]*return true;/);
   assert.match(app, /storedStatsCollapsed === null \|\| storedStatsCollapsed === "true"/);
   assert.match(css, /body\.source-tab-hidden \[data-preview-mode="source"\]/);
   assert.match(css, /#source-panel \.editor-shell\s*\{[^}]*width:\s*min\(816px,[^}]*margin:\s*34px auto 0;[^}]*box-shadow:\s*var\(--shadow\);/s);
