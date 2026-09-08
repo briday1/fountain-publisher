@@ -14,6 +14,8 @@ function pickerHarness({ adoptError = false, configError = false, buildError = f
   const properties = new Map();
   const elements = new Map();
   const sizes = [];
+  const listeners = new Set();
+  const viewportListeners = new Set();
   let callback;
   class DocsView {
     constructor(id) { this.id = id; }
@@ -51,7 +53,13 @@ function pickerHarness({ adoptError = false, configError = false, buildError = f
       location: { origin: "https://app.example" },
       scrollX: 0, scrollY: 120,
       innerWidth: 1024, innerHeight: 768,
-      visualViewport: { width: 768, height: 600 },
+      addEventListener: (event, listener) => listeners.add(listener),
+      removeEventListener: (event, listener) => listeners.delete(listener),
+      visualViewport: {
+        width: 768, height: 600,
+        addEventListener: (event, listener) => viewportListeners.add(listener),
+        removeEventListener: (event, listener) => viewportListeners.delete(listener),
+      },
       scrollTo: (x, y) => calls.push(["scroll", x, y]),
       google: { picker: { DocsView, PickerBuilder, ViewId: { DOCS: "docs" }, DocsViewMode: { LIST: "list" }, Feature: { SUPPORT_DRIVES: "drives" }, Action: { PICKED: "picked", CANCEL: "cancel", ERROR: "error" } } },
     },
@@ -81,7 +89,7 @@ function pickerHarness({ adoptError = false, configError = false, buildError = f
     toast: (message) => messages.push(message),
   };
   runInNewContext(app.slice(app.indexOf("let googlePickerActive"), app.indexOf("async function saveGoogleDrive(")), context);
-  return { context, views, calls, messages, classes, elements, sizes, properties, pick: (data) => callback(data) };
+  return { context, views, calls, messages, classes, elements, sizes, properties, listeners, viewportListeners, pick: (data) => callback(data) };
 }
 
 test("native Drive picker separates shared files, root folders, global search, and shared drives", async () => {
@@ -222,7 +230,7 @@ test("owned and shared screenplays open directly from Picker after cancellation 
 test("small viewports fit Picker's enforced minimum without resizing its internal iframe", async () => {
   for (const [width, height] of [[390, 844], [844, 320]]) {
     const harness = pickerHarness();
-    harness.context.window.visualViewport = { width, height };
+    Object.assign(harness.context.window.visualViewport, { width, height });
     await harness.context.openGooglePicker();
     const [pickerWidth, pickerHeight] = harness.sizes[0];
     const scale = Number(harness.properties.get("--google-picker-scale"));
@@ -233,6 +241,26 @@ test("small viewports fit Picker's enforced minimum without resizing its interna
     await harness.pick({ action: "cancel" });
     assert.equal(harness.properties.has("--google-picker-scale"), false);
   }
+});
+
+test("an open Picker refits on rotation and keyboard resize and removes listeners on dismissal", async () => {
+  const harness = pickerHarness();
+  Object.assign(harness.context.window.visualViewport, { width: 1024, height: 768 });
+  await harness.context.openGooglePicker();
+  const [width, height] = harness.sizes[0];
+  for (const [viewportWidth, viewportHeight, listeners] of [
+    [768, 1024, harness.listeners],
+    [390, 320, harness.viewportListeners],
+  ]) {
+    Object.assign(harness.context.window.visualViewport, { width: viewportWidth, height: viewportHeight });
+    for (const listener of listeners) listener();
+    const scale = Number(harness.properties.get("--google-picker-scale"));
+    assert.ok(width * scale <= viewportWidth - 24);
+    assert.ok(height * scale <= viewportHeight - 24);
+  }
+  await harness.pick({ action: "cancel" });
+  assert.equal(harness.listeners.size, 0);
+  assert.equal(harness.viewportListeners.size, 0);
 });
 
 test("loading Picker does not change the workspace layout before the browser is ready", async () => {

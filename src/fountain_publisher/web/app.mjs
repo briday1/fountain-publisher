@@ -2776,9 +2776,14 @@ async function openGooglePicker() {
   const scrollX = window.scrollX;
   const scrollY = window.scrollY;
   let browser;
+  let resizePicker;
   let finished = false;
   const cleanup = () => {
     browser?.dispose();
+    if (resizePicker) {
+      window.removeEventListener("resize", resizePicker);
+      window.visualViewport?.removeEventListener("resize", resizePicker);
+    }
     document.documentElement.classList.remove("google-picker-open");
     document.documentElement.style.removeProperty("--google-picker-scale");
     googlePickerActive = false;
@@ -2840,7 +2845,14 @@ async function openGooglePicker() {
         }
       }).build();
     updateMobileViewport();
-    document.documentElement.style.setProperty("--google-picker-scale", String(Math.min(1, availableWidth / width, availableHeight / height)));
+    resizePicker = () => {
+      const currentViewport = window.visualViewport;
+      const scale = Math.min(1, Math.max(1, (currentViewport?.width || window.innerWidth) - 24) / width, Math.max(1, (currentViewport?.height || window.innerHeight) - 24) / height);
+      document.documentElement.style.setProperty("--google-picker-scale", String(scale));
+    };
+    resizePicker();
+    window.addEventListener("resize", resizePicker);
+    window.visualViewport?.addEventListener("resize", resizePicker);
     document.documentElement.classList.add("google-picker-open");
     browser.setVisible(true);
   } catch (error) {
