@@ -2671,10 +2671,10 @@ async function connectGoogle() {
 }
 
 function connectDriveCollaboration(file) {
+  updateGoogleMenu();
   const documentId = file.appProperties?.fountainPublisherDocumentId;
   if (!documentId) return toast("This Drive file predates live collaboration. Save a new Drive copy to collaborate.");
   collaboration.connect({ fileId: file.id, documentId, canEdit: file.capabilities?.canEdit === true });
-  updateGoogleMenu();
 }
 
 async function openGoogleDrive() {
@@ -2726,6 +2726,7 @@ async function loadGooglePermissions() {
 
 async function openGoogleDriveFile(fileId) {
   const result = await googleRequest(`/api/google/drive/files?fileId=${encodeURIComponent(fileId)}`);
+  collaboration.disconnect();
   setDocument(result.content, result.file.name, true, null, result.file);
   connectDriveCollaboration(result.file);
   $("#google-drive-dialog").close();
@@ -2752,11 +2753,20 @@ async function openGooglePicker() {
     const config = await googleRequest("/api/google/picker/config");
     if (!config.apiKey || !config.appId) throw new Error("Google Drive browser setup is incomplete: add GOOGLE_API_KEY and GOOGLE_APP_ID to the Worker");
     await loadGooglePicker();
-    const view = new window.google.picker.DocsView().setIncludeFolders(true).setSelectFolderEnabled(false).setMimeTypes("text/plain");
+    const picker = window.google.picker;
+    const docsView = () => new picker.DocsView(picker.ViewId.DOCS)
+      .setIncludeFolders(true).setSelectFolderEnabled(false).setMode(picker.DocsViewMode.LIST);
+    const shared = docsView().setOwnedByMe(false).setLabel("Shared with me");
+    const myDrive = docsView().setParent("root").setLabel("My Drive");
+    const allFiles = docsView().setLabel("All files");
+    const sharedDrives = docsView().setEnableDrives(true).setLabel("Shared drives");
+    $("#google-drive-dialog").close();
     new window.google.picker.PickerBuilder()
       .setAppId(config.appId).setDeveloperKey(config.apiKey).setOAuthToken(config.accessToken)
       .setOrigin(window.location.origin)
-      .addView(view).enableFeature(window.google.picker.Feature.SUPPORT_DRIVES)
+      .setTitle("Open a .fountain or .txt screenplay")
+      .addView(shared).addView(myDrive).addView(allFiles).addView(sharedDrives)
+      .enableFeature(picker.Feature.SUPPORT_DRIVES)
       .setCallback(async (data) => {
         if (data.action !== window.google.picker.Action.PICKED) return;
         const fileId = data.docs?.[0]?.id;
@@ -5456,6 +5466,7 @@ $("#google-save").addEventListener("click", saveGoogleDrive);
 $("#google-share").addEventListener("click", shareGoogleDrive);
 $("#google-drive-close").addEventListener("click", () => $("#google-drive-dialog").close());
 $("#google-drive-refresh").addEventListener("click", openGoogleDrive);
+$("#google-drive-browse").addEventListener("click", openGooglePicker);
 $("#google-drive-filter").addEventListener("input", renderGoogleDriveFiles);
 $("#google-save-current").addEventListener("click", () => saveGoogleDrive({ keepBrowser: true }));
 $("#google-drive-open-selected").addEventListener("click", () => {
