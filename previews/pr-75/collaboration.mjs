@@ -67,6 +67,7 @@ export class CollaborationClient {
     if (this.closed) return;
     const url = new URL(`${API_ORIGIN.replace("https:", "wss:")}/api/collaboration/${this.documentId}`);
     url.searchParams.set("fileId", this.fileId);
+    url.searchParams.set("roomProtocol", "2");
     const socket = this.socket = new WebSocket(url);
     socket.addEventListener("open", () => { if (this.socket === socket) this.onStatus("connected"); });
     socket.addEventListener("message", (event) => { if (this.socket === socket) this.receive(event.data); });
