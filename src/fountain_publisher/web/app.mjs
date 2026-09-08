@@ -2256,14 +2256,20 @@ async function openFile() {
   if (!(await confirmDiscard())) return;
   if (window.showOpenFilePicker) {
     try {
-      [state.handle] = await window.showOpenFilePicker({ types: [{ description: "Screenplay", accept: { "text/plain": [".fountain", ".txt"], "application/pdf": [".pdf"] } }], multiple: false });
-      const file = await state.handle.getFile();
-      if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) { state.handle = null; await importPdfFile(file); }
-      else setDocument(await file.text(), file.name, true);
+      const [handle] = await window.showOpenFilePicker({ types: [{ description: "Screenplay", accept: { "text/plain": [".fountain", ".txt"], "application/pdf": [".pdf"] } }], multiple: false });
+      await openLocalFile(await handle.getFile(), handle);
       return;
     } catch (error) { if (error.name !== "AbortError") toast(error.message); return; }
   }
   $("#file-input").click();
+}
+
+async function openLocalFile(file, handle = null) {
+  if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) return importPdfFile(file);
+  const content = await file.text();
+  collaboration.disconnect();
+  state.handle = handle;
+  setDocument(content, file.name, true);
 }
 
 function pdfLayoutToFountain(pages) {
@@ -2529,6 +2535,8 @@ async function importPdfFile(file) {
     if (!pages.some((page) => page.trim())) throw new Error("No selectable text was found. This PDF may be an image-only scan.");
     const imported = pdfLayoutToFountain(pages);
     const filename = file.name.replace(/\.pdf$/i, "") + ".fountain";
+    collaboration.disconnect();
+    state.handle = null;
     setDocument(imported, filename, false);
     state.savedSource = "";
     document.body.classList.add("dirty");
@@ -2744,12 +2752,48 @@ function loadGooglePicker() {
     script.onload = ready;
     script.onerror = () => reject(new Error("Google Drive browser failed to load"));
     document.head.append(script);
+  }).catch((error) => {
+    googlePickerPromise = null;
+    throw error;
   });
   return googlePickerPromise;
 }
 
+let googlePickerActive = false;
+
+function showGooglePickerStatus(message) {
+  $("#google-picker-status").textContent = message;
+  $("#google-picker-retry").disabled = googlePickerActive;
+  $("#google-picker-local").disabled = googlePickerActive;
+  const dialog = $("#google-picker-help");
+  if (!dialog.open) dialog.showModal();
+}
+
 async function openGooglePicker() {
+  if (googlePickerActive) return;
+  googlePickerActive = true;
+  const focus = document.activeElement;
+  const scrollX = window.scrollX;
+  const scrollY = window.scrollY;
+  let browser;
+  let resizePicker;
+  let finished = false;
+  const cleanup = () => {
+    browser?.dispose();
+    if (resizePicker) {
+      window.removeEventListener("resize", resizePicker);
+      window.visualViewport?.removeEventListener("resize", resizePicker);
+    }
+    document.documentElement.classList.remove("google-picker-open");
+    document.documentElement.style.removeProperty("--google-picker-scale");
+    googlePickerActive = false;
+    focus?.focus({ preventScroll: true });
+    window.scrollTo(scrollX, scrollY);
+  };
   try {
+    $("#google-drive-dialog").close();
+    $("#google-picker-help").close();
+    focus?.blur();
     const config = await googleRequest("/api/google/picker/config");
     if (!config.apiKey || !config.appId) throw new Error("Google Drive browser setup is incomplete: add GOOGLE_API_KEY and GOOGLE_APP_ID to the Worker");
     await loadGooglePicker();
@@ -2760,23 +2804,62 @@ async function openGooglePicker() {
     const myDrive = docsView().setParent("root").setLabel("My Drive");
     const allFiles = docsView().setLabel("All files");
     const sharedDrives = docsView().setEnableDrives(true).setLabel("Shared drives");
-    $("#google-drive-dialog").close();
-    new window.google.picker.PickerBuilder()
+    const viewport = window.visualViewport;
+    const availableWidth = Math.max(1, (viewport?.width || window.innerWidth) - 24);
+    const availableHeight = Math.max(1, (viewport?.height || window.innerHeight) - 24);
+    // Picker enforces a 566×350 minimum; scale the whole dialog on smaller screens.
+    const width = Math.max(566, Math.min(1051, availableWidth));
+    const height = Math.max(350, Math.min(650, availableHeight));
+    browser = new picker.PickerBuilder()
       .setAppId(config.appId).setDeveloperKey(config.apiKey).setOAuthToken(config.accessToken)
       .setOrigin(window.location.origin)
-      .setTitle("Open a .fountain or .txt screenplay")
+      .setTitle("Choose a .fountain or .txt screenplay, then tap Select")
+      .setSize(width, height)
       .addView(shared).addView(myDrive).addView(allFiles).addView(sharedDrives)
       .enableFeature(picker.Feature.SUPPORT_DRIVES)
       .setCallback(async (data) => {
-        if (data.action !== window.google.picker.Action.PICKED) return;
+        if (finished || ![picker.Action.PICKED, picker.Action.CANCEL, picker.Action.ERROR].includes(data.action)) return;
+        finished = true;
+        cleanup();
+        if (data.action === picker.Action.CANCEL) return;
+        if (data.action === picker.Action.ERROR) {
+          showGooglePickerStatus("Google's Drive browser could not access your account or files. Your Fountain Publisher connection may still be working.");
+          return;
+        }
         const fileId = data.docs?.[0]?.id;
-        if (!fileId) return;
+        if (!fileId) {
+          showGooglePickerStatus("Google did not return a selected file. Try again and tap Select after choosing a screenplay.");
+          return;
+        }
+        googlePickerActive = true;
+        showGooglePickerStatus("Opening selected screenplay…");
         try {
           await googleRequest(`/api/google/drive/files/${encodeURIComponent(fileId)}/adopt`, { method: "POST" });
           await openGoogleDriveFile(fileId);
-        } catch (error) { toast(error.message); }
-      }).build().setVisible(true);
-  } catch (error) { toast(error.message); }
+          $("#google-picker-help").close();
+        } catch (error) { showGooglePickerStatus(`Could not open the screenplay: ${error.message}`); }
+        finally {
+          googlePickerActive = false;
+          $("#google-picker-retry").disabled = false;
+          $("#google-picker-local").disabled = false;
+        }
+      }).build();
+    updateMobileViewport();
+    resizePicker = () => {
+      const currentViewport = window.visualViewport;
+      const scale = Math.min(1, Math.max(1, (currentViewport?.width || window.innerWidth) - 24) / width, Math.max(1, (currentViewport?.height || window.innerHeight) - 24) / height);
+      document.documentElement.style.setProperty("--google-picker-scale", String(scale));
+    };
+    resizePicker();
+    window.addEventListener("resize", resizePicker);
+    window.visualViewport?.addEventListener("resize", resizePicker);
+    document.documentElement.classList.add("google-picker-open");
+    browser.setVisible(true);
+  } catch (error) {
+    finished = true;
+    cleanup();
+    showGooglePickerStatus(error.message);
+  }
 }
 
 async function saveGoogleDrive({ keepBrowser = false } = {}) {
@@ -5467,6 +5550,12 @@ $("#google-share").addEventListener("click", shareGoogleDrive);
 $("#google-drive-close").addEventListener("click", () => $("#google-drive-dialog").close());
 $("#google-drive-refresh").addEventListener("click", openGoogleDrive);
 $("#google-drive-browse").addEventListener("click", openGooglePicker);
+$("#google-picker-retry").addEventListener("click", openGooglePicker);
+$("#google-picker-close").addEventListener("click", () => $("#google-picker-help").close());
+$("#google-picker-local").addEventListener("click", () => {
+  $("#google-picker-help").close();
+  openFile();
+});
 $("#google-drive-filter").addEventListener("input", renderGoogleDriveFiles);
 $("#google-save-current").addEventListener("click", () => saveGoogleDrive({ keepBrowser: true }));
 $("#google-drive-open-selected").addEventListener("click", () => {
@@ -5594,7 +5683,12 @@ window.addEventListener("message", async (event) => {
   if (event.data.type === "github-error") return toast(event.data.message || "GitHub connection failed");
   if (await refreshGithubSession({ notify: true })) await openGithubBrowser();
 });
-$("#file-input").addEventListener("change", async (event) => { const file = event.target.files?.[0]; if (file) { state.handle = null; if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) await importPdfFile(file); else setDocument(await file.text(), file.name, true); } event.target.value = ""; });
+$("#file-input").addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  try { if (file) await openLocalFile(file); }
+  catch (error) { toast(error.message); }
+  finally { event.target.value = ""; }
+});
 $("#export-pdf").addEventListener("click", () => openExport("pdf")); $("#export-fdx").addEventListener("click", () => openExport("fdx"));
 $("#export-format").addEventListener("change", (event) => { $("#dialog-page-size").hidden = event.target.value !== "pdf"; });
 $("#export-form").addEventListener("submit", (event) => { if (event.submitter?.value !== "default") return; event.preventDefault(); exportDocument($("#export-format").value); });
@@ -5898,6 +5992,13 @@ function scheduleMobileViewportUpdate() {
   if (!mobileViewportFrame) mobileViewportFrame = requestAnimationFrame(updateMobileViewport);
 }
 
+function restoreWorkspaceViewport() {
+  // Document scrolling is never used; editor and preview scroll independently.
+  window.scrollTo(0, 0);
+  updateMobileViewport();
+}
+
+window.addEventListener("pageshow", restoreWorkspaceViewport);
 window.visualViewport?.addEventListener("resize", scheduleMobileViewportUpdate);
 window.visualViewport?.addEventListener("scroll", scheduleMobileViewportUpdate);
 window.addEventListener("scroll", scheduleMobileViewportUpdate);
@@ -5920,7 +6021,7 @@ function registerAppServiceWorker() {
 }
 
 async function initialize() {
-  updateMobileViewport();
+  restoreWorkspaceViewport();
   setTheme(state.theme);
   updateAppWindowControls();
   registerAppServiceWorker();
