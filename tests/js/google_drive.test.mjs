@@ -11,6 +11,7 @@ function pickerHarness({ adoptError = false, configError = false, buildError = f
   const calls = [];
   const messages = [];
   const classes = new Set();
+  const properties = new Map();
   const elements = new Map();
   const sizes = [];
   let callback;
@@ -30,7 +31,7 @@ function pickerHarness({ adoptError = false, configError = false, buildError = f
     setOAuthToken() { return this; }
     setOrigin() { return this; }
     setTitle() { return this; }
-    setSize(width, height) { sizes.push([width, height]); return this; }
+    setSize(width, height) { sizes.push([Math.max(566, width), Math.max(350, height)]); return this; }
     addView(view) { views.push(view); return this; }
     enableFeature() { return this; }
     setCallback(value) { callback = value; return this; }
@@ -41,7 +42,10 @@ function pickerHarness({ adoptError = false, configError = false, buildError = f
   const context = {
     document: {
       activeElement: { blur() {}, focus: (options) => calls.push(["focus", options.preventScroll]) },
-      documentElement: { classList: { add: (name) => classes.add(name), remove: (name) => classes.delete(name) } },
+      documentElement: {
+        classList: { add: (name) => classes.add(name), remove: (name) => classes.delete(name) },
+        style: { setProperty: (name, value) => properties.set(name, value), removeProperty: (name) => properties.delete(name) },
+      },
     },
     window: {
       location: { origin: "https://app.example" },
@@ -60,6 +64,7 @@ function pickerHarness({ adoptError = false, configError = false, buildError = f
       return elements.get(selector);
     },
     loadGooglePicker: async () => {},
+    updateMobileViewport() {},
     googleRequest: async (path, options) => {
       calls.push([path, options?.method]);
       if (path.endsWith("/config")) {
@@ -76,7 +81,7 @@ function pickerHarness({ adoptError = false, configError = false, buildError = f
     toast: (message) => messages.push(message),
   };
   runInNewContext(app.slice(app.indexOf("let googlePickerActive"), app.indexOf("async function saveGoogleDrive(")), context);
-  return { context, views, calls, messages, classes, elements, sizes, pick: (data) => callback(data) };
+  return { context, views, calls, messages, classes, elements, sizes, properties, pick: (data) => callback(data) };
 }
 
 test("native Drive picker separates shared files, root folders, global search, and shared drives", async () => {
@@ -111,7 +116,7 @@ test("picker selection releases the viewport and grants access through adoption 
   const harness = pickerHarness();
   await harness.context.openGooglePicker();
   assert.ok(harness.classes.has("google-picker-open"));
-  assert.deepEqual(harness.sizes, [[768, 600]]);
+  assert.deepEqual(harness.sizes, [[744, 576]]);
   harness.calls.length = 0;
   await harness.pick({ action: "picked", docs: [{ id: "shared-file_123" }] });
   assert.deepEqual(harness.calls, [
@@ -139,9 +144,17 @@ test("picker failures show persistent errors rather than silently ignoring a sel
   assert.match(denied.elements.get("#google-picker-status").textContent, /Access denied/);
 });
 
-test("cancellation, missing documents, and account errors offer recovery without opening a file", async () => {
+test("cancelling Picker returns to the workspace without another modal", async () => {
+  const harness = pickerHarness();
+  await harness.context.openGooglePicker();
+  await harness.pick({ action: "cancel" });
+  assert.equal(harness.classes.size, 0);
+  assert.equal(harness.elements.get("#google-picker-help").open, false);
+  assert.equal(harness.calls.some(([action]) => action === "open" || action.endsWith("/adopt")), false);
+});
+
+test("missing documents and account errors offer recovery without opening a file", async () => {
   for (const [data, message] of [
-    [{ action: "cancel" }, /No file opened/],
     [{ action: "picked", docs: [] }, /did not return a selected file/],
     [{ action: "error" }, /connection may still be working/],
   ]) {
@@ -190,7 +203,76 @@ test("picker adapts to desktop dimensions without the Visual Viewport API", asyn
   const harness = pickerHarness();
   delete harness.context.window.visualViewport;
   await harness.context.openGooglePicker();
-  assert.deepEqual(harness.sizes, [[1024, 650]]);
+  assert.deepEqual(harness.sizes, [[1000, 650]]);
+});
+
+test("owned and shared screenplays open directly from Picker after cancellation and retry", async () => {
+  const harness = pickerHarness();
+  await harness.context.openGooglePicker();
+  await harness.pick({ action: "cancel" });
+  for (const id of ["owned-file_123", "shared-file_123"]) {
+    await harness.context.openGooglePicker();
+    await harness.pick({ action: "picked", docs: [{ id }] });
+    assert.ok(harness.calls.some(([path]) => path === `/api/google/drive/files/${id}/adopt`));
+    assert.ok(harness.calls.some(([action, fileId]) => action === "open" && fileId === id));
+    assert.equal(harness.elements.get("#google-picker-help").open, false);
+  }
+});
+
+test("small viewports fit Picker's enforced minimum without resizing its internal iframe", async () => {
+  for (const [width, height] of [[390, 844], [844, 320]]) {
+    const harness = pickerHarness();
+    harness.context.window.visualViewport = { width, height };
+    await harness.context.openGooglePicker();
+    const [pickerWidth, pickerHeight] = harness.sizes[0];
+    const scale = Number(harness.properties.get("--google-picker-scale"));
+    assert.ok(pickerWidth >= 566);
+    assert.ok(pickerHeight >= 350);
+    assert.ok(pickerWidth * scale <= width - 24);
+    assert.ok(pickerHeight * scale <= height - 24);
+    await harness.pick({ action: "cancel" });
+    assert.equal(harness.properties.has("--google-picker-scale"), false);
+  }
+});
+
+test("loading Picker does not change the workspace layout before the browser is ready", async () => {
+  const harness = pickerHarness();
+  let ready;
+  let loading;
+  const started = new Promise((resolve) => { loading = resolve; });
+  harness.context.loadGooglePicker = () => new Promise((resolve) => { ready = resolve; loading(); });
+  const opening = harness.context.openGooglePicker();
+  await started;
+  assert.equal(harness.classes.size, 0);
+  ready();
+  await opening;
+  assert.ok(harness.classes.has("google-picker-open"));
+});
+
+test("initial load and page restoration reset only the document scroll, not editor scroll", () => {
+  const properties = new Map();
+  const source = { scrollTop: 300 };
+  const preview = { scrollTop: 600 };
+  const context = {
+    source,
+    preview,
+    document: { documentElement: { style: { setProperty: (name, value) => properties.set(name, value) } } },
+    window: {
+      innerWidth: 1024, innerHeight: 768,
+      scrollX: 20, scrollY: 300,
+      scrollTo(x, y) { this.scrollX = x; this.scrollY = y; },
+    },
+  };
+  runInNewContext(app.slice(app.indexOf("let mobileViewportFrame"), app.indexOf('window.addEventListener("pageshow"')), context);
+  context.restoreWorkspaceViewport();
+  assert.equal(context.window.scrollX, 0);
+  assert.equal(context.window.scrollY, 0);
+  assert.equal(properties.get("--visual-viewport-top"), "0px");
+  assert.equal(properties.get("--visual-viewport-height"), "768px");
+  assert.equal(source.scrollTop, 300);
+  assert.equal(preview.scrollTop, 600);
+  assert.match(app, /window\.addEventListener\("pageshow", restoreWorkspaceViewport\)/);
+  assert.match(app, /async function initialize\(\) \{\s*restoreWorkspaceViewport\(\)/);
 });
 
 test("failed Picker script loads can be retried", async () => {
@@ -210,12 +292,16 @@ test("failed Picker script loads can be retried", async () => {
   await second;
 });
 
-test("picker CSS bounds its iframe to the visual viewport and recovery explains the local-copy fallback", async () => {
+test("picker CSS preserves Google's iframe layout and recovery explains the local-copy fallback", async () => {
   const css = await readFile(new URL("../../src/fountain_publisher/web/styles.css", import.meta.url), "utf8");
   const html = await readFile(new URL("../../src/fountain_publisher/web/index.html", import.meta.url), "utf8");
-  assert.match(css, /\.google-picker-open body\s*\{[^}]*position:\s*fixed/);
-  assert.match(css, /\.google-picker-open \.picker-dialog\s*\{[^}]*position:\s*fixed !important;[^}]*top:\s*var\(--visual-viewport-top\)[^}]*height:\s*var\(--visual-viewport-height\)/s);
-  assert.match(css, /\.google-picker-open \.picker-dialog-content iframe\s*\{[^}]*height:\s*100% !important/);
+  assert.doesNotMatch(css, /\.google-picker-open body\s*\{[^}]*position:\s*fixed/);
+  const dialogStyles = css.match(/\.google-picker-open \.picker-dialog\s*\{([^}]+)\}/)[1];
+  assert.match(dialogStyles, /position:\s*fixed !important/);
+  assert.match(dialogStyles, /top:\s*calc\(var\(--visual-viewport-top\) \+ 12px\)/);
+  assert.doesNotMatch(dialogStyles, /(?:width|height|display|overflow):/);
+  assert.match(dialogStyles, /transform:\s*scale\(var\(--google-picker-scale, 1\)\)/);
+  assert.doesNotMatch(css, /\.picker-dialog-content/);
   assert.match(html, /id="google-picker-status" role="status"/);
   assert.match(html, /Can't access your Google Account/);
   assert.match(html, /local copy, without Drive syncing or live collaboration/);

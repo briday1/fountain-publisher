@@ -2780,6 +2780,7 @@ async function openGooglePicker() {
   const cleanup = () => {
     browser?.dispose();
     document.documentElement.classList.remove("google-picker-open");
+    document.documentElement.style.removeProperty("--google-picker-scale");
     googlePickerActive = false;
     focus?.focus({ preventScroll: true });
     window.scrollTo(scrollX, scrollY);
@@ -2788,7 +2789,6 @@ async function openGooglePicker() {
     $("#google-drive-dialog").close();
     $("#google-picker-help").close();
     focus?.blur();
-    document.documentElement.classList.add("google-picker-open");
     const config = await googleRequest("/api/google/picker/config");
     if (!config.apiKey || !config.appId) throw new Error("Google Drive browser setup is incomplete: add GOOGLE_API_KEY and GOOGLE_APP_ID to the Worker");
     await loadGooglePicker();
@@ -2800,21 +2800,23 @@ async function openGooglePicker() {
     const allFiles = docsView().setLabel("All files");
     const sharedDrives = docsView().setEnableDrives(true).setLabel("Shared drives");
     const viewport = window.visualViewport;
+    const availableWidth = Math.max(1, (viewport?.width || window.innerWidth) - 24);
+    const availableHeight = Math.max(1, (viewport?.height || window.innerHeight) - 24);
+    // Picker enforces a 566×350 minimum; scale the whole dialog on smaller screens.
+    const width = Math.max(566, Math.min(1051, availableWidth));
+    const height = Math.max(350, Math.min(650, availableHeight));
     browser = new picker.PickerBuilder()
       .setAppId(config.appId).setDeveloperKey(config.apiKey).setOAuthToken(config.accessToken)
       .setOrigin(window.location.origin)
       .setTitle("Choose a .fountain or .txt screenplay, then tap Select")
-      .setSize(Math.min(1051, viewport?.width || window.innerWidth), Math.min(650, viewport?.height || window.innerHeight))
+      .setSize(width, height)
       .addView(shared).addView(myDrive).addView(allFiles).addView(sharedDrives)
       .enableFeature(picker.Feature.SUPPORT_DRIVES)
       .setCallback(async (data) => {
         if (finished || ![picker.Action.PICKED, picker.Action.CANCEL, picker.Action.ERROR].includes(data.action)) return;
         finished = true;
         cleanup();
-        if (data.action === picker.Action.CANCEL) {
-          showGooglePickerStatus("No file opened. You can retry the Drive browser or open a downloaded copy.");
-          return;
-        }
+        if (data.action === picker.Action.CANCEL) return;
         if (data.action === picker.Action.ERROR) {
           showGooglePickerStatus("Google's Drive browser could not access your account or files. Your Fountain Publisher connection may still be working.");
           return;
@@ -2837,6 +2839,9 @@ async function openGooglePicker() {
           $("#google-picker-local").disabled = false;
         }
       }).build();
+    updateMobileViewport();
+    document.documentElement.style.setProperty("--google-picker-scale", String(Math.min(1, availableWidth / width, availableHeight / height)));
+    document.documentElement.classList.add("google-picker-open");
     browser.setVisible(true);
   } catch (error) {
     finished = true;
@@ -5975,6 +5980,13 @@ function scheduleMobileViewportUpdate() {
   if (!mobileViewportFrame) mobileViewportFrame = requestAnimationFrame(updateMobileViewport);
 }
 
+function restoreWorkspaceViewport() {
+  // Document scrolling is never used; editor and preview scroll independently.
+  window.scrollTo(0, 0);
+  updateMobileViewport();
+}
+
+window.addEventListener("pageshow", restoreWorkspaceViewport);
 window.visualViewport?.addEventListener("resize", scheduleMobileViewportUpdate);
 window.visualViewport?.addEventListener("scroll", scheduleMobileViewportUpdate);
 window.addEventListener("scroll", scheduleMobileViewportUpdate);
@@ -5997,7 +6009,7 @@ function registerAppServiceWorker() {
 }
 
 async function initialize() {
-  updateMobileViewport();
+  restoreWorkspaceViewport();
   setTheme(state.theme);
   updateAppWindowControls();
   registerAppServiceWorker();
