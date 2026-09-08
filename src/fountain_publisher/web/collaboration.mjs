@@ -39,17 +39,19 @@ export class CollaborationClient {
     this.closed = true;
   }
 
-  connect({ fileId, documentId, canEdit }) {
+  connect({ fileId, documentId, canEdit, pendingContent }) {
     this.disconnect();
     this.fileId = fileId;
     this.documentId = documentId;
     this.canEdit = canEdit;
     this.closed = false;
+    this.synced = false;
+    this.pendingContent = pendingContent;
     this.doc = new Y.Doc();
     this.text = this.doc.getText("source");
     this.text.observe((_event, transaction) => {
       const value = this.text.toString();
-      this.onDocument(value, transaction.origin === this.remoteOrigin);
+      if (this.synced) this.onDocument(value, transaction.origin === this.remoteOrigin);
       if (transaction.origin === this.remoteOrigin) return;
       this.scheduleCheckpoint();
     });
@@ -65,29 +67,39 @@ export class CollaborationClient {
     if (this.closed) return;
     const url = new URL(`${API_ORIGIN.replace("https:", "wss:")}/api/collaboration/${this.documentId}`);
     url.searchParams.set("fileId", this.fileId);
-    this.socket = new WebSocket(url);
-    this.socket.addEventListener("open", () => this.onStatus("connected"));
-    this.socket.addEventListener("message", (event) => this.receive(event.data));
-    this.socket.addEventListener("close", (event) => {
-      if (this.closed) return;
+    url.searchParams.set("roomProtocol", "2");
+    const socket = this.socket = new WebSocket(url);
+    socket.addEventListener("open", () => { if (this.socket === socket) this.onStatus("connected"); });
+    socket.addEventListener("message", (event) => { if (this.socket === socket) this.receive(event.data); });
+    socket.addEventListener("close", (event) => {
+      if (this.closed || this.socket !== socket) return;
       this.onStatus("reconnecting", event.reason || `Connection closed (${event.code})`);
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = setTimeout(() => this.openSocket(), 1000 + Math.random() * 2000);
     });
-    this.socket.addEventListener("error", () => this.socket.close());
+    socket.addEventListener("error", () => socket.close());
   }
 
   receive(message) {
     let payload;
     try { payload = JSON.parse(message); } catch { return; }
     if (payload.type === "sync" || payload.type === "update") {
-      try { Y.applyUpdate(this.doc, bytesFromBase64Url(payload.update), this.remoteOrigin); } catch { this.onStatus("error"); }
+      try {
+        Y.applyUpdate(this.doc, bytesFromBase64Url(payload.update), this.remoteOrigin);
+        if (payload.type === "sync" && !this.synced) {
+          this.synced = true;
+          if (this.pendingContent !== undefined) this.replace(this.pendingContent);
+          this.pendingContent = undefined;
+          this.onDocument(this.text.toString(), true);
+        }
+      } catch { this.onStatus("error"); }
     }
     if (payload.type === "presence") this.onPresence(payload);
     if (payload.type === "error") this.onStatus("read-only");
   }
 
   replace(value) {
+    if (this.text && this.canEdit && !this.synced) { this.pendingContent = value; return; }
     if (!this.canEdit || !this.text || value === this.text.toString()) return;
     const current = this.text.toString();
     let start = 0;
@@ -114,10 +126,11 @@ export class CollaborationClient {
 
   async checkpoint() {
     if (!this.text || !this.canEdit) return;
+    const doc = this.doc;
     try {
       await googleRequest(`/api/google/drive/files/${encodeURIComponent(this.fileId)}`, { method: "PUT", body: JSON.stringify({ content: this.text.toString() }) });
-      this.onStatus("saved");
-    } catch { this.onStatus("save-error"); }
+      if (this.doc === doc) this.onStatus("saved");
+    } catch { if (this.doc === doc) this.onStatus("save-error"); }
   }
 
   disconnect() {

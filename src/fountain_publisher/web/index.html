@@ -10,7 +10,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Fountain Publisher" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval' https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; frame-src blob: https://docs.google.com https://accounts.google.com; worker-src 'self' blob:; connect-src 'self' https://api.fountain-publisher.com wss://api.fountain-publisher.com" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval' https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; frame-src blob: https://drive.google.com https://docs.google.com https://accounts.google.com; worker-src 'self' blob:; connect-src 'self' https://api.fountain-publisher.com wss://api.fountain-publisher.com" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23000'/><text x='16' y='23' text-anchor='middle' font-family='Georgia,serif' font-weight='700' font-size='20' fill='%23fff'>F</text></svg>" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link rel="manifest" href="app.webmanifest" />
@@ -47,7 +47,9 @@
             <button id="google-connect" type="button">Sign in with Google…</button>
             <button id="google-open" type="button" disabled>Open from Drive…</button>
             <button id="google-save" type="button" disabled>Save to Drive</button>
+            <button id="google-save-as" type="button" disabled>Save As to Drive…</button>
             <button id="google-share" type="button" disabled>Share document…</button>
+            <button id="google-disconnect" type="button" disabled>Sign out of Google</button>
             <span class="menu-separator"></span>
             <strong>PUBLISH</strong>
             <button id="export-pdf" type="button">Export PDF…</button>
@@ -131,26 +133,6 @@
       <button id="mobile-menu-toggle" class="mobile-menu-toggle" type="button" aria-label="Open menu" aria-controls="global-actions" aria-expanded="false"><span></span><span></span><span></span></button>
       <input id="file-input" type="file" accept=".fountain,.txt,.pdf,text/plain,application/pdf" hidden />
     </header>
-    <dialog id="google-drive-dialog" aria-labelledby="google-drive-title">
-      <article class="github-shell">
-        <header class="github-header"><div><small>GOOGLE DRIVE</small><h2 id="google-drive-title">Manage sharing</h2></div><button id="google-drive-close" type="button" aria-label="Close Google Drive sharing">×</button></header>
-        <div class="github-account-row"><span id="google-account">Not signed in</span><button id="google-drive-refresh" type="button">Refresh</button><button id="google-disconnect" type="button">Sign out</button></div>
-        <div class="google-drive-toolbar"><label>Find screenplay<input id="google-drive-filter" type="search" placeholder="Search shared screenplays" autocomplete="off" /></label><button id="google-save-current" class="primary" type="button">Save current screenplay</button></div>
-        <div class="google-drive-body">
-          <div id="google-drive-files" class="github-files google-drive-files-pane" role="listbox" aria-label="Fountain Publisher files in Google Drive"></div>
-          <aside id="google-share-panel" aria-label="Document sharing">
-            <div id="google-share-empty">Select a Drive screenplay to manage sharing.</div>
-            <div id="google-share-controls" hidden>
-              <small>SHARING</small><h3 id="google-share-filename"></h3>
-              <div class="google-share-invite"><input id="google-share-email" type="email" placeholder="name@example.com" autocomplete="email" /><select id="google-share-role" aria-label="Access role"><option value="writer">Can edit</option><option value="reader">Can view</option></select><button id="google-share-invite" type="button">Invite</button></div>
-              <p id="google-share-status" role="status"></p>
-              <div id="google-permissions" class="google-permissions"></div>
-            </div>
-          </aside>
-        </div>
-        <footer class="google-drive-footer"><span id="google-drive-selection">No file selected</span><button id="google-drive-open-selected" class="primary" type="button" disabled>Open selected</button></footer>
-      </article>
-    </dialog>
     <button id="mobile-menu-backdrop" class="mobile-menu-backdrop" type="button" aria-label="Close menu" tabindex="-1"></button>
     <nav id="zen-controls" class="zen-controls" aria-label="Zen workspace controls" hidden>
       <button data-preview-mode="source" type="button">Source</button>
@@ -523,6 +505,14 @@
       </form>
     </dialog>
 
+    <dialog id="google-save-dialog" aria-labelledby="google-save-title">
+      <form method="dialog" id="google-save-form">
+        <div class="dialog-heading"><small>GOOGLE DRIVE</small><h2 id="google-save-title">Save screenplay</h2></div>
+        <label>Filename<input id="google-save-name" type="text" required maxlength="200" autocomplete="off" /></label>
+        <p>Choose where to create this copy. Your original file stays where it is.</p>
+        <div class="dialog-actions"><button type="submit" value="cancel" formnovalidate>Cancel</button><button type="submit" value="root">Save in My Drive</button><button class="primary" type="submit" value="folder">Choose folder…</button></div>
+      </form>
+    </dialog>
     <script type="module" src="app.mjs"></script>
   </body>
 </html>

@@ -79,6 +79,15 @@ The existing GitHub Pages workflow remains responsible for the static site. Clou
 
 Migration `0002_security_hardening.sql` removes sessions created before encryption, so users reconnect once after it is deployed. Apply migrations before deploying the updated Worker.
 
+## Document security and encryption work
+
+Google Drive permissions gate document access, but the current collaboration
+service and Drive storage process readable document content. **Documents are not
+end-to-end encrypted.** The [E2EE draft and security rollout notes](docs/end-to-end-encryption.md)
+describe the experimental encryption primitive, the room-isolation change, and
+the remaining work before an encrypted mode can be offered. The draft must not
+be deployed without its coordinated save/backup/reload procedure.
+
 ## Install and run
 
 Use Python 3.9 or newer:
