@@ -369,7 +369,7 @@ body.stats-collapsed #stats-panel, body.stats-collapsed #stats-resizer { display
 body.stats-collapsed .insights-open-button { display: inline-flex; align-items: center; justify-content: center; }
 body.stats-collapsed #workspace { grid-template-columns: minmax(320px, 1fr) 0 0; }
 
-.editor-shell { flex: 1; min-height: 0; position: relative; display: grid; grid-template-columns: 43px 1fr; overflow: hidden; background: var(--source-bg); }
+.editor-shell { flex: 1; min-height: 0; position: relative; display: grid; grid-template-columns: 43px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); overflow: hidden; background: var(--source-bg); -webkit-text-size-adjust: none; text-size-adjust: none; }
 #source-panel .editor-shell { width: min(816px, calc(100% - 40px)); margin: 34px auto 0; border: 1px solid var(--border); border-bottom: 0; border-radius: 4px 4px 0 0; box-shadow: var(--shadow); }
 #source-panel .editor-footer { width: min(816px, calc(100% - 40px)); margin: 0 auto 34px; border: 1px solid var(--border); border-top: 1px solid var(--border); border-radius: 0 0 4px 4px; background: var(--source-bg); box-shadow: 0 12px 24px rgb(20 24 28 / 8%); }
 #source-panel .editor-shell, #source-panel .editor-footer, .beat-sheet-workspace, .beat-sheet-actions { zoom: var(--workspace-zoom, 1); }
@@ -377,7 +377,7 @@ body.stats-collapsed #workspace { grid-template-columns: minmax(320px, 1fr) 0 0;
 .line-number { position: absolute; right: 9px; display: block; height: 1.55em; line-height: 1.55; }
 .line-number-spacer { display: block; width: 1px; visibility: hidden; pointer-events: none; }
 #source { grid-column: 2; grid-row: 1; width: 100%; height: 100%; resize: none; border: 0; outline: 0; padding: 14px 16px 90px; margin: 0; background: transparent; white-space: pre; overflow: auto; tab-size: 4; font: 13px/1.55 var(--mono); caret-color: var(--syntax-scene); }
-.source-highlight { grid-column: 2; grid-row: 1; width: 100%; height: 100%; overflow: hidden; padding: 14px 16px 90px; margin: 0; white-space: pre; tab-size: 4; color: var(--source-ink); font: 13px/1.55 var(--mono); pointer-events: none; }
+.source-highlight { grid-column: 2; grid-row: 1; position: relative; width: 100%; height: 100%; overflow: hidden; padding: 14px 16px 90px; margin: 0; white-space: pre; tab-size: 4; color: var(--source-ink); font: 13px/1.55 var(--mono); pointer-events: none; }
 #collaboration-cursors { z-index: 3; grid-column: 2; grid-row: 1; position: relative; width: 100%; height: 100%; overflow: hidden; pointer-events: none; }
 .collaboration-cursor-layer { position: absolute; inset: 0; overflow: hidden; padding: 14px 16px 90px; margin: 0; white-space: pre; tab-size: 4; color: transparent; font: 13px/1.55 var(--mono); }
 body.source-wrap .collaboration-cursor-layer { white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -394,15 +394,15 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 #source { color: transparent; -webkit-text-fill-color: transparent; }
 #source::selection { background: color-mix(in srgb, var(--accent) 28%, transparent); }
 .source-highlight .syntax-title { color: color-mix(in srgb, var(--syntax-title) 65%, var(--source-ink)); }
-.source-highlight .syntax-scene { color: color-mix(in srgb, var(--syntax-scene) 65%, var(--source-ink)); font-weight: 700; }
-.source-highlight .syntax-character { color: color-mix(in srgb, var(--syntax-character) 65%, var(--source-ink)); font-weight: 700; }
+.source-highlight .syntax-scene { color: color-mix(in srgb, var(--syntax-scene) 65%, var(--source-ink)); }
+.source-highlight .syntax-character { color: color-mix(in srgb, var(--syntax-character) 65%, var(--source-ink)); }
 .source-highlight .syntax-dialogue { color: color-mix(in srgb, var(--syntax-dialogue) 65%, var(--source-ink)); }
 .source-highlight .syntax-action { color: color-mix(in srgb, var(--syntax-action) 65%, var(--source-ink)); }
 .source-highlight .syntax-parenthetical { color: color-mix(in srgb, var(--syntax-parenthetical) 65%, var(--source-ink)); }
-.source-highlight .syntax-transition { color: color-mix(in srgb, var(--syntax-transition) 65%, var(--source-ink)); font-weight: 700; }
+.source-highlight .syntax-transition { color: color-mix(in srgb, var(--syntax-transition) 65%, var(--source-ink)); }
 .source-highlight .syntax-section, .source-highlight .syntax-synopsis { color: color-mix(in srgb, var(--syntax-structure) 65%, var(--source-ink)); }
 .source-highlight .syntax-note, .source-highlight .syntax-boneyard { color: color-mix(in srgb, var(--syntax-ignored) 65%, var(--source-ink)); }
-.source-highlight .syntax-lyric { color: var(--syntax-parenthetical); font-style: italic; }
+.source-highlight .syntax-lyric { color: var(--syntax-parenthetical); }
 .source-highlight .fountain-markup { color: var(--source-muted); }
 .source-highlight .source-spelling-error { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: #d14b64; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 .current-line { position: absolute; left: 43px; right: 0; height: 20.15px; top: 14px; background: color-mix(in srgb, var(--syntax-scene) 8%, transparent); pointer-events: none; z-index: 0; }
@@ -423,7 +423,7 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 .context-menu-separator { display: block; margin: 4px 3px; border-top: 1px solid var(--border); }
 .context-spelling button { color: var(--metric-scenes-ink); font-weight: 700; }
 .context-spelling small { display: block; padding: 6px 8px; color: var(--muted); font-size: 10px; }
-.editor-footer { min-height: 31px; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 5px 10px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
+.editor-footer { flex: 0 0 auto; min-height: 31px; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 5px 10px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; white-space: nowrap; }
 .editor-footer > span:last-child { white-space: nowrap; }
 .vim-status { padding: 2px 5px; border-radius: 3px; background: color-mix(in srgb, currentColor 12%, transparent); font: 700 9px/1.2 var(--mono); letter-spacing: .06em; }
 .vim-status[data-mode="normal"] { color: var(--metric-pages-ink); }

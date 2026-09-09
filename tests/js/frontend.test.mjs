@@ -296,6 +296,53 @@ test("source highlighting follows the textarea viewport and rendered line geomet
   assert.doesNotMatch(app, /rowsBefore \* 20\.15/);
 });
 
+test("source layout cannot feed overlay dimensions back into its grid tracks", async () => {
+  const css = await readFile(cssPath, "utf8");
+  const shell = css.match(/\.editor-shell\s*\{([^}]+)\}/)?.[1];
+  assert.match(shell, /grid-template-columns:\s*43px minmax\(0,\s*1fr\)/);
+  assert.match(shell, /grid-template-rows:\s*minmax\(0,\s*1fr\)/);
+  assert.match(shell, /-webkit-text-size-adjust:\s*none/);
+  assert.match(css, /\.source-highlight\s*\{[^}]*position:\s*relative/);
+  assert.match(css, /\.editor-footer\s*\{[^}]*flex:\s*0 0 auto;[^}]*white-space:\s*nowrap/);
+  assert.doesNotMatch(css, /\.source-highlight \.syntax-[^{]+\{[^}]*(?:font-weight|font-style):/);
+});
+
+test("source overlays match both textarea client dimensions before syncing scroll", async () => {
+  const app = await readFile(appPath, "utf8");
+  const functions = app.slice(app.indexOf("function boundedScrollLeft("), app.indexOf("function currentPosition("));
+  const source = { clientWidth: 385, clientHeight: 245, scrollWidth: 900, scrollLeft: 900, scrollTop: 600 };
+  const highlight = { style: {}, clientWidth: 385, scrollWidth: 900 };
+  const layer = {};
+  const context = { source, $: () => highlight, $$: () => [layer] };
+  runInNewContext(`${functions}\nsyncSourceOverlay();`, context);
+  assert.equal(highlight.style.width, "385px");
+  assert.equal(highlight.style.height, "245px");
+  assert.equal(source.scrollLeft, 515);
+  assert.equal(highlight.scrollLeft, 515);
+  assert.equal(highlight.scrollTop, 600);
+  assert.equal(layer.scrollTop, 600);
+  source.clientWidth = 0;
+  source.clientHeight = 0;
+  runInNewContext("syncSourceOverlay();", context);
+  assert.equal(highlight.style.width, "");
+  assert.equal(highlight.style.height, "");
+});
+
+test("source line navigation uses unscaled line offsets at every workspace zoom", async () => {
+  const app = await readFile(appPath, "utf8");
+  const navigation = app.slice(app.indexOf("function jumpToLine("), app.indexOf("function jumpToInsightScene("));
+  const calls = [];
+  const source = {
+    value: "First\nSecond\nThird",
+    setSelectionRange: (...range) => calls.push(range),
+  };
+  runInNewContext(`${navigation}\njumpToLine(3, false);`, {
+    source, updateCursor: () => {}, scrollSourceTarget: (...args) => calls.push(args),
+  });
+  assert.deepEqual(calls, [[13, 18], [2, "center"]]);
+  assert.doesNotMatch(navigation, /getBoundingClientRect|getClientRects/);
+});
+
 test("completion is Tab-only and preview suggestions are caret-positioned", async () => {
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.doesNotMatch(app, /event\.key === "Enter" \|\| event\.key === "Tab"/);
@@ -346,7 +393,8 @@ test("preview cursor synchronization highlights the active line", async () => {
 
 test("source and preview navigation scroll in both directions", async () => {
   const app = await readFile(appPath, "utf8");
-  assert.match(app, /function scrollSourceTarget\([\s\S]*firstRect\.top - highlight\.getBoundingClientRect\(\)\.top \+ highlight\.scrollTop/);
+  const sourceNavigation = app.slice(app.indexOf("function scrollSourceTarget("), app.indexOf("function updatePreviewCursor("));
+  assert.match(sourceNavigation, /const top = target\.offsetTop/);
   assert.match(app, /source\.addEventListener\("select"[\s\S]*updateCursor\(\{ scrollPreview: true \}\)/);
   assert.match(app, /function updatePreviewCursor[\s\S]*scrollPreviewTarget\(target, scrollBlock\)/);
   assert.match(app, /panel === "source"[\s\S]*scrollSourceTarget\(currentPosition\(\)\.line, "center"\)/);
@@ -1352,7 +1400,8 @@ test("line numbers are correct before the source panel is interacted with", asyn
   const app = await readFile(appPath, "utf8");
   // Numbers come from rendered line positions, so hidden panels cannot create
   // bogus character-count estimates before their real width is available.
-  assert.match(app, /function renderLineNumbers[\s\S]*?sourceLine\?\.getClientRects\(\)\[0\]/);
+  const lineNumbers = app.slice(app.indexOf("function renderLineNumbers("), app.indexOf("function fountainSyntaxHtml("));
+  assert.match(lineNumbers, /sourceLine\?\.offsetTop/);
   assert.doesNotMatch(app, /sourceWrapColumns|fontSize \* 0\.61/);
   // setMobileTab must re-render editor chrome when switching to source tab
   assert.match(app, /function setMobileTab[\s\S]*?if \(panel === "source"\) \{ renderEditorChrome\(\); scrollSourceTarget\(currentPosition\(\)\.line, "center"\); \}/);

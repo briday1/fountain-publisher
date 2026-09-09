@@ -1471,6 +1471,7 @@ function boundedScrollLeft(element, value = element.scrollLeft) {
 function syncSourceOverlay() {
   const highlight = $("#source-highlight");
   highlight.style.width = source.clientWidth ? `${source.clientWidth}px` : "";
+  highlight.style.height = source.clientHeight ? `${source.clientHeight}px` : "";
   const scrollLeft = boundedScrollLeft(source);
   if (scrollLeft !== source.scrollLeft) source.scrollLeft = scrollLeft;
   highlight.scrollTop = source.scrollTop;
@@ -4144,12 +4145,8 @@ function jumpToLine(oneBased, focus = true) {
   const lines = source.value.split("\n"); let offset = 0; for (let i = 0; i < Math.max(0, oneBased - 1); i += 1) offset += lines[i].length + 1;
   if (focus) source.focus();
   source.setSelectionRange(offset, offset + (lines[oneBased - 1]?.length || 0)); updateCursor({ scrollPreview: true, scrollBlock: "center" });
-  const highlight = $("#source-highlight");
-  const sourceLine = $(`[data-source-line="${Math.max(0, oneBased - 1)}"]`, highlight);
-  const firstRect = sourceLine?.getClientRects()[0];
-  const lineTop = firstRect ? firstRect.top - highlight.getBoundingClientRect().top + highlight.scrollTop : 0;
-  source.scrollTop = Math.max(0, lineTop - source.clientHeight / 2);
-  $("#line-numbers").scrollTop = source.scrollTop; $("#source-highlight").scrollTop = source.scrollTop; updateCursor({ scrollPreview: true, scrollBlock: "center" });
+  scrollSourceTarget(Math.max(0, oneBased - 1), "center");
+  updateCursor({ scrollPreview: true, scrollBlock: "center" });
 }
 
 function jumpToInsightScene(oneBased) {
