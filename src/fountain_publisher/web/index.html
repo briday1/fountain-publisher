@@ -131,14 +131,19 @@
       <button id="mobile-menu-toggle" class="mobile-menu-toggle" type="button" aria-label="Open menu" aria-controls="global-actions" aria-expanded="false"><span></span><span></span><span></span></button>
       <input id="file-input" type="file" accept=".fountain,.txt,.pdf,text/plain,application/pdf" hidden />
     </header>
+    <div id="google-picker-controls" role="group" aria-label="Google Drive browser controls" hidden>
+      <button id="google-picker-dismiss" type="button">Close Drive</button>
+      <button id="google-picker-trouble" type="button">Cookie trouble?</button>
+    </div>
     <dialog id="google-picker-help" aria-labelledby="google-picker-title">
       <header class="github-header"><h2 id="google-picker-title">Open from Google Drive</h2><button id="google-picker-close" type="button" aria-label="Close Google Drive help">×</button></header>
       <div class="google-picker-help-body">
         <p id="google-picker-status" role="status" aria-live="polite"></p>
         <p>In Google's browser, choose a .fountain or .txt file, then tap <strong>Select</strong> to open it.</p>
-        <p>If Google says “Can't access your Google Account,” its embedded browser may need a separate Google sign-in or cookie permission even when Fountain Publisher is connected. You can sign in to the same account at <a href="https://drive.google.com/" target="_blank" rel="noopener noreferrer">Google Drive</a> and retry, or accept Google's cookie-access prompt if you choose.</p>
+        <p>If Google says “Can't access your Google Account” or asks for cookies again after you accepted, your browser may still be blocking Google's embedded browser. This is separate from your Fountain Publisher connection; accepting the prompt does not guarantee access. You can sign in to the same account at <a href="https://drive.google.com/" target="_blank" rel="noopener noreferrer">Google Drive</a> and retry.</p>
+        <p>Try <strong>Open app screenplays</strong> to use files saved or imported by Fountain Publisher without Google's embedded browser. This keeps Drive syncing and available live collaboration, but does not list every file in your Drive or every shared file.</p>
         <p>Alternatively, download your screenplay from Drive and open it below (or choose Drive in the iPad Files browser if available). This opens a local copy, without Drive syncing or live collaboration.</p>
-        <div class="dialog-actions"><button id="google-picker-local" type="button">Open downloaded file…</button><button id="google-picker-retry" type="button">Retry Drive browser</button></div>
+        <div class="dialog-actions"><button id="google-picker-app-files" type="button">Open app screenplays</button><button id="google-picker-local" type="button">Open downloaded file…</button><button id="google-picker-retry" type="button">Retry Drive browser</button></div>
       </div>
     </dialog>
     <dialog id="google-drive-dialog" aria-labelledby="google-drive-title">

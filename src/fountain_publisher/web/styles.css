@@ -631,10 +631,12 @@ body.preview-colors .script-line.section.act { color: color-mix(in srgb, var(--s
 #github-dialog { width: min(520px, calc(100vw - 32px)); height: min(480px, calc(var(--visual-viewport-height) - 32px)); max-width: none; max-height: none; padding: 0; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 #github-dialog::backdrop { background: rgb(0 0 0 / 42%); backdrop-filter: blur(2px); }
 html.google-picker-open, .google-picker-open body { overscroll-behavior: none; }
+#google-picker-controls { position: fixed; z-index: 2147483647; top: calc(var(--visual-viewport-top) + 12px); left: calc(var(--visual-viewport-left) + 12px); display: flex; gap: 8px; max-width: calc(var(--visual-viewport-width) - 24px); }
+#google-picker-controls button { min-height: 44px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--ink); }
 /* Let Picker size its own iframe and controls; only anchor the outer dialog. */
 .google-picker-open .picker-dialog {
   position: fixed !important;
-  top: calc(var(--visual-viewport-top) + 12px) !important;
+  top: calc(var(--visual-viewport-top) + 64px) !important;
   left: calc(var(--visual-viewport-left) + 12px) !important;
   transform: scale(var(--google-picker-scale, 1));
   transform-origin: top left;
