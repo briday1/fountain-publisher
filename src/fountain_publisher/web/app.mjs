@@ -1041,14 +1041,10 @@ function renderPreview({ focusLine = null, focusOffset = null, revealEmptyBefore
       setSourceCursorFromPreview(target, offset);
     }
   }
+  updatePreviewCursor(false, "nearest", revealEmptyBefore);
+  applyZoom({ center: false });
   previewScroll.scrollTop = scrollTop;
   previewScroll.scrollLeft = scrollLeft;
-  requestAnimationFrame(() => {
-    previewScroll.scrollTop = scrollTop;
-    previewScroll.scrollLeft = scrollLeft;
-  });
-  updatePreviewCursor(false, "nearest", revealEmptyBefore);
-  applyZoom();
   renderCollaborationPresence();
   requestAnimationFrame(alignAnnotationOrbs);
 }
@@ -1306,6 +1302,7 @@ function replacePreviewSelection(edit, text) {
   const typeChanged = startIndex === endIndex && displayLines.length === 1 && nextType !== edit.startLine.dataset.type;
   if (typeChanged) {
     renderPreview({ focusLine, focusOffset });
+    showPreviewCharacterCompletions($(`[data-line="${focusLine}"]`, page));
     return;
   }
   if (startIndex === endIndex && displayLines.length === 1) {
@@ -1356,11 +1353,11 @@ function hidePreviewCompletions() {
 
 function showPreviewCharacterCompletions(element) {
   const text = element.textContent.trim().toUpperCase();
-  const explicitCharacter = text.startsWith("@");
-  const fragment = explicitCharacter ? text.slice(1) : text;
+  const explicitCharacter = text.startsWith("@") || element.classList.contains("character");
+  const fragment = text.replace(/^@/, "");
   if ((!explicitCharacter && !/^[A-Z][A-Z0-9 ._'-]*$/.test(fragment)) || (explicitCharacter && !/^[A-Z0-9 ._'-]*$/.test(fragment))) return hidePreviewCompletions();
   state.previewCompletionItems = state.metadata.characters.map((character) => character.name)
-    .filter((name, itemIndex, names) => name.startsWith(fragment) && name !== fragment && names.indexOf(name) === itemIndex);
+    .filter((name, itemIndex, names) => name.toUpperCase().startsWith(fragment) && name.toUpperCase() !== fragment && names.indexOf(name) === itemIndex);
   state.previewCompletionIndex = 0;
   state.previewCompletionLine = element;
   renderPreviewCharacterCompletions();
@@ -1405,10 +1402,10 @@ function acceptPreviewCharacterCompletion(index = state.previewCompletionIndex) 
   const name = state.previewCompletionItems[index];
   const line = state.previewCompletionLine;
   if (!name || !line) return;
-  line.textContent = name;
-  syncPreviewLine(line);
+  replacePreviewSelection({
+    startLine: line, endLine: line, startOffset: 0, endOffset: line.textContent.length,
+  }, line.textContent.startsWith("@") ? `@${name}` : name);
   hidePreviewCompletions();
-  page.focus({ preventScroll: true }); placeCaretAtOffset(line, line.textContent.length);
 }
 
 function renderEditorChrome() {
@@ -2146,8 +2143,8 @@ function completionCandidates() {
   const previousBlank = line === 0 || !lines[line - 1].trim();
   const items = [];
   const add = (value, detail, icon = "ƒ") => items.push({ value, detail, icon });
-  const characterFragment = (explicitCharacter ? trimmed.slice(1) : trimmed.split(/\s+/).at(-1)).toUpperCase();
-  if (explicitCharacter || (characterFragment && state.metadata.characters.some((character) => character.name.startsWith(characterFragment)))) {
+  const characterFragment = (explicitCharacter ? trimmed.slice(1) : previousBlank ? trimmed : trimmed.split(/\s+/).at(-1)).toUpperCase();
+  if (explicitCharacter || (characterFragment && state.metadata.characters.some((character) => character.name.toUpperCase().startsWith(characterFragment)))) {
     state.metadata.characters.forEach((character) => add(character.name, `${character.lines} dialogue lines`, "@"));
   }
   if (line < 12 && !source.value.slice(0, start).includes("\n\n") && (!trimmed || /^[A-Za-z ]*$/.test(trimmed))) {
@@ -2166,7 +2163,7 @@ function completionCandidates() {
   const fragment = (explicitCharacter ? trimmed.slice(1) : trimmed).split(/(?:\s-\s|\s+)/).at(-1).toUpperCase();
   return items.filter((item, index) => items.findIndex((other) => other.value === item.value) === index
     && (item.icon !== "@" || item.value.toUpperCase() !== characterFragment)
-    && (!fragment || item.value.toUpperCase().startsWith(fragment) || item.detail === "Existing location"));
+    && (!(item.icon === "@" ? characterFragment : fragment) || item.value.toUpperCase().startsWith(item.icon === "@" ? characterFragment : fragment) || item.detail === "Existing location"));
 }
 
 function showCompletions({ allowBlank = false } = {}) {
@@ -2234,13 +2231,17 @@ function acceptCompletion(index = state.completionIndex) {
   const before = source.value.slice(0, source.selectionStart);
   const current = before.slice(position.start);
   let replaceStart = position.start;
+  let value = item.value;
   if (item.icon === "@") {
-    const token = current.match(/@?[A-Za-z0-9._'-]*$/)?.[0] || "";
+    const explicitCharacter = current.trimStart().startsWith("@");
+    const previousBlank = position.line === 0 || !source.value.split("\n")[position.line - 1].trim();
+    const token = explicitCharacter || previousBlank ? current.trimStart() : current.match(/[A-Za-z0-9._'-]*$/)?.[0] || "";
     replaceStart = source.selectionStart - token.length;
+    if (explicitCharacter) value = `@${value}`;
   } else if (/\s-\s/.test(current)) replaceStart = position.start + current.lastIndexOf("-") + 2;
   else if (current.trim()) replaceStart = position.start + current.search(/\S/);
   const suffix = item.icon === "@" ? "\n" : "";
-  source.setRangeText(item.value + suffix, replaceStart, source.selectionStart, "end");
+  source.setRangeText(value + suffix, replaceStart, source.selectionStart, "end");
   hideCompletions(); sourceChanged();
 }
 
@@ -2311,7 +2312,7 @@ function pdfLayoutToFountain(pages) {
       if (["scene", "transition", "character"].includes(type) || (type === "action" && ["dialogue", "parenthetical", "transition"].includes(previousType))) pushBlank();
       if (scene) text = scene[1].replace(/^\.(?=(?:INT|EXT)\.)/i, "");
       else if (transition) text = `> ${text}`;
-      else if (character) text = `@${text.replace(/\s+\d+[A-Z]?$/, "")}`;
+      else if (character) text = text.replace(/\s+\d+[A-Z]?$/, "");
       output.push(text);
       if (["scene", "transition"].includes(type)) pushBlank();
       previousType = type;
@@ -2382,7 +2383,7 @@ function stagePlayLayoutToFountain(pages) {
       const cue = matchCue(text);
       if (cue && indent < 10) {
         pushBlank();
-        output.push(`@${cue.name}`);
+        output.push(cue.name);
         if (cue.remainder) output.push(cue.remainder);
         mode = "dialogue";
         return;
@@ -2461,7 +2462,7 @@ function flattenedScreenplayToFountain(value) {
     }
     if (cue) {
       pushBlank();
-      output.push(`@${text}`);
+      output.push(text);
       mode = "dialogue";
       dialogueHasText = false;
       previousDialogue = "";
@@ -4070,7 +4071,7 @@ function clampPreviewScroll(preview = $("#preview-scroll")) {
   preview.scrollLeft = Math.max(0, Math.min(preview.scrollLeft, maxLeft));
 }
 
-function applyZoom() {
+function applyZoom({ center = true } = {}) {
   const zoom = state.previewZoom;
   const zoomControl = $("#zoom");
   const fitOption = $("#zoom-fit-value");
@@ -4113,11 +4114,9 @@ function applyZoom() {
   stage.style.width = `${816 * scale}px`; stage.style.minHeight = `${Math.max(1056, page.scrollHeight) * scale}px`;
   page.style.transform = `scale(${scale})`; page.style.marginBottom = "0"; page.style.marginRight = "0";
   const preview = $("#preview-scroll");
-  requestAnimationFrame(() => {
-    preview.scrollLeft = Math.max(0, (preview.scrollWidth - preview.clientWidth) / 2);
-    clampPreviewScroll(preview);
-    alignAnnotationOrbs();
-  });
+  if (center) preview.scrollLeft = Math.max(0, (preview.scrollWidth - preview.clientWidth) / 2);
+  clampPreviewScroll(preview);
+  requestAnimationFrame(alignAnnotationOrbs);
   scheduleWorkspaceCache();
 }
 
@@ -4323,12 +4322,53 @@ function openBeatSheet() {
 
 function openAnnotationEditor(line = null, insertAfter = null) {
   const existing = line === null ? "" : annotationText(sourceLines()[line] || "");
-  state.noteEditor = { kind: "annotation", line, insertAfter };
+  const edit = state.previewMode === "live" ? previewSelection() : null;
+  const previewScroll = $("#preview-scroll");
+  state.noteEditor = {
+    kind: "annotation", line, insertAfter,
+    context: {
+      lines: sourceLines(), focus: document.activeElement,
+      scrollTop: previewScroll.scrollTop, scrollLeft: previewScroll.scrollLeft,
+      selection: edit ? {
+        startLine: Number(edit.startLine.dataset.line), endLine: Number(edit.endLine.dataset.line),
+        startOffset: edit.startOffset, endOffset: edit.endOffset, direction: edit.direction,
+      } : null,
+    },
+  };
   $("#annotation-heading").textContent = line === null ? "Add Annotation" : "Edit Annotation";
   $("#annotation-text").value = existing;
   $("#delete-annotation").hidden = line === null;
   $("#annotation-dialog").showModal();
-  setTimeout(() => $("#annotation-text").focus(), 0);
+  setTimeout(() => { if ($("#annotation-dialog").open) $("#annotation-text").focus({ preventScroll: true }); }, 0);
+}
+
+function restoreAnnotationContext() {
+  const context = state.noteEditor?.context;
+  if (!context) return;
+  const saved = context.selection;
+  if (saved) {
+    const lines = sourceLines();
+    let prefix = 0;
+    while (prefix < context.lines.length && prefix < lines.length && context.lines[prefix] === lines[prefix]) prefix += 1;
+    let oldEnd = context.lines.length;
+    let newEnd = lines.length;
+    while (oldEnd > prefix && newEnd > prefix && context.lines[oldEnd - 1] === lines[newEnd - 1]) { oldEnd -= 1; newEnd -= 1; }
+    const mapLine = (index) => index < prefix ? index : index >= oldEnd ? index + newEnd - oldEnd : Math.min(index, lines.length - 1);
+    const startLine = $(`[data-line="${mapLine(saved.startLine)}"]`, page);
+    const endLine = $(`[data-line="${mapLine(saved.endLine)}"]`, page);
+    if (startLine && endLine) {
+      const start = previewTextPoint(startLine, saved.startOffset);
+      const end = previewTextPoint(endLine, saved.endOffset);
+      page.focus({ preventScroll: true });
+      const [anchor, focus] = saved.direction === "backward" ? [end, start] : [start, end];
+      getSelection().setBaseAndExtent(anchor.node, anchor.offset, focus.node, focus.offset);
+      setSourceSelectionFromPreview({ ...saved, startLine, endLine });
+    }
+  } else if (context.focus?.isConnected) context.focus.focus({ preventScroll: true });
+  const previewScroll = $("#preview-scroll");
+  previewScroll.scrollTop = context.scrollTop;
+  previewScroll.scrollLeft = context.scrollLeft;
+  delete state.noteEditor.context;
 }
 
 function hidePreviewContextMenu() {
@@ -5120,7 +5160,7 @@ const sourceResizeObserver = new ResizeObserver(() => requestAnimationFrame(rend
 sourceResizeObserver.observe(source);
 document.fonts?.ready.then(() => renderEditorChrome());
 source.addEventListener("click", () => { updateCursor({ scrollPreview: true }); hideCompletions(); scheduleWorkspaceCache(); });
-source.addEventListener("select", () => { updateCursor({ scrollPreview: true }); scheduleWorkspaceCache(); });
+source.addEventListener("select", () => { updateCursor({ scrollPreview: document.activeElement === source }); scheduleWorkspaceCache(); });
 source.addEventListener("keyup", (event) => { if (!["Enter", "Tab", "Escape"].includes(event.key)) updateCursor({ scrollPreview: true }); scheduleWorkspaceCache(); });
 let sourceTouchMenuTimer = 0;
 let sourceTouchStart = null;
@@ -5223,7 +5263,7 @@ page.addEventListener("keydown", (event) => {
     }
   }
 });
-page.addEventListener("focusin", () => { const line = previewLineForNode(getSelection()?.focusNode); if (line) setSourceCursorFromPreview(line); });
+page.addEventListener("focusin", () => { const edit = previewSelection(); if (edit) setSourceSelectionFromPreview(edit); });
 page.addEventListener("pointerup", (event) => { const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); if (!line?.classList.contains("preview-draft-row")) $$(".preview-draft-row", page).forEach((row) => row.remove()); const edit = previewSelection(line); if (edit) { setSourceSelectionFromPreview(edit); updatePreviewCursor(); } });
 page.addEventListener("keyup", (event) => {
   if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
@@ -5243,7 +5283,8 @@ function cancelPreviewTouchMenu() {
   previewTouchStart = null;
 }
 page.addEventListener("pointerdown", (event) => {
-  if (event.pointerType === "mouse" || event.target.closest(".annotation-orb")) return;
+  if (event.target.closest(".annotation-orb")) { event.preventDefault(); return; }
+  if (event.pointerType === "mouse") return;
   const line = event.target.closest(".script-line");
   if (!line) return;
   cancelPreviewTouchMenu();
@@ -5505,6 +5546,7 @@ $("#delete-annotation").addEventListener("click", () => {
   deleteNoteLine(state.noteEditor?.line);
   $("#annotation-dialog").close();
 });
+$("#annotation-dialog").addEventListener("close", restoreAnnotationContext);
 
 $("#character-note-form").addEventListener("submit", (event) => {
   if (event.submitter?.value !== "default") return;
@@ -6006,7 +6048,7 @@ window.addEventListener("resize", () => {
   renderEditorChrome();
   if (isMobilePreview() && state.previewMode === "pdf") void setPreviewMode("live");
   applyPreviewBackground();
-  applyZoom();
+  applyZoom({ center: false });
   updateVimUi();
   if ($("#character-analytics-dialog").open) renderCharacterAnalytics();
 });
