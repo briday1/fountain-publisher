@@ -106,8 +106,8 @@ test("native Drive picker separates shared files, root folders, global search, a
   assert.equal(shared.ownedByMe, false);
   assert.equal(shared.parent, undefined);
   assert.equal(shared.drives, undefined);
-  assert.equal(mine.parent, "root");
-  assert.equal(mine.ownedByMe, undefined);
+  assert.equal(mine.parent, undefined);
+  assert.equal(mine.ownedByMe, true);
   assert.equal(all.parent, undefined);
   assert.equal(all.ownedByMe, undefined);
   assert.equal(drives.drives, true);

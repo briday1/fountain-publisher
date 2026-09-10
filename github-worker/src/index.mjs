@@ -269,12 +269,12 @@ async function googleApiRequest(request, env, url) {
     if (!fileId) {
       const query = encodeURIComponent("trashed=false and appProperties has { key='fountainPublisherDocument' and value='true' }");
       const fields = encodeURIComponent("files(id,name,modifiedTime,owners,appProperties,capabilities(canEdit,canShare))");
-      const result = await (await driveFetch(`/drive/v3/files?q=${query}&orderBy=modifiedTime desc&pageSize=100&fields=${fields}`, session.access_token)).json();
+      const result = await (await driveFetch(`/drive/v3/files?q=${query}&orderBy=modifiedTime desc&pageSize=100&fields=${fields}&supportsAllDrives=true&includeItemsFromAllDrives=true`, session.access_token)).json();
       return json({ files: result.files || [] });
     }
     if (!safeDriveId(fileId)) return json({ error: "Invalid Drive file" }, 400);
-    const metadata = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,name,modifiedTime,owners,appProperties,capabilities(canEdit,canShare)`, session.access_token)).json();
-    const content = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, session.access_token)).text();
+    const metadata = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,name,modifiedTime,owners,appProperties,capabilities(canEdit,canShare)&supportsAllDrives=true`, session.access_token)).json();
+    const content = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`, session.access_token)).text();
     return json({ file: metadata, content });
   }
   if (url.pathname === "/api/google/drive/files" && request.method === "POST") {
@@ -294,13 +294,13 @@ async function googleApiRequest(request, env, url) {
     const fileId = decodeURIComponent(adoptMatch[1]);
     if (!safeDriveId(fileId)) return json({ error: "Invalid Drive file" }, 400);
     const fields = encodeURIComponent("id,name,mimeType,modifiedTime,appProperties,capabilities(canEdit,canShare)");
-    const existing = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?fields=${fields}`, session.access_token)).json();
+    const existing = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?fields=${fields}&supportsAllDrives=true`, session.access_token)).json();
     const screenplayTypes = ["text/plain", "text/x-fountain", "application/x-fountain", "application/octet-stream"];
     if (!screenplayTypes.includes(existing.mimeType) || !/\.(?:fountain|txt)$/i.test(existing.name || "")) return json({ error: "Choose a .fountain or .txt screenplay" }, 400);
     if (existing.appProperties?.fountainPublisherDocumentId) return json({ file: existing });
     if (existing.capabilities?.canEdit !== true) return json({ file: existing });
     const documentId = randomToken(24);
-    const file = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?fields=${fields}`, session.access_token, {
+    const file = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?fields=${fields}&supportsAllDrives=true`, session.access_token, {
       method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ appProperties: { fountainPublisherDocument: "true", fountainPublisherDocumentId: documentId } }),
     })).json();
     return json({ file });
@@ -311,7 +311,7 @@ async function googleApiRequest(request, env, url) {
     if (!safeDriveId(fileId)) return json({ error: "Invalid Drive file" }, 400);
     const body = await request.json();
     if (typeof body.content !== "string" || body.content.length > 5_000_000) return json({ error: "Document content is required and must be under 5 MB" }, 400);
-    const file = await (await driveFetch(`/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id,name,modifiedTime,capabilities(canEdit,canShare)`, session.access_token, {
+    const file = await (await driveFetch(`/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id,name,modifiedTime,capabilities(canEdit,canShare)&supportsAllDrives=true`, session.access_token, {
       method: "PATCH", headers: { "content-type": "text/plain; charset=UTF-8" }, body: body.content,
     })).json();
     return json({ file });
@@ -321,7 +321,7 @@ async function googleApiRequest(request, env, url) {
     const fileId = decodeURIComponent(permissionMatch[1]);
     if (!safeDriveId(fileId)) return json({ error: "Invalid Drive file" }, 400);
     const fields = encodeURIComponent("permissions(id,type,role,emailAddress,displayName,photoLink,pendingOwner)");
-    const result = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}/permissions?fields=${fields}`, session.access_token)).json();
+    const result = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}/permissions?fields=${fields}&supportsAllDrives=true`, session.access_token)).json();
     return json({ permissions: result.permissions || [] });
   }
   if (permissionMatch && request.method === "POST") {
@@ -330,7 +330,7 @@ async function googleApiRequest(request, env, url) {
     if (!safeDriveId(fileId)) return json({ error: "Invalid Drive file" }, 400);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email || "")) return json({ error: "A valid email address is required" }, 400);
     if (!["reader", "writer"].includes(body.role)) return json({ error: "Role must be reader or writer" }, 400);
-    const permission = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}/permissions?sendNotificationEmail=true&fields=id,type,role,emailAddress`, session.access_token, {
+    const permission = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}/permissions?sendNotificationEmail=true&fields=id,type,role,emailAddress&supportsAllDrives=true`, session.access_token, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: "user", role: body.role, emailAddress: body.email }),
     })).json();
     return json({ permission }, 201);
@@ -340,7 +340,7 @@ async function googleApiRequest(request, env, url) {
     const fileId = decodeURIComponent(permissionDeleteMatch[1]);
     const permissionId = decodeURIComponent(permissionDeleteMatch[2]);
     if (!safeDriveId(fileId) || !safeDriveId(permissionId)) return json({ error: "Invalid Drive permission" }, 400);
-    await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}/permissions/${encodeURIComponent(permissionId)}`, session.access_token, { method: "DELETE" });
+    await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}/permissions/${encodeURIComponent(permissionId)}?supportsAllDrives=true`, session.access_token, { method: "DELETE" });
     return json({ removed: true });
   }
   return json({ error: "Not found" }, 404);
@@ -355,7 +355,7 @@ async function authorizeCollaboration(request, env, url) {
   const fileId = url.searchParams.get("fileId");
   if (!match || !safeDriveId(fileId)) return json({ error: "Invalid collaboration room" }, 400);
   const fields = "id,appProperties,capabilities(canEdit)";
-  const file = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?fields=${encodeURIComponent(fields)}`, session.access_token)).json();
+  const file = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?fields=${encodeURIComponent(fields)}&supportsAllDrives=true`, session.access_token)).json();
   if (file.appProperties?.fountainPublisherDocumentId !== match[1]) return json({ error: "Document identity mismatch" }, 403);
   const headers = new Headers(request.headers);
   headers.set("x-fp-user-id", session.google_sub);
@@ -366,7 +366,7 @@ async function authorizeCollaboration(request, env, url) {
   const room = env.COLLAB_ROOMS.get(env.COLLAB_ROOMS.idFromName(match[1]));
   const initialized = await room.fetch("https://room.internal/initialized");
   if (!(await initialized.json()).initialized) {
-    const content = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, session.access_token)).text();
+    const content = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`, session.access_token)).text();
     await room.fetch(new Request("https://room.internal/initialize", { method: "POST", body: content }));
   }
   return room.fetch(new Request(request, { headers }));

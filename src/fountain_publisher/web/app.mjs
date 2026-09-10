@@ -217,7 +217,7 @@ function setDocSetting(key, value) { docSettings[key] = value; localStorage.setI
 function sourceTabEnabled() {
   const stored = localStorage.getItem("fountain-publisher.source-tab");
   if (stored !== null) return stored === "true";
-  return localStorage.getItem(WORKSPACE_CACHE_KEY) !== null || localStorage.getItem("fountain-publisher.preview") !== null;
+  return true;
 }
 const state = {
   filename: "Untitled.fountain",
@@ -2833,7 +2833,7 @@ async function openGooglePicker() {
     const docsView = () => new picker.DocsView(picker.ViewId.DOCS)
       .setIncludeFolders(true).setSelectFolderEnabled(false).setMode(picker.DocsViewMode.LIST);
     const shared = docsView().setOwnedByMe(false).setLabel("Shared with me");
-    const myDrive = docsView().setParent("root").setLabel("My Drive");
+    const myDrive = docsView().setOwnedByMe(true).setLabel("My Drive");
     const allFiles = docsView().setLabel("All files");
     const sharedDrives = docsView().setEnableDrives(true).setLabel("Shared drives");
     const viewport = window.visualViewport;
