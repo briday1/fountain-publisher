@@ -278,7 +278,7 @@ test("source and preview share syntax, cursor synchronization, and character com
   assert.match(html, /id="preview-completion-menu"/);
   assert.match(app, /function renderSourceSyntax\(/);
   assert.match(app, /showPreviewCharacterCompletions\(line\)/);
-  assert.match(app, /const explicitCharacter = text\.startsWith\("@"\)/);
+  assert.match(app, /const explicitCharacter = text\.startsWith\("@"\) \|\| element\.classList\.contains\("character"\)/);
   assert.match(app, /\.classList\.add\("source-current"\)/);
   assert.match(css, /\.syntax-character/);
 });
@@ -296,6 +296,53 @@ test("source highlighting follows the textarea viewport and rendered line geomet
   assert.doesNotMatch(app, /rowsBefore \* 20\.15/);
 });
 
+test("source layout cannot feed overlay dimensions back into its grid tracks", async () => {
+  const css = await readFile(cssPath, "utf8");
+  const shell = css.match(/\.editor-shell\s*\{([^}]+)\}/)?.[1];
+  assert.match(shell, /grid-template-columns:\s*43px minmax\(0,\s*1fr\)/);
+  assert.match(shell, /grid-template-rows:\s*minmax\(0,\s*1fr\)/);
+  assert.match(shell, /-webkit-text-size-adjust:\s*none/);
+  assert.match(css, /\.source-highlight\s*\{[^}]*position:\s*relative/);
+  assert.match(css, /\.editor-footer\s*\{[^}]*flex:\s*0 0 auto;[^}]*white-space:\s*nowrap/);
+  assert.doesNotMatch(css, /\.source-highlight \.syntax-[^{]+\{[^}]*(?:font-weight|font-style):/);
+});
+
+test("source overlays match both textarea client dimensions before syncing scroll", async () => {
+  const app = await readFile(appPath, "utf8");
+  const functions = app.slice(app.indexOf("function boundedScrollLeft("), app.indexOf("function currentPosition("));
+  const source = { clientWidth: 385, clientHeight: 245, scrollWidth: 900, scrollLeft: 900, scrollTop: 600 };
+  const highlight = { style: {}, clientWidth: 385, scrollWidth: 900 };
+  const layer = {};
+  const context = { source, $: () => highlight, $$: () => [layer] };
+  runInNewContext(`${functions}\nsyncSourceOverlay();`, context);
+  assert.equal(highlight.style.width, "385px");
+  assert.equal(highlight.style.height, "245px");
+  assert.equal(source.scrollLeft, 515);
+  assert.equal(highlight.scrollLeft, 515);
+  assert.equal(highlight.scrollTop, 600);
+  assert.equal(layer.scrollTop, 600);
+  source.clientWidth = 0;
+  source.clientHeight = 0;
+  runInNewContext("syncSourceOverlay();", context);
+  assert.equal(highlight.style.width, "");
+  assert.equal(highlight.style.height, "");
+});
+
+test("source line navigation uses unscaled line offsets at every workspace zoom", async () => {
+  const app = await readFile(appPath, "utf8");
+  const navigation = app.slice(app.indexOf("function jumpToLine("), app.indexOf("function jumpToInsightScene("));
+  const calls = [];
+  const source = {
+    value: "First\nSecond\nThird",
+    setSelectionRange: (...range) => calls.push(range),
+  };
+  runInNewContext(`${navigation}\njumpToLine(3, false);`, {
+    source, updateCursor: () => {}, scrollSourceTarget: (...args) => calls.push(args),
+  });
+  assert.deepEqual(calls, [[13, 18], [2, "center"]]);
+  assert.doesNotMatch(navigation, /getBoundingClientRect|getClientRects/);
+});
+
 test("completion is Tab-only and preview suggestions are caret-positioned", async () => {
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
   assert.doesNotMatch(app, /event\.key === "Enter" \|\| event\.key === "Tab"/);
@@ -308,7 +355,7 @@ test("completion is Tab-only and preview suggestions are caret-positioned", asyn
 test("preview edits keep the source cursor on the edited line", async () => {
   const app = await readFile(appPath, "utf8");
   assert.match(app, /function setSourceCursorFromPreview[\s\S]*source\.setSelectionRange\(offset, offset\);[\s\S]*scrollSourceTarget\(index\)/);
-  assert.match(app, /page\.addEventListener\("focusin"[\s\S]*setSourceCursorFromPreview\(line\)/);
+  assert.match(app, /page\.addEventListener\("focusin", \(\) => \{ const edit = previewSelection\(\); if \(edit\) setSourceSelectionFromPreview\(edit\); \}\)/);
   assert.doesNotMatch(app, /page\.addEventListener\("focusin"[^\n]*jumpToLine/);
 });
 
@@ -346,8 +393,9 @@ test("preview cursor synchronization highlights the active line", async () => {
 
 test("source and preview navigation scroll in both directions", async () => {
   const app = await readFile(appPath, "utf8");
-  assert.match(app, /function scrollSourceTarget\([\s\S]*firstRect\.top - highlight\.getBoundingClientRect\(\)\.top \+ highlight\.scrollTop/);
-  assert.match(app, /source\.addEventListener\("select"[\s\S]*updateCursor\(\{ scrollPreview: true \}\)/);
+  const sourceNavigation = app.slice(app.indexOf("function scrollSourceTarget("), app.indexOf("function updatePreviewCursor("));
+  assert.match(sourceNavigation, /const top = target\.offsetTop/);
+  assert.match(app, /source\.addEventListener\("select"[^\n]*scrollPreview: document\.activeElement === source/);
   assert.match(app, /function updatePreviewCursor[\s\S]*scrollPreviewTarget\(target, scrollBlock\)/);
   assert.match(app, /panel === "source"[\s\S]*scrollSourceTarget\(currentPosition\(\)\.line, "center"\)/);
 });
@@ -367,12 +415,97 @@ test("preview edits are source-backed and preserve the viewport", async () => {
   assert.match(app, /activeInlineMarkers/);
   assert.match(app, /element\.classList\.contains\("scene"\)/);
   assert.match(app, /page\.focus\(\{ preventScroll: true \}\)[\s\S]*scrollTop = scrollTop/);
-  assert.match(app, /requestAnimationFrame\(\(\) => \{[\s\S]*previewScroll\.scrollTop = scrollTop/);
+  const render = app.slice(app.indexOf("function renderPreview("), app.indexOf("function placeCaretAtOffset("));
+  assert.match(render, /applyZoom\(\{ center: false \}\);[\s\S]*previewScroll\.scrollTop = scrollTop/);
   assert.doesNotMatch(app, /const insertAbove =/);
   assert.match(app, /const focusLine = startIndex \+ displayLines\.length - 1/);
   assert.match(app, /function previewCaretIsOnVisualEdge\(line, edge\)/);
   assert.match(app, /event\.key === "ArrowUp" \? -1 : event\.key === "ArrowDown" \? 1 : 0/);
   assert.match(app, /adjacentPreviewEditableLine\(line, verticalDirection\)/);
+  assert.match(app, /setSourceCursorFromPreview\(adjacent, offset\);\s*scrollPreviewTarget\(adjacent\)/);
+});
+
+test("programmatic Source selections never navigate the visible Preview", async () => {
+  const app = await readFile(appPath, "utf8");
+  const listener = app.split("\n").find((line) => line.startsWith('source.addEventListener("select",'));
+  let handler;
+  const source = { addEventListener: (type, callback) => { handler = callback; } };
+  const document = { activeElement: {} };
+  let scrollPreview;
+  runInNewContext(listener, { source, document, updateCursor: (options) => { scrollPreview = options.scrollPreview; }, scheduleWorkspaceCache() {} });
+  handler();
+  assert.equal(scrollPreview, false);
+  document.activeElement = source;
+  handler();
+  assert.equal(scrollPreview, true);
+});
+
+test("Preview rerender restores its viewport without recentering or deferred scroll writes", async () => {
+  const app = await readFile(appPath, "utf8");
+  const render = app.slice(app.indexOf("function renderPreview("), app.indexOf("function placeCaretAtOffset("));
+  const viewport = { scrollTop: 1800, scrollLeft: 120 };
+  const frames = [];
+  const context = {
+    source: { value: "An action." }, page: {},
+    state: { previewMode: "live" },
+    $: (selector) => selector === "#preview-scroll" ? viewport : {},
+    classifyLines: () => [{ raw: "An action." }], renderPreviewLines: () => "",
+    renderBeatGuide() {}, updatePreviewCursor() {}, renderCollaborationPresence() {}, alignAnnotationOrbs() {},
+    applyZoom: ({ center }) => { assert.equal(center, false); viewport.scrollTop = 0; },
+    requestAnimationFrame: (fn) => frames.push(fn),
+  };
+  runInNewContext(`${render}\nrenderPreview();`, context);
+  assert.equal(viewport.scrollTop, 1800);
+  assert.equal(viewport.scrollLeft, 120);
+  viewport.scrollTop = 1900;
+  viewport.scrollLeft = 160;
+  frames.forEach((fn) => fn());
+  assert.equal(viewport.scrollTop, 1900);
+  assert.equal(viewport.scrollLeft, 160);
+});
+
+test("annotation close restores selection and viewport across cancellation, insertion, and deletion", async () => {
+  const app = await readFile(appPath, "utf8");
+  const restore = app.slice(app.indexOf("function restoreAnnotationContext("), app.indexOf("function hidePreviewContextMenu("));
+  const original = ["First action.", "[[A note]]", "", "Second action.", "[[FP-BEATS:old-ranges]]"];
+  for (const [lines, change] of [
+    [original, null],
+    [original.toSpliced(1, 1).with(-1, "[[FP-BEATS:rebased-ranges]]"), { index: 1, removed: 1, added: 0 }],
+    [original.toSpliced(1, 0, "[[Another note]]").with(-1, "[[FP-BEATS:rebased-ranges]]"), { index: 1, removed: 0, added: 1 }],
+    [original.toSpliced(1, 0, "[[Another note]]", "").with(-1, "[[FP-BEATS:rebased-ranges]]"), { index: 1, removed: 0, added: 2 }],
+  ]) {
+    for (const direction of ["forward", "backward"]) {
+      const viewport = { scrollTop: 0, scrollLeft: 0 };
+      const elements = lines.map((text, index) => ({ text, index }));
+      let restored;
+      let endpoints;
+      const context = {
+        state: { noteEditor: { context: {
+          change, scrollTop: 1800, scrollLeft: 120,
+          selection: { startLine: 0, endLine: 3, startOffset: 2, endOffset: 5, direction },
+        } } },
+        sourceLines: () => lines,
+        page: { focus: (options) => assert.equal(options.preventScroll, true) },
+        $: (selector) => selector === "#preview-scroll" ? viewport : elements[Number(selector.match(/\d+/)[0])],
+        previewTextPoint: (element, offset) => ({ node: element, offset }),
+        getSelection: () => ({ setBaseAndExtent: (...args) => { endpoints = args; } }),
+        setSourceSelectionFromPreview: (edit) => { restored = edit; },
+      };
+      runInNewContext(`${restore}\nrestoreAnnotationContext();`, context);
+      assert.equal(restored.startLine.text, "First action.");
+      assert.equal(restored.endLine.text, "Second action.");
+      assert.equal(restored.startOffset, 2);
+      assert.equal(restored.endOffset, 5);
+      assert.equal(endpoints[0].text, direction === "backward" ? "Second action." : "First action.");
+      assert.equal(viewport.scrollTop, 1800);
+      assert.equal(viewport.scrollLeft, 120);
+      assert.equal(context.state.noteEditor.context, undefined);
+    }
+  }
+  assert.match(app, /annotation-dialog"\)\.addEventListener\("close", restoreAnnotationContext\)/);
+  assert.match(app, /event\.target\.closest\("\.annotation-orb"\)\) \{ event\.preventDefault\(\); return; \}/);
+  assert.match(app, /context\.change = \{ index: insertAt, removed: 0, added: lines\.length - previousLength \}/);
+  assert.match(app, /context\.change = \{ index: state\.noteEditor\.line, removed: 1, added: 0 \}/);
 });
 
 test("top-level act headings are supported in the live editor", async () => {
@@ -392,14 +525,71 @@ test("source completions wait for typing on a new line and support explicit char
   assert.match(app, /event\.inputType === "insertText"\) showCompletions\(\)/);
   assert.match(app, /if \(!allowBlank && !currentText\) return hideCompletions\(\)/);
   assert.match(app, /const explicitCharacter = trimmed\.startsWith\("@"\)/);
-  assert.match(app, /state\.metadata\.characters\.some\(\(character\) => character\.name\.startsWith\(characterFragment\)\)/);
+  assert.match(app, /state\.metadata\.characters\.some\(\(character\) => character\.name\.toUpperCase\(\)\.startsWith\(characterFragment\)\)/);
   assert.match(app, /function positionSourceCompletion\(\)/);
   assert.match(app, /const sourceScrollLeft = boundedScrollLeft\(source\)/);
   assert.match(app, /wrapped \? 0 : sourceScrollLeft/);
   assert.match(app, /marker\.getBoundingClientRect\(\)/);
-  assert.match(app, /current\.match\(\/@\?\[A-Za-z0-9\._'-\]\*\$\/\)/);
+  assert.match(app, /explicitCharacter \|\| previousBlank \? current\.trimStart\(\)/);
   assert.match(app, /item\.value\.toUpperCase\(\) !== characterFragment/);
   assert.match(css, /#completion-menu\s*\{[^}]*position:\s*fixed;/s);
+});
+
+test("PDF reconstruction emits ordinary character cues in every import layout", async () => {
+  const app = await readFile(appPath, "utf8");
+  const functions = app.slice(app.indexOf("function pdfLayoutToFountain("), app.indexOf("function normalizeScreenplayPaste("));
+  const context = {};
+  runInNewContext(functions, context);
+  const screenplay = context.pdfLayoutToFountain(["INT. ROOM - DAY\n\n              MAYA CHEN\n        Hello there.\n"]);
+  const stagePlay = context.pdfLayoutToFountain(["The Play\nby\nA Writer", "Cast of Characters\nMAYA CHEN: A scientist\nACT ONE\nMAYA CHEN Hello there."]);
+  const flattened = context.flattenedScreenplayToFountain("INT. ROOM - DAY\nMAYA CHEN\nHello there.");
+  for (const text of [screenplay, stagePlay, flattened]) {
+    assert.match(text, /\n\nMAYA CHEN\nHello there\./);
+    assert.doesNotMatch(text, /^@/m);
+  }
+});
+
+test("Source character completion matches full explicit names and preserves the marker", async () => {
+  const app = await readFile(appPath, "utf8");
+  const candidates = app.slice(app.indexOf("function completionCandidates("), app.indexOf("function showCompletions("));
+  const accept = app.slice(app.indexOf("function acceptCompletion("), app.indexOf("async function newFile("));
+  for (const [typed, expected] of [["@MAYA C", "@Maya Chen\n"], ["@ma", "@Maya Chen\n"], ["@", "@Maya Chen\n"], ["MAYA C", "Maya Chen\n"], ["Action with @MAYA C", "Action with @MAYA C"]]) {
+    const source = {
+      value: `INT. ROOM - DAY\n\n${typed}`,
+      setRangeText(value, start, end) { this.value = this.value.slice(0, start) + value + this.value.slice(end); },
+    };
+    source.selectionStart = source.value.length;
+    const context = {
+      source, currentPosition: () => ({ line: 2, start: "INT. ROOM - DAY\n\n".length }),
+      state: { metadata: { characters: [{ name: "Maya Chen", lines: 3 }], locations: [], titleFields: [] }, completionIndex: 0 },
+      isScene: () => false, hideCompletions() {}, sourceChanged() {},
+    };
+    runInNewContext(`${candidates}\n${accept}\nstate.completionItems = completionCandidates(); acceptCompletion();`, context);
+    assert.equal(source.value, `INT. ROOM - DAY\n\n${expected}`);
+  }
+});
+
+test("Preview completion recognizes hidden force markers and keeps the source-backed caret", async () => {
+  const app = await readFile(appPath, "utf8");
+  const show = app.slice(app.indexOf("function showPreviewCharacterCompletions("), app.indexOf("function renderPreviewCharacterCompletions("));
+  const accept = app.slice(app.indexOf("function acceptPreviewCharacterCompletion("), app.indexOf("function renderEditorChrome("));
+  for (const text of ["", "Maya C", "@Maya C"]) {
+    let replacement;
+    const line = { textContent: text, classList: { contains: (name) => name === "character" } };
+    const context = {
+      line, state: { metadata: { characters: [{ name: "Maya Chen" }] } },
+      renderPreviewCharacterCompletions() {}, hidePreviewCompletions() {},
+      replacePreviewSelection(edit, value) { replacement = { edit, value }; },
+    };
+    runInNewContext(`${show}\n${accept}\nshowPreviewCharacterCompletions(line); acceptPreviewCharacterCompletion();`, context);
+    assert.equal(replacement.value, text.startsWith("@") ? "@Maya Chen" : "Maya Chen");
+    assert.equal(replacement.edit.startLine, line);
+    assert.equal(replacement.edit.endOffset, text.length);
+  }
+  assert.match(app, /if \(typeChanged\) \{\s*renderPreview\(\{ focusLine, focusOffset \}\);\s*showPreviewCharacterCompletions/);
+  let hidden = false;
+  runInNewContext(`${show}\nshowPreviewCharacterCompletions(null);`, { hidePreviewCompletions() { hidden = true; } });
+  assert.equal(hidden, true);
 });
 
 test("spellcheck exposes private local replacement suggestions in the unified editor menu", async () => {
@@ -1352,7 +1542,8 @@ test("line numbers are correct before the source panel is interacted with", asyn
   const app = await readFile(appPath, "utf8");
   // Numbers come from rendered line positions, so hidden panels cannot create
   // bogus character-count estimates before their real width is available.
-  assert.match(app, /function renderLineNumbers[\s\S]*?sourceLine\?\.getClientRects\(\)\[0\]/);
+  const lineNumbers = app.slice(app.indexOf("function renderLineNumbers("), app.indexOf("function fountainSyntaxHtml("));
+  assert.match(lineNumbers, /sourceLine\?\.offsetTop/);
   assert.doesNotMatch(app, /sourceWrapColumns|fontSize \* 0\.61/);
   // setMobileTab must re-render editor chrome when switching to source tab
   assert.match(app, /function setMobileTab[\s\S]*?if \(panel === "source"\) \{ renderEditorChrome\(\); scrollSourceTarget\(currentPosition\(\)\.line, "center"\); \}/);
