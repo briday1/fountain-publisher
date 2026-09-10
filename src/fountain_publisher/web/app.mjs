@@ -2763,11 +2763,13 @@ function loadGooglePicker() {
 }
 
 let googlePickerActive = false;
+let dismissGooglePicker;
 
 function showGooglePickerStatus(message) {
   $("#google-picker-status").textContent = message;
   $("#google-picker-retry").disabled = googlePickerActive;
   $("#google-picker-local").disabled = googlePickerActive;
+  $("#google-picker-app-files").disabled = googlePickerActive;
   const dialog = $("#google-picker-help");
   if (!dialog.open) dialog.showModal();
 }
@@ -2782,6 +2784,10 @@ async function openGooglePicker() {
   let resizePicker;
   let finished = false;
   const cleanup = () => {
+    dismissGooglePicker = null;
+    $("#google-picker-controls").hidden = true;
+    window.removeEventListener("keydown", onKeyDown, true);
+    window.removeEventListener("pointerdown", onPointerDown, true);
     browser?.dispose();
     if (resizePicker) {
       window.removeEventListener("resize", resizePicker);
@@ -2793,13 +2799,36 @@ async function openGooglePicker() {
     focus?.focus({ preventScroll: true });
     window.scrollTo(scrollX, scrollY);
   };
+  const dismiss = () => {
+    if (finished) return;
+    finished = true;
+    cleanup();
+  };
+  const onKeyDown = (event) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    dismiss();
+  };
+  const onPointerDown = (event) => {
+    if (!event.target.closest?.(".picker-dialog-bg")) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    dismiss();
+  };
   try {
     $("#google-drive-dialog").close();
     $("#google-picker-help").close();
     focus?.blur();
+    dismissGooglePicker = dismiss;
+    $("#google-picker-controls").hidden = false;
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("pointerdown", onPointerDown, true);
     const config = await googleRequest("/api/google/picker/config");
+    if (finished) return;
     if (!config.apiKey || !config.appId) throw new Error("Google Drive browser setup is incomplete: add GOOGLE_API_KEY and GOOGLE_APP_ID to the Worker");
     await loadGooglePicker();
+    if (finished) return;
     const picker = window.google.picker;
     const docsView = () => new picker.DocsView(picker.ViewId.DOCS)
       .setIncludeFolders(true).setSelectFolderEnabled(false).setMode(picker.DocsViewMode.LIST);
@@ -2809,7 +2838,7 @@ async function openGooglePicker() {
     const sharedDrives = docsView().setEnableDrives(true).setLabel("Shared drives");
     const viewport = window.visualViewport;
     const availableWidth = Math.max(1, (viewport?.width || window.innerWidth) - 24);
-    const availableHeight = Math.max(1, (viewport?.height || window.innerHeight) - 24);
+    const availableHeight = Math.max(1, (viewport?.height || window.innerHeight) - 76);
     // Picker enforces a 566×350 minimum; scale the whole dialog on smaller screens.
     const width = Math.max(566, Math.min(1051, availableWidth));
     const height = Math.max(350, Math.min(650, availableHeight));
@@ -2845,12 +2874,13 @@ async function openGooglePicker() {
           googlePickerActive = false;
           $("#google-picker-retry").disabled = false;
           $("#google-picker-local").disabled = false;
+          $("#google-picker-app-files").disabled = false;
         }
       }).build();
     updateMobileViewport();
     resizePicker = () => {
       const currentViewport = window.visualViewport;
-      const scale = Math.min(1, Math.max(1, (currentViewport?.width || window.innerWidth) - 24) / width, Math.max(1, (currentViewport?.height || window.innerHeight) - 24) / height);
+      const scale = Math.min(1, Math.max(1, (currentViewport?.width || window.innerWidth) - 24) / width, Math.max(1, (currentViewport?.height || window.innerHeight) - 76) / height);
       document.documentElement.style.setProperty("--google-picker-scale", String(scale));
     };
     resizePicker();
@@ -2859,6 +2889,7 @@ async function openGooglePicker() {
     document.documentElement.classList.add("google-picker-open");
     browser.setVisible(true);
   } catch (error) {
+    if (finished) return;
     finished = true;
     cleanup();
     showGooglePickerStatus(error.message);
@@ -5593,7 +5624,24 @@ $("#google-drive-close").addEventListener("click", () => $("#google-drive-dialog
 $("#google-drive-refresh").addEventListener("click", openGoogleDrive);
 $("#google-drive-browse").addEventListener("click", openGooglePicker);
 $("#google-picker-retry").addEventListener("click", openGooglePicker);
+$("#google-picker-dismiss").addEventListener("click", () => dismissGooglePicker?.());
+$("#google-picker-trouble").addEventListener("click", () => {
+  dismissGooglePicker?.();
+  showGooglePickerStatus("Google's cookie prompt can remain blocked even after you accept it. You can still try opening an app screenplay without Google's embedded browser.");
+});
 $("#google-picker-close").addEventListener("click", () => $("#google-picker-help").close());
+$("#google-picker-app-files").addEventListener("click", () => {
+  $("#google-picker-help").close();
+  openGoogleDrive();
+});
+for (const selector of ["#google-picker-help", "#google-drive-dialog"]) {
+  const dialog = $(selector);
+  dialog.addEventListener("click", (event) => {
+    if (event.target !== dialog) return;
+    const bounds = dialog.getBoundingClientRect();
+    if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
+  });
+}
 $("#google-picker-local").addEventListener("click", () => {
   $("#google-picker-help").close();
   openFile();
