@@ -1352,6 +1352,7 @@ function hidePreviewCompletions() {
 }
 
 function showPreviewCharacterCompletions(element) {
+  if (!element) return hidePreviewCompletions();
   const text = element.textContent.trim().toUpperCase();
   const explicitCharacter = text.startsWith("@") || element.classList.contains("character");
   const fragment = text.replace(/^@/, "");
@@ -4327,7 +4328,7 @@ function openAnnotationEditor(line = null, insertAfter = null) {
   state.noteEditor = {
     kind: "annotation", line, insertAfter,
     context: {
-      lines: sourceLines(), focus: document.activeElement,
+      focus: document.activeElement,
       scrollTop: previewScroll.scrollTop, scrollLeft: previewScroll.scrollLeft,
       selection: edit ? {
         startLine: Number(edit.startLine.dataset.line), endLine: Number(edit.endLine.dataset.line),
@@ -4347,13 +4348,9 @@ function restoreAnnotationContext() {
   if (!context) return;
   const saved = context.selection;
   if (saved) {
-    const lines = sourceLines();
-    let prefix = 0;
-    while (prefix < context.lines.length && prefix < lines.length && context.lines[prefix] === lines[prefix]) prefix += 1;
-    let oldEnd = context.lines.length;
-    let newEnd = lines.length;
-    while (oldEnd > prefix && newEnd > prefix && context.lines[oldEnd - 1] === lines[newEnd - 1]) { oldEnd -= 1; newEnd -= 1; }
-    const mapLine = (index) => index < prefix ? index : index >= oldEnd ? index + newEnd - oldEnd : Math.min(index, lines.length - 1);
+    const change = context.change;
+    const mapLine = (index) => !change || index < change.index ? index
+      : index >= change.index + change.removed ? index + change.added - change.removed : change.index;
     const startLine = $(`[data-line="${mapLine(saved.startLine)}"]`, page);
     const endLine = $(`[data-line="${mapLine(saved.endLine)}"]`, page);
     if (startLine && endLine) {
@@ -5260,6 +5257,7 @@ page.addEventListener("keydown", (event) => {
       page.focus({ preventScroll: true });
       placeCaretAtOffset(adjacent, offset);
       setSourceCursorFromPreview(adjacent, offset);
+      scrollPreviewTarget(adjacent);
     }
   }
 });
@@ -5534,15 +5532,20 @@ $("#annotation-form").addEventListener("submit", (event) => {
   const lines = sourceLines();
   if (state.noteEditor.line === null) {
     const insertAt = state.noteEditor.insertAfter + 1;
+    const previousLength = lines.length;
     const nextType = classifyLines(source.value)[insertAt]?.type;
     lines.splice(insertAt, 0, `[[${text}]]`);
     if (nextType === "character" && lines[insertAt + 1]?.trim()) lines.splice(insertAt + 1, 0, "");
+    state.noteEditor.context.change = { index: insertAt, removed: 0, added: lines.length - previousLength };
   }
   else lines[state.noteEditor.line] = `[[${text}]]`;
   setSourceLines(lines);
   $("#annotation-dialog").close();
 });
 $("#delete-annotation").addEventListener("click", () => {
+  if (state.noteEditor?.line !== null && state.noteEditor?.line !== undefined) {
+    state.noteEditor.context.change = { index: state.noteEditor.line, removed: 1, added: 0 };
+  }
   deleteNoteLine(state.noteEditor?.line);
   $("#annotation-dialog").close();
 });

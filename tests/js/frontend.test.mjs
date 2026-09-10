@@ -422,6 +422,7 @@ test("preview edits are source-backed and preserve the viewport", async () => {
   assert.match(app, /function previewCaretIsOnVisualEdge\(line, edge\)/);
   assert.match(app, /event\.key === "ArrowUp" \? -1 : event\.key === "ArrowDown" \? 1 : 0/);
   assert.match(app, /adjacentPreviewEditableLine\(line, verticalDirection\)/);
+  assert.match(app, /setSourceCursorFromPreview\(adjacent, offset\);\s*scrollPreviewTarget\(adjacent\)/);
 });
 
 test("programmatic Source selections never navigate the visible Preview", async () => {
@@ -466,8 +467,13 @@ test("Preview rerender restores its viewport without recentering or deferred scr
 test("annotation close restores selection and viewport across cancellation, insertion, and deletion", async () => {
   const app = await readFile(appPath, "utf8");
   const restore = app.slice(app.indexOf("function restoreAnnotationContext("), app.indexOf("function hidePreviewContextMenu("));
-  const original = ["First action.", "[[A note]]", "", "Second action."];
-  for (const lines of [original, original.toSpliced(1, 1), original.toSpliced(1, 0, "[[Another note]]")]) {
+  const original = ["First action.", "[[A note]]", "", "Second action.", "[[FP-BEATS:old-ranges]]"];
+  for (const [lines, change] of [
+    [original, null],
+    [original.toSpliced(1, 1).with(-1, "[[FP-BEATS:rebased-ranges]]"), { index: 1, removed: 1, added: 0 }],
+    [original.toSpliced(1, 0, "[[Another note]]").with(-1, "[[FP-BEATS:rebased-ranges]]"), { index: 1, removed: 0, added: 1 }],
+    [original.toSpliced(1, 0, "[[Another note]]", "").with(-1, "[[FP-BEATS:rebased-ranges]]"), { index: 1, removed: 0, added: 2 }],
+  ]) {
     for (const direction of ["forward", "backward"]) {
       const viewport = { scrollTop: 0, scrollLeft: 0 };
       const elements = lines.map((text, index) => ({ text, index }));
@@ -475,7 +481,7 @@ test("annotation close restores selection and viewport across cancellation, inse
       let endpoints;
       const context = {
         state: { noteEditor: { context: {
-          lines: original, scrollTop: 1800, scrollLeft: 120,
+          change, scrollTop: 1800, scrollLeft: 120,
           selection: { startLine: 0, endLine: 3, startOffset: 2, endOffset: 5, direction },
         } } },
         sourceLines: () => lines,
@@ -498,6 +504,8 @@ test("annotation close restores selection and viewport across cancellation, inse
   }
   assert.match(app, /annotation-dialog"\)\.addEventListener\("close", restoreAnnotationContext\)/);
   assert.match(app, /event\.target\.closest\("\.annotation-orb"\)\) \{ event\.preventDefault\(\); return; \}/);
+  assert.match(app, /context\.change = \{ index: insertAt, removed: 0, added: lines\.length - previousLength \}/);
+  assert.match(app, /context\.change = \{ index: state\.noteEditor\.line, removed: 1, added: 0 \}/);
 });
 
 test("top-level act headings are supported in the live editor", async () => {
@@ -548,7 +556,6 @@ test("Source character completion matches full explicit names and preserves the 
   for (const [typed, expected] of [["@MAYA C", "@Maya Chen\n"], ["@ma", "@Maya Chen\n"], ["@", "@Maya Chen\n"], ["MAYA C", "Maya Chen\n"], ["Action with @MAYA C", "Action with @MAYA C"]]) {
     const source = {
       value: `INT. ROOM - DAY\n\n${typed}`,
-      selectionStart: 17 + typed.length,
       setRangeText(value, start, end) { this.value = this.value.slice(0, start) + value + this.value.slice(end); },
     };
     source.selectionStart = source.value.length;
@@ -580,6 +587,9 @@ test("Preview completion recognizes hidden force markers and keeps the source-ba
     assert.equal(replacement.edit.endOffset, text.length);
   }
   assert.match(app, /if \(typeChanged\) \{\s*renderPreview\(\{ focusLine, focusOffset \}\);\s*showPreviewCharacterCompletions/);
+  let hidden = false;
+  runInNewContext(`${show}\nshowPreviewCharacterCompletions(null);`, { hidePreviewCompletions() { hidden = true; } });
+  assert.equal(hidden, true);
 });
 
 test("spellcheck exposes private local replacement suggestions in the unified editor menu", async () => {
