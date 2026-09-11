@@ -631,30 +631,43 @@ body.preview-colors .script-line.section.act { color: color-mix(in srgb, var(--s
 #github-dialog { width: min(520px, calc(100vw - 32px)); height: min(480px, calc(var(--visual-viewport-height) - 32px)); max-width: none; max-height: none; padding: 0; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 #github-dialog::backdrop { background: rgb(0 0 0 / 42%); backdrop-filter: blur(2px); }
 html.google-picker-open, .google-picker-open body { overscroll-behavior: none; }
-#google-picker-controls { position: fixed; z-index: 2147483647; top: calc(var(--visual-viewport-top) + 12px); left: calc(var(--visual-viewport-left) + 12px); display: flex; gap: 8px; max-width: calc(var(--visual-viewport-width) - 24px); }
-#google-picker-controls button { min-height: 44px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--ink); }
+#google-picker-controls { position: fixed; z-index: 2147483647; top: var(--google-picker-top); left: var(--google-picker-left); width: var(--google-picker-width); max-width: calc(var(--visual-viewport-width) - 24px); overflow: hidden; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+#google-picker-controls .github-header { height: 63px; min-height: 0; gap: 12px; }
+#google-picker-controls .github-header > div:first-child { min-width: 0; }
+#google-picker-controls h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.google-picker-actions { display: flex; flex-shrink: 0; align-items: center; gap: 8px; }
+.integration-button { min-height: 32px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--ink); padding: 6px 10px; }
+.integration-button:hover { background: var(--surface-2); }
+#google-picker-loading { margin: 0; padding: 24px 16px; color: var(--muted); }
+.google-picker-open #google-picker-controls { border-bottom: 0; border-radius: 9px 9px 0 0; }
 /* Let Picker size its own iframe and controls; only anchor the outer dialog. */
 .google-picker-open .picker-dialog {
   position: fixed !important;
-  top: calc(var(--visual-viewport-top) + 64px) !important;
-  left: calc(var(--visual-viewport-left) + 12px) !important;
+  top: calc(var(--google-picker-top) + 64px) !important;
+  left: var(--google-picker-left) !important;
   transform: scale(var(--google-picker-scale, 1));
   transform-origin: top left;
+  border-color: var(--border);
+  border-radius: 0 0 9px 9px;
 }
-#google-picker-help { position: fixed; top: var(--visual-viewport-top); left: var(--visual-viewport-left); width: min(540px, calc(var(--visual-viewport-width) - 24px)); max-height: calc(var(--visual-viewport-height) - 24px); box-sizing: border-box; margin: 12px; padding: 0; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--ink); }
-#google-picker-help::backdrop { background: rgb(0 0 0 / 42%); }
-.google-picker-help-body { padding: 0 16px 16px; }
+#google-picker-help { position: fixed; top: var(--visual-viewport-top); left: var(--visual-viewport-left); right: auto; bottom: auto; width: min(600px, calc(var(--visual-viewport-width) - 24px)); max-height: calc(var(--visual-viewport-height) - 24px); margin: 0; transform: translate(calc((var(--visual-viewport-width) - 100%) / 2), calc((var(--visual-viewport-height) - 100%) / 2)); padding: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+#google-picker-help[open] { display: flex; flex-direction: column; }
+#google-picker-help .github-header { flex-shrink: 0; }
+#google-picker-help::backdrop { background: rgb(0 0 0 / 42%); backdrop-filter: blur(2px); }
+.google-picker-help-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 16px 12px; line-height: 1.6; }
 .google-picker-help-body a { color: var(--accent); }
-.google-picker-help-body .dialog-actions { flex-wrap: wrap; }
+#google-picker-help > .dialog-actions { flex-shrink: 0; flex-wrap: wrap; margin: 0; padding: 12px 14px; border-top: 1px solid var(--border); background: var(--panel); }
+#google-picker-help .dialog-actions button { min-height: 36px; }
+#google-picker-help button:focus-visible, #google-picker-controls button:focus-visible, #google-drive-dialog button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #google-picker-status { font-weight: 600; }
 #google-drive-dialog { width: min(900px, calc(100vw - 32px)); height: min(650px, calc(var(--visual-viewport-height) - 32px)); max-width: none; max-height: none; padding: 0; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 #google-drive-dialog::backdrop { background: rgb(0 0 0 / 42%); backdrop-filter: blur(2px); }
-#google-drive-dialog button, #google-drive-dialog input, #google-drive-dialog select { min-height: 32px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--ink); padding: 6px 9px; }
+#google-drive-dialog button:not(.dialog-close), #google-drive-dialog input, #google-drive-dialog select { min-height: 32px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: var(--ink); padding: 6px 9px; }
+#google-drive-dialog button:not(.dialog-close):not(:disabled):hover { background: var(--accent-soft); }
 #google-drive-dialog button.primary { border-color: color-mix(in srgb, var(--accent) 52%, var(--border)); background: var(--accent-soft); color: var(--accent); }
-#google-drive-dialog .github-header button { width: 30px; height: 30px; min-height: 30px; display: grid; place-items: center; border: 0; padding: 0; background: transparent; color: var(--muted); line-height: 1; }
-#google-drive-dialog .github-header button:hover { background: var(--surface-2); color: var(--ink); }
 .google-drive-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--border); }
-.google-drive-toolbar label { flex: 1; display: grid; gap: 4px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.google-drive-toolbar label { flex: 1; min-width: 0; display: grid; gap: 4px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.google-drive-toolbar input, .google-share-invite input { min-width: 0; width: 100%; }
 .google-drive-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(300px, 1fr) minmax(300px, .85fr); }
 #google-drive-files { flex-direction: column; overflow-x: hidden; overflow-y: auto; padding: 8px; border-right: 1px solid var(--border); }
 #google-drive-files > button { grid-template-columns: minmax(0, 1fr) auto; flex: 0 0 auto; border: 1px solid transparent; border-bottom-color: var(--border); }
@@ -677,8 +690,10 @@ html.google-picker-open, .google-picker-open body { overscroll-behavior: none; }
 .github-header { min-height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 8px 12px 7px 16px; border-bottom: 1px solid var(--border); background: var(--panel); }
 .github-header small { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .12em; }
 .github-header h2 { margin: 0; font-size: 16px; }
-.github-header button { width: 30px; height: 30px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: 22px; }
-.github-header button:hover { background: var(--surface-2); color: var(--ink); }
+.github-header .dialog-close { flex-shrink: 0; width: 30px; height: 30px; min-height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; }
+.github-header .dialog-close:hover { background: var(--surface-2); color: var(--ink); }
+@media (pointer: coarse) { .github-header .dialog-close { width: 44px; height: 44px; } .google-picker-actions .integration-button { min-height: 44px; } }
+@media (max-width: 480px) { #google-picker-help > .dialog-actions { display: grid; } #google-picker-help .dialog-actions .primary { grid-row: 1; } .google-share-invite { grid-template-columns: minmax(0, 1fr) auto; } .google-share-invite input { grid-column: 1 / -1; } .google-drive-toolbar label { flex-basis: 100%; } }
 .github-account-row { display: flex; align-items: center; gap: 7px; padding: 7px 14px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; }
 .github-account-row span { flex: 1; }
 .github-account-row button, .github-save-fields button { min-height: 32px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); padding: 6px 10px; }
