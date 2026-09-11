@@ -2781,20 +2781,38 @@ async function openGooglePicker() {
   const scrollX = window.scrollX;
   const scrollY = window.scrollY;
   let browser;
-  let resizePicker;
+  let pickerWidth = 0;
+  let pickerHeight = 0;
   let finished = false;
+  const resizePicker = () => {
+    updateMobileViewport();
+    const viewport = window.visualViewport;
+    const viewportWidth = viewport?.width || window.innerWidth;
+    const viewportHeight = viewport?.height || window.innerHeight;
+    const availableWidth = Math.max(1, viewportWidth - 24);
+    const availableHeight = Math.max(1, viewportHeight - 88);
+    // Keep app controls unscaled and attached to the native Picker's edges.
+    // Google owns the iframe layout; scale only its outer dialog when needed.
+    const scale = pickerWidth ? Math.min(1, availableWidth / pickerWidth, availableHeight / pickerHeight) : 1;
+    const width = pickerWidth ? pickerWidth * scale : Math.min(540, availableWidth);
+    const height = pickerHeight ? pickerHeight * scale + 64 : 144;
+    const style = document.documentElement.style;
+    style.setProperty("--google-picker-scale", String(scale));
+    style.setProperty("--google-picker-width", `${width}px`);
+    style.setProperty("--google-picker-left", `${(viewport?.offsetLeft || 0) + Math.max(12, (viewportWidth - width) / 2)}px`);
+    style.setProperty("--google-picker-top", `${(viewport?.offsetTop || 0) + Math.max(12, (viewportHeight - height) / 2)}px`);
+  };
   const cleanup = () => {
     dismissGooglePicker = null;
     $("#google-picker-controls").hidden = true;
     window.removeEventListener("keydown", onKeyDown, true);
     window.removeEventListener("pointerdown", onPointerDown, true);
     browser?.dispose();
-    if (resizePicker) {
-      window.removeEventListener("resize", resizePicker);
-      window.visualViewport?.removeEventListener("resize", resizePicker);
-    }
+    window.removeEventListener("resize", resizePicker);
+    window.visualViewport?.removeEventListener("resize", resizePicker);
+    window.visualViewport?.removeEventListener("scroll", resizePicker);
     document.documentElement.classList.remove("google-picker-open");
-    document.documentElement.style.removeProperty("--google-picker-scale");
+    for (const property of ["scale", "width", "left", "top"]) document.documentElement.style.removeProperty(`--google-picker-${property}`);
     googlePickerActive = false;
     focus?.focus({ preventScroll: true });
     window.scrollTo(scrollX, scrollY);
@@ -2821,7 +2839,12 @@ async function openGooglePicker() {
     $("#google-picker-help").close();
     focus?.blur();
     dismissGooglePicker = dismiss;
+    $("#google-picker-loading").hidden = false;
+    resizePicker();
     $("#google-picker-controls").hidden = false;
+    window.addEventListener("resize", resizePicker);
+    window.visualViewport?.addEventListener("resize", resizePicker);
+    window.visualViewport?.addEventListener("scroll", resizePicker);
     window.addEventListener("keydown", onKeyDown, true);
     window.addEventListener("pointerdown", onPointerDown, true);
     const config = await googleRequest("/api/google/picker/config");
@@ -2838,7 +2861,7 @@ async function openGooglePicker() {
     const sharedDrives = docsView().setEnableDrives(true).setLabel("Shared drives");
     const viewport = window.visualViewport;
     const availableWidth = Math.max(1, (viewport?.width || window.innerWidth) - 24);
-    const availableHeight = Math.max(1, (viewport?.height || window.innerHeight) - 76);
+    const availableHeight = Math.max(1, (viewport?.height || window.innerHeight) - 88);
     // Picker enforces a 566×350 minimum; scale the whole dialog on smaller screens.
     const width = Math.max(566, Math.min(1051, availableWidth));
     const height = Math.max(350, Math.min(650, availableHeight));
@@ -2877,15 +2900,10 @@ async function openGooglePicker() {
           $("#google-picker-app-files").disabled = false;
         }
       }).build();
-    updateMobileViewport();
-    resizePicker = () => {
-      const currentViewport = window.visualViewport;
-      const scale = Math.min(1, Math.max(1, (currentViewport?.width || window.innerWidth) - 24) / width, Math.max(1, (currentViewport?.height || window.innerHeight) - 76) / height);
-      document.documentElement.style.setProperty("--google-picker-scale", String(scale));
-    };
+    pickerWidth = width;
+    pickerHeight = height;
     resizePicker();
-    window.addEventListener("resize", resizePicker);
-    window.visualViewport?.addEventListener("resize", resizePicker);
+    $("#google-picker-loading").hidden = true;
     document.documentElement.classList.add("google-picker-open");
     browser.setVisible(true);
   } catch (error) {
