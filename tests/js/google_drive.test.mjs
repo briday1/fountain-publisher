@@ -129,7 +129,7 @@ test("picker selection releases the viewport and grants access through adoption 
   const harness = pickerHarness();
   await harness.context.openGooglePicker();
   assert.ok(harness.classes.has("google-picker-open"));
-  assert.deepEqual(harness.sizes, [[744, 524]]);
+  assert.deepEqual(harness.sizes, [[744, 512]]);
   harness.calls.length = 0;
   await harness.pick({ action: "picked", docs: [{ id: "shared-file_123" }] });
   assert.deepEqual(harness.calls, [
@@ -325,7 +325,7 @@ test("small viewports fit Picker's enforced minimum without resizing its interna
     assert.ok(pickerWidth >= 566);
     assert.ok(pickerHeight >= 350);
     assert.ok(pickerWidth * scale <= width - 24);
-    assert.ok(pickerHeight * scale <= height - 76);
+    assert.ok(pickerHeight * scale <= height - 88);
     await harness.pick({ action: "cancel" });
     assert.equal(harness.properties.has("--google-picker-scale"), false);
   }
@@ -344,7 +344,7 @@ test("an open Picker refits on rotation and keyboard resize and removes listener
     for (const listener of listeners) listener();
     const scale = Number(harness.properties.get("--google-picker-scale"));
     assert.ok(width * scale <= viewportWidth - 24);
-    assert.ok(height * scale <= viewportHeight - 76);
+    assert.ok(height * scale <= viewportHeight - 88);
   }
   await harness.pick({ action: "cancel" });
   assert.equal(harness.listeners.size, 0);
@@ -360,9 +360,60 @@ test("loading Picker does not change the workspace layout before the browser is 
   const opening = harness.context.openGooglePicker();
   await started;
   assert.equal(harness.classes.size, 0);
+  assert.equal(harness.elements.get("#google-picker-loading").hidden, false);
+  assert.equal(harness.properties.get("--google-picker-width"), "540px");
+  assert.equal(harness.properties.get("--google-picker-left"), "114px");
   ready();
   await opening;
   assert.ok(harness.classes.has("google-picker-open"));
+  assert.equal(harness.elements.get("#google-picker-loading").hidden, true);
+});
+
+test("Drive header and native browser share centered edges across desktop, mobile, and viewport panning", async () => {
+  const harness = pickerHarness();
+  Object.assign(harness.context.window.visualViewport, { width: 1600, height: 1000 });
+  await harness.context.openGooglePicker();
+  const [nativeWidth, nativeHeight] = harness.sizes[0];
+  for (const viewport of [
+    { width: 1600, height: 1000, offsetLeft: 0, offsetTop: 0 },
+    { width: 390, height: 844, offsetLeft: 0, offsetTop: 0 },
+    { width: 844, height: 320, offsetLeft: 20, offsetTop: 40 },
+    { width: 320, height: 480, offsetLeft: 100, offsetTop: 180 },
+  ]) {
+    Object.assign(harness.context.window.visualViewport, viewport);
+    for (const listener of harness.viewportListeners) listener();
+    const value = name => parseFloat(harness.properties.get(`--google-picker-${name}`));
+    const width = nativeWidth * value("scale");
+    const height = nativeHeight * value("scale") + 64;
+    assert.equal(value("width"), width, "header stays the width of the scaled native browser");
+    assert.ok(Math.abs(value("left") - viewport.offsetLeft + width / 2 - viewport.width / 2) < 0.00001);
+    assert.ok(Math.abs(value("top") - viewport.offsetTop + height / 2 - viewport.height / 2) < 0.00001);
+    assert.ok(value("top") >= viewport.offsetTop + 12);
+    assert.ok(value("top") + height <= viewport.offsetTop + viewport.height - 12 + 0.00001);
+  }
+  harness.elements.get("#google-picker-dismiss").click();
+  for (const name of ["scale", "width", "left", "top"]) assert.equal(harness.properties.has(`--google-picker-${name}`), false);
+  assert.equal(harness.listeners.size, 0);
+  assert.equal(harness.viewportListeners.size, 0);
+});
+
+test("Drive dialogs use shared header controls and a contained help action footer", async () => {
+  const html = await readFile(new URL("../../src/fountain_publisher/web/index.html", import.meta.url), "utf8");
+  const css = await readFile(new URL("../../src/fountain_publisher/web/styles.css", import.meta.url), "utf8");
+  const controls = html.match(/<section id="google-picker-controls"[\s\S]*?<\/section>/)?.[0];
+  assert.ok(controls);
+  assert.match(controls, /<header class="github-header">/);
+  assert.match(controls, /aria-labelledby="google-picker-browser-title"/);
+  assert.match(controls, /id="google-picker-trouble" class="integration-button"/);
+  assert.doesNotMatch(controls, /Cookie trouble\?|>Close Drive</);
+  for (const id of ["google-picker-dismiss", "google-picker-close", "google-drive-close", "close-github-dialog"]) {
+    assert.match(html, new RegExp(`id="${id}" class="dialog-close"[^>]*aria-label="[^"]+">×</button>|id="${id}" class="dialog-close"[^>]*title="[^"]+">×</button>`));
+  }
+  const help = html.match(/<dialog id="google-picker-help"[\s\S]*?<\/dialog>/)[0];
+  assert.match(help, /<footer class="dialog-actions">[\s\S]*id="google-picker-retry" class="primary"/);
+  assert.match(css, /\.github-header \.dialog-close\s*\{[^}]*display: grid;[^}]*place-items: center;[^}]*padding: 0;/);
+  assert.match(css, /#google-picker-help\[open\]\s*\{[^}]*display: flex/);
+  assert.match(css, /\.google-picker-help-body\s*\{[^}]*overflow-y: auto/);
 });
 
 test("initial load and page restoration reset only the document scroll, not editor scroll", () => {
@@ -414,7 +465,8 @@ test("picker CSS preserves Google's iframe layout and recovery explains the loca
   assert.doesNotMatch(css, /\.google-picker-open body\s*\{[^}]*position:\s*fixed/);
   const dialogStyles = css.match(/\.google-picker-open \.picker-dialog\s*\{([^}]+)\}/)[1];
   assert.match(dialogStyles, /position:\s*fixed !important/);
-  assert.match(dialogStyles, /top:\s*calc\(var\(--visual-viewport-top\) \+ 64px\)/);
+  assert.match(dialogStyles, /top:\s*calc\(var\(--google-picker-top\) \+ 64px\)/);
+  assert.match(dialogStyles, /left:\s*var\(--google-picker-left\)/);
   assert.doesNotMatch(dialogStyles, /(?:width|height|display|overflow):/);
   assert.match(dialogStyles, /transform:\s*scale\(var\(--google-picker-scale, 1\)\)/);
   assert.doesNotMatch(css, /\.picker-dialog-content/);
