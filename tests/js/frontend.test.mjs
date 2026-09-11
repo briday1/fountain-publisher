@@ -937,7 +937,7 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(css, /--annotation-accent:\s*var\(--syntax-character\);/);
   assert.match(css, /\.note-indicator\s*\{[^}]*color:\s*var\(--annotation-accent\);[^}]*text-shadow:[^;}]*var\(--annotation-accent\)/s);
   assert.match(css, /\.annotation-orb\s*\{[^}]*appearance:\s*none;[^}]*-webkit-appearance:\s*none;[^}]*background-color:\s*var\(--annotation-accent\)/s);
-  assert.match(worker, /fountain-publisher-shell-v7/);
+  assert.match(worker, /fountain-publisher-shell-v8/);
   assert.match(worker, /\["styles\.css", "app\.mjs"\][\s\S]*fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);
   assert.match(css, /\.annotation-orb\s*\{[^}]*top:\s*1px;/s);
   assert.match(app, /function alignAnnotationOrbs\(\)[\s\S]*marginCenterX[\s\S]*orb\.offsetWidth \* scale \* \.5[\s\S]*orb\.style\.left/);
@@ -1343,7 +1343,7 @@ this.run = {
   ctx = makeContext("foo bar");
   ctx.motion("y", "w", 0);
   assert.equal(ctx.source.value, "foo bar", "yw does not modify text");
-  assert.equal(ctx.state.vimYank, "foo");
+  assert.equal(ctx.state.vimYank, "foo ", "yw includes whitespace up to the next word");
   assert.deepEqual([...ctx.calls.cursors], [0], "yw moves cursor to range start");
 });
 
