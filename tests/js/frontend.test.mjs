@@ -157,9 +157,9 @@ test("hidden preview layers cannot be displayed by component styles", async () =
   assert.match(css, /\[hidden\]\s*\{\s*display:\s*none\s*!important;/);
 });
 
-test("live compilation cancels stale requests and HTML export is absent", async () => {
+test("live compilation rejects stale results and HTML export is absent", async () => {
   const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
-  assert.match(app, /compileController\?\.abort\(\)/);
+  assert.match(app, /if \(!result \|\| !isCurrentCompile\(request\)\) return/);
   assert.doesNotMatch(html, /export-html|HTML document/);
   assert.doesNotMatch(app, /includeHtml:\s*true|compileWithBrowserScreenplain\("html"/);
 });
@@ -802,21 +802,21 @@ test("live preview numbers scene headings via computed labels", async () => {
 
 test("page totals come from the compiled Screenplain PDF", async () => {
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  const compiler = await readFile(new URL("../../src/fountain_publisher/web/local-compiler.mjs", import.meta.url), "utf8");
   assert.match(app, /function renderPageMetric\(metadata\)/);
   assert.match(app, /1:\s*\[1, 8\][\s\S]*4:\s*\[1, 2\][\s\S]*7:\s*\[7, 8\]/);
   assert.match(app, /class="page-fraction"><sup>\$\{fraction\[0\]\}<\/sup><sub>\$\{fraction\[1\]\}<\/sub>/);
   assert.match(css, /\.page-fraction\s*\{[^}]*display:\s*inline-grid;[^}]*height:\s*1em;[^}]*vertical-align:\s*middle;[^}]*font-weight:\s*400;[^}]*translateY\(-\.03em\);/s);
   assert.match(css, /\.page-fraction::after\s*\{[^}]*top:\s*50%;[^}]*border-top:/s);
   assert.match(css, /\.page-fraction sup, \.page-fraction sub\s*\{[^}]*place-items:\s*center;[^}]*transform:\s*none;/s);
-  assert.match(app, /function compileStaticPageCount/);
-  assert.match(app, /result\.pageCount == null[\s\S]*\/api\/render\/pdf/);
-  assert.match(app, /function countPdfBlobPages/);
-  assert.match(app, /function screenplayPageCount\(physicalPages\)[\s\S]*titleFields/);
+  assert.match(app, /function compilePageCount/);
+  assert.match(compiler, /pageCount: Math\.max\(0, physicalPages - titlePages\)/);
+  assert.match(app, /usage\["title_pages"\] = int\(self\.has_title_page\)/);
   assert.match(app, /lastPageEighths/);
   assert.match(app, /_fp_last_page_eighths/);
   assert.match(app, /estimatedSeconds = result\.pageCount \* 60/);
   assert.match(app, /_fp_prepare_screenplay[\s\S]*isinstance\(screenplay\.paragraphs\[0\], PageBreak\)/);
-  assert.ok(app.includes('/Type\\s*\\/Page\\b'));
+  assert.ok(compiler.includes('/Type\\s*\\/Page\\b'));
 });
 
 test("preview toolbar and rotating arrows stay compact", async () => {
@@ -935,7 +935,7 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(css, /--annotation-accent:\s*var\(--syntax-character\);/);
   assert.match(css, /\.note-indicator\s*\{[^}]*color:\s*var\(--annotation-accent\);[^}]*text-shadow:[^;}]*var\(--annotation-accent\)/s);
   assert.match(css, /\.annotation-orb\s*\{[^}]*appearance:\s*none;[^}]*-webkit-appearance:\s*none;[^}]*background-color:\s*var\(--annotation-accent\)/s);
-  assert.match(worker, /fountain-publisher-shell-v9/);
+  assert.match(worker, /fountain-publisher-shell-v10/);
   assert.match(worker, /\["styles\.css", "app\.mjs"\][\s\S]*fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);
   assert.match(css, /\.annotation-orb\s*\{[^}]*top:\s*1px;/s);
   assert.match(app, /function alignAnnotationOrbs\(\)[\s\S]*marginCenterX[\s\S]*orb\.offsetWidth \* scale \* \.5[\s\S]*orb\.style\.left/);
@@ -1356,23 +1356,23 @@ test("dual dialogue renders concurrently in the live screenplay", async () => {
   assert.match(html, /Windows \/ Linux/);
 });
 
-test("GitHub Pages mode runs Screenplain in Pyodide", async () => {
+test("every host runs Screenplain in the tab's bundled Pyodide runtime", async () => {
   const app = await readFile(appPath, "utf8");
-  assert.match(app, /STATIC_HOST = location\.hostname\.endsWith\("\.github\.io"\)/);
   assert.match(app, /function getBrowserScreenplain\(/);
   assert.match(app, /screenplain-0\.12\.0-py3-none-any\.whl/);
   assert.match(app, /CourierPrime-Regular\.ttf/);
   assert.match(app, /\/fonts\/CourierPrime-Regular\.ttf/);
   assert.match(app, /pdf\.to_pdf\(screenplay, output, template_constructor=NumberedDocTemplate, settings=settings\)/);
-  assert.match(app, /STATIC_HOST \? compileStaticPageCount\(revision\) : compile\(revision\)/);
+  assert.match(app, /setTimeout\(\(\) => compilePageCount\(revision\)/);
+  assert.match(app, /const compileLocally = createLocalCompiler\(getBrowserScreenplain\)/);
 });
 
-test("custom static hosts fall back to browser compilation instead of parsing HTML", async () => {
+test("compilation and export have no server path or server fallback", async () => {
   const app = await readFile(appPath, "utf8");
-  assert.match(app, /shouldUseBrowserCompiler\(response,\s*"application\/json"\)/);
-  assert.match(app, /STATIC_HOST = true;\s*await compileStaticPageCount\(revision\)/);
-  assert.match(app, /shouldUseBrowserCompiler\(response,\s*expectedType\)/);
-  assert.match(app, /STATIC_HOST = true;\s*return compileBinaryWithBrowser\(path,\s*selectedPageSize\)/);
+  const compiler = await readFile(new URL("../../src/fountain_publisher/web/local-compiler.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(app, /\/api\/(?:compile|render\/pdf|export\/fdx)|shouldUseBrowserCompiler|requestBinary/);
+  assert.doesNotMatch(compiler, /fetch\(|WebSocket|localStorage|BroadcastChannel|collaboration/);
+  assert.match(app, /await compileLocally\(format, request\)/);
 });
 
 test("scene numbers default to margin, support act format, and apply to PDF", async () => {
@@ -1567,11 +1567,11 @@ test("mobile exports use the share sheet with download fallback", async () => {
   assert.match(app, /await shareOrDownload\(blob,/);
 });
 
-test("compiler failures expose actionable desktop and browser errors", async () => {
+test("compiler failures stay local and expose actionable browser errors", async () => {
   const app = await readFile(appPath, "utf8");
-  assert.match(app, /Desktop compiler unavailable:.*Restart Fountain Publisher/);
   assert.match(app, /Browser PDF compiler failed:.*Reload the page/);
-  assert.match(app, /function shouldUseBrowserCompiler\(/);
+  assert.match(app, /Your document was not sent to a server for compilation/);
+  assert.doesNotMatch(app, /Desktop compiler unavailable|browserLastPageEighths/);
 });
 
 test("mobile page count is preserved across source edits", async () => {

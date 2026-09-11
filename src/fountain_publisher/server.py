@@ -8,18 +8,54 @@ import threading
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 from . import __version__
 from .compiler import CompileOptions, analyze_source, count_pdf_pages, render_fdx, render_pdf, render_pdf_with_metrics
 
 STATIC_ROOT = Path(__file__).resolve().with_name("web")
 MAX_REQUEST_BYTES = 8 * 1024 * 1024
+PYODIDE_RUNTIME_FILES = frozenset({
+    "pyodide.mjs", "pyodide.asm.mjs", "pyodide.asm.wasm",
+    "pyodide-lock.json", "python_stdlib.zip",
+})
+MICROPIP_WHEEL = "micropip-0.11.1-py3-none-any.whl"
+
+
+def browser_runtime_asset(filename: str) -> Path | None:
+    """Resolve only the pinned browser runtime, never arbitrary node_modules files."""
+    if filename not in PYODIDE_RUNTIME_FILES | {MICROPIP_WHEEL}:
+        return None
+    roots = [STATIC_ROOT / "pyodide"]
+    repository = STATIC_ROOT.parents[2]
+    if ((repository / "pyproject.toml").is_file()
+            and (repository / "src" / "fountain_publisher" / "web").resolve() == STATIC_ROOT.resolve()):
+        roots.append(repository / "node_modules" / "pyodide")
+    for root in roots:
+        root = root.resolve()
+        # Do not mix a partially prepared runtime with another installation.
+        if not all((root / item).is_file() and (root / item).resolve().parent == root
+                   for item in PYODIDE_RUNTIME_FILES):
+            continue
+        candidate = (root / filename).resolve()
+        if candidate.parent == root and candidate.is_file():
+            return candidate
+        if filename == MICROPIP_WHEEL:
+            vendor = (STATIC_ROOT / "vendor").resolve()
+            candidate = (vendor / filename).resolve()
+            if candidate.parent == vendor and candidate.is_file():
+                return candidate
+    return None
 
 
 class FountainRequestHandler(SimpleHTTPRequestHandler):
     server_version = f"FountainPublisher/{__version__}"
-    extensions_map = {**SimpleHTTPRequestHandler.extensions_map, ".mjs": "text/javascript"}
+    extensions_map = {
+        **SimpleHTTPRequestHandler.extensions_map,
+        ".mjs": "text/javascript",
+        ".wasm": "application/wasm",
+        ".whl": "application/octet-stream",
+    }
 
     def __init__(self, *args, directory=None, **kwargs):
         super().__init__(*args, directory=str(directory or STATIC_ROOT), **kwargs)
@@ -36,6 +72,26 @@ class FountainRequestHandler(SimpleHTTPRequestHandler):
                 }
             )
         super().do_GET()
+
+    def send_head(self):
+        path = unquote(urlsplit(self.path).path)
+        if "pyodide" not in path.split("/"):
+            return super().send_head()
+        asset = browser_runtime_asset(path.removeprefix("/pyodide/"))
+        if asset is None:
+            self.send_error(404, "Browser runtime asset unavailable; run npm ci in the source checkout or install a runtime-prepared desktop package")
+            return None
+        try:
+            stream = asset.open("rb")
+        except OSError:
+            self.send_error(404, "Browser runtime asset unavailable")
+            return None
+        self.send_response(200)
+        self.send_header("Content-Type", self.guess_type(str(asset)))
+        self.send_header("Content-Length", str(asset.stat().st_size))
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        return stream
 
     def do_POST(self) -> None:  # noqa: N802
         path = urlsplit(self.path).path
@@ -135,7 +191,7 @@ class FountainRequestHandler(SimpleHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("X-Frame-Options", "SAMEORIGIN")
-        self.send_header("Content-Security-Policy", "default-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:")
+        self.send_header("Content-Security-Policy", "default-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:")
         super().end_headers()
 
     def log_message(self, format: str, *args: object) -> None:

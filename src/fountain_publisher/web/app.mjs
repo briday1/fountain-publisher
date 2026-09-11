@@ -207,7 +207,9 @@ const page = $("#screenplay-page");
 const WORKSPACE_CACHE_KEY = "fountain-publisher.workspace.v1";
 const GITHUB_BROWSER_KEY = "fountain-publisher.github-browser.v1";
 const GITHUB_API = "https://api.fountain-publisher.com";
-let STATIC_HOST = location.hostname.endsWith(".github.io") || new URLSearchParams(location.search).get("static") === "1";
+// Host detection is only for the optional loopback PDF-import API. Compilation
+// and export always run in this tab, including on the local Python server.
+const STATIC_HOST = location.hostname.endsWith(".github.io") || new URLSearchParams(location.search).get("static") === "1";
 let installPrompt = null;
 const docSettings = {
   sceneNumbers: localStorage.getItem("fountain-publisher.scene-numbers") ?? "margin",
@@ -230,7 +232,6 @@ const state = {
   metadata: emptyMetadata(),
   compileTimer: 0,
   compileRevision: 0,
-  compileController: null,
   insightTimer: 0,
   completionItems: [],
   completionIndex: 0,
@@ -241,6 +242,7 @@ const state = {
   livePreviewScrollTop: 0,
   livePreviewScrollLeft: 0,
   pdfUrl: null,
+  pdfRevision: 0,
   insightLine: null,
   previewZoom: "100",
   history: [],
@@ -290,7 +292,6 @@ const state = {
   beatGuide: localStorage.getItem("fountain-publisher.beat-guide") === "true",
   activeBeat: 0,
   characterAnalyticsScene: null,
-  browserLastPageEighths: 0,
   lastSourceValue: "",
 };
 
@@ -1635,10 +1636,6 @@ function renderBeatGuide() {
     : `<div class="beat-runner-progress"><strong>Beat Sheet</strong><span>Add beats to start the writing runner.</span></div><div class="beat-runner-actions"><button class="empty-beat-sheet-button" type="button" data-open-beat-sheet>Open Beat Sheet</button><button type="button" data-close-beat-guide aria-label="Hide Beat guide">×</button></div>`;
 }
 
-function screenplayPageCount(physicalPages) {
-  return Math.max(0, physicalPages - (state.metadata.titleFields?.length ? 1 : 0));
-}
-
 function selectedBeatArea() {
   const startOffset = source.selectionStart;
   const endOffset = source.selectionEnd;
@@ -2099,73 +2096,67 @@ function sourceChanged({ fromPreview = false, record = true, rebaseBeats = true,
 
 function scheduleCompile(delay = 350) {
   clearTimeout(state.compileTimer);
-  state.compileController?.abort();
   const revision = ++state.compileRevision;
   $("#compile-status").textContent = "Editing…";
+  $("#compile-status").title = "Compilation runs privately in this browser tab.";
   $("#compile-status").classList.remove("error");
-  state.compileTimer = setTimeout(() => STATIC_HOST ? compileStaticPageCount(revision) : compile(revision), STATIC_HOST ? Math.max(delay, 700) : delay);
+  // Never leave another document's PDF visible while this one is being edited.
+  if (state.previewMode === "pdf") showPdfLoading();
+  state.compileTimer = setTimeout(() => compilePageCount(revision), Math.max(delay, 700));
 }
 
-function showCompileError(error, browserCompiler = STATIC_HOST) {
+function captureCompileRequest(pageSize = $("#page-size").value) {
+  return Object.freeze({
+    source: source.value,
+    pageSize,
+    sceneNumbers: docSettings.sceneNumbers,
+    sceneNumberFormat: docSettings.sceneNumberFormat,
+    documentRevision: state.documentRevision,
+    compileRevision: state.compileRevision,
+  });
+}
+
+function isCurrentCompile(request) {
+  return request.documentRevision === state.documentRevision
+    && request.compileRevision === state.compileRevision
+    && request.source === source.value
+    && request.pageSize === $("#page-size").value
+    && request.sceneNumbers === docSettings.sceneNumbers
+    && request.sceneNumberFormat === docSettings.sceneNumberFormat
+    && !state.sourceComposing && !state.previewComposing;
+}
+
+function showCompileError(error) {
   const detail = error instanceof Error ? error.message : String(error || "Unknown compiler error");
-  const message = browserCompiler
-    ? `Browser PDF compiler failed: ${detail}. Reload the page and try again.`
-    : detail.toLowerCase().includes("fetch")
-      ? `Desktop compiler unavailable: ${detail}. Restart Fountain Publisher and reload the page.`
-      : `Compilation failed: ${detail}`;
+  const message = `Browser PDF compiler failed: ${detail}. Reload the page and try again. Your document was not sent to a server for compilation.`;
   $("#compile-status").textContent = message;
   $("#compile-status").title = message;
   $("#compile-status").classList.add("error");
 }
 
-async function compileStaticPageCount(revision) {
+async function compilePageCount(revision) {
+  if (revision !== state.compileRevision) return;
+  const request = captureCompileRequest();
+  if (!isCurrentCompile(request)) return;
   $("#compile-status").textContent = "Compiling…";
   try {
-    const blob = await compileWithBrowserScreenplain("pdf", $("#page-size").value);
-    const pageCount = screenplayPageCount(await countPdfBlobPages(blob));
-    if (revision !== state.compileRevision) return;
-    state.metadata.pageCount = pageCount;
-    state.metadata.lastPageEighths = state.browserLastPageEighths;
-    state.metadata.estimatedSeconds = pageCount * 60;
+    const result = await compileLocally("pdf", request, { isCurrent: () => isCurrentCompile(request) });
+    if (!result || !isCurrentCompile(request)) return;
+    state.metadata.pageCount = result.pageCount;
+    state.metadata.lastPageEighths = result.lastPageEighths;
+    state.metadata.estimatedSeconds = result.pageCount * 60;
     renderPageMetric(state.metadata);
     $("#compile-status").textContent = "Compiled";
-  } catch (error) {
-    if (revision !== state.compileRevision) return;
-    showCompileError(error, true);
-  }
-}
-
-async function compile(revision) {
-  const controller = new AbortController();
-  state.compileController = controller;
-  $("#compile-status").textContent = "Compiling…";
-  try {
-    const response = await fetch("/api/compile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: source.value, pageSize: $("#page-size").value, sceneNumbers: docSettings.sceneNumbers, sceneNumberFormat: docSettings.sceneNumberFormat }), signal: controller.signal });
-    if (shouldUseBrowserCompiler(response, "application/json")) {
-      STATIC_HOST = true;
-      await compileStaticPageCount(revision);
-      return;
+    // Reuse this tab's PDF for the visible preview; no second compilation needed.
+    if (state.previewMode === "pdf") {
+      ++state.pdfRevision;
+      publishPdf(result.blob);
     }
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Compilation failed");
-    if (result.pageCount == null) result.pageCount = screenplayPageCount(await countPdfBlobPages(await requestBinary("/api/render/pdf")));
-    result.estimatedSeconds = result.pageCount * 60;
-    if (revision !== state.compileRevision) return;
-    renderInsights(result);
-    $("#compile-status").textContent = "Compiled";
   } catch (error) {
-    if (error.name === "AbortError") return;
-    if (revision !== state.compileRevision) return;
-    showCompileError(error, false);
-  } finally {
-    if (state.compileController === controller) state.compileController = null;
+    if (!isCurrentCompile(request)) return;
+    showCompileError(error);
+    if (state.previewMode === "pdf") showPdfError(error);
   }
-}
-
-async function countPdfBlobPages(blob) {
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  const text = new TextDecoder("latin1").decode(bytes);
-  return (text.match(/\/Type\s*\/Page\b/g) || []).length;
 }
 
 function completionCandidates() {
@@ -3776,9 +3767,9 @@ async function shareOrDownload(blob, filename) {
 }
 
 let screenplainPromise;
+const compileLocally = createLocalCompiler(getBrowserScreenplain);
 async function getBrowserScreenplain() {
   if (!screenplainPromise) screenplainPromise = (async () => {
-    $("#compile-status").textContent = "Loading Screenplain…";
     const runtimeBase = new URL("pyodide/", import.meta.url);
     const { loadPyodide } = await import(new URL("pyodide.mjs", runtimeBase).href);
     const pyodide = await loadPyodide({ indexURL: runtimeBase.href });
@@ -4000,8 +3991,9 @@ def _fp_compile_beat_sheet(title, premise, beats, page_size="letter"):
     return output.getvalue()
 
 def _fp_compile(source, kind, page_size, scene_numbers="margin", scene_number_format="sequential"):
-    global _fp_last_page_eighths
+    global _fp_last_page_eighths, _fp_title_page_count
     _fp_last_page_eighths = 0
+    _fp_title_page_count = 0
     screenplay = _fp_prepare_screenplay(source, scene_numbers, scene_number_format)
     font_family, regular_font, bold_font, italic_font, bold_italic_font = _fp_register_pdf_fonts()
     if kind == "pdf":
@@ -4031,9 +4023,10 @@ def _fp_compile(source, kind, page_size, scene_numbers="margin", scene_number_fo
             settings.default_style.spaceAfter = -settings.line_height
         if hasattr(settings, "contact_style"):
             settings.contact_style.spaceAfter = -settings.line_height
-        usage = {"page": 0, "used": 0.0}
+        usage = {"page": 0, "used": 0.0, "title_pages": 0}
         class NumberedDocTemplate(pdf.DocTemplate):
             def handle_pageBegin(self):
+                usage["title_pages"] = int(self.has_title_page)
                 _font_settings = getattr(self.settings, "font_settings", None)
                 self.canv.setFont(getattr(_font_settings, "family_name", "Courier"), self.settings.font_size, leading=self.settings.line_height)
                 page = self.page if self.has_title_page else self.page + 1
@@ -4054,6 +4047,7 @@ def _fp_compile(source, kind, page_size, scene_numbers="margin", scene_number_fo
                 elif content_page == usage["page"]:
                     usage["used"] = max(usage["used"], used)
         pdf.to_pdf(screenplay, output, template_constructor=NumberedDocTemplate, settings=settings)
+        _fp_title_page_count = usage["title_pages"]
         _fp_last_page_eighths = min(8, max(1, math.ceil(usage["used"] / settings.frame_height * 8))) if usage["page"] else 0
         return output.getvalue()
     if kind == "fdx":
@@ -4067,7 +4061,6 @@ def _fp_compile(source, kind, page_size, scene_numbers="margin", scene_number_fo
             return text.getvalue().encode("utf-8")
     raise ValueError(f"Unsupported export kind: {kind}")
 `);
-    $("#compile-status").textContent = "Screenplain ready";
     return pyodide;
   })().catch((error) => {
     screenplainPromise = null;
@@ -4076,26 +4069,12 @@ def _fp_compile(source, kind, page_size, scene_numbers="margin", scene_number_fo
   return screenplainPromise;
 }
 
-async function compileWithBrowserScreenplain(kind, selectedPageSize) {
-  const pyodide = await getBrowserScreenplain();
-  pyodide.globals.set("_fp_source", source.value);
-  pyodide.globals.set("_fp_kind", kind);
-  pyodide.globals.set("_fp_page_size", selectedPageSize);
-  pyodide.globals.set("_fp_scene_numbers", docSettings.sceneNumbers);
-  pyodide.globals.set("_fp_scene_number_format", docSettings.sceneNumberFormat);
-  const value = pyodide.runPython("_fp_compile(_fp_source, _fp_kind, _fp_page_size, _fp_scene_numbers, _fp_scene_number_format)");
-  state.browserLastPageEighths = Number(pyodide.globals.get("_fp_last_page_eighths")) || 0;
-  const bytes = value instanceof Uint8Array ? value : value.toJs();
-  value.destroy?.();
-  const types = { pdf: "application/pdf", fdx: "application/xml;charset=utf-8" };
-  return new Blob([bytes], { type: types[kind] });
-}
-
 async function compileBeatSheetPdf(title, premise, beats, selectedPageSize = $("#page-size").value) {
+  const beatJson = JSON.stringify(beats);
   const pyodide = await getBrowserScreenplain();
   pyodide.globals.set("_fp_beat_title", title);
   pyodide.globals.set("_fp_beat_premise", premise);
-  pyodide.globals.set("_fp_beat_json", JSON.stringify(beats));
+  pyodide.globals.set("_fp_beat_json", beatJson);
   pyodide.globals.set("_fp_beat_page_size", selectedPageSize);
   const value = pyodide.runPython("_fp_compile_beat_sheet(_fp_beat_title, _fp_beat_premise, json.loads(_fp_beat_json), _fp_beat_page_size)");
   const bytes = value instanceof Uint8Array ? value : value.toJs();
@@ -4122,34 +4101,16 @@ async function exportBeatSheetPdf() {
   }
 }
 
-function shouldUseBrowserCompiler(response, expectedType) {
-  return [404, 405].includes(response.status) || !response.headers.get("Content-Type")?.includes(expectedType);
-}
-
-function compileBinaryWithBrowser(path, selectedPageSize) {
-  const kind = path === "/api/render/pdf" ? "pdf" : "fdx";
-  return compileWithBrowserScreenplain(kind, selectedPageSize);
-}
-
-async function requestBinary(path, selectedPageSize = $("#page-size").value) {
-  if (STATIC_HOST) return compileBinaryWithBrowser(path, selectedPageSize);
-  const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source: source.value, pageSize: selectedPageSize, sceneNumbers: docSettings.sceneNumbers, sceneNumberFormat: docSettings.sceneNumberFormat }) });
-  const expectedType = path === "/api/render/pdf" ? "application/pdf" : "application/xml";
-  if (shouldUseBrowserCompiler(response, expectedType)) {
-    STATIC_HOST = true;
-    return compileBinaryWithBrowser(path, selectedPageSize);
-  }
-  if (!response.ok) { const value = await response.json().catch(() => ({})); throw new Error(value.error || "Export failed"); }
-  return response.blob();
-}
-
 async function exportDocument(format) {
+  if ($("#confirm-export").disabled) return;
+  if (state.sourceComposing || state.previewComposing) return toast("Finish composing text before exporting");
+  const filename = normalizedFilename(format);
+  const request = captureCompileRequest(format === "pdf" ? $("#export-page-size").value : $("#page-size").value);
   $("#confirm-export").disabled = true;
   try {
-    const blob = format === "pdf"
-      ? await requestBinary("/api/render/pdf", $("#export-page-size").value)
-      : await requestBinary("/api/export/fdx");
-    await shareOrDownload(blob, normalizedFilename(format)); $("#export-dialog").close(); toast(`Exported ${format.toUpperCase()}`);
+    // Explicit exports keep the click-time snapshot even if editing continues.
+    const { blob } = await compileLocally(format, request);
+    await shareOrDownload(blob, filename); $("#export-dialog").close(); toast(`Exported ${format.toUpperCase()}`);
   } catch (error) { if (error.name !== "AbortError") toast(error.message); }
   finally { $("#confirm-export").disabled = false; }
 }
@@ -4202,12 +4163,31 @@ async function setPreviewMode(mode) {
   }));
 }
 
-async function refreshPdf() {
+function showPdfLoading() {
   $("#pdf-placeholder").hidden = false; $("#pdf-frame").hidden = true;
+  $("#pdf-placeholder").innerHTML = '<span class="spinner"></span><strong>Compiling PDF in this browser.</strong><span>This will take longer the first time.</span>';
+}
+
+function showPdfError(error) {
+  $("#pdf-placeholder").hidden = false; $("#pdf-frame").hidden = true;
+  $("#pdf-placeholder").innerHTML = `<strong>PDF preview unavailable</strong><span>${escapeHtml(error.message)}</span>`;
+}
+
+function publishPdf(blob) {
+  if (state.pdfUrl) URL.revokeObjectURL(state.pdfUrl);
+  state.pdfUrl = URL.createObjectURL(blob);
+  $("#pdf-frame").src = state.pdfUrl; $("#pdf-frame").hidden = false; $("#pdf-placeholder").hidden = true;
+}
+
+async function refreshPdf() {
+  const revision = ++state.pdfRevision;
+  const request = captureCompileRequest();
+  const isCurrent = () => revision === state.pdfRevision && state.previewMode === "pdf" && isCurrentCompile(request);
+  showPdfLoading();
   try {
-    const blob = await requestBinary("/api/render/pdf"); if (state.pdfUrl) URL.revokeObjectURL(state.pdfUrl); state.pdfUrl = URL.createObjectURL(blob);
-    $("#pdf-frame").src = state.pdfUrl; $("#pdf-frame").hidden = false; $("#pdf-placeholder").hidden = true;
-  } catch (error) { $("#pdf-placeholder").innerHTML = `<strong>PDF preview unavailable</strong><span>${escapeHtml(error.message)}</span>`; }
+    const result = await compileLocally("pdf", request, { isCurrent });
+    if (result && isCurrent()) publishPdf(result.blob);
+  } catch (error) { if (isCurrent()) showPdfError(error); }
 }
 
 function setTheme(theme) {
@@ -5459,6 +5439,7 @@ function finishEditorComposition(surface, composition) {
   state[`${surface}Composition`] = null;
   state[`${surface}Composing`] = false;
   if (composition.documentRevision !== state.documentRevision) return;
+  const compileRevision = state.compileRevision;
   try {
     if (surface === "source") {
       if (source.value !== composition.value) sourceChanged();
@@ -5472,6 +5453,9 @@ function finishEditorComposition(surface, composition) {
   } finally {
     collaboration.stopCapturing?.();
     flushDeferredCollaborationDocument();
+    // An unchanged/cancelled composition still needs to replace any compile
+    // discarded while native input owned the document.
+    if (compileRevision === state.compileRevision) scheduleCompile();
   }
 }
 
@@ -6580,3 +6564,4 @@ import { CollaborationClient, googleRequest, openGoogleSignIn } from "./collabor
 import { parseFountainInline, replaceFountainRange } from "./fountain-inline.mjs";
 import { deletionRange, graphemeBoundaries, nativeHistoryAction, nextGraphemeBoundary, previousGraphemeBoundary, textDifference } from "./text-input.mjs";
 import { canMutateDocument, captureEditTarget, isCurrentEditTarget } from "./editor-contract.mjs";
+import { createLocalCompiler } from "./local-compiler.mjs";

@@ -43,6 +43,9 @@ jobs:
       - name: Build production editor assets
         run: npm run build:web
 
+      - name: Verify the actual browser WebAssembly compiler
+        run: npm run test:wasm
+
       - name: Install Worker dependencies
         working-directory: github-worker
         run: npm ci

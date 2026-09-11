@@ -72,6 +72,7 @@ function inputHarness({ readOnly = false, multiline = false } = {}) {
     canEditDocument: () => canMutateDocument({ readOnly: source.readOnly, composing: state.previewComposing || state.sourceComposing }),
     collaboration: { suspendRemoteUpdates() { calls.push("suspend"); } },
     flushDeferredCollaborationDocument() { calls.push("resume"); },
+    scheduleCompile() { state.compileSchedules = (state.compileSchedules || 0) + 1; },
     previewLineForNode: (node) => node?.line || line,
     previewTextOffset: (_line, _node, offset) => offset,
     previewSelection: () => selection,
@@ -153,6 +154,7 @@ test("Cancelled Source composition creates no edit transaction", () => {
   editor.send("source", "compositionend", { data: "" });
   editor.finish();
   assert.deepEqual(editor.calls, ["suspend", "resume"]);
+  assert.equal(editor.state.compileSchedules, 1, "cancelled input retries any compile discarded during composition");
 });
 
 test("A completed composition from a replaced document cannot mutate or resume a new session", () => {

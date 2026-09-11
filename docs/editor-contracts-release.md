@@ -128,6 +128,35 @@ not implicitly select a conflict winner.
 
 ## Maintainability and performance
 
+### Per-tab compilation
+
+`local-compiler.mjs` owns snapshot-based PDF/FDX compilation with the bundled
+Screenplain/Pyodide runtime. Every frontend host uses it, including the loopback
+desktop server; frontend HTTP compile/export requests and fallback routing are
+removed. Beat-sheet PDFs are also generated locally. The standalone Python
+API/CLI remains available for explicit non-browser use.
+
+Source and export settings are captured before runtime initialization. PDF bytes,
+actual title-page count and page-usage metrics are captured together for each
+job. Export filenames retain their click-time identity. Background metrics and
+PDF previews validate document, source, settings and revision before publishing;
+discarded work cannot overwrite newer results or errors. A visible PDF follows
+edits using the same local result as page-count compilation. IME cancellation
+reschedules work skipped while composition was active.
+
+Collaboration shares text/presence, never compiler jobs or compiled results.
+This does not change the collaboration encryption model. Compilation still uses
+synchronous Python/WebAssembly in the tab; isolation does not establish typing
+latency guarantees for large scripts. Background browser-worker execution is a
+separate performance improvement, not part of this change.
+
+Tests: directly imported `local-compiler` suite, `compiler_ui` handler regressions,
+loopback runtime-asset/CSP tests, and `npm run test:wasm` executing the actual
+production Python helpers and JS adapter. CI now runs the real WASM smoke too.
+Desktop wheels require the documented local runtime preparation step.
+
+### Remaining architecture work
+
 Independently imported modules now own permission/revision rules, text boundaries
 and inline representation. The app remains a large coordinator; architecture
 extraction is not complete. Next move lifecycle/history, block classification and
@@ -160,7 +189,9 @@ not establish capacity or operating cost.
    Include iPad hardware and software keyboards.
 3. Two real accounts: simultaneous edits, offline/reconnect, undo own changes,
    role downgrade/revocation, large paste and recovery copies. Compare both
-   editors with the reopened Drive file.
+   editors with the reopened Drive file. Use different page sizes/scene-number
+   settings in each tab, export concurrently, and switch documents while the
+   compiler loads; confirm previews/exports retain the owning tab's settings.
 4. Staging Worker/disposable Drive file: prove stale `If-Match` returns 412, alarm
    checkpoints continue after the last tab closes, retries recover provider
    failures, and external edits preserve both versions.
