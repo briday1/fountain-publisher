@@ -480,7 +480,7 @@ test("picker CSS preserves Google's iframe layout and recovery explains the loca
   assert.match(app, /\$\("#google-picker-local"\)\.addEventListener\("click", \(\) => \{[\s\S]*?openFile\(\)/);
 });
 
-test("opening a downloaded copy disconnects Drive only after a successful read", async () => {
+test("opening a downloaded copy loads a new document only after a successful read", async () => {
   const calls = [];
   const oldHandle = {};
   const context = {
@@ -493,7 +493,7 @@ test("opening a downloaded copy disconnects Drive only after a successful read",
   assert.deepEqual(calls, []);
   assert.equal(context.state.handle, oldHandle);
   await context.openLocalFile({ name: "Script.fountain", text: async () => "INT. ROOM - DAY" });
-  assert.deepEqual(calls, ["disconnect", ["INT. ROOM - DAY", "Script.fountain", true]]);
+  assert.deepEqual(calls, [["INT. ROOM - DAY", "Script.fountain", true]]);
   assert.equal(context.state.handle, null);
 });
 
@@ -598,14 +598,16 @@ test("opening a view-only share disconnects the previous collaboration and prese
   const calls = [];
   const elements = new Map();
   const context = {
-    state: { documentRevision: 0 },
+    state: { documentRevision: 0, collaborators: new Map() },
     source: {},
     document: {},
     $: (selector) => {
-      if (!elements.has(selector)) elements.set(selector, { close() {} });
+      if (!elements.has(selector)) elements.set(selector, { dataset: {}, close() {} });
       return elements.get(selector);
     },
     sourceChanged: () => calls.push("document"),
+    clearTimeout() {},
+    updateGoogleMenu() {},
     googleRequest: async () => ({ file, content: "INT. ROOM - DAY" }),
     collaboration: { disconnect: () => calls.push("disconnect") },
     connectDriveCollaboration: () => {},

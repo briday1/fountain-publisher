@@ -26,7 +26,7 @@ function harness({ sha = "old", linked = true } = {}) {
   const $ = (id) => {
     if (!elements.has(id)) elements.set(id, {
       value: "", textContent: "", innerHTML: "", checked: false, disabled: false,
-      hidden: false, open: false, listeners: {},
+      hidden: false, open: false, listeners: {}, dataset: {},
       showModal() { this.open = true; },
       close() { this.open = false; },
       focus() {},
@@ -42,7 +42,7 @@ function harness({ sha = "old", linked = true } = {}) {
     githubColumns: [{ path: "scripts", entries: sha ? [{ type: "file", path: "scripts/draft.fountain", sha }] : [] }],
     githubFile: linked && sha ? { owner: "owner", repo: "repo", branch: "main", path: "scripts/draft.fountain", sha } : null,
     savedSource: "original baseline", filename: "draft.fountain",
-    documentRevision: 1, editRevision: 1, githubSaving: false, githubConflict: null,
+    documentRevision: 1, editRevision: 1, githubSaving: false, githubConflict: null, collaborators: new Map(),
   };
   const source = { value: "local text" };
   const classes = new Set(["dirty"]);
@@ -53,7 +53,7 @@ function harness({ sha = "old", linked = true } = {}) {
   let confirmAnswer = true;
   let persisted = 0;
   const context = {
-    $, state, source, URLSearchParams, TextDecoder, Uint8Array, atob,
+    $, state, source, URLSearchParams, TextDecoder, Uint8Array, atob, clearTimeout,
     GITHUB_API: "https://api.example",
     selectedGithubRepository: () => ({ fullName: "owner/repo", owner: "owner", repo: "repo" }),
     toast: (text) => toasts.push(text),

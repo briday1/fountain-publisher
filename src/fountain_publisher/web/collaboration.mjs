@@ -37,24 +37,32 @@ export class CollaborationClient {
     this.reconnectTimer = 0;
     this.checkpointTimer = 0;
     this.closed = true;
+    this.syncConflict = false;
   }
 
-  connect({ fileId, documentId, canEdit }) {
+  connect({ fileId, documentId, canEdit, pendingContent = null, baselineContent = null }) {
     this.disconnect();
     this.fileId = fileId;
     this.documentId = documentId;
     this.canEdit = canEdit;
     this.closed = false;
-    this.doc = new Y.Doc();
-    this.text = this.doc.getText("source");
-    this.text.observe((_event, transaction) => {
-      const value = this.text.toString();
-      this.onDocument(value, transaction.origin === this.remoteOrigin);
+    this.synced = false;
+    this.applyingInitialSync = false;
+    this.pendingContent = canEdit ? pendingContent : null;
+    this.baselineContent = baselineContent;
+    const doc = this.doc = new Y.Doc();
+    const text = this.text = doc.getText("source");
+    text.observe((_event, transaction) => {
+      if (this.closed || this.doc !== doc) return;
+      const value = text.toString();
+      if (this.synced && !this.applyingInitialSync) this.onDocument(value, transaction.origin === this.remoteOrigin);
       if (transaction.origin === this.remoteOrigin) return;
       this.scheduleCheckpoint();
     });
-    this.doc.on("update", (update, origin) => {
-      if (origin !== this.remoteOrigin && this.socket?.readyState === WebSocket.OPEN) {
+    doc.on("update", (update, origin) => {
+      // Updates made while disconnected are not retransmitted yet. Reconnect
+      // needs a bidirectional state-vector exchange before offline editing is safe.
+      if (!this.closed && this.doc === doc && origin !== this.remoteOrigin && this.socket?.readyState === WebSocket.OPEN) {
         this.socket.send(JSON.stringify({ type: "update", update: base64Url(update) }));
       }
     });
@@ -63,32 +71,72 @@ export class CollaborationClient {
 
   openSocket() {
     if (this.closed) return;
+    clearTimeout(this.reconnectTimer);
     const url = new URL(`${API_ORIGIN.replace("https:", "wss:")}/api/collaboration/${this.documentId}`);
     url.searchParams.set("fileId", this.fileId);
-    this.socket = new WebSocket(url);
-    this.socket.addEventListener("open", () => this.onStatus("connected"));
-    this.socket.addEventListener("message", (event) => this.receive(event.data));
-    this.socket.addEventListener("close", (event) => {
-      if (this.closed) return;
+    const doc = this.doc;
+    const previousSocket = this.socket;
+    const socket = this.socket = new WebSocket(url);
+    const isCurrent = () => !this.closed && this.doc === doc && this.socket === socket;
+    previousSocket?.close();
+    socket.addEventListener("open", () => { if (isCurrent()) this.onStatus("connected"); });
+    socket.addEventListener("message", (event) => { if (isCurrent()) this.receive(event.data); });
+    socket.addEventListener("close", (event) => {
+      if (!isCurrent()) return;
+      this.socket = null;
       this.onStatus("reconnecting", event.reason || `Connection closed (${event.code})`);
       clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = setTimeout(() => this.openSocket(), 1000 + Math.random() * 2000);
+      this.reconnectTimer = setTimeout(() => {
+        if (!this.closed && this.doc === doc && this.socket === null) this.openSocket();
+      }, 1000 + Math.random() * 2000);
     });
-    this.socket.addEventListener("error", () => this.socket.close());
+    socket.addEventListener("error", () => { if (isCurrent()) socket.close(); });
   }
 
   receive(message) {
+    if (this.closed || !this.doc) return;
     let payload;
     try { payload = JSON.parse(message); } catch { return; }
     if (payload.type === "sync" || payload.type === "update") {
-      try { Y.applyUpdate(this.doc, bytesFromBase64Url(payload.update), this.remoteOrigin); } catch { this.onStatus("error"); }
+      const initialSync = payload.type === "sync" && !this.synced;
+      try {
+        this.applyingInitialSync = initialSync;
+        Y.applyUpdate(this.doc, bytesFromBase64Url(payload.update), this.remoteOrigin);
+        if (initialSync) {
+          // Returning to the loaded baseline means there are no local edits to
+          // replay; accept any newer room state without overwriting it.
+          const pendingContent = this.baselineContent !== null && this.pendingContent === this.baselineContent
+            ? null
+            : this.pendingContent;
+          const roomContent = this.text.toString();
+          // A queued editor snapshot is safe to replay only against the exact
+          // baseline the editor loaded, or when it already matches the room.
+          // Otherwise keep both versions intact for explicit user recovery.
+          if (pendingContent !== null && pendingContent !== roomContent && roomContent !== this.baselineContent) {
+            this.disconnect();
+            this.syncConflict = true;
+            this.onStatus("sync-conflict", "The shared document changed before your edits could sync. Your local edits are still in the editor. Save a local copy, then reopen the Drive document to review both versions.");
+            return;
+          }
+          this.synced = true;
+          this.pendingContent = null;
+          if (pendingContent !== null) this.replace(pendingContent);
+          this.onDocument(this.text.toString(), true);
+        }
+      } catch { this.onStatus("error"); }
+      finally { this.applyingInitialSync = false; }
     }
     if (payload.type === "presence") this.onPresence(payload);
     if (payload.type === "error") this.onStatus("read-only");
   }
 
   replace(value) {
-    if (!this.canEdit || !this.text || value === this.text.toString()) return;
+    if (!this.canEdit || !this.text) return;
+    if (!this.synced) {
+      this.pendingContent = value;
+      return;
+    }
+    if (value === this.text.toString()) return;
     const current = this.text.toString();
     let start = 0;
     while (start < current.length && start < value.length && current[start] === value[start]) start += 1;
@@ -113,11 +161,14 @@ export class CollaborationClient {
   }
 
   async checkpoint() {
-    if (!this.text || !this.canEdit) return;
+    if (this.closed || !this.text || !this.canEdit || !this.synced) return;
+    const doc = this.doc;
+    const fileId = this.fileId;
+    const isCurrent = () => !this.closed && this.doc === doc && this.fileId === fileId;
     try {
-      await googleRequest(`/api/google/drive/files/${encodeURIComponent(this.fileId)}`, { method: "PUT", body: JSON.stringify({ content: this.text.toString() }) });
-      this.onStatus("saved");
-    } catch { this.onStatus("save-error"); }
+      await googleRequest(`/api/google/drive/files/${encodeURIComponent(fileId)}`, { method: "PUT", body: JSON.stringify({ content: this.text.toString() }) });
+      if (isCurrent()) this.onStatus("saved");
+    } catch { if (isCurrent()) this.onStatus("save-error"); }
   }
 
   disconnect() {
@@ -129,5 +180,10 @@ export class CollaborationClient {
     this.doc?.destroy();
     this.doc = null;
     this.text = null;
+    this.synced = false;
+    this.applyingInitialSync = false;
+    this.pendingContent = null;
+    this.baselineContent = null;
+    this.syncConflict = false;
   }
 }

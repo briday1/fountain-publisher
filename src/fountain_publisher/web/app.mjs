@@ -245,6 +245,7 @@ const state = {
   previewZoom: "100",
   history: [],
   historyIndex: -1,
+  localSaving: false,
   theme: localStorage.getItem("fountain-publisher.theme") || "system",
   cacheEnabled: false,
   cacheTimer: 0,
@@ -270,6 +271,7 @@ const state = {
   githubPath: "",
   githubFile: null,
   googleConnected: false,
+  googleSaving: false,
   googleAccount: null,
   googleDriveFile: null,
   googleDriveFiles: [],
@@ -1064,26 +1066,11 @@ function placeCaretAtOffset(element, offset) {
   const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
 }
 
-function previewValueToSource(element, displayValue, originalValue = "") {
-  let value = displayValue.replace(/\n/g, "");
-  if (element.dataset.sceneNumber) {
-    if (docSettings.sceneNumbers === "inline") {
-      const prefix = element.dataset.sceneNumber + ". ";
-      value = value.startsWith(prefix) ? value.slice(prefix.length) : value.replace(/^\s*(?:\d+|A\d+S\d+)\.\s+/, "");
-    }
-  }
-  if (element.classList.contains("centered")) value = `> ${value} <`;
-  else if (element.classList.contains("lyric")) value = `~${value}`;
-  else if (element.classList.contains("character") && originalValue.trim().startsWith("@")) value = `@${value}`;
-  else if (element.classList.contains("transition") && originalValue.trim().startsWith(">")) value = `>${value}`;
-  else if (element.dataset.prefix) value = `${element.dataset.prefix} ${value}`;
-  return value;
-}
-
 function fountainInlineSourceMap(value) {
   const removed = Array(value.length).fill(false);
   const closing = Array(value.length).fill(false);
-  const markup = /(\*{3}|\*{2}|\*|_)(?=\S)(.+?\S)\1/g;
+  // Match the renderer's one-or-more character bodies, including a single letter.
+  const markup = /(\*{3}|\*{2}|\*|_)(.+?)\1/g;
   for (const match of value.matchAll(markup)) {
     const size = match[1].length;
     for (let index = match.index; index < match.index + size; index += 1) removed[index] = true;
@@ -1116,6 +1103,8 @@ function previewSourceBody(element, originalValue) {
     if (originalValue[end - 1] === " ") end -= 1;
   } else if (element.classList.contains("lyric")) {
     start = originalValue.indexOf("~", trimmedStart) + 1;
+  } else if (element.classList.contains("action") && originalValue.slice(trimmedStart).startsWith("!")) {
+    start = trimmedStart + 1;
   } else if (element.classList.contains("character") && originalValue.slice(trimmedStart).startsWith("@")) {
     start = trimmedStart + 1;
   } else if (element.classList.contains("transition") && originalValue.slice(trimmedStart).startsWith(">")) {
@@ -1146,7 +1135,7 @@ function previewSourceOffset(element, originalValue, displayOffset, affinity = "
 
 function activeInlineMarkers(value, sourceOffset) {
   const markers = [];
-  const markup = /(\*{3}|\*{2}|\*|_)(?=\S)(.+?\S)\1/g;
+  const markup = /(\*{3}|\*{2}|\*|_)(.+?)\1/g;
   for (const match of value.matchAll(markup)) {
     const openingEnd = match.index + match[1].length;
     const closingStart = match.index + match[0].length - match[1].length;
@@ -1353,8 +1342,10 @@ function hidePreviewCompletions() {
 
 function showPreviewCharacterCompletions(element) {
   if (!element) return hidePreviewCompletions();
-  const text = element.textContent.trim().toUpperCase();
+  const originalText = element.textContent.trim();
+  const text = originalText.toUpperCase();
   const explicitCharacter = text.startsWith("@") || element.classList.contains("character");
+  if (!explicitCharacter && originalText !== text) return hidePreviewCompletions();
   const fragment = text.replace(/^@/, "");
   if ((!explicitCharacter && !/^[A-Z][A-Z0-9 ._'-]*$/.test(fragment)) || (explicitCharacter && !/^[A-Z0-9 ._'-]*$/.test(fragment))) return hidePreviewCompletions();
   state.previewCompletionItems = state.metadata.characters.map((character) => character.name)
@@ -2269,8 +2260,10 @@ async function openFile() {
 
 async function openLocalFile(file, handle = null) {
   if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) return importPdfFile(file);
+  const documentRevision = state.documentRevision;
+  const editRevision = state.editRevision;
   const content = await file.text();
-  collaboration.disconnect();
+  if (documentRevision !== state.documentRevision || editRevision !== state.editRevision) throw new Error("The editor changed while opening. Open the local file again when ready.");
   state.handle = handle;
   setDocument(content, file.name, true);
 }
@@ -2538,7 +2531,6 @@ async function importPdfFile(file) {
     if (!pages.some((page) => page.trim())) throw new Error("No selectable text was found. This PDF may be an image-only scan.");
     const imported = pdfLayoutToFountain(pages);
     const filename = file.name.replace(/\.pdf$/i, "") + ".fountain";
-    collaboration.disconnect();
     state.handle = null;
     setDocument(imported, filename, false);
     state.savedSource = "";
@@ -2551,6 +2543,17 @@ async function importPdfFile(file) {
 }
 
 function setDocument(text, filename, saved = false, githubFile = null, googleDriveFile = null) {
+  // Replacing a document must end the previous session before publishing any
+  // source changes. Individual open/new/import callers must not own this rule.
+  collaboration.disconnect();
+  clearTimeout(state.collaborationPresenceTimer);
+  state.collaborators.clear();
+  state.collaborationApplying = false;
+  $("#collaboration-cursors").innerHTML = "";
+  $("#collaboration-presence").innerHTML = "";
+  $("#collaboration-status").textContent = "";
+  $("#collaboration-status").title = "";
+  $("#collaboration-status").dataset.status = "";
   state.documentRevision += 1;
   source.value = text; state.history = [text]; state.historyIndex = 0; state.filename = filename || "Untitled.fountain"; if (saved) state.savedSource = text;
   state.lastSourceValue = text;
@@ -2560,6 +2563,7 @@ function setDocument(text, filename, saved = false, githubFile = null, googleDri
   source.readOnly = !canEdit;
   $("#screenplay-page").contentEditable = canEdit ? "plaintext-only" : "false";
   $("#filename").textContent = state.filename; document.title = `${state.filename} — Fountain Publisher`; sourceChanged({ rebaseBeats: false });
+  updateGoogleMenu();
 }
 
 const collaboration = typeof CollaborationClient === "function" ? new CollaborationClient({
@@ -2582,10 +2586,11 @@ const collaboration = typeof CollaborationClient === "function" ? new Collaborat
     renderCollaborationPresence();
   },
   onStatus(status, detail = "") {
-    const labels = { connected: "Live", reconnecting: "Reconnecting…", saved: "Saved to Drive", "save-error": "Drive save failed", "read-only": "View only", error: "Collaboration error" };
+    const labels = { connected: "Live", reconnecting: "Reconnecting…", saved: "Saved to Drive", "save-error": "Drive save failed", "read-only": "View only", "sync-conflict": "Sync conflict — save a local copy", error: "Collaboration error" };
     $("#collaboration-status").textContent = labels[status] || "";
     $("#collaboration-status").dataset.status = status;
     $("#collaboration-status").title = detail;
+    if (status === "sync-conflict") { updateGoogleMenu(); toast(detail); }
   },
 }) : { connect() {}, disconnect() {}, replace() {}, updatePresence() {} };
 
@@ -2629,7 +2634,10 @@ function renderCollaborationPresence() {
     const marker = document.createElement("span");
     marker.className = "remote-preview-presence";
     marker.style.setProperty("--collaborator-color", collaboratorColor(user.connectionId));
-    marker.textContent = user.name || user.email || "Collaborator";
+    // Decorations must not contribute text to the editable document or its offsets.
+    marker.setAttribute("data-name", user.name || user.email || "Collaborator");
+    marker.setAttribute("contenteditable", "false");
+    marker.setAttribute("aria-hidden", "true");
     target.append(marker);
   }
   syncSourceOverlay();
@@ -2648,7 +2656,7 @@ function scheduleCollaborationPresence() {
 function updateGoogleMenu() {
   $("#google-connect").textContent = state.googleConnected ? `Google: ${state.googleAccount?.email}` : "Sign in with Google…";
   $("#google-open").disabled = !state.googleConnected;
-  $("#google-save").disabled = !state.googleConnected;
+  $("#google-save").disabled = !state.googleConnected || state.googleSaving || collaboration.syncConflict || Boolean(state.googleDriveFile && !state.googleDriveFile.capabilities?.canEdit);
   $("#google-share").disabled = !state.googleDriveFile?.capabilities?.canShare;
 }
 
@@ -2681,11 +2689,11 @@ async function connectGoogle() {
   toast("Google sign-in did not complete");
 }
 
-function connectDriveCollaboration(file) {
+function connectDriveCollaboration(file, baselineContent = source.value) {
   updateGoogleMenu();
   const documentId = file.appProperties?.fountainPublisherDocumentId;
   if (!documentId) return toast("This Drive file predates live collaboration. Save a new Drive copy to collaborate.");
-  collaboration.connect({ fileId: file.id, documentId, canEdit: file.capabilities?.canEdit === true });
+  collaboration.connect({ fileId: file.id, documentId, canEdit: file.capabilities?.canEdit === true, baselineContent });
 }
 
 async function openGoogleDrive() {
@@ -2736,8 +2744,11 @@ async function loadGooglePermissions() {
 }
 
 async function openGoogleDriveFile(fileId) {
+  const documentRevision = state.documentRevision;
+  const editRevision = state.editRevision;
   const result = await googleRequest(`/api/google/drive/files?fileId=${encodeURIComponent(fileId)}`);
-  collaboration.disconnect();
+  if (documentRevision !== state.documentRevision || editRevision !== state.editRevision) throw new Error("The editor changed while opening. Open the Drive file again when ready.");
+  state.handle = null;
   setDocument(result.content, result.file.name, true, null, result.file);
   connectDriveCollaboration(result.file);
   $("#google-drive-dialog").close();
@@ -2915,21 +2926,36 @@ async function openGooglePicker() {
 }
 
 async function saveGoogleDrive({ keepBrowser = false } = {}) {
+  if (state.googleSaving) return;
+  if (!state.googleConnected) return toast("Sign in with Google before saving");
+  if (collaboration.syncConflict) return toast("Live sync is paused because the shared document changed. Save a local copy before reopening the Drive document.");
+  const file = state.googleDriveFile;
+  if (file && file.capabilities?.canEdit !== true) return toast("This Drive document is view only");
+  const documentRevision = state.documentRevision;
+  const account = state.googleAccount;
+  const content = source.value;
+  state.googleSaving = true;
+  updateGoogleMenu();
   try {
-    if (state.googleDriveFile) {
-      const result = await googleRequest(`/api/google/drive/files/${encodeURIComponent(state.googleDriveFile.id)}`, { method: "PUT", body: JSON.stringify({ content: source.value }) });
-      state.googleDriveFile = { ...state.googleDriveFile, ...result.file };
-    } else {
-      const result = await googleRequest("/api/google/drive/files", { method: "POST", body: JSON.stringify({ name: normalizedFilename("fountain"), content: source.value }) });
-      state.googleDriveFile = result.file;
-      connectDriveCollaboration(result.file);
+    const result = file
+      ? await googleRequest(`/api/google/drive/files/${encodeURIComponent(file.id)}`, { method: "PUT", body: JSON.stringify({ content }) })
+      : await googleRequest("/api/google/drive/files", { method: "POST", body: JSON.stringify({ name: normalizedFilename("fountain"), content }) });
+    if (documentRevision !== state.documentRevision || account !== state.googleAccount || !state.googleConnected) return;
+    state.googleDriveFile = { ...file, ...result.file };
+    if (!file) {
+      connectDriveCollaboration(result.file, content);
+      // Preserve typing that happened during the upload when the new room syncs.
+      collaboration.replace(source.value);
     }
-    state.savedSource = source.value;
+    state.savedSource = content;
+    document.body.classList.toggle("dirty", source.value !== content);
+    scheduleWorkspaceCache();
     updateGoogleMenu();
     if ($("#google-drive-dialog").open && !keepBrowser) $("#google-drive-dialog").close();
     if (keepBrowser) await openGoogleDrive();
-    toast("Saved to Google Drive");
+    toast(source.value === content ? "Saved to Google Drive" : "Saved to Google Drive; newer edits are not saved yet");
   } catch (error) { toast(error.message); }
+  finally { state.googleSaving = false; updateGoogleMenu(); }
 }
 
 async function shareGoogleDrive() {
@@ -2954,18 +2980,37 @@ async function inviteGoogleCollaborator() {
 }
 
 async function saveFile(saveAs = false) {
+  if (state.localSaving) return;
+  const documentRevision = state.documentRevision;
+  let handle = state.handle;
+  let filename = state.filename;
+  const downloadName = normalizedFilename("fountain");
+  state.localSaving = true;
   try {
-    if (window.showSaveFilePicker && (saveAs || !state.handle)) {
-      state.handle = await window.showSaveFilePicker({ suggestedName: normalizedFilename("fountain"), types: [{ description: "Fountain screenplay", accept: { "text/plain": [".fountain"] } }] });
+    if (window.showSaveFilePicker && (saveAs || !handle)) {
+      handle = await window.showSaveFilePicker({ suggestedName: downloadName, types: [{ description: "Fountain screenplay", accept: { "text/plain": [".fountain"] } }] });
     }
-    if (state.handle) {
-      const writable = await state.handle.createWritable(); await writable.write(source.value); await writable.close();
-      const file = await state.handle.getFile(); state.filename = file.name;
+    if (documentRevision !== state.documentRevision) return;
+    const content = source.value;
+    if (handle) {
+      const writable = await handle.createWritable(); await writable.write(content); await writable.close();
+      const file = await handle.getFile(); filename = file.name;
     } else {
-      await download(new Blob([source.value], { type: "text/plain;charset=utf-8" }), normalizedFilename("fountain"));
+      await download(new Blob([content], { type: "text/plain;charset=utf-8" }), downloadName);
     }
-    state.savedSource = source.value; setDocument(source.value, state.filename, true); toast(`Saved ${state.filename}`);
+    if (documentRevision !== state.documentRevision) return;
+    // A save acknowledges exactly what was written; it is not a document load.
+    // Preserve selection, undo history, and any connected document association.
+    state.handle = handle;
+    state.filename = filename;
+    state.savedSource = content;
+    $("#filename").textContent = filename;
+    document.title = `${filename} — Fountain Publisher`;
+    document.body.classList.toggle("dirty", source.value !== content);
+    scheduleWorkspaceCache();
+    toast(source.value === content ? `Saved ${filename}` : `Saved ${filename}; newer edits are not saved yet`);
   } catch (error) { if (error.name !== "AbortError") toast(error.message); }
+  finally { state.localSaving = false; }
 }
 
 async function githubRequest(path, options = {}) {
@@ -4953,8 +4998,10 @@ function moveVimCursor(command, previewFocus = false, startOffset = vimCursorOff
       : Math.max(0, Math.min(position.lines.length - 1, position.line + (command === "j" ? 1 : -1)));
     offset = sourceOffsetForLine(position.lines, line, Math.min(position.column, position.lines[line].length));
   } else if (command === "w") {
-    const match = source.value.slice(offset + 1).match(/\b\w/);
-    offset = match ? offset + 1 + match.index : source.value.length;
+    const nextWord = /\b\w/g;
+    nextWord.lastIndex = offset + 1;
+    const match = nextWord.exec(source.value);
+    offset = match?.index ?? source.value.length;
   } else if (command === "b") {
     const rest = source.value.slice(0, Math.max(0, offset)).replace(/\W+$/, "");
     const match = [...rest.matchAll(/\b\w/g)].at(-1);
@@ -5017,7 +5064,7 @@ function applyVimOperatorMotion(operator, motion, offset, previewFocus) {
       }
       const match = source.value.slice(offset).search(big ? /\s/ : /\W/);
       if (match < 0) return source.value.length;
-      if (!big) return offset + match;
+      if (!big) return offset + match + (source.value.slice(offset + match).match(/^[^\S\n]*/)?.[0].length || 0);
       const rest = source.value.slice(offset + match);
       return offset + match + (rest.match(/^\s*/)?.[0].length || 0);
     })()
@@ -5040,6 +5087,7 @@ function applyVimOperatorMotion(operator, motion, offset, previewFocus) {
 
 function handleVimKey(event, surface) {
   if (!vimActive()) return false;
+  if (["Shift", "Control", "Alt", "Meta"].includes(event.key)) return false;
   const previewFocus = surface === "preview";
   if (previewFocus) syncVimPreviewPosition();
   if (state.vimMode === "insert") {
@@ -5057,9 +5105,13 @@ function handleVimKey(event, surface) {
   }
   if (event.ctrlKey && ["d", "u"].includes(event.key.toLowerCase())) {
     event.preventDefault();
+    state.vimPending = "";
     moveVimHalfPage(event.key.toLowerCase(), previewFocus, state.vimMode === "visual"); return true;
   }
-  if ((event.metaKey || event.ctrlKey) && !(event.ctrlKey && event.key.toLowerCase() === "r")) return false;
+  if ((event.metaKey || event.ctrlKey) && !(event.ctrlKey && event.key.toLowerCase() === "r")) {
+    state.vimPending = "";
+    return false;
+  }
   event.preventDefault();
   const key = event.key;
   if (state.vimMode === "visual") {
@@ -5098,7 +5150,29 @@ function handleVimKey(event, surface) {
     return true;
   }
   const position = vimLinePosition();
-  if (event.ctrlKey && key.toLowerCase() === "r") { redoDocument(); return true; }
+  if (event.ctrlKey && key.toLowerCase() === "r") { state.vimPending = ""; redoDocument(); return true; }
+  // Complete operators before standalone motions or insert commands consume their keys.
+  if (["i", "a"].includes(key) && ["d", "c", "y"].includes(state.vimPending)) {
+    state.vimPending = `${state.vimPending}${key}`;
+    return true;
+  }
+  if (["w", "W"].includes(key) && ["di", "da", "ci", "ca", "yi", "ya"].includes(state.vimPending)) {
+    const operator = state.vimPending[0];
+    const inner = state.vimPending[1] === "i";
+    state.vimPending = "";
+    applyVimTextObject(operator, inner, key === "W", source.selectionStart, previewFocus);
+    return true;
+  }
+  if (["w", "W", "e", "b"].includes(key) && ["d", "c", "y"].includes(state.vimPending)) {
+    const operator = state.vimPending;
+    state.vimPending = "";
+    applyVimOperatorMotion(operator, key, source.selectionStart, previewFocus);
+    return true;
+  }
+  if (/^[dcy][ia]?$/.test(state.vimPending) && key !== state.vimPending) {
+    state.vimPending = "";
+    return true;
+  }
   if (["j", "k"].includes(key) && state.vimPending === "g") {
     state.vimPending = ""; moveVimDisplayLine(`g${key}`, previewFocus); return true;
   }
@@ -5146,23 +5220,6 @@ function handleVimKey(event, surface) {
       return true;
     }
     state.vimPending = key;
-    return true;
-  }
-  if (["i", "a"].includes(key) && ["d", "c", "y"].includes(state.vimPending)) {
-    state.vimPending = `${state.vimPending}${key}`;
-    return true;
-  }
-  if (["w", "W"].includes(key) && ["di", "da", "ci", "ca", "yi", "ya"].includes(state.vimPending)) {
-    const operator = state.vimPending[0];
-    const inner = state.vimPending[1] === "i";
-    state.vimPending = "";
-    applyVimTextObject(operator, inner, key === "W", source.selectionStart, previewFocus);
-    return true;
-  }
-  if (["w", "W", "e", "b"].includes(key) && ["d", "c", "y"].includes(state.vimPending)) {
-    const operator = state.vimPending;
-    state.vimPending = "";
-    applyVimOperatorMotion(operator, key, source.selectionStart, previewFocus);
     return true;
   }
   if (key === "p" && state.vimYank) {
@@ -5278,6 +5335,7 @@ page.addEventListener("paste", (event) => {
   if (normalized.reconstructed) toast("Formatted screenplay text reconstructed as Fountain");
 });
 page.addEventListener("keydown", (event) => {
+  if (event.isComposing) return;
   if (handleVimKey(event, "preview")) return;
   const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); if (!line) return;
   if (!$("#preview-completion-menu").hidden) {
@@ -5297,7 +5355,7 @@ page.addEventListener("keydown", (event) => {
   const atVerticalEdge = verticalDirection === -1
     ? previewCaretIsOnVisualEdge(line, "first")
     : verticalDirection === 1 && previewCaretIsOnVisualEdge(line, "last");
-  if (verticalDirection && atVerticalEdge) {
+  if (verticalDirection && atVerticalEdge && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
     const edit = previewSelection(line);
     const adjacent = adjacentPreviewEditableLine(line, verticalDirection);
     if (edit && edit.startLine === edit.endLine && edit.startOffset === edit.endOffset && adjacent) {
