@@ -31,8 +31,10 @@ function harness() {
       return elements.get(id);
     },
     collaboration: {
+      fileId: "existing-file", closed: false,
       disconnect() { events.push("disconnect"); h.linkedRoom = null; },
       replace(value) { if (h.linkedRoom) events.push(["publish", h.linkedRoom, value]); },
+      async checkpoint() { requests.push({ kind: "checkpoint" }); return { file: { id: "existing-file" }, content: source.value }; },
     },
     sourceChanged() { events.push("sourceChanged"); context.collaboration.replace(source.value); },
     updateGoogleMenu() {}, scheduleWorkspaceCache: () => events.push("cache"),
@@ -165,10 +167,11 @@ test("download fallback also preserves undo and acknowledges only the downloaded
 test("Drive save acknowledges the captured snapshot without losing edits made during upload", async () => {
   const h = harness(); const wait = deferred();
   h.state.googleDriveFile = { id: "existing-file", capabilities: { canEdit: true } };
-  h.context.googleRequest = async (_url, options) => { h.requests.push(JSON.parse(options.body)); return wait.promise; };
+  h.context.collaboration.checkpoint = async () => { h.requests.push({ content: h.source.value, kind: "checkpoint" }); return wait.promise; };
   const saving = h.context.saveGoogleDrive();
-  h.source.value = "newer"; wait.resolve({ file: { id: "existing-file" } }); await saving;
+  h.source.value = "newer"; wait.resolve({ file: { id: "existing-file" }, content: "draft" }); await saving;
   assert.equal(h.requests[0].content, "draft");
+  assert.equal(h.requests[0].kind, "checkpoint");
   assert.equal(h.state.savedSource, "draft");
   assert.equal(h.classes.has("dirty"), true);
   assert.equal(h.state.history.length, 2);
@@ -212,7 +215,7 @@ test("Drive save is single-flight and rejects read-only or signed-out writes", a
 });
 
 test("slow local and Drive opens never overwrite newer edits or a switched document", async () => {
-  for (const type of ["local", "drive"]) for (const change of [h => h.state.documentRevision++, h => h.state.editRevision++]) {
+  for (const type of ["local", "drive"]) for (const change of [h => h.state.documentRevision++, h => h.state.editRevision++, h => h.state.previewComposing = true, h => h.state.sourceComposing = true]) {
     const h = harness(); const wait = deferred();
     h.context.googleRequest = () => wait.promise;
     const opening = type === "local"
@@ -223,6 +226,40 @@ test("slow local and Drive opens never overwrite newer edits or a switched docum
     await assert.rejects(opening, /editor changed while opening/);
     assert.equal(h.source.value, "draft");
     assert.ok(!h.events.includes("disconnect"));
+  }
+});
+
+test("opening a writable legacy Drive file adopts a stable collaboration identity before connecting", async () => {
+  const h = harness();
+  h.context.googleRequest = async (url, options) => {
+    h.requests.push({ url, method: options?.method || "GET" });
+    return options?.method === "POST"
+      ? { file: { id: "legacy-file", name: "Legacy.fountain", capabilities: { canEdit: true }, appProperties: { fountainPublisherDocumentId: "stable-room" } } }
+      : { content: "legacy text", file: { id: "legacy-file", name: "Legacy.fountain", capabilities: { canEdit: true } } };
+  };
+  await h.context.openGoogleDriveFile("legacy-file");
+  assert.equal(h.requests.length, 2);
+  assert.match(h.requests[1].url, /legacy-file\/adopt$/);
+  assert.equal(h.source.value, "legacy text");
+  assert.equal(h.state.googleDriveFile.appProperties.fountainPublisherDocumentId, "stable-room");
+  assert.ok(h.events.includes("connect"));
+});
+
+test("manual Drive saves use the room's acknowledged content, never a stale client PUT", async () => {
+  const h = harness(); h.state.googleDriveFile = { id: "existing-file", capabilities: { canEdit: true } };
+  h.context.collaboration.checkpoint = async () => ({ file: { id: "existing-file" }, content: "merged room version" });
+  await h.context.saveGoogleDrive();
+  assert.equal(h.requests.length, 0);
+  assert.equal(h.state.savedSource, "merged room version");
+  assert.equal(h.source.value, "draft"); assert.equal(h.classes.has("dirty"), true);
+});
+
+test("saves do not export transient composition text", async () => {
+  for (const surface of ["previewComposing", "sourceComposing"]) {
+    const h = harness(); h.state[surface] = true;
+    await h.context.saveFile(); await h.context.saveGoogleDrive();
+    assert.equal(h.requests.length, 0); assert.equal(h.writes.length, 0);
+    assert.equal(h.state.savedSource, "saved");
   }
 });
 

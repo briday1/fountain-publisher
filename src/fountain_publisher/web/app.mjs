@@ -697,11 +697,7 @@ function escapeHtml(value) {
 }
 
 function fountainInlineHtml(value) {
-  return escapeHtml(value)
-    .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/_(.+?)_/g, "<u>$1</u>");
+  return parseFountainInline(value).html;
 }
 
 function decodeNotePart(value) {
@@ -757,7 +753,7 @@ function parseManagedNotes(lines) {
 }
 
 function isScene(text) {
-  return /^(?:\.|(?:INT|EXT|EST|INT\.?\/EXT\.?|I\/E)[ .])/i.test(text);
+  return /^(?:\.(?!\.)(?=\s*\S)|(?:INT|EXT|EST|INT\.?\/EXT\.?|I\/E)[ .])/i.test(text);
 }
 
 function cleanCharacter(text) {
@@ -766,8 +762,9 @@ function cleanCharacter(text) {
 
 function isCharacterCue(lines, index) {
   const text = lines[index].trim();
-  if (!text || text.length > 45 || text.endsWith("TO:") || isScene(text)) return false;
   const forced = text.startsWith("@");
+  if (!text || (forced && !text.slice(1).trim())) return false;
+  if (!forced && (text.length > 45 || text.endsWith("TO:") || isScene(text) || / {2}$/.test(lines[index]))) return false;
   const candidate = forced || /^[A-Z][A-Z0-9 ._'\-]*(?:\s*\([^)]*\))?\^?$/.test(text);
   const previousBlank = index === 0 || !lines[index - 1].trim();
   return candidate && previousBlank;
@@ -804,18 +801,21 @@ function classifyLines(text) {
       dialogue = false;
     } else {
       titlePage = false;
-      if (/^#{1,6}\s/.test(trimmed)) type = "section";
-      else if (/^=/.test(trimmed) && !/^={3,}$/.test(trimmed)) type = "synopsis";
+      if (/^#{1,6}\s/.test(trimmed)) { type = "section"; dialogue = false; }
+      else if (/^=/.test(trimmed) && !/^={3,}$/.test(trimmed)) { type = "synopsis"; dialogue = false; }
       else if (/^\[\[.*\]\]$/.test(trimmed)) type = "note";
-      else if (/^~/.test(trimmed)) { type = "lyric"; display = raw.replace(/^\s*~/, ""); }
-      else if (/^={3,}$/.test(trimmed)) type = "page-break";
-      else if (isScene(trimmed)) { type = "scene"; dialogue = false; }
-      else if (isCharacterCue(lines, i)) { type = "character"; display = trimmed.replace(/^@/, "").replace(/\^$/, ""); dialogue = true; }
+      else if (/^~/.test(trimmed)) { type = "lyric"; display = raw.replace(/^\s*~/, ""); dialogue = false; }
+      else if (/^={3,}$/.test(trimmed)) { type = "page-break"; dialogue = false; }
+      // Explicit elements end dialogue even before a separating blank line is
+      // typed. Their force markers must never become spoken dialogue text.
+      else if (trimmed.startsWith("!")) { type = "action"; display = raw.replace(/^\s*!/, ""); dialogue = false; }
+      else if (isScene(trimmed)) { type = "scene"; display = trimmed.replace(/^\.\s*/, ""); dialogue = false; }
+      else if (/^>.*<$/.test(trimmed)) { type = "centered"; display = trimmed.slice(1, -1).trim(); dialogue = false; }
+      else if (/^>/.test(trimmed)) { type = "transition"; display = trimmed.replace(/^>\s*/, ""); dialogue = false; }
+      else if (isCharacterCue(lines, i)) { type = "character"; display = trimmed.replace(/^@/, "").replace(/\s*\^$/, "").trim(); dialogue = true; }
       else if (dialogue && /^\(.*\)$/.test(trimmed)) type = "parenthetical";
       else if (dialogue) type = "dialogue";
-      else if ((/^>.*<$/.test(trimmed))) { type = "centered"; display = trimmed.slice(1, -1).trim(); }
-      else if (/^>/.test(trimmed) || (/^[A-Z0-9 .'-]+TO:$/.test(trimmed))) type = "transition";
-      else if (trimmed.startsWith("!")) { type = "action"; display = raw.replace(/^\s*!/, ""); }
+      else if (/^[A-Z0-9 .'-]+TO:$/.test(trimmed)) { type = "transition"; display = trimmed; }
     }
     result.push({ raw, display, prefix, type, index: i });
     if (trimmed.includes("*/")) boneyard = false;
@@ -892,9 +892,9 @@ function previewLineHtml(line, sceneLabel = null, annotation = null) {
   const prefix = act ? "#" : line.prefix;
   if (centered) display = centered[1];
   else if (type === "transition" && line.raw.trim().startsWith(">")) display = line.raw.trim().slice(1).trimStart();
-  if (sceneLabel !== null) {
+  if (type === "scene") {
     const cleanDisplay = line.display.replace(/^\./, "").replace(/\s+#[^#]+#\s*$/, "");
-    display = docSettings.sceneNumbers === "inline" ? `${sceneLabel}. ${cleanDisplay}` : cleanDisplay;
+    display = sceneLabel !== null && docSettings.sceneNumbers === "inline" ? `${sceneLabel}. ${cleanDisplay}` : cleanDisplay;
   }
   const note = type === "note" ? managedNote(line.raw) : null;
   const content = display ? fountainInlineHtml(display) : "<br>";
@@ -905,7 +905,7 @@ function previewLineHtml(line, sceneLabel = null, annotation = null) {
     ? `<button class="annotation-orb" type="button" data-annotation-line="${annotation.index}" title="${escapeHtml(annotation.text)}" aria-label="Edit annotation: ${escapeHtml(annotation.text)}"></button>`
     : "";
   const spellcheckAttr = type === "character" ? ` spellcheck="false" autocorrect="off" autocomplete="off"` : "";
-  return `<div class="${className}" data-line="${line.index}" data-type="${escapeHtml(type)}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(display)}"${spellcheckAttr}>${content}${orb}</div>`;
+  return `<div class="${className}" data-line="${line.index}" data-type="${escapeHtml(type)}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(parseFountainInline(display).text)}"${spellcheckAttr}>${content}${orb}</div>`;
 }
 
 function annotationAfter(lines, index) {
@@ -1019,6 +1019,7 @@ function insertPreviewDraftRow(target) {
 }
 
 function renderPreview({ focusLine = null, focusOffset = null, revealEmptyBefore = false, draftBefore = false } = {}) {
+  if (state.previewComposing) return;
   const lines = classifyLines(source.value);
   const previewScroll = $("#preview-scroll");
   const stage = $("#preview-page-stage");
@@ -1067,28 +1068,7 @@ function placeCaretAtOffset(element, offset) {
 }
 
 function fountainInlineSourceMap(value) {
-  const removed = Array(value.length).fill(false);
-  const closing = Array(value.length).fill(false);
-  // Match the renderer's one-or-more character bodies, including a single letter.
-  const markup = /(\*{3}|\*{2}|\*|_)(.+?)\1/g;
-  for (const match of value.matchAll(markup)) {
-    const size = match[1].length;
-    for (let index = match.index; index < match.index + size; index += 1) removed[index] = true;
-    for (let index = match.index + match[0].length - size; index < match.index + match[0].length; index += 1) {
-      removed[index] = true;
-      closing[index] = true;
-    }
-  }
-  const visible = removed.flatMap((hidden, sourceOffset) => hidden ? [] : [sourceOffset]);
-  const startMap = Array.from({ length: visible.length + 1 }, (_, offset) => offset < visible.length ? visible[offset] : (visible.at(-1) ?? -1) + 1);
-  const endMap = Array.from({ length: visible.length + 1 }, (_, offset) => offset ? visible[offset - 1] + 1 : (visible[0] ?? 0));
-  const caretMap = Array.from({ length: visible.length + 1 }, (_, offset) => {
-    let sourceOffset = offset ? visible[offset - 1] + 1 : 0;
-    const nextVisible = offset < visible.length ? visible[offset] : value.length;
-    while (sourceOffset < nextVisible && closing[sourceOffset]) sourceOffset += 1;
-    return sourceOffset;
-  });
-  return { startMap, endMap, caretMap };
+  return parseFountainInline(value).sourceMap;
 }
 
 function previewSourceBody(element, originalValue) {
@@ -1097,26 +1077,40 @@ function previewSourceBody(element, originalValue) {
   const trimmedStart = originalValue.search(/\S|$/);
   if (element.classList.contains("centered")) {
     start = originalValue.indexOf(">", trimmedStart) + 1;
-    if (originalValue[start] === " ") start += 1;
     const close = originalValue.lastIndexOf("<");
     end = close < start ? end : close;
-    if (originalValue[end - 1] === " ") end -= 1;
+    while (start < end && /\s/.test(originalValue[start])) start += 1;
+    while (end > start && /\s/.test(originalValue[end - 1])) end -= 1;
   } else if (element.classList.contains("lyric")) {
     start = originalValue.indexOf("~", trimmedStart) + 1;
   } else if (element.classList.contains("action") && originalValue.slice(trimmedStart).startsWith("!")) {
     start = trimmedStart + 1;
-  } else if (element.classList.contains("character") && originalValue.slice(trimmedStart).startsWith("@")) {
-    start = trimmedStart + 1;
-  } else if (element.classList.contains("transition") && originalValue.slice(trimmedStart).startsWith(">")) {
-    start = trimmedStart + 1;
-    while (originalValue[start] === " ") start += 1;
+  } else if (element.classList.contains("character")) {
+    start = trimmedStart + (originalValue[trimmedStart] === "@" ? 1 : 0);
+    end = originalValue.trimEnd().length;
+    if (originalValue[end - 1] === "^") end -= 1;
+    while (start < end && /\s/.test(originalValue[start])) start += 1;
+    while (end > start && /\s/.test(originalValue[end - 1])) end -= 1;
+  } else if (element.classList.contains("transition")) {
+    start = trimmedStart + (originalValue[trimmedStart] === ">" ? 1 : 0);
+    end = originalValue.trimEnd().length;
+    while (start < end && /\s/.test(originalValue[start])) start += 1;
   } else if (element.dataset.prefix) {
     const prefixStart = originalValue.indexOf(element.dataset.prefix, trimmedStart);
     start = prefixStart < 0 ? 0 : prefixStart + element.dataset.prefix.length;
-    while (originalValue[start] === " ") start += 1;
+    end = originalValue.trimEnd().length;
+    while (start < end && /\s/.test(originalValue[start])) start += 1;
+  } else if (element.classList.contains("title-value")) {
+    start = trimmedStart;
+    end = originalValue.trimEnd().length;
   }
   if (element.classList.contains("scene")) {
-    if (originalValue[start] === ".") start += 1;
+    start = trimmedStart;
+    end = originalValue.trimEnd().length;
+    if (originalValue[start] === ".") {
+      start += 1;
+      while (start < end && /\s/.test(originalValue[start])) start += 1;
+    }
     const sceneNumber = originalValue.slice(start, end).match(/\s+#[^#]+#\s*$/);
     if (sceneNumber) end = start + sceneNumber.index;
   }
@@ -1134,14 +1128,7 @@ function previewSourceOffset(element, originalValue, displayOffset, affinity = "
 }
 
 function activeInlineMarkers(value, sourceOffset) {
-  const markers = [];
-  const markup = /(\*{3}|\*{2}|\*|_)(.+?)\1/g;
-  for (const match of value.matchAll(markup)) {
-    const openingEnd = match.index + match[1].length;
-    const closingStart = match.index + match[0].length - match[1].length;
-    if (sourceOffset >= openingEnd && sourceOffset <= closingStart) markers.push(match[1]);
-  }
-  return markers;
+  return parseFountainInline(value).activeMarkersAt(sourceOffset);
 }
 
 function previewTextOffset(element, node, offset) {
@@ -1228,44 +1215,54 @@ function setSourceSelectionFromPreview(edit) {
   updateCursor();
 }
 
+function renderPreviewInlineContent(element, raw, sourceColumn) {
+  const body = previewSourceBody(element, raw);
+  const parsed = parseFountainInline(raw.slice(body.start, body.end));
+  const prefix = element.dataset.sceneNumber && docSettings.sceneNumbers === "inline" ? `${element.dataset.sceneNumber}. ` : "";
+  const annotation = element.querySelector?.(".annotation-orb");
+  element.innerHTML = `${escapeHtml(prefix)}${parsed.html}` || "<br>";
+  if (annotation) element.append(annotation);
+  element.dataset.display = prefix + parsed.text;
+  return prefix.length + parsed.sourceMap.toDisplay(Math.max(0, sourceColumn - body.start));
+}
+
 function syncPreviewLine(element) {
+  if (!canEditDocument() || state.previewComposing) return;
   const index = Number(element.dataset.line);
   const lines = source.value.replace(/\r\n?/g, "\n").split("\n");
+  if (lines[index] === undefined) return;
   const oldDisplay = element.dataset.display ?? element.textContent;
   const newDisplay = element.textContent.replace(/\n/g, "");
-  let start = 0;
-  while (start < oldDisplay.length && start < newDisplay.length && oldDisplay[start] === newDisplay[start]) start += 1;
-  let oldEnd = oldDisplay.length;
-  let newEnd = newDisplay.length;
-  while (oldEnd > start && newEnd > start && oldDisplay[oldEnd - 1] === newDisplay[newEnd - 1]) { oldEnd -= 1; newEnd -= 1; }
+  if (oldDisplay === newDisplay) return;
+  const { start, oldEnd, newEnd } = textDifference(oldDisplay, newDisplay);
   const collapsed = start === oldEnd;
   const rawStart = previewSourceOffset(element, lines[index], start, collapsed ? "caret" : "start");
   const rawEnd = previewSourceOffset(element, lines[index], oldEnd, collapsed ? "caret" : "end");
-  const value = lines[index].slice(0, rawStart) + newDisplay.slice(start, newEnd) + lines[index].slice(rawEnd);
-  lines[index] = value;
-  element.dataset.display = newDisplay;
-  element.innerHTML = fountainInlineHtml(newDisplay) || "<br>";
-  placeCaretAtOffset(element, newEnd);
+  const replacement = replaceFountainRange(lines[index], rawStart, rawEnd, newDisplay.slice(start, newEnd));
+  lines[index] = replacement.source;
   source.value = lines.join("\n");
-  const offset = sourceOffsetForLine(lines, index, rawStart + newEnd - start);
+  const sourceColumn = replacement.caret;
+  const offset = sourceOffsetForLine(lines, index, sourceColumn);
   source.setSelectionRange(offset, offset);
   sourceChanged({ fromPreview: true });
+  const focusOffset = renderPreviewInlineContent(element, lines[index], sourceColumn);
+  placeCaretAtOffset(element, focusOffset);
   const nextType = classifyLines(source.value)[index]?.type;
-  if (nextType && nextType !== element.dataset.type) renderPreview({ focusLine: index, focusOffset: newDisplay.length });
+  if (nextType && nextType !== element.dataset.type) renderPreview({ focusLine: index, focusOffset });
 }
 
 function replacePreviewSelection(edit, text) {
+  if (!canEditDocument() || state.previewComposing) return;
   const lines = source.value.replace(/\r\n?/g, "\n").split("\n");
   const startIndex = Number(edit.startLine.dataset.line);
   const endIndex = Number(edit.endLine.dataset.line);
-  const before = edit.startLine.textContent.slice(0, edit.startOffset);
-  const after = edit.endLine.textContent.slice(edit.endOffset);
+  const before = (edit.startDisplay ?? edit.startLine.textContent).slice(0, edit.startOffset);
+  const after = (edit.endDisplay ?? edit.endLine.textContent).slice(edit.endOffset);
   let insertedText = text.replace(/\r\n?/g, "\n");
   const displayLines = `${before}${insertedText}${after}`.split("\n");
   const collapsed = startIndex === endIndex && edit.startOffset === edit.endOffset;
   const rawStart = previewSourceOffset(edit.startLine, lines[startIndex], edit.startOffset, collapsed ? "caret" : "start");
   const rawEnd = previewSourceOffset(edit.endLine, lines[endIndex], edit.endOffset, collapsed ? "caret" : "end");
-  const trailingSource = lines[endIndex].slice(rawEnd);
   const preservedNotes = startIndex === endIndex
     ? []
     : lines.slice(startIndex + 1, endIndex).filter((value) => /^\s*\[\[.*\]\]\s*$/.test(value));
@@ -1273,7 +1270,10 @@ function replacePreviewSelection(edit, text) {
     const markers = activeInlineMarkers(lines[startIndex], rawStart);
     if (markers.length) insertedText = insertedText.replaceAll("\n", `${[...markers].reverse().join("")}\n${markers.join("")}`);
   }
-  const replacements = `${lines[startIndex].slice(0, rawStart)}${insertedText}${lines[endIndex].slice(rawEnd)}`.split("\n");
+  const selectedSource = lines.slice(startIndex, endIndex + 1).join("\n");
+  const selectedEnd = sourceOffsetForLine(lines.slice(startIndex, endIndex + 1), endIndex - startIndex, rawEnd);
+  const replacement = replaceFountainRange(selectedSource, rawStart, selectedEnd, insertedText);
+  const replacements = replacement.source.split("\n");
   if (startIndex === endIndex && edit.startLine.classList.contains("centered") && replacements.length > 1) {
     replacements[0] = `${replacements[0].trimEnd()} <`;
     replacements[replacements.length - 1] = `> ${replacements.at(-1).trimStart()}`;
@@ -1283,7 +1283,7 @@ function replacePreviewSelection(edit, text) {
   source.value = lines.join("\n");
   const focusLine = startIndex + displayLines.length - 1;
   const focusOffset = displayLines.length === 1 ? before.length + text.length : text.split(/\r\n?|\n/).at(-1).length;
-  const sourceColumn = replacements.at(-1).length - trailingSource.length;
+  const sourceColumn = replacement.source.slice(0, replacement.caret).split("\n").at(-1).length;
   const sourceOffset = sourceOffsetForLine(lines, focusLine, Math.max(0, sourceColumn));
   source.setSelectionRange(sourceOffset, sourceOffset);
   sourceChanged({ fromPreview: true });
@@ -1295,29 +1295,48 @@ function replacePreviewSelection(edit, text) {
     return;
   }
   if (startIndex === endIndex && displayLines.length === 1) {
-    edit.startLine.innerHTML = fountainInlineHtml(displayLines[0]) || "<br>";
-    edit.startLine.dataset.display = displayLines[0];
+    const caretOffset = renderPreviewInlineContent(edit.startLine, lines[startIndex], sourceColumn);
     page.focus({ preventScroll: true });
-    placeCaretAtOffset(edit.startLine, focusOffset);
-    setSourceCursorFromPreview(edit.startLine, focusOffset);
+    placeCaretAtOffset(edit.startLine, caretOffset);
+    setSourceCursorFromPreview(edit.startLine, caretOffset);
     showPreviewCharacterCompletions(edit.startLine);
   } else {
     renderPreview({ focusLine, focusOffset, revealEmptyBefore: insertedText.includes("\n"), draftBefore: insertedText.includes("\n") && before.length === 0 });
   }
 }
 
-function previewDeleteSelection(edit, direction, byWord = false) {
+function previewVisualLineBounds(line, offset) {
+  const selection = getSelection();
+  const caretRects = selection?.rangeCount ? [...selection.getRangeAt(0).getClientRects()] : [];
+  const boundaries = graphemeBoundaries(line.textContent);
+  const segments = [];
+  for (let index = 0; index < boundaries.length - 1; index += 1) {
+    const start = previewTextPoint(line, boundaries[index]);
+    const end = previewTextPoint(line, boundaries[index + 1]);
+    const range = document.createRange();
+    range.setStart(start.node, start.offset);
+    range.setEnd(end.node, end.offset);
+    segments.push({ start: boundaries[index], end: boundaries[index + 1], rects: [...range.getClientRects()] });
+  }
+  const adjacent = segments.find((segment) => segment.start <= offset && segment.end > offset) || segments.at(-1);
+  const top = caretRects[0]?.top ?? adjacent?.rects[0]?.top;
+  const visible = segments.filter((segment) => segment.rects.some((rect) => Math.abs(rect.top - top) < 1));
+  return { start: visible[0]?.start ?? 0, end: visible.at(-1)?.end ?? line.textContent.length };
+}
+
+function previewDeleteSelection(edit, direction, unit = "character") {
+  if (!canEditDocument() || state.previewComposing) return;
   if (edit.startLine !== edit.endLine || edit.startOffset !== edit.endOffset) return replacePreviewSelection(edit, "");
   const line = edit.startLine;
-  const index = Number(line.dataset.line);
   const value = line.textContent;
-  if (direction === "backward" && edit.startOffset > 0) {
-    const before = value.slice(0, edit.startOffset);
-    edit.startOffset = byWord ? before.search(/\S+\s*$/) : edit.startOffset - 1;
-  } else if (direction === "forward" && edit.endOffset < value.length) {
-    const after = value.slice(edit.endOffset);
-    const length = byWord ? (after.match(/^\s*\S+/)?.[0].length || 1) : 1;
-    edit.endOffset += length;
+  const inputType = unit.startsWith?.("delete") ? unit : `delete${unit === true || unit === "word" ? "Word" : "Content"}${direction === "forward" ? "Forward" : "Backward"}`;
+  if (["deleteByCut", "deleteByDrag"].includes(inputType)) return;
+  if ((direction === "backward" && edit.startOffset > 0) || (direction === "forward" && edit.endOffset < value.length) || inputType === "deleteEntireSoftLine") {
+    const visualLine = inputType.includes("SoftLine") ? previewVisualLineBounds(line, edit.startOffset) : null;
+    const range = deletionRange(value, edit.startOffset, inputType, visualLine);
+    edit.startOffset = range.start;
+    edit.endOffset = range.end;
+    if (range.start === range.end) return;
   } else {
     const candidates = $$(".script-line[data-display]", page).filter(previewLineIsEditable);
     const current = candidates.indexOf(line);
@@ -1951,6 +1970,7 @@ async function saveCharacterAnalyticsPng() {
 }
 
 function recordHistory() {
+  if (state.collaborationHistoryActive) return;
   if (state.history[state.historyIndex] === source.value) return;
   state.history.splice(state.historyIndex + 1);
   state.history.push(source.value);
@@ -1972,6 +1992,7 @@ function mergeCurrentManagedNotes(historyValue, currentValue) {
 }
 
 function restoreHistory(index) {
+  if (!canEditDocument()) return;
   if (index < 0 || index >= state.history.length || index === state.historyIndex) return;
   const previewLine = page.contains(document.activeElement) ? Number(document.activeElement.dataset.line) : null;
   const sourcePosition = source.selectionStart;
@@ -1982,8 +2003,20 @@ function restoreHistory(index) {
   else { source.focus(); source.setSelectionRange(Math.min(sourcePosition, source.value.length), Math.min(sourcePosition, source.value.length)); }
 }
 
-function undoDocument() { restoreHistory(state.historyIndex - 1); }
-function redoDocument() { restoreHistory(state.historyIndex + 1); }
+function undoDocument() {
+  if (!canEditDocument()) return;
+  if (state.collaborationHistoryActive) { collaboration.undo?.(); return; }
+  restoreHistory(state.historyIndex - 1);
+}
+function redoDocument() {
+  if (!canEditDocument()) return;
+  if (state.collaborationHistoryActive) { collaboration.redo?.(); return; }
+  restoreHistory(state.historyIndex + 1);
+}
+
+function canEditDocument() {
+  return canMutateDocument({ readOnly: source.readOnly, composing: state.previewComposing || state.sourceComposing });
+}
 
 function transformBeatRange(range, editStart, oldCount, newCount) {
   if (!range) return null;
@@ -2030,7 +2063,15 @@ function rebaseBeatRanges(previousValue, nextValue) {
   return nextLines.join("\n");
 }
 
-function sourceChanged({ fromPreview = false, record = true, rebaseBeats = true } = {}) {
+function sourceChanged({ fromPreview = false, record = true, rebaseBeats = true, origin = "local" } = {}) {
+  // Every legacy command and native-input adapter terminates here. Reject a
+  // scripted read-only edit before history, dirty state, persistence or sync.
+  if (!canMutateDocument({ readOnly: source.readOnly, composing: state.previewComposing || state.sourceComposing }, origin)) {
+    if (state.previewComposing || state.sourceComposing) return false;
+    source.value = state.lastSourceValue;
+    if (fromPreview) renderPreview();
+    return false;
+  }
   state.editRevision += 1;
   if (rebaseBeats) {
     const selectionStart = source.selectionStart;
@@ -2053,6 +2094,7 @@ function sourceChanged({ fromPreview = false, record = true, rebaseBeats = true 
   scheduleCompile();
   scheduleWorkspaceCache();
   if (!state.collaborationApplying) collaboration.replace(source.value);
+  return true;
 }
 
 function scheduleCompile(delay = 350) {
@@ -2218,6 +2260,7 @@ function positionSourceCompletion() {
 }
 
 function acceptCompletion(index = state.completionIndex) {
+  if (!canEditDocument()) return;
   const item = state.completionItems[index]; if (!item) return;
   const position = currentPosition();
   const before = source.value.slice(0, source.selectionStart);
@@ -2238,6 +2281,7 @@ function acceptCompletion(index = state.completionIndex) {
 }
 
 async function newFile() {
+  if (state.previewComposing || state.sourceComposing) return toast("Finish composing text before opening a new document");
   if (!(await confirmDiscard())) return;
   state.handle = null; setDocument(BLANK_TEMPLATE, "Untitled.fountain", true); source.focus();
 }
@@ -2263,7 +2307,7 @@ async function openLocalFile(file, handle = null) {
   const documentRevision = state.documentRevision;
   const editRevision = state.editRevision;
   const content = await file.text();
-  if (documentRevision !== state.documentRevision || editRevision !== state.editRevision) throw new Error("The editor changed while opening. Open the local file again when ready.");
+  if (documentRevision !== state.documentRevision || editRevision !== state.editRevision || state.previewComposing || state.sourceComposing) throw new Error("The editor changed while opening. Open the local file again when ready.");
   state.handle = handle;
   setDocument(content, file.name, true);
 }
@@ -2505,6 +2549,7 @@ function normalizeScreenplayPaste(value) {
 }
 
 async function importPdfFile(file) {
+  const target = captureEditTarget(state, source.value);
   $("#compile-status").textContent = "Importing PDF…";
   try {
     const bytes = await file.arrayBuffer();
@@ -2530,6 +2575,7 @@ async function importPdfFile(file) {
     }
     if (!pages.some((page) => page.trim())) throw new Error("No selectable text was found. This PDF may be an image-only scan.");
     const imported = pdfLayoutToFountain(pages);
+    if (!isCurrentEditTarget(target, state, source.value)) throw new Error("The editor changed during import. Import the PDF again when ready.");
     const filename = file.name.replace(/\.pdf$/i, "") + ".fountain";
     state.handle = null;
     setDocument(imported, filename, false);
@@ -2549,6 +2595,11 @@ function setDocument(text, filename, saved = false, githubFile = null, googleDri
   clearTimeout(state.collaborationPresenceTimer);
   state.collaborators.clear();
   state.collaborationApplying = false;
+  state.collaborationHistoryActive = false;
+  state.previewComposing = false;
+  state.sourceComposing = false;
+  state.previewComposition = null;
+  state.sourceComposition = null;
   $("#collaboration-cursors").innerHTML = "";
   $("#collaboration-presence").innerHTML = "";
   $("#collaboration-status").textContent = "";
@@ -2562,20 +2613,77 @@ function setDocument(text, filename, saved = false, githubFile = null, googleDri
   const canEdit = !googleDriveFile || googleDriveFile.capabilities?.canEdit === true;
   source.readOnly = !canEdit;
   $("#screenplay-page").contentEditable = canEdit ? "plaintext-only" : "false";
-  $("#filename").textContent = state.filename; document.title = `${state.filename} — Fountain Publisher`; sourceChanged({ rebaseBeats: false });
+  $("#filename").textContent = state.filename; document.title = `${state.filename} — Fountain Publisher`; sourceChanged({ rebaseBeats: false, origin: "load" });
   updateGoogleMenu();
 }
 
+function captureEditorSelection() {
+  const surface = document.activeElement === source ? "source" : page.contains(document.activeElement) ? "preview" : null;
+  let anchor = source.selectionDirection === "backward" ? source.selectionEnd : source.selectionStart;
+  let head = source.selectionDirection === "backward" ? source.selectionStart : source.selectionEnd;
+  if (surface === "preview") {
+    const edit = previewSelection();
+    if (edit) {
+      const lines = sourceLines();
+      const startLine = Number(edit.startLine.dataset.line);
+      const endLine = Number(edit.endLine.dataset.line);
+      const collapsed = edit.startLine === edit.endLine && edit.startOffset === edit.endOffset;
+      const start = sourceOffsetForLine(lines, startLine, previewSourceOffset(edit.startLine, lines[startLine] || "", edit.startOffset, collapsed ? "caret" : "start"));
+      const end = sourceOffsetForLine(lines, endLine, previewSourceOffset(edit.endLine, lines[endLine] || "", edit.endOffset, collapsed ? "caret" : "end"));
+      anchor = edit.direction === "backward" ? end : start;
+      head = edit.direction === "backward" ? start : end;
+    }
+  }
+  return { surface, anchor, head, relative: collaboration.synced ? collaboration.captureSelection({ anchor, head }) : null, documentRevision: state.documentRevision };
+}
+
+function previewPointAtSourceOffset(offset) {
+  const position = vimLinePosition(offset);
+  const element = $(`[data-line="${position.line}"]`, page);
+  if (!element) return null;
+  const body = previewSourceBody(element, position.lines[position.line]);
+  const sourceColumn = Math.max(0, Math.min(position.column - body.start, body.end - body.start));
+  const displayColumn = body.map.sourceToDisplay[sourceColumn];
+  const prefix = element.dataset.sceneNumber && docSettings.sceneNumbers === "inline" ? `${element.dataset.sceneNumber}. `.length : 0;
+  revealPreviewEmptyRun(element, true);
+  return previewTextPoint(element, displayColumn + prefix);
+}
+
+function restoreEditorSelection(selection) {
+  if (!selection || selection.documentRevision !== state.documentRevision) return;
+  const resolved = selection.relative && collaboration.resolveSelection(selection.relative);
+  const anchor = Math.max(0, Math.min(resolved?.anchor ?? selection.anchor, source.value.length));
+  const head = Math.max(0, Math.min(resolved?.head ?? selection.head, source.value.length));
+  source.setSelectionRange(Math.min(anchor, head), Math.max(anchor, head), head < anchor ? "backward" : "forward");
+  // Never steal focus from a dialog/menu to restore a background editor range.
+  if (selection.surface === "preview" && page.contains(document.activeElement)) {
+    const anchorPoint = previewPointAtSourceOffset(anchor);
+    const headPoint = previewPointAtSourceOffset(head);
+    if (anchorPoint && headPoint) getSelection()?.setBaseAndExtent(anchorPoint.node, anchorPoint.offset, headPoint.node, headPoint.offset);
+  }
+}
+
+function flushDeferredCollaborationDocument() {
+  if (!state.previewComposing && !state.sourceComposing) collaboration.resumeRemoteUpdates?.();
+}
+
 const collaboration = typeof CollaborationClient === "function" ? new CollaborationClient({
-  onDocument(value, remote) {
+  onBeforeRemoteUpdate: captureEditorSelection,
+  onCheckpoint(result) {
+    if (state.googleDriveFile?.id !== result.file?.id || typeof result.content !== "string") return;
+    state.savedSource = result.content;
+    state.googleDriveFile = { ...state.googleDriveFile, ...result.file };
+    document.body.classList.toggle("dirty", source.value !== result.content);
+    scheduleWorkspaceCache();
+  },
+  onDocument(value, remote, selection) {
     if (!remote || value === source.value) return;
     state.collaborationApplying = true;
-    const start = Math.min(source.selectionStart, value.length);
-    const end = Math.min(source.selectionEnd, value.length);
-    source.value = value;
-    source.setSelectionRange(start, end);
-    sourceChanged({ rebaseBeats: false });
-    state.collaborationApplying = false;
+    try {
+      source.value = value;
+      sourceChanged({ rebaseBeats: false, record: false, origin: "remote" });
+      restoreEditorSelection(selection);
+    } finally { state.collaborationApplying = false; }
     renderCollaborationPresence();
   },
   onPresence(payload) {
@@ -2586,10 +2694,16 @@ const collaboration = typeof CollaborationClient === "function" ? new Collaborat
     renderCollaborationPresence();
   },
   onStatus(status, detail = "") {
-    const labels = { connected: "Live", reconnecting: "Reconnecting…", saved: "Saved to Drive", "save-error": "Drive save failed", "read-only": "View only", "sync-conflict": "Sync conflict — save a local copy", error: "Collaboration error" };
+    const labels = { syncing: "Syncing…", connected: "Live", reconnecting: "Reconnecting…", saved: "Saved to Drive", "save-error": "Drive save failed", "read-only": "View only", "sync-conflict": "Sync paused — File → Recover document versions", error: "Collaboration error" };
     $("#collaboration-status").textContent = labels[status] || "";
     $("#collaboration-status").dataset.status = status;
     $("#collaboration-status").title = detail;
+    if (status === "read-only") {
+      source.readOnly = true;
+      page.contentEditable = "false";
+      if (state.googleDriveFile) state.googleDriveFile.capabilities = { ...state.googleDriveFile.capabilities, canEdit: false };
+      updateGoogleMenu();
+    }
     if (status === "sync-conflict") { updateGoogleMenu(); toast(detail); }
   },
 }) : { connect() {}, disconnect() {}, replace() {}, updatePresence() {} };
@@ -2616,6 +2730,7 @@ function remoteCursorHtml(user) {
 }
 
 function renderCollaborationPresence() {
+  if (state.previewComposing || state.sourceComposing) return;
   const users = [...state.collaborators.values()];
   $("#collaboration-cursors").innerHTML = users.map((user) => `<pre class="collaboration-cursor-layer" style="--collaborator-color:${collaboratorColor(user.connectionId)}">${remoteCursorHtml(user)}</pre>`).join("");
   $("#collaboration-presence").innerHTML = users.map((user) => {
@@ -2658,6 +2773,39 @@ function updateGoogleMenu() {
   $("#google-open").disabled = !state.googleConnected;
   $("#google-save").disabled = !state.googleConnected || state.googleSaving || collaboration.syncConflict || Boolean(state.googleDriveFile && !state.googleDriveFile.capabilities?.canEdit);
   $("#google-share").disabled = !state.googleDriveFile?.capabilities?.canShare;
+  $("#google-recovery").disabled = !state.googleDriveFile?.appProperties?.fountainPublisherDocumentId;
+}
+
+async function openGoogleRecovery() {
+  const file = state.googleDriveFile;
+  const documentId = file?.appProperties?.fountainPublisherDocumentId;
+  if (!documentId) return;
+  if (state.previewComposing || state.sourceComposing) return toast("Finish composing before making recovery copies");
+  const recovery = state.googleRecovery = { filename: state.filename.replace(/\.(fountain|txt)$/i, ""), local: source.value, room: null, drive: null };
+  $("#google-recovery-room").disabled = true;
+  $("#google-recovery-drive").disabled = true;
+  $("#google-recovery-status").textContent = "Checking your access and fetching saved versions…";
+  $("#google-recovery-dialog").showModal();
+  try {
+    const result = await googleRequest(`/api/collaboration/${encodeURIComponent(documentId)}/recovery?fileId=${encodeURIComponent(file.id)}`);
+    if (state.googleRecovery !== recovery) return;
+    if (typeof result.roomContent !== "string" || typeof result.driveContent !== "string") throw new Error("The server could not verify both versions. Your editor copy is still available.");
+    recovery.room = result.roomContent;
+    recovery.drive = result.driveContent;
+    $("#google-recovery-room").disabled = false;
+    $("#google-recovery-drive").disabled = false;
+    $("#google-recovery-status").textContent = recovery.local === recovery.room && recovery.room === recovery.drive
+      ? "All three versions currently match."
+      : "These versions differ. Download the copies you need before choosing which to keep.";
+  } catch (error) {
+    if (state.googleRecovery === recovery) $("#google-recovery-status").textContent = error.message;
+  }
+}
+
+function downloadGoogleRecovery(version) {
+  const recovery = state.googleRecovery;
+  if (!recovery || !["local", "room", "drive"].includes(version) || typeof recovery[version] !== "string") return;
+  return download(new Blob([recovery[version]], { type: "text/plain;charset=utf-8" }), `${recovery.filename}-${version}-recovery.fountain`);
 }
 
 async function refreshGoogleSession({ notify = false } = {}) {
@@ -2693,6 +2841,9 @@ function connectDriveCollaboration(file, baselineContent = source.value) {
   updateGoogleMenu();
   const documentId = file.appProperties?.fountainPublisherDocumentId;
   if (!documentId) return toast("This Drive file predates live collaboration. Save a new Drive copy to collaborate.");
+  // Once a document uses CRDT history, a disconnected session must never fall
+  // back to whole-text snapshots that can erase intervening remote edits.
+  state.collaborationHistoryActive = true;
   collaboration.connect({ fileId: file.id, documentId, canEdit: file.capabilities?.canEdit === true, baselineContent });
 }
 
@@ -2747,7 +2898,11 @@ async function openGoogleDriveFile(fileId) {
   const documentRevision = state.documentRevision;
   const editRevision = state.editRevision;
   const result = await googleRequest(`/api/google/drive/files?fileId=${encodeURIComponent(fileId)}`);
-  if (documentRevision !== state.documentRevision || editRevision !== state.editRevision) throw new Error("The editor changed while opening. Open the Drive file again when ready.");
+  if (result.file?.capabilities?.canEdit && !result.file.appProperties?.fountainPublisherDocumentId) {
+    const adopted = await googleRequest(`/api/google/drive/files/${encodeURIComponent(fileId)}/adopt`, { method: "POST" });
+    result.file = adopted.file;
+  }
+  if (documentRevision !== state.documentRevision || editRevision !== state.editRevision || state.previewComposing || state.sourceComposing) throw new Error("The editor changed while opening. Open the Drive file again when ready.");
   state.handle = null;
   setDocument(result.content, result.file.name, true, null, result.file);
   connectDriveCollaboration(result.file);
@@ -2928,6 +3083,7 @@ async function openGooglePicker() {
 async function saveGoogleDrive({ keepBrowser = false } = {}) {
   if (state.googleSaving) return;
   if (!state.googleConnected) return toast("Sign in with Google before saving");
+  if (state.previewComposing || state.sourceComposing) return toast("Finish composing text before saving");
   if (collaboration.syncConflict) return toast("Live sync is paused because the shared document changed. Save a local copy before reopening the Drive document.");
   const file = state.googleDriveFile;
   if (file && file.capabilities?.canEdit !== true) return toast("This Drive document is view only");
@@ -2937,8 +3093,12 @@ async function saveGoogleDrive({ keepBrowser = false } = {}) {
   state.googleSaving = true;
   updateGoogleMenu();
   try {
+    if (file) {
+      if (collaboration.closed || collaboration.fileId !== file.id) throw new Error("Reconnect this Drive document before saving, or save a local copy.");
+      collaboration.replace(content);
+    }
     const result = file
-      ? await googleRequest(`/api/google/drive/files/${encodeURIComponent(file.id)}`, { method: "PUT", body: JSON.stringify({ content }) })
+      ? await collaboration.checkpoint()
       : await googleRequest("/api/google/drive/files", { method: "POST", body: JSON.stringify({ name: normalizedFilename("fountain"), content }) });
     if (documentRevision !== state.documentRevision || account !== state.googleAccount || !state.googleConnected) return;
     state.googleDriveFile = { ...file, ...result.file };
@@ -2947,13 +3107,15 @@ async function saveGoogleDrive({ keepBrowser = false } = {}) {
       // Preserve typing that happened during the upload when the new room syncs.
       collaboration.replace(source.value);
     }
-    state.savedSource = content;
-    document.body.classList.toggle("dirty", source.value !== content);
+    const acknowledgedContent = file ? result.content : content;
+    if (typeof acknowledgedContent !== "string") throw new Error("Drive did not confirm the saved document. Keep a local copy and retry.");
+    state.savedSource = acknowledgedContent;
+    document.body.classList.toggle("dirty", source.value !== acknowledgedContent);
     scheduleWorkspaceCache();
     updateGoogleMenu();
     if ($("#google-drive-dialog").open && !keepBrowser) $("#google-drive-dialog").close();
     if (keepBrowser) await openGoogleDrive();
-    toast(source.value === content ? "Saved to Google Drive" : "Saved to Google Drive; newer edits are not saved yet");
+    toast(source.value === acknowledgedContent ? "Saved to Google Drive" : "Saved to Google Drive; newer edits are not saved yet");
   } catch (error) { toast(error.message); }
   finally { state.googleSaving = false; updateGoogleMenu(); }
 }
@@ -2981,6 +3143,7 @@ async function inviteGoogleCollaborator() {
 
 async function saveFile(saveAs = false) {
   if (state.localSaving) return;
+  if (state.previewComposing || state.sourceComposing) return toast("Finish composing text before saving");
   const documentRevision = state.documentRevision;
   let handle = state.handle;
   let filename = state.filename;
@@ -3273,7 +3436,7 @@ async function openGithubFile(path, trigger) {
     const documentRevision = state.documentRevision;
     const editRevision = state.editRevision;
     const file = await githubRequest(githubContentPath(path, repository, branch));
-    if (documentRevision !== state.documentRevision || editRevision !== state.editRevision) throw new Error("The editor changed while opening. Open the GitHub file again when ready.");
+    if (documentRevision !== state.documentRevision || editRevision !== state.editRevision || state.previewComposing || state.sourceComposing) throw new Error("The editor changed while opening. Open the GitHub file again when ready.");
     const remote = { owner: repository.owner, repo: repository.repo, branch, path, sha: file.sha };
     state.handle = null;
     setDocument(decodeGithubContent(file.content), file.name, true, remote);
@@ -3291,6 +3454,7 @@ async function openGithubFile(path, trigger) {
 
 async function saveGithubFile() {
   if (state.githubSaving) return;
+  if (state.previewComposing || state.sourceComposing) return toast("Finish composing text before saving");
   if (state.githubConflict) return $("#github-conflict-dialog").showModal();
   const repository = selectedGithubRepository();
   const branch = $("#github-branch").value;
@@ -3366,14 +3530,14 @@ async function finishGithubSave(target, content, result, resolution = false) {
   const saved = await readGithubVersion(target);
   if (saved.sha !== result.sha) throw new Error("GitHub could not verify the saved file. The commit may have succeeded; retry to review the latest version.");
   const sameDocument = state.documentRevision === target.documentRevision;
-  const unchanged = sameDocument && state.editRevision === target.editRevision && source.value === target.content;
+  const unchanged = sameDocument && state.editRevision === target.editRevision && source.value === target.content && !state.previewComposing && !state.sourceComposing;
   if (sameDocument) {
     state.githubFile = { owner: target.owner, repo: target.repo, branch: target.branch, path: target.path, sha: result.sha };
     state.filename = target.filename;
     state.savedSource = content;
     $("#filename").textContent = target.filename;
     document.title = `${target.filename} — Fountain Publisher`;
-    if (resolution && unchanged) {
+    if (resolution && unchanged && !source.readOnly) {
       source.value = content;
       sourceChanged({ rebaseBeats: false });
     }
@@ -4256,6 +4420,7 @@ function sourceLines() {
 }
 
 function setSourceLines(lines, { record = true } = {}) {
+  if (!canEditDocument()) return;
   const selectionStart = source.selectionStart;
   const selectionEnd = source.selectionEnd;
   const selectionDirection = source.selectionDirection;
@@ -4581,13 +4746,14 @@ function placePreviewCaretFromPoint(line, clientX, clientY) {
 }
 
 function showPreviewContextMenu(line, clientX, clientY, surface = "preview") {
+  state.contextTarget = captureEditTarget(state, source.value);
   const menu = $("#preview-context-menu");
   const selection = surface === "preview" ? previewSelectionInPage() : null;
   state.contextSurface = surface;
   state.previewContextLine = surface === "preview" ? Number(line.dataset.line) : sourceLineAtOffset(source.selectionStart);
   state.previewContextEdit = surface === "preview" ? previewSelection(previewLineForNode(selection?.focusNode) || line) : null;
   state.previewContextText = surface === "preview" ? selection?.toString() || "" : source.value.slice(source.selectionStart, source.selectionEnd);
-  state.contextSelection = { start: source.selectionStart, end: source.selectionEnd };
+  state.contextSelection = { start: source.selectionStart, end: source.selectionEnd, text: state.previewContextText, target: state.contextTarget };
   state.contextWord = wordAtSourceOffset(source.selectionStart);
   menu.hidden = false;
   let top = clientY;
@@ -4603,16 +4769,26 @@ function showPreviewContextMenu(line, clientX, clientY, surface = "preview") {
 }
 
 async function runSourceContextAction(action, context) {
+  if (["cut", "paste"].includes(action) && !canEditDocument()) return "This document is view only or composing text";
+  if (["cut", "paste"].includes(action) && context.target && !isCurrentEditTarget(context.target, state, source.value)) return "The document changed; select the text again";
+  const target = captureEditTarget(state, source.value);
   const { start, end } = context;
-  const text = source.value.slice(start, end);
+  const text = context.text ?? source.value.slice(start, end);
   if (action === "copy" || action === "cut") {
     if (!text) return "Select text to copy";
     try { await navigator.clipboard.writeText(text); } catch { return "Clipboard access was denied"; }
-    if (action === "cut") { source.setRangeText("", start, end, "end"); sourceChanged(); }
+    if (action === "cut") {
+      if (!canEditDocument() || !isCurrentEditTarget(target, state, source.value)) return "The document changed; select the text again";
+      source.setRangeText("", start, end, "end"); sourceChanged();
+    }
     return "";
   }
   if (action === "paste") {
-    try { source.setRangeText(await navigator.clipboard.readText(), start, end, "end"); sourceChanged(); return ""; }
+    try {
+      const pasted = await navigator.clipboard.readText();
+      if (!canEditDocument() || !isCurrentEditTarget(target, state, source.value)) return "The document changed; choose where to paste again";
+      source.setRangeText(pasted, start, end, "end"); sourceChanged(); return "";
+    }
     catch { return "Clipboard access was denied"; }
   }
   if (action === "select-all") { source.focus(); source.select(); return ""; }
@@ -4637,6 +4813,7 @@ function normalizeNestedFountainEmphasis(text, action) {
 }
 
 function toggleFountainEmphasis(action, context, surface) {
+  if (!canEditDocument()) return "This document is view only or composing text";
   const markers = { bold: "**", italic: "*", "bold-italic": "***", underline: "_" };
   const marker = markers[action];
   if (!marker || !context) return "";
@@ -4675,6 +4852,8 @@ function toggleFountainEmphasis(action, context, surface) {
 }
 
 async function runPreviewClipboardAction(action, lineNumber, context = {}) {
+  if (["cut", "paste"].includes(action) && !canEditDocument()) return "This document is view only or composing text";
+  const target = captureEditTarget(state, source.value);
   const line = Number.isInteger(lineNumber) ? $(`[data-line="${lineNumber}"]`, page) : null;
   if (action === "copy") {
     const selection = previewSelectionInPage();
@@ -4691,10 +4870,12 @@ async function runPreviewClipboardAction(action, lineNumber, context = {}) {
     if (!edit) return "Select text to cut";
     try {
       await navigator.clipboard.writeText(text);
+      if (!canEditDocument() || !isCurrentEditTarget(target, state, source.value)) return "The document changed; select the text again";
       replacePreviewSelection(edit, "");
       return "";
     } catch {
       try {
+        if (!canEditDocument() || !isCurrentEditTarget(target, state, source.value)) return "The document changed; select the text again";
         if (!document.execCommand("copy")) return "Clipboard access was denied";
         replacePreviewSelection(edit, "");
         return "";
@@ -4705,9 +4886,12 @@ async function runPreviewClipboardAction(action, lineNumber, context = {}) {
     const edit = context.edit || previewSelection(line || previewLineForNode(previewSelectionInPage()?.focusNode));
     if (!edit) return "Click where you want to paste";
     try {
-      replacePreviewSelection(edit, await navigator.clipboard.readText());
+      const pasted = await navigator.clipboard.readText();
+      if (!canEditDocument() || !isCurrentEditTarget(target, state, source.value)) return "The document changed; choose where to paste again";
+      replacePreviewSelection(edit, pasted);
       return "";
     } catch {
+      if (!canEditDocument() || !isCurrentEditTarget(target, state, source.value)) return "The document changed; choose where to paste again";
       try { return document.execCommand("paste") ? "" : "Clipboard access was denied"; }
       catch { return "Clipboard access was denied"; }
     }
@@ -4821,7 +5005,7 @@ function vimPreviewEndpoint(offset) {
   const position = vimLinePosition(offset);
   const line = $(`[data-line="${position.line}"]`, page);
   if (!previewLineIsEditable(line)) return null;
-  return { line, ...previewTextPoint(line, Math.min(position.column, line.textContent.length)) };
+  return { line, ...previewPointAtSourceOffset(offset) };
 }
 
 function focusVimSelection(previewFocus, anchor, focus) {
@@ -4863,12 +5047,14 @@ function focusVimCursor(previewFocus, offset = source.selectionStart) {
   if (!previewLineIsEditable(line)) return;
   revealPreviewEmptyRun(line, position.column === 0);
   page.focus({ preventScroll: true });
-  placeCaretAtOffset(line, Math.min(position.column, line.textContent.length));
+  const point = previewPointAtSourceOffset(offset);
+  if (point) getSelection()?.setBaseAndExtent(point.node, point.offset, point.node, point.offset);
   scrollPreviewTarget(line);
   updateCursor();
 }
 
 function changeVimSource(value, offset, previewFocus) {
+  if (!canEditDocument()) return;
   source.value = value;
   source.setSelectionRange(offset, offset);
   sourceChanged();
@@ -4984,8 +5170,8 @@ function moveVimHalfPage(command, previewFocus, visual = false) {
 function moveVimCursor(command, previewFocus = false, startOffset = vimCursorOffset()) {
   const position = vimLinePosition(startOffset);
   let offset = startOffset;
-  if (command === "h") offset = Math.max(position.start, offset - 1);
-  else if (command === "l") offset = Math.min(position.end, offset + 1);
+  if (command === "h") offset = position.start + previousGraphemeBoundary(position.lines[position.line], position.column);
+  else if (command === "l") offset = position.start + nextGraphemeBoundary(position.lines[position.line], position.column);
   else if (command === "0") offset = position.start;
   else if (command === "^") {
     const firstNonBlank = position.lines[position.line].search(/\S/);
@@ -5087,6 +5273,7 @@ function applyVimOperatorMotion(operator, motion, offset, previewFocus) {
 
 function handleVimKey(event, surface) {
   if (!vimActive()) return false;
+  if (event.isComposing || state.previewComposing || state.sourceComposing) return false;
   if (["Shift", "Control", "Alt", "Meta"].includes(event.key)) return false;
   const previewFocus = surface === "preview";
   if (previewFocus) syncVimPreviewPosition();
@@ -5204,7 +5391,8 @@ function handleVimKey(event, surface) {
   }
   if (key === "x" && source.selectionStart < position.end) {
     const offset = source.selectionStart;
-    changeVimSource(source.value.slice(0, offset) + source.value.slice(offset + 1), offset, previewFocus); return true;
+    const end = position.start + nextGraphemeBoundary(position.lines[position.line], position.column);
+    changeVimSource(source.value.slice(0, offset) + source.value.slice(end), offset, previewFocus); return true;
   }
   if (["d", "c", "y"].includes(key)) {
     if (state.vimPending === key) {
@@ -5240,8 +5428,101 @@ function handleVimKey(event, surface) {
   return true;
 }
 
+function beginEditorComposition(surface, event) {
+  if (source.readOnly) return;
+  const other = surface === "source" ? "preview" : "source";
+  if (state[`${other}Composition`]) finishEditorComposition(other, state[`${other}Composition`]);
+  const key = `${surface}Composition`;
+  if (state[key]) finishEditorComposition(surface, state[key]);
+  const line = surface === "preview" ? previewLineForNode(getSelection()?.focusNode) || event.target.closest?.(".script-line") : null;
+  const selection = line ? previewSelection(line) : null;
+  state[key] = {
+    documentRevision: state.documentRevision,
+    value: source.value,
+    line,
+    edit: selection ? { ...selection, startDisplay: selection.startLine.textContent, endDisplay: selection.endLine.textContent } : null,
+    data: null,
+    timer: 0,
+  };
+  state[`${surface}Composing`] = true;
+  collaboration.stopCapturing?.();
+  collaboration.suspendRemoteUpdates?.();
+  hideCompletions();
+  hidePreviewCompletions();
+}
+
+function finishEditorComposition(surface, composition) {
+  if (state[`${surface}Composition`] !== composition) return;
+  clearTimeout(composition.timer);
+  state[`${surface}Composition`] = null;
+  state[`${surface}Composing`] = false;
+  if (composition.documentRevision !== state.documentRevision) return;
+  try {
+    if (surface === "source") {
+      if (source.value !== composition.value) sourceChanged();
+    } else if (!canEditDocument()) renderPreview();
+    else if (composition.edit && composition.edit.startLine !== composition.edit.endLine) {
+      // Browsers can remove the selected paragraph nodes during composition.
+      // Use the original source selection and display, not those mutated nodes.
+      if (composition.data) replacePreviewSelection(composition.edit, composition.data);
+      else renderPreview({ focusLine: Number(composition.edit.startLine.dataset.line), focusOffset: composition.edit.startOffset });
+    } else if (composition.line && composition.line.isConnected !== false) syncPreviewLine(composition.line);
+  } finally {
+    collaboration.stopCapturing?.();
+    flushDeferredCollaborationDocument();
+  }
+}
+
+function endEditorComposition(surface, event) {
+  const composition = state[`${surface}Composition`];
+  if (!composition) return;
+  composition.data = event.data ?? "";
+  clearTimeout(composition.timer);
+  // Chromium/WebKit can send the committed input after compositionend. Retain
+  // ownership until the next task, then publish one completed transaction.
+  composition.timer = setTimeout(() => finishEditorComposition(surface, composition), 0);
+}
+
+function handleNativeHistory(event) {
+  const action = nativeHistoryAction(event.inputType);
+  if (!action) return false;
+  event.preventDefault();
+  if (!canEditDocument() || state.previewComposing || state.sourceComposing) return true;
+  if (action === "undo") undoDocument();
+  else redoDocument();
+  return true;
+}
+
+function rememberLiteralPaste(event) {
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "v") state.literalPasteUntil = Date.now() + 1000;
+}
+
+function clipboardTextForEditor(value) {
+  const literal = state.literalPasteUntil > Date.now();
+  state.literalPasteUntil = 0;
+  return literal ? { text: value.replace(/\r\n?/g, "\n"), reconstructed: false } : normalizeScreenplayPaste(value);
+}
+
+function previewInputSelection(event, line) {
+  const target = event.getTargetRanges?.()[0];
+  if (!target) return previewSelection(line);
+  const startLine = previewLineForNode(target.startContainer);
+  const endLine = previewLineForNode(target.endContainer);
+  if (!startLine || !endLine) return previewSelection(line);
+  return {
+    startLine,
+    endLine,
+    startOffset: previewTextOffset(startLine, target.startContainer, target.startOffset),
+    endOffset: previewTextOffset(endLine, target.endContainer, target.endOffset),
+    direction: "forward",
+  };
+}
+
+source.addEventListener("compositionstart", (event) => beginEditorComposition("source", event));
+source.addEventListener("compositionend", (event) => endEditorComposition("source", event));
 source.addEventListener("input", (event) => {
-  sourceChanged();
+  if (event.isComposing || state.sourceComposing) return;
+  if (source.value !== state.lastSourceValue) sourceChanged();
   if (event.inputType === "insertText") showCompletions();
   else hideCompletions();
 });
@@ -5249,15 +5530,22 @@ document.addEventListener("selectionchange", () => {
   if (document.activeElement === source || page.contains(document.activeElement)) scheduleCollaborationPresence();
 });
 source.addEventListener("paste", (event) => {
+  if (!canEditDocument() || state.sourceComposing) { event.preventDefault(); return; }
   const pasted = event.clipboardData?.getData("text/plain");
   if (pasted === undefined) return;
   event.preventDefault();
-  const normalized = normalizeScreenplayPaste(pasted);
+  const normalized = clipboardTextForEditor(pasted);
   source.setRangeText(normalized.text, source.selectionStart, source.selectionEnd, "end");
   sourceChanged();
-  if (normalized.reconstructed) toast("Formatted screenplay text reconstructed as Fountain");
+  if (normalized.reconstructed) toast("PDF-style paste reconstructed as Fountain. Use Ctrl/⌘+Shift+V to paste literally.");
 });
-source.addEventListener("beforeinput", (event) => { if (vimActive() && state.vimMode === "normal") event.preventDefault(); });
+source.addEventListener("beforeinput", (event) => {
+  if (source.readOnly) { event.preventDefault(); return; }
+  if (event.isComposing || state.sourceComposing) return;
+  if (!canEditDocument()) { event.preventDefault(); return; }
+  if (handleNativeHistory(event)) return;
+  if (vimActive() && state.vimMode === "normal") event.preventDefault();
+});
 source.addEventListener("scroll", () => { $("#line-numbers").scrollTop = source.scrollTop; syncSourceOverlay(); updateCursor(); scheduleWorkspaceCache(); });
 const sourceResizeObserver = new ResizeObserver(() => requestAnimationFrame(renderEditorChrome));
 sourceResizeObserver.observe(source);
@@ -5294,7 +5582,10 @@ source.addEventListener("contextmenu", (event) => {
   showPreviewContextMenu(null, event.clientX, event.clientY, "source");
 });
 source.addEventListener("keydown", (event) => {
+  if (event.isComposing || state.sourceComposing) return;
+  rememberLiteralPaste(event);
   if (handleVimKey(event, "source")) return;
+  if (!canEditDocument()) return;
   if (!$("#completion-menu").hidden) {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); state.completionIndex = (state.completionIndex + (event.key === "ArrowDown" ? 1 : -1) + state.completionItems.length) % state.completionItems.length; renderCompletionMenu(); return; }
     if (event.key === "Tab") { event.preventDefault(); acceptCompletion(); return; }
@@ -5305,39 +5596,58 @@ source.addEventListener("keydown", (event) => {
   else if (event.key === "Enter") hideCompletions();
 });
 
+page.addEventListener("compositionstart", (event) => beginEditorComposition("preview", event));
+page.addEventListener("compositionend", (event) => endEditorComposition("preview", event));
 page.addEventListener("beforeinput", (event) => {
+  if (source.readOnly) { event.preventDefault(); return; }
+  if (event.isComposing || state.previewComposing || event.inputType === "insertCompositionText" || event.inputType === "deleteCompositionText") return;
+  if (!canEditDocument()) { event.preventDefault(); return; }
+  if (handleNativeHistory(event)) return;
   if (vimActive() && state.vimMode === "normal") { event.preventDefault(); return; }
   const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); if (!line) return;
-  const edit = previewSelection(line); if (!edit) return;
+  const edit = previewInputSelection(event, line); if (!edit) return;
   const insertionTypes = new Set(["insertText", "insertReplacementText", "insertFromPaste", "insertFromDrop", "insertParagraph", "insertLineBreak"]);
-  const deletionTypes = new Set(["deleteContentBackward", "deleteContentForward", "deleteWordBackward", "deleteWordForward", "deleteSoftLineBackward", "deleteSoftLineForward", "deleteByCut", "deleteByDrag"]);
+  const deletionTypes = new Set(["deleteContentBackward", "deleteContentForward", "deleteWordBackward", "deleteWordForward", "deleteSoftLineBackward", "deleteSoftLineForward", "deleteHardLineBackward", "deleteHardLineForward", "deleteEntireSoftLine", "deleteByCut", "deleteByDrag"]);
   if (!insertionTypes.has(event.inputType) && !deletionTypes.has(event.inputType)) return;
   if (event.inputType === "insertFromPaste") return;
+  // Some autocorrection/accessibility edits cannot be cancelled. Reconcile the
+  // browser's result in input; applying our own replacement too would duplicate it.
+  if (event.cancelable === false) return;
+  const insertionText = event.inputType === "insertParagraph" || event.inputType === "insertLineBreak"
+    ? "\n"
+    : event.dataTransfer?.getData("text/plain") ?? event.data;
+  // Some browser replacement events intentionally omit their text payload.
+  // Let native input provide the result; null is not a request to delete text.
+  if (insertionTypes.has(event.inputType) && insertionText == null) return;
   event.preventDefault();
   hidePreviewCompletions();
   if (deletionTypes.has(event.inputType)) {
     const forward = event.inputType.includes("Forward");
-    previewDeleteSelection(edit, forward ? "forward" : "backward", event.inputType.includes("Word"));
+    previewDeleteSelection(edit, forward ? "forward" : "backward", event.inputType);
   } else {
-    const text = event.inputType === "insertParagraph" || event.inputType === "insertLineBreak"
-      ? "\n"
-      : event.dataTransfer?.getData("text/plain") || event.data || "";
-    replacePreviewSelection(edit, text);
+    replacePreviewSelection(edit, insertionText);
   }
 });
-page.addEventListener("input", (event) => { const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); if (line) { syncPreviewLine(line); showPreviewCharacterCompletions(line); } });
+page.addEventListener("input", (event) => {
+  if (!canEditDocument() || event.isComposing || state.previewComposing) return;
+  const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line");
+  if (line) { syncPreviewLine(line); showPreviewCharacterCompletions(line); }
+});
 page.addEventListener("paste", (event) => {
+  if (!canEditDocument() || state.previewComposing) { event.preventDefault(); return; }
   const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); if (!line) return;
   const edit = previewSelection(line); if (!edit) return;
   event.preventDefault();
-  const normalized = normalizeScreenplayPaste(event.clipboardData?.getData("text/plain") || "");
+  const normalized = clipboardTextForEditor(event.clipboardData?.getData("text/plain") || "");
   replacePreviewSelection(edit, normalized.text);
-  if (normalized.reconstructed) toast("Formatted screenplay text reconstructed as Fountain");
+  if (normalized.reconstructed) toast("PDF-style paste reconstructed as Fountain. Use Ctrl/⌘+Shift+V to paste literally.");
 });
 page.addEventListener("keydown", (event) => {
-  if (event.isComposing) return;
+  if (event.isComposing || state.previewComposing) return;
+  rememberLiteralPaste(event);
   if (handleVimKey(event, "preview")) return;
   const line = previewLineForNode(getSelection()?.focusNode) || event.target.closest(".script-line"); if (!line) return;
+  if (!canEditDocument()) return;
   if (!$("#preview-completion-menu").hidden) {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); state.previewCompletionIndex = (state.previewCompletionIndex + (event.key === "ArrowDown" ? 1 : -1) + state.previewCompletionItems.length) % state.previewCompletionItems.length; renderPreviewCharacterCompletions(); return; }
     if (event.key === "Tab") { event.preventDefault(); acceptPreviewCharacterCompletion(); return; }
@@ -5432,6 +5742,7 @@ $("#preview-context-menu").addEventListener("click", async (event) => {
     const candidate = state.contextWord;
     const surface = state.contextSurface;
     if (!candidate) return;
+    if (!canEditDocument() || !isCurrentEditTarget(state.contextTarget, state, source.value)) { hidePreviewContextMenu(); return; }
     source.setRangeText(suggestionButton.dataset.spellingSuggestion, candidate.start, candidate.end, "end");
     sourceChanged();
     hidePreviewContextMenu();
@@ -5443,6 +5754,11 @@ $("#preview-context-menu").addEventListener("click", async (event) => {
   if (!button) return;
   const { previewContextLine, previewContextEdit: edit, previewContextText: text, contextSelection, contextSurface } = state;
   const action = button.dataset.contextAction;
+  if (!["copy", "select-all"].includes(action) && (!canEditDocument() || !isCurrentEditTarget(state.contextTarget, state, source.value))) {
+    hidePreviewContextMenu();
+    toast("The document changed or is view only. Select the text again before editing.");
+    return;
+  }
   hidePreviewContextMenu();
   if (action === "annotation") return openAnnotationEditor(null, previewContextLine);
   if (action === "undo") { undoDocument(); return; }
@@ -5695,6 +6011,10 @@ $("#github-save").addEventListener("click", () => openGithubBrowser("save"));
 $("#google-connect").addEventListener("click", connectGoogle);
 $("#google-open").addEventListener("click", openGooglePicker);
 $("#google-save").addEventListener("click", saveGoogleDrive);
+$("#google-recovery").addEventListener("click", openGoogleRecovery);
+$("#google-recovery-close").addEventListener("click", () => $("#google-recovery-dialog").close());
+$("#google-recovery-dialog").addEventListener("close", () => { state.googleRecovery = null; });
+for (const version of ["local", "room", "drive"]) $("#google-recovery-" + version).addEventListener("click", () => downloadGoogleRecovery(version));
 $("#google-share").addEventListener("click", shareGoogleDrive);
 $("#google-drive-close").addEventListener("click", () => $("#google-drive-dialog").close());
 $("#google-drive-refresh").addEventListener("click", openGoogleDrive);
@@ -5970,11 +6290,13 @@ $("#open-docs").addEventListener("click", () => $("#docs-dialog").showModal());
 $("#close-docs").addEventListener("click", () => $("#docs-dialog").close());
 
 function insertAtDocumentStart(text) {
+  if (!canEditDocument()) return;
   const current = source.value;
   source.value = text + (current ? "\n" + current : "");
   sourceChanged(); source.setSelectionRange(0, 0); source.scrollTop = 0; source.focus();
 }
 function appendToSource(text) {
+  if (!canEditDocument()) return;
   const current = source.value;
   const sep = !current ? "" : current.endsWith("\n\n") ? "" : current.endsWith("\n") ? "\n" : "\n\n";
   source.value = current + sep + text;
@@ -6021,6 +6343,7 @@ function titleBlockLineCount(text) {
 $("#title-page-form").addEventListener("submit", (event) => {
   if (event.submitter?.value !== "default") return;
   event.preventDefault();
+  if (!canEditDocument()) return;
   const rows = [];
   const tp = (id, key) => { const v = $(`#${id}`).value.trim(); if (v) rows.push(`${key}: ${v}`); };
   tp("tp-title", "Title"); tp("tp-credit", "Credit"); tp("tp-author", "Author"); tp("tp-date", "Draft date"); tp("tp-contact", "Contact");
@@ -6252,3 +6575,6 @@ async function initialize() {
 
 initialize();
 import { CollaborationClient, googleRequest, openGoogleSignIn } from "./collaboration.mjs";
+import { parseFountainInline, replaceFountainRange } from "./fountain-inline.mjs";
+import { deletionRange, graphemeBoundaries, nativeHistoryAction, nextGraphemeBoundary, previousGraphemeBoundary, textDifference } from "./text-input.mjs";
+import { canMutateDocument, captureEditTarget, isCurrentEditTarget } from "./editor-contract.mjs";

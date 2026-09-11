@@ -1,0 +1,17 @@
+[
+  {"source":"plain text", "runs":[{"text":"plain text", "styles":[]}]},
+  {"source":"**a**", "runs":[{"text":"a", "styles":["bold"]}]},
+  {"source":"***both***", "runs":[{"text":"both", "styles":["bold","italic"]}]},
+  {"source":"**bold *italic* end**", "runs":[{"text":"bold ","styles":["bold"]},{"text":"italic","styles":["bold","italic"]},{"text":" end","styles":["bold"]}]},
+  {"source":"*italic **bold** end*", "runs":[{"text":"italic ","styles":["italic"]},{"text":"bold","styles":["bold","italic"]},{"text":" end","styles":["italic"]}]},
+  {"source":"_under **bold**_", "runs":[{"text":"under ","styles":["underline"]},{"text":"bold","styles":["bold","underline"]}]},
+  {"source":"**bold _under *all*_ end**", "runs":[{"text":"bold ","styles":["bold"]},{"text":"under ","styles":["bold","underline"]},{"text":"all","styles":["bold","italic","underline"]},{"text":" end","styles":["bold"]}]},
+  {"source":"\\*literal\\*", "runs":[{"text":"*literal*", "styles":[]}]},
+  {"source":"\\_literal", "runs":[{"text":"\\_literal", "styles":[]}]},
+  {"source":"\\_literal\\_", "runs":[{"text":"\\", "styles":[]},{"text":"literal\\", "styles":["underline"]}]},
+  {"source":"one \\\\ two", "runs":[{"text":"one \\\\ two", "styles":[]}]},
+  {"source":"**a \\*literal\\* b**", "runs":[{"text":"a *literal* b", "styles":["bold"]}]},
+  {"source":"**😀é👩‍👩‍👧‍👦**", "runs":[{"text":"😀é👩‍👩‍👧‍👦", "styles":["bold"]}]},
+  {"source":"* a *", "runs":[{"text":"* a *", "styles":[]}]},
+  {"source":"**<script>&\"**", "runs":[{"text":"<script>&\"", "styles":["bold"]}]}
+]

@@ -521,6 +521,7 @@ function adoptionHarness(file) {
     json: (body, status = 200) => ({ body, status }),
     driveFetch: async (path, token, init = {}) => {
       requests.push({ path, ...init });
+      if (path.startsWith("/drive/v2/") && !init.method) return { json: async () => ({ etag: '"version-1"', properties: [] }) };
       return { json: async () => file };
     },
   };
@@ -547,8 +548,9 @@ test("editable screenplays are adopted once and unsupported files remain rejecte
   const file = { name: "Script.txt", mimeType: "text/plain", capabilities: { canEdit: true } };
   const editable = adoptionHarness(file);
   assert.equal((await editable.adopt()).status, 200);
-  assert.equal(editable.requests[1].method, "PATCH");
-  assert.equal(JSON.parse(editable.requests[1].body).appProperties.fountainPublisherDocumentId, "new-document-id");
+  assert.equal(editable.requests[2].method, "PATCH");
+  assert.equal(editable.requests[2].headers["if-match"], '"version-1"');
+  assert.equal(JSON.parse(editable.requests[2].body).properties.find((property) => property.key === "fountainPublisherDocumentId").value, "new-document-id");
   const prepared = adoptionHarness({ ...file, appProperties: { fountainPublisherDocumentId: "existing-id" } });
   assert.equal((await prepared.adopt()).status, 200);
   assert.equal(prepared.requests.length, 1);

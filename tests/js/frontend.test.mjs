@@ -35,8 +35,8 @@ test("local file opening accepts text-based screenplay PDFs for Fountain reconst
   assert.match(app, /function stagePlayLayoutToFountain\(pages\)[\s\S]*castNames[\s\S]*matchCue[\s\S]*# Cast of Characters[\s\S]*# \$\{text\.toUpperCase\(\)\}/);
   assert.match(app, /function flattenedScreenplayToFountain\(value\)[\s\S]*cueIndexes[\s\S]*Credit:[\s\S]*beginsAction/);
   assert.match(app, /function normalizeScreenplayPaste\(value\)[\s\S]*u2028[\s\S]*alreadyFountain[\s\S]*INT\|EXT[\s\S]*positionedCue[\s\S]*pageArtifacts[\s\S]*flattenedCueCount[\s\S]*flattenedScreenplayToFountain\(text\)[\s\S]*pdfLayoutToFountain\(\[text\]\)/);
-  assert.match(app, /source\.addEventListener\("paste"[\s\S]*normalizeScreenplayPaste\(pasted\)[\s\S]*setRangeText/);
-  assert.match(app, /page\.addEventListener\("paste"[\s\S]*normalizeScreenplayPaste[\s\S]*replacePreviewSelection/);
+  assert.match(app, /source\.addEventListener\("paste"[\s\S]*clipboardTextForEditor\(pasted\)[\s\S]*setRangeText/);
+  assert.match(app, /page\.addEventListener\("paste"[\s\S]*clipboardTextForEditor[\s\S]*replacePreviewSelection/);
   assert.match(html, /paste text copied from a conventionally formatted screenplay PDF/);
   assert.match(app, /async function importPdfFile\(file\)[\s\S]*file\.arrayBuffer\(\)[\s\S]*fetch\("\/healthz", \{ cache: "no-store" \}\)[\s\S]*health\?\.status === "ok"[\s\S]*if \(!localPython\)[\s\S]*_fp_extract_pdf[\s\S]*\/api\/import\/pdf[\s\S]*pdfLayoutToFountain\(pages\)[\s\S]*\.fountain/);
   assert.match(app, /pypdf-6\.17\.0-py3-none-any\.whl[\s\S]*micropip\.install\(_fp_pypdf_wheel, deps=False\)/);
@@ -409,9 +409,7 @@ test("preview edits are source-backed and preserve the viewport", async () => {
   assert.match(app, /insertFromPaste/);
   assert.match(app, /function fountainInlineSourceMap/);
   assert.match(app, /data-type="\$\{escapeHtml\(type\)\}"/);
-  assert.match(app, /const startMap =/);
-  assert.match(app, /const endMap =/);
-  assert.match(app, /const caretMap =/);
+  assert.match(app, /function fountainInlineSourceMap\(value\)\s*\{\s*return parseFountainInline\(value\)\.sourceMap/);
   assert.match(app, /activeInlineMarkers/);
   assert.match(app, /element\.classList\.contains\("scene"\)/);
   assert.match(app, /page\.focus\(\{ preventScroll: true \}\)[\s\S]*scrollTop = scrollTop/);
@@ -562,7 +560,7 @@ test("Source character completion matches full explicit names and preserves the 
     const context = {
       source, currentPosition: () => ({ line: 2, start: "INT. ROOM - DAY\n\n".length }),
       state: { metadata: { characters: [{ name: "Maya Chen", lines: 3 }], locations: [], titleFields: [] }, completionIndex: 0 },
-      isScene: () => false, hideCompletions() {}, sourceChanged() {},
+      isScene: () => false, hideCompletions() {}, sourceChanged() {}, canEditDocument: () => true,
     };
     runInNewContext(`${candidates}\n${accept}\nstate.completionItems = completionCandidates(); acceptCompletion();`, context);
     assert.equal(source.value, `INT. ROOM - DAY\n\n${expected}`);
@@ -682,7 +680,7 @@ test("the long sample screenplay is opt-in with demo=1", async () => {
   assert.ok(sample.split(/\s+/).length > 450, "demo should remain substantial");
   assert.doesNotMatch(sample, /FADE IN:|FADE OUT\.|CUT TO:/);
   assert.match(sample, />\*\*END\*\*</);
-  assert.match(app, /function fountainInlineHtml[\s\S]*<strong>\$1<\/strong>/);
+  assert.match(app, /function fountainInlineHtml\(value\)\s*\{\s*return parseFountainInline\(value\)\.html/);
   assert.match(app, /const content = display \? fountainInlineHtml\(display\)/);
 });
 
@@ -744,12 +742,12 @@ test("the active non-printing line remains visible as editor context", async () 
   assert.match(app, /renderPreview\(\{ focusLine, focusOffset, revealEmptyBefore: insertedText\.includes\("\\n"\), draftBefore: insertedText\.includes\("\\n"\) && before\.length === 0 \}\)/);
   assert.match(app, /function focusVimCursor[\s\S]*revealPreviewEmptyRun\(line, position\.column === 0\)[\s\S]*page\.focus/);
   assert.doesNotMatch(app, /limitBlankLineRun/);
-  assert.match(app, /source\.addEventListener\("input", \(event\) => \{\s*sourceChanged\(\);/);
+  assert.match(app, /source\.addEventListener\("input", \(event\) => \{\s*if \(event\.isComposing \|\| state\.sourceComposing\) return;\s*if \(source\.value !== state\.lastSourceValue\) sourceChanged\(\);/);
   assert.match(app, /page\.addEventListener\("pointerup"[\s\S]*setSourceSelectionFromPreview\(edit\); updatePreviewCursor\(\)/);
   assert.match(app, /page\.addEventListener\("focusout"[\s\S]*preview-empty-context/);
   assert.match(app, /draftBefore: insertedText\.includes\("\\n"\) && before\.length === 0/);
   assert.match(app, /const nextType = classifyLines\(source\.value\)\[focusLine\]\?\.type;[\s\S]*nextType !== edit\.startLine\.dataset\.type[\s\S]*renderPreview\(\{ focusLine, focusOffset \}\)/);
-  assert.match(app, /function syncPreviewLine[\s\S]*nextType !== element\.dataset\.type[\s\S]*renderPreview\(\{ focusLine: index, focusOffset: newDisplay\.length \}\)/);
+  assert.match(app, /function syncPreviewLine[\s\S]*nextType !== element\.dataset\.type[\s\S]*renderPreview\(\{ focusLine: index, focusOffset \}\)/);
   assert.match(css, /\.script-line\.empty\.preview-draft-row\s*\{[^}]*display:\s*block !important;[^}]*height:\s*16px;/s);
 });
 
@@ -937,7 +935,7 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(css, /--annotation-accent:\s*var\(--syntax-character\);/);
   assert.match(css, /\.note-indicator\s*\{[^}]*color:\s*var\(--annotation-accent\);[^}]*text-shadow:[^;}]*var\(--annotation-accent\)/s);
   assert.match(css, /\.annotation-orb\s*\{[^}]*appearance:\s*none;[^}]*-webkit-appearance:\s*none;[^}]*background-color:\s*var\(--annotation-accent\)/s);
-  assert.match(worker, /fountain-publisher-shell-v8/);
+  assert.match(worker, /fountain-publisher-shell-v9/);
   assert.match(worker, /\["styles\.css", "app\.mjs"\][\s\S]*fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);
   assert.match(css, /\.annotation-orb\s*\{[^}]*top:\s*1px;/s);
   assert.match(app, /function alignAnnotationOrbs\(\)[\s\S]*marginCenterX[\s\S]*orb\.offsetWidth \* scale \* \.5[\s\S]*orb\.style\.left/);
@@ -1059,7 +1057,8 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /annotation-form[\s\S]*setSourceLines\(lines\);[\s\S]*delete-annotation[\s\S]*deleteNoteLine\(state\.noteEditor\?\.line\)/);
   assert.match(app, /function persistBeatSheet\(\)[\s\S]*record: false/);
   assert.match(app, /character-note-form[\s\S]*record: false[\s\S]*general-note-form[\s\S]*record: false/);
-  assert.match(app, /function sourceChanged\(\{ fromPreview = false, record = true, rebaseBeats = true \} = \{\}\)[\s\S]*rebaseBeatRanges\(state\.lastSourceValue, source\.value\)[\s\S]*state\.lastSourceValue = source\.value/);
+  assert.match(app, /function sourceChanged\([^]*?\n\}[^]*?function scheduleCompile/);
+  assert.match(app, /rebaseBeatRanges\(state\.lastSourceValue, source\.value\)[\s\S]*state\.lastSourceValue = source\.value/);
   assert.match(app, /function jumpToBeatArea\(beat\)[\s\S]*!\["empty", "note", "boneyard"\]\.includes/);
   assert.match(app, /function setSourceLines\(lines, \{ record = true \} = \{\}\)[\s\S]*selectionDirection[\s\S]*setSelectionRange/);
   assert.doesNotMatch(app, /beatSceneEntries|Connect to scene/);
@@ -1123,7 +1122,7 @@ test("mobile preview clipboard actions preserve selections and avoid covering th
   assert.match(app, /previewContextEdit:\s*null/);
   assert.match(app, /previewContextText:\s*""/);
   assert.match(app, /runPreviewClipboardAction\(action,\s*previewContextLine,\s*\{\s*edit,\s*text\s*\}\)/);
-  assert.match(app, /await navigator\.clipboard\.writeText\(text\);\s*replacePreviewSelection\(edit,\s*""\)/);
+  assert.match(app, /await navigator\.clipboard\.writeText\(text\);\s*if \(!canEditDocument\(\) \|\| !isCurrentEditTarget\(target, state, source\.value\)\)[^\n]+\s*replacePreviewSelection\(edit,\s*""\)/);
   assert.match(app, /isMobilePreview\(\) && state\.previewContextText[\s\S]*selectionRect\.bottom \+ 12[\s\S]*selectionRect\.top - height - 12/);
 });
 

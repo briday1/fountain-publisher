@@ -657,6 +657,10 @@ html.google-picker-open, .google-picker-open body { overscroll-behavior: none; }
 #google-picker-help::backdrop { background: rgb(0 0 0 / 42%); backdrop-filter: blur(2px); }
 .google-picker-help-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 16px 12px; line-height: 1.6; }
 .google-picker-help-body a { color: var(--accent); }
+#google-recovery-dialog { width: min(600px, calc(100vw - 24px)); max-height: calc(var(--visual-viewport-height) - 24px); padding: 0; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+#google-recovery-dialog::backdrop { background: rgb(0 0 0 / 42%); backdrop-filter: blur(2px); }
+#google-recovery-dialog .dialog-actions { margin: 0; padding: 0 16px 16px; flex-wrap: wrap; }
+#google-recovery-dialog .dialog-actions button { color: var(--ink); min-height: 36px; }
 #google-picker-help > .dialog-actions { flex-shrink: 0; flex-wrap: wrap; margin: 0; padding: 12px 14px; border-top: 1px solid var(--border); background: var(--panel); }
 #google-picker-help .dialog-actions button { min-height: 36px; }
 #google-picker-help button:focus-visible, #google-picker-controls button:focus-visible, #google-drive-dialog button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
