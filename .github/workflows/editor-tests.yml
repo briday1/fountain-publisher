@@ -39,3 +39,17 @@ jobs:
 
       - name: Run JavaScript and Python regression tests
         run: npm test
+
+      - name: Build production editor assets
+        run: npm run build:web
+
+      - name: Verify the actual browser WebAssembly compiler
+        run: npm run test:wasm
+
+      - name: Install Worker dependencies
+        working-directory: github-worker
+        run: npm ci
+
+      - name: Validate Worker build without deploying
+        working-directory: github-worker
+        run: npx wrangler deploy --dry-run

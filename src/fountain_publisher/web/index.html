@@ -48,6 +48,7 @@
             <button id="google-open" type="button" disabled>Open from Drive…</button>
             <button id="google-save" type="button" disabled>Save to Drive</button>
             <button id="google-share" type="button" disabled>Share document…</button>
+            <button id="google-recovery" type="button" disabled>Recover document versions…</button>
             <span class="menu-separator"></span>
             <strong>PUBLISH</strong>
             <button id="export-pdf" type="button">Export PDF…</button>
@@ -171,6 +172,11 @@
         </div>
         <footer class="google-drive-footer"><span id="google-drive-selection">No file selected</span><button id="google-drive-open-selected" class="primary" type="button" disabled>Open selected</button></footer>
       </article>
+    </dialog>
+    <dialog id="google-recovery-dialog" aria-labelledby="google-recovery-title">
+      <header class="github-header"><div><small>DOCUMENT RECOVERY</small><h2 id="google-recovery-title">Keep each version safe</h2></div><button id="google-recovery-close" class="dialog-close" type="button" aria-label="Close document recovery">×</button></header>
+      <div class="google-picker-help-body"><p>Download separate Fountain files to compare. Nothing here replaces the editor, live room, or Drive file. Open the copy you want to keep and save it as a new document.</p><p id="google-recovery-status" role="status" aria-live="polite"></p></div>
+      <footer class="dialog-actions"><button id="google-recovery-local" type="button">Download editor copy</button><button id="google-recovery-room" type="button" disabled>Download live copy</button><button id="google-recovery-drive" type="button" disabled>Download Drive copy</button></footer>
     </dialog>
     <button id="mobile-menu-backdrop" class="mobile-menu-backdrop" type="button" aria-label="Close menu" tabindex="-1"></button>
     <nav id="zen-controls" class="zen-controls" aria-label="Zen workspace controls" hidden>

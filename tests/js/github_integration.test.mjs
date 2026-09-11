@@ -121,9 +121,10 @@ test("Worker establishes hardened Google sessions and limits Drive access", asyn
   assert.match(config, /"class_name": "CollaborationRoom"/);
   assert.match(worker, /export class CollaborationRoom/);
   assert.match(worker, /Y\.applyUpdate\(this\.document, update\)/);
-  assert.match(worker, /authorizedUntil <= Math\.floor\(Date\.now\(\) \/ 1000\)/);
-  assert.match(worker, /!identity\?\.canEdit/);
-  assert.match(worker, /update\.length > 65_536/);
+  assert.match(worker, /identity\.authorizedUntil > Math\.floor\(Date\.now\(\) \/ 1000\)/);
+  assert.match(worker, /!identity\.canEdit/);
+  assert.match(worker, /update\.length > MAX_ROOM_BYTES/);
+  assert.match(worker, /await this\.authorize\(identity, payload\.type === "update"\)/);
   assert.ok(worker.indexOf("this.state.acceptWebSocket(server)") < worker.indexOf("server.serializeAttachment(identity)"));
   assert.match(worker, /response\.status !== 101/);
 });
@@ -147,6 +148,6 @@ test("browser connects Drive documents to resumable Yjs collaboration", async ()
   assert.match(collaboration, /import \* as Y/);
   assert.match(collaboration, /Y\.applyUpdate/);
   assert.match(collaboration, /while \(start < current\.length/);
-  assert.match(collaboration, /setTimeout\(\(\) => this\.checkpoint\(\), 2000\)/);
+  assert.match(collaboration, /this\.checkpoint\(\)\.catch\(\(\) => \{\}\)/);
   assert.match(html, /id="collaboration-cursors"/);
 });

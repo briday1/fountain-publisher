@@ -1,5 +1,10 @@
 # Editor reliability review — September 2026
 
+**Historical review:** the remaining findings below describe the state after
+PR #84, before the implementation follow-up. See
+[current implementation status and release gates](editor-contracts-release.md)
+for what has since been fixed, tested, and remains to be validated.
+
 Scope: the merged app at `338fb09`, followed by the first bounded hardening pass
 on `fix/editor-reliability`. Preserve the visual design. Treat Preview and Source
 as two views of one text editor, not independent sources of truth.

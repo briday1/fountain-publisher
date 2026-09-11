@@ -6,7 +6,9 @@ A source-first Fountain screenplay studio with a Pugflow-style application shell
 
 The browser and local Python apps use [Screenplain](https://github.com/vilcans/screenplain) 0.12.0 as the authoritative Fountain parser and PDF/Final Draft compiler. The browser runs it in Python/WebAssembly. Both paths pin ReportLab 5.0.1, bundle Courier Prime, and apply the same PDF settings for consistent output.
 
-The live site is the complete browser application, including editing, live and PDF preview, file handling, insights, themes, documentation, and PDF/FDX export. The optional local Python application and CLI use the same Screenplain compiler.
+The live site is the complete browser application, including editing, live and PDF preview, file handling, insights, themes, documentation, and PDF/FDX export. Browser compilation always runs in the current tab, including when served by the optional local Python application. The standalone Python CLI uses the same Screenplain compiler.
+
+Collaborators share document edits, not compiler jobs, page counts, PDF previews, or export settings. Each tab compiles its own snapshot with its own settings; stale results cannot replace a newer document's preview. PDF, FDX, and beat-sheet exports never fall back to server compilation. This is compile isolation, not end-to-end encryption: live collaboration still sends document edits to the Cloudflare room.
 
 ## GitHub integration
 
@@ -81,12 +83,14 @@ Migration `0002_security_hardening.sql` removes sessions created before encrypti
 
 ## Install and run
 
-Use Python 3.9 or newer:
+For a source checkout, use Python 3.9 or newer and Node.js 22 or newer. Install
+the pinned browser runtime before opening the editor:
 
 ```shell
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -e .
+npm ci
 fountain-publisher
 ```
 
@@ -98,7 +102,17 @@ fountain-publisher --no-browser --port 8080
 python -m fountain_publisher
 ```
 
-The existing `npm start` shortcut also starts the Python application when package dependencies are installed.
+The existing `npm start` shortcut also starts the Python application when package dependencies are installed. The loopback server serves Pyodide from this checkout's `node_modules`; PDF preview, page counts, and PDF/FDX exports still compile in each browser, not in the Python server. Missing runtime assets produce a local error, never a server-compilation fallback.
+
+Before building a distributable Python wheel, prepare its bundled runtime:
+
+```shell
+npm ci
+node scripts/prepare-browser-runtime.mjs
+python -m pip wheel . --no-deps --wheel-dir dist/python
+```
+
+The prepared wheel includes `web/pyodide` and needs no Node.js installation on the recipient's computer. Building a wheel without this preparation leaves browser compilation unavailable; a plain Python-only source installation is sufficient only for the standalone compilation API/CLI below. The preparation step copies the pinned runtime locally and does not download or compile documents.
 
 ## Compile from the command line
 

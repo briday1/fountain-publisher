@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { runInNewContext } from "node:vm";
 import test from "node:test";
+import { previousGraphemeBoundary, nextGraphemeBoundary } from "../../src/fountain_publisher/web/text-input.mjs";
 
 const app = await readFile(new URL("../../src/fountain_publisher/web/app.mjs", import.meta.url), "utf8");
 
@@ -17,7 +18,7 @@ function section(start, end) {
 // commands that exist in the file but are shadowed by earlier key handlers.
 const vimCode = [
   section("function setVimMode(", "function previewTextPoint("),
-  section("function moveVimCursor(", 'source.addEventListener("input"'),
+  section("function moveVimCursor(", "function beginEditorComposition("),
 ].join("\n");
 
 function editor(value, cursor = 0, surface = "source") {
@@ -35,7 +36,7 @@ function editor(value, cursor = 0, surface = "source") {
   };
   const calls = { mutations: [], focus: [], undo: 0, redo: 0, halfPage: 0 };
   const context = {
-    state, source,
+    state, source, previousGraphemeBoundary, nextGraphemeBoundary,
     vimActive: () => true,
     sourceLines: () => source.value.split("\n"),
     sourceOffsetForLine: (lines, line, column) => lines.slice(0, line).reduce((total, text) => total + text.length + 1, 0) + column,
@@ -74,6 +75,15 @@ function editor(value, cursor = 0, surface = "source") {
     keys(sequence) { for (const key of sequence) this.key(key); },
   };
 }
+
+test("Vim h/l/x treat an emoji or combining sequence as one character", () => {
+  for (const character of ["😀", "e\u0301", "👩‍💻", "🇨🇦"]) {
+    const h = editor(`${character} next`);
+    h.key("l"); assert.equal(h.source.selectionStart, character.length);
+    h.key("h"); assert.equal(h.source.selectionStart, 0);
+    h.key("x"); assert.equal(h.source.value, " next");
+  }
+});
 
 for (const surface of ["source", "preview"]) {
   for (const command of [

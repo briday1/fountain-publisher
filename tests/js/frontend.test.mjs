@@ -35,8 +35,8 @@ test("local file opening accepts text-based screenplay PDFs for Fountain reconst
   assert.match(app, /function stagePlayLayoutToFountain\(pages\)[\s\S]*castNames[\s\S]*matchCue[\s\S]*# Cast of Characters[\s\S]*# \$\{text\.toUpperCase\(\)\}/);
   assert.match(app, /function flattenedScreenplayToFountain\(value\)[\s\S]*cueIndexes[\s\S]*Credit:[\s\S]*beginsAction/);
   assert.match(app, /function normalizeScreenplayPaste\(value\)[\s\S]*u2028[\s\S]*alreadyFountain[\s\S]*INT\|EXT[\s\S]*positionedCue[\s\S]*pageArtifacts[\s\S]*flattenedCueCount[\s\S]*flattenedScreenplayToFountain\(text\)[\s\S]*pdfLayoutToFountain\(\[text\]\)/);
-  assert.match(app, /source\.addEventListener\("paste"[\s\S]*normalizeScreenplayPaste\(pasted\)[\s\S]*setRangeText/);
-  assert.match(app, /page\.addEventListener\("paste"[\s\S]*normalizeScreenplayPaste[\s\S]*replacePreviewSelection/);
+  assert.match(app, /source\.addEventListener\("paste"[\s\S]*clipboardTextForEditor\(pasted\)[\s\S]*setRangeText/);
+  assert.match(app, /page\.addEventListener\("paste"[\s\S]*clipboardTextForEditor[\s\S]*replacePreviewSelection/);
   assert.match(html, /paste text copied from a conventionally formatted screenplay PDF/);
   assert.match(app, /async function importPdfFile\(file\)[\s\S]*file\.arrayBuffer\(\)[\s\S]*fetch\("\/healthz", \{ cache: "no-store" \}\)[\s\S]*health\?\.status === "ok"[\s\S]*if \(!localPython\)[\s\S]*_fp_extract_pdf[\s\S]*\/api\/import\/pdf[\s\S]*pdfLayoutToFountain\(pages\)[\s\S]*\.fountain/);
   assert.match(app, /pypdf-6\.17\.0-py3-none-any\.whl[\s\S]*micropip\.install\(_fp_pypdf_wheel, deps=False\)/);
@@ -157,9 +157,9 @@ test("hidden preview layers cannot be displayed by component styles", async () =
   assert.match(css, /\[hidden\]\s*\{\s*display:\s*none\s*!important;/);
 });
 
-test("live compilation cancels stale requests and HTML export is absent", async () => {
+test("live compilation rejects stale results and HTML export is absent", async () => {
   const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
-  assert.match(app, /compileController\?\.abort\(\)/);
+  assert.match(app, /if \(!result \|\| !isCurrentCompile\(request\)\) return/);
   assert.doesNotMatch(html, /export-html|HTML document/);
   assert.doesNotMatch(app, /includeHtml:\s*true|compileWithBrowserScreenplain\("html"/);
 });
@@ -409,9 +409,7 @@ test("preview edits are source-backed and preserve the viewport", async () => {
   assert.match(app, /insertFromPaste/);
   assert.match(app, /function fountainInlineSourceMap/);
   assert.match(app, /data-type="\$\{escapeHtml\(type\)\}"/);
-  assert.match(app, /const startMap =/);
-  assert.match(app, /const endMap =/);
-  assert.match(app, /const caretMap =/);
+  assert.match(app, /function fountainInlineSourceMap\(value\)\s*\{\s*return parseFountainInline\(value\)\.sourceMap/);
   assert.match(app, /activeInlineMarkers/);
   assert.match(app, /element\.classList\.contains\("scene"\)/);
   assert.match(app, /page\.focus\(\{ preventScroll: true \}\)[\s\S]*scrollTop = scrollTop/);
@@ -562,7 +560,7 @@ test("Source character completion matches full explicit names and preserves the 
     const context = {
       source, currentPosition: () => ({ line: 2, start: "INT. ROOM - DAY\n\n".length }),
       state: { metadata: { characters: [{ name: "Maya Chen", lines: 3 }], locations: [], titleFields: [] }, completionIndex: 0 },
-      isScene: () => false, hideCompletions() {}, sourceChanged() {},
+      isScene: () => false, hideCompletions() {}, sourceChanged() {}, canEditDocument: () => true,
     };
     runInNewContext(`${candidates}\n${accept}\nstate.completionItems = completionCandidates(); acceptCompletion();`, context);
     assert.equal(source.value, `INT. ROOM - DAY\n\n${expected}`);
@@ -682,7 +680,7 @@ test("the long sample screenplay is opt-in with demo=1", async () => {
   assert.ok(sample.split(/\s+/).length > 450, "demo should remain substantial");
   assert.doesNotMatch(sample, /FADE IN:|FADE OUT\.|CUT TO:/);
   assert.match(sample, />\*\*END\*\*</);
-  assert.match(app, /function fountainInlineHtml[\s\S]*<strong>\$1<\/strong>/);
+  assert.match(app, /function fountainInlineHtml\(value\)\s*\{\s*return parseFountainInline\(value\)\.html/);
   assert.match(app, /const content = display \? fountainInlineHtml\(display\)/);
 });
 
@@ -744,12 +742,12 @@ test("the active non-printing line remains visible as editor context", async () 
   assert.match(app, /renderPreview\(\{ focusLine, focusOffset, revealEmptyBefore: insertedText\.includes\("\\n"\), draftBefore: insertedText\.includes\("\\n"\) && before\.length === 0 \}\)/);
   assert.match(app, /function focusVimCursor[\s\S]*revealPreviewEmptyRun\(line, position\.column === 0\)[\s\S]*page\.focus/);
   assert.doesNotMatch(app, /limitBlankLineRun/);
-  assert.match(app, /source\.addEventListener\("input", \(event\) => \{\s*sourceChanged\(\);/);
+  assert.match(app, /source\.addEventListener\("input", \(event\) => \{\s*if \(event\.isComposing \|\| state\.sourceComposing\) return;\s*if \(source\.value !== state\.lastSourceValue\) sourceChanged\(\);/);
   assert.match(app, /page\.addEventListener\("pointerup"[\s\S]*setSourceSelectionFromPreview\(edit\); updatePreviewCursor\(\)/);
   assert.match(app, /page\.addEventListener\("focusout"[\s\S]*preview-empty-context/);
   assert.match(app, /draftBefore: insertedText\.includes\("\\n"\) && before\.length === 0/);
   assert.match(app, /const nextType = classifyLines\(source\.value\)\[focusLine\]\?\.type;[\s\S]*nextType !== edit\.startLine\.dataset\.type[\s\S]*renderPreview\(\{ focusLine, focusOffset \}\)/);
-  assert.match(app, /function syncPreviewLine[\s\S]*nextType !== element\.dataset\.type[\s\S]*renderPreview\(\{ focusLine: index, focusOffset: newDisplay\.length \}\)/);
+  assert.match(app, /function syncPreviewLine[\s\S]*nextType !== element\.dataset\.type[\s\S]*renderPreview\(\{ focusLine: index, focusOffset \}\)/);
   assert.match(css, /\.script-line\.empty\.preview-draft-row\s*\{[^}]*display:\s*block !important;[^}]*height:\s*16px;/s);
 });
 
@@ -804,21 +802,21 @@ test("live preview numbers scene headings via computed labels", async () => {
 
 test("page totals come from the compiled Screenplain PDF", async () => {
   const [app, css] = await Promise.all([readFile(appPath, "utf8"), readFile(cssPath, "utf8")]);
+  const compiler = await readFile(new URL("../../src/fountain_publisher/web/local-compiler.mjs", import.meta.url), "utf8");
   assert.match(app, /function renderPageMetric\(metadata\)/);
   assert.match(app, /1:\s*\[1, 8\][\s\S]*4:\s*\[1, 2\][\s\S]*7:\s*\[7, 8\]/);
   assert.match(app, /class="page-fraction"><sup>\$\{fraction\[0\]\}<\/sup><sub>\$\{fraction\[1\]\}<\/sub>/);
   assert.match(css, /\.page-fraction\s*\{[^}]*display:\s*inline-grid;[^}]*height:\s*1em;[^}]*vertical-align:\s*middle;[^}]*font-weight:\s*400;[^}]*translateY\(-\.03em\);/s);
   assert.match(css, /\.page-fraction::after\s*\{[^}]*top:\s*50%;[^}]*border-top:/s);
   assert.match(css, /\.page-fraction sup, \.page-fraction sub\s*\{[^}]*place-items:\s*center;[^}]*transform:\s*none;/s);
-  assert.match(app, /function compileStaticPageCount/);
-  assert.match(app, /result\.pageCount == null[\s\S]*\/api\/render\/pdf/);
-  assert.match(app, /function countPdfBlobPages/);
-  assert.match(app, /function screenplayPageCount\(physicalPages\)[\s\S]*titleFields/);
+  assert.match(app, /function compilePageCount/);
+  assert.match(compiler, /pageCount: Math\.max\(0, physicalPages - titlePages\)/);
+  assert.match(app, /usage\["title_pages"\] = int\(self\.has_title_page\)/);
   assert.match(app, /lastPageEighths/);
   assert.match(app, /_fp_last_page_eighths/);
   assert.match(app, /estimatedSeconds = result\.pageCount \* 60/);
   assert.match(app, /_fp_prepare_screenplay[\s\S]*isinstance\(screenplay\.paragraphs\[0\], PageBreak\)/);
-  assert.ok(app.includes('/Type\\s*\\/Page\\b'));
+  assert.ok(compiler.includes('/Type\\s*\\/Page\\b'));
 });
 
 test("preview toolbar and rotating arrows stay compact", async () => {
@@ -937,7 +935,7 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(css, /--annotation-accent:\s*var\(--syntax-character\);/);
   assert.match(css, /\.note-indicator\s*\{[^}]*color:\s*var\(--annotation-accent\);[^}]*text-shadow:[^;}]*var\(--annotation-accent\)/s);
   assert.match(css, /\.annotation-orb\s*\{[^}]*appearance:\s*none;[^}]*-webkit-appearance:\s*none;[^}]*background-color:\s*var\(--annotation-accent\)/s);
-  assert.match(worker, /fountain-publisher-shell-v8/);
+  assert.match(worker, /fountain-publisher-shell-v10/);
   assert.match(worker, /\["styles\.css", "app\.mjs"\][\s\S]*fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);
   assert.match(css, /\.annotation-orb\s*\{[^}]*top:\s*1px;/s);
   assert.match(app, /function alignAnnotationOrbs\(\)[\s\S]*marginCenterX[\s\S]*orb\.offsetWidth \* scale \* \.5[\s\S]*orb\.style\.left/);
@@ -1059,7 +1057,8 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /annotation-form[\s\S]*setSourceLines\(lines\);[\s\S]*delete-annotation[\s\S]*deleteNoteLine\(state\.noteEditor\?\.line\)/);
   assert.match(app, /function persistBeatSheet\(\)[\s\S]*record: false/);
   assert.match(app, /character-note-form[\s\S]*record: false[\s\S]*general-note-form[\s\S]*record: false/);
-  assert.match(app, /function sourceChanged\(\{ fromPreview = false, record = true, rebaseBeats = true \} = \{\}\)[\s\S]*rebaseBeatRanges\(state\.lastSourceValue, source\.value\)[\s\S]*state\.lastSourceValue = source\.value/);
+  assert.match(app, /function sourceChanged\([^]*?\n\}[^]*?function scheduleCompile/);
+  assert.match(app, /rebaseBeatRanges\(state\.lastSourceValue, source\.value\)[\s\S]*state\.lastSourceValue = source\.value/);
   assert.match(app, /function jumpToBeatArea\(beat\)[\s\S]*!\["empty", "note", "boneyard"\]\.includes/);
   assert.match(app, /function setSourceLines\(lines, \{ record = true \} = \{\}\)[\s\S]*selectionDirection[\s\S]*setSelectionRange/);
   assert.doesNotMatch(app, /beatSceneEntries|Connect to scene/);
@@ -1123,7 +1122,7 @@ test("mobile preview clipboard actions preserve selections and avoid covering th
   assert.match(app, /previewContextEdit:\s*null/);
   assert.match(app, /previewContextText:\s*""/);
   assert.match(app, /runPreviewClipboardAction\(action,\s*previewContextLine,\s*\{\s*edit,\s*text\s*\}\)/);
-  assert.match(app, /await navigator\.clipboard\.writeText\(text\);\s*replacePreviewSelection\(edit,\s*""\)/);
+  assert.match(app, /await navigator\.clipboard\.writeText\(text\);\s*if \(!canEditDocument\(\) \|\| !isCurrentEditTarget\(target, state, source\.value\)\)[^\n]+\s*replacePreviewSelection\(edit,\s*""\)/);
   assert.match(app, /isMobilePreview\(\) && state\.previewContextText[\s\S]*selectionRect\.bottom \+ 12[\s\S]*selectionRect\.top - height - 12/);
 });
 
@@ -1357,23 +1356,23 @@ test("dual dialogue renders concurrently in the live screenplay", async () => {
   assert.match(html, /Windows \/ Linux/);
 });
 
-test("GitHub Pages mode runs Screenplain in Pyodide", async () => {
+test("every host runs Screenplain in the tab's bundled Pyodide runtime", async () => {
   const app = await readFile(appPath, "utf8");
-  assert.match(app, /STATIC_HOST = location\.hostname\.endsWith\("\.github\.io"\)/);
   assert.match(app, /function getBrowserScreenplain\(/);
   assert.match(app, /screenplain-0\.12\.0-py3-none-any\.whl/);
   assert.match(app, /CourierPrime-Regular\.ttf/);
   assert.match(app, /\/fonts\/CourierPrime-Regular\.ttf/);
   assert.match(app, /pdf\.to_pdf\(screenplay, output, template_constructor=NumberedDocTemplate, settings=settings\)/);
-  assert.match(app, /STATIC_HOST \? compileStaticPageCount\(revision\) : compile\(revision\)/);
+  assert.match(app, /setTimeout\(\(\) => compilePageCount\(revision\)/);
+  assert.match(app, /const compileLocally = createLocalCompiler\(getBrowserScreenplain\)/);
 });
 
-test("custom static hosts fall back to browser compilation instead of parsing HTML", async () => {
+test("compilation and export have no server path or server fallback", async () => {
   const app = await readFile(appPath, "utf8");
-  assert.match(app, /shouldUseBrowserCompiler\(response,\s*"application\/json"\)/);
-  assert.match(app, /STATIC_HOST = true;\s*await compileStaticPageCount\(revision\)/);
-  assert.match(app, /shouldUseBrowserCompiler\(response,\s*expectedType\)/);
-  assert.match(app, /STATIC_HOST = true;\s*return compileBinaryWithBrowser\(path,\s*selectedPageSize\)/);
+  const compiler = await readFile(new URL("../../src/fountain_publisher/web/local-compiler.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(app, /\/api\/(?:compile|render\/pdf|export\/fdx)|shouldUseBrowserCompiler|requestBinary/);
+  assert.doesNotMatch(compiler, /fetch\(|WebSocket|localStorage|BroadcastChannel|collaboration/);
+  assert.match(app, /await compileLocally\(format, request\)/);
 });
 
 test("scene numbers default to margin, support act format, and apply to PDF", async () => {
@@ -1568,11 +1567,11 @@ test("mobile exports use the share sheet with download fallback", async () => {
   assert.match(app, /await shareOrDownload\(blob,/);
 });
 
-test("compiler failures expose actionable desktop and browser errors", async () => {
+test("compiler failures stay local and expose actionable browser errors", async () => {
   const app = await readFile(appPath, "utf8");
-  assert.match(app, /Desktop compiler unavailable:.*Restart Fountain Publisher/);
   assert.match(app, /Browser PDF compiler failed:.*Reload the page/);
-  assert.match(app, /function shouldUseBrowserCompiler\(/);
+  assert.match(app, /Your document was not sent to a server for compilation/);
+  assert.doesNotMatch(app, /Desktop compiler unavailable|browserLastPageEighths/);
 });
 
 test("mobile page count is preserved across source edits", async () => {

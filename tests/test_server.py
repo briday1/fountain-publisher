@@ -1,9 +1,14 @@
 import json
+import tempfile
 import threading
 import unittest
+from contextlib import contextmanager
+from pathlib import Path
+from unittest import mock
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from fountain_publisher.server import create_server
+from fountain_publisher.server import MICROPIP_WHEEL, PYODIDE_RUNTIME_FILES, create_server
 
 
 class ServerTests(unittest.TestCase):
@@ -28,6 +33,80 @@ class ServerTests(unittest.TestCase):
             document = response.read().decode("utf-8")
         self.assertIn("Fountain Publisher", document)
         self.assertIn("stats-panel", document)
+
+    @contextmanager
+    def browser_runtime(self, *, packaged=True):
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory)
+            web = repository / "src" / "fountain_publisher" / "web"
+            web.mkdir(parents=True)
+            (repository / "pyproject.toml").write_text("", encoding="utf-8")
+            runtime = web / "pyodide" if packaged else repository / "node_modules" / "pyodide"
+            runtime.mkdir(parents=True)
+            for name in PYODIDE_RUNTIME_FILES:
+                (runtime / name).write_bytes(f"fixture:{name}".encode())
+            vendor = web / "vendor"
+            vendor.mkdir()
+            (vendor / MICROPIP_WHEEL).write_bytes(b"bundled micropip")
+            with mock.patch("fountain_publisher.server.STATIC_ROOT", web):
+                yield web, runtime
+
+    def test_packaged_browser_runtime_and_wasm_mime_are_served_locally(self):
+        with self.browser_runtime() as (_, runtime):
+            for name in PYODIDE_RUNTIME_FILES:
+                with self.subTest(name=name), urlopen(f"{self.base_url}/pyodide/{name}") as response:
+                    self.assertEqual((runtime / name).read_bytes(), response.read())
+                    if name.endswith(".mjs"):
+                        self.assertEqual("text/javascript", response.headers.get_content_type())
+                    elif name.endswith(".wasm"):
+                        self.assertEqual("application/wasm", response.headers.get_content_type())
+            request = Request(f"{self.base_url}/pyodide/pyodide.asm.wasm", method="HEAD")
+            with urlopen(request) as response:
+                self.assertEqual("application/wasm", response.headers.get_content_type())
+                self.assertEqual(b"", response.read())
+
+    def test_source_checkout_uses_pinned_npm_runtime_and_bundled_micropip(self):
+        with self.browser_runtime(packaged=False):
+            with urlopen(f"{self.base_url}/pyodide/pyodide.mjs") as response:
+                self.assertEqual(b"fixture:pyodide.mjs", response.read())
+            with urlopen(f"{self.base_url}/pyodide/{MICROPIP_WHEEL}") as response:
+                self.assertEqual(b"bundled micropip", response.read())
+
+    def test_runtime_route_rejects_directories_traversal_and_unlisted_files(self):
+        with self.browser_runtime() as (web, runtime):
+            (runtime / "package.json").write_text("not a public asset", encoding="utf-8")
+            (web / "private.txt").write_text("private", encoding="utf-8")
+            for path in ["/pyodide", "/pyodide/", "/pyodide/package.json",
+                         "/ignored/../pyodide/package.json", "/./pyodide/package.json",
+                         "/pyodide/%2e%2e/private.txt", "/pyodide/%2e%2e%2fprivate.txt",
+                         "/pyodide%2f..%2fprivate.txt", "/pyodide/%252e%252e/private.txt"]:
+                with self.subTest(path=path), self.assertRaises(HTTPError) as raised:
+                    urlopen(f"{self.base_url}{path}")
+                self.assertEqual(404, raised.exception.code)
+
+    def test_runtime_symlinks_cannot_escape_the_pinned_asset_directory(self):
+        with self.browser_runtime() as (web, runtime):
+            private = web / "private.mjs"
+            private.write_text("private", encoding="utf-8")
+            (runtime / "pyodide.mjs").unlink()
+            (runtime / "pyodide.mjs").symlink_to(private)
+            with self.assertRaises(HTTPError) as raised:
+                urlopen(f"{self.base_url}/pyodide/pyodide.mjs")
+            self.assertEqual(404, raised.exception.code)
+
+    def test_incomplete_runtime_fails_locally_with_setup_instructions(self):
+        with self.browser_runtime() as (_, runtime):
+            (runtime / "pyodide.asm.wasm").unlink()
+            with self.assertRaises(HTTPError) as raised:
+                urlopen(f"{self.base_url}/pyodide/pyodide.mjs")
+            self.assertEqual(404, raised.exception.code)
+            self.assertIn("run npm ci", raised.exception.read().decode())
+
+    def test_browser_csp_allows_webassembly_but_not_javascript_eval(self):
+        with urlopen(f"{self.base_url}/") as response:
+            policy = response.headers["Content-Security-Policy"]
+        self.assertIn("script-src 'self' 'wasm-unsafe-eval'", policy)
+        self.assertNotIn("'unsafe-eval'", policy)
 
     def compile(self, **payload):
         request = Request(

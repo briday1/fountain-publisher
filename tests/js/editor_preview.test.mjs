@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
+import { parseFountainInline, replaceFountainRange } from "../../src/fountain_publisher/web/fountain-inline.mjs";
+import { deletionRange, graphemeBoundaries, textDifference } from "../../src/fountain_publisher/web/text-input.mjs";
 
 const app = await readFile(new URL("../../src/fountain_publisher/web/app.mjs", import.meta.url), "utf8");
 
@@ -32,6 +34,10 @@ function presenceHarness() {
       presence: { cursor: 3, mode: "live" },
       canEdit: true,
     }]]) },
+    canEditDocument: () => true,
+    parseFountainInline,
+    replaceFountainRange,
+    textDifference,
     $(selector) {
       if (selector === '[data-line="0"]') return line;
       if (!controls.has(selector)) controls.set(selector, {});
@@ -90,7 +96,7 @@ test("Preview native-input reconciliation does not save collaborator names into 
   runInNewContext([
     functionSource("fountainInlineSourceMap", "previewTextOffset"),
     functionSource("sourceOffsetForLine", "setSourceCursorFromPreview"),
-    functionSource("syncPreviewLine", "replacePreviewSelection"),
+    functionSource("renderPreviewInlineContent", "replacePreviewSelection"),
     "syncPreviewLine(line);",
   ].join("\n"), sandbox);
   assert.equal(source.value, "The door opens.あ");
@@ -105,6 +111,9 @@ function previewKeydownHarness() {
   const listener = app.slice(app.indexOf('page.addEventListener("keydown",'), app.indexOf('page.addEventListener("focusin",'));
   runInNewContext(listener, {
     page: { addEventListener: (_type, callback) => { handler = callback; }, focus() {} },
+    state: {},
+    canEditDocument: () => true,
+    rememberLiteralPaste() {},
     handleVimKey: () => false,
     previewLineForNode: () => line,
     getSelection: () => ({}),
@@ -164,11 +173,23 @@ function previewEditHarness(raw, display, type = "action") {
   const source = { value: raw, setSelectionRange() {} };
   const line = {
     textContent: display,
+    get innerHTML() { return this.html || ""; },
+    set innerHTML(value) {
+      this.html = value;
+      this.textContent = value.replace(/<[^>]+>/g, "").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+    },
     dataset: { line: "0", type, display, prefix: "" },
     classList: { contains: (name) => name === type },
   };
   const sandbox = {
     source,
+    state: {},
+    canEditDocument: () => true,
+    parseFountainInline,
+    replaceFountainRange,
+    deletionRange,
+    graphemeBoundaries,
+    textDifference,
     line,
     page: { focus() {} },
     docSettings: { sceneNumbers: "off" },
@@ -182,10 +203,12 @@ function previewEditHarness(raw, display, type = "action") {
     functionSource("escapeHtml", "decodeNotePart"),
     functionSource("fountainInlineSourceMap", "previewTextOffset"),
     functionSource("sourceOffsetForLine", "setSourceCursorFromPreview"),
+    functionSource("renderPreviewInlineContent", "syncPreviewLine"),
     functionSource("replacePreviewSelection", "hidePreviewCompletions"),
   ].join("\n"), sandbox);
   return {
     source,
+    line,
     sandbox,
     insert(offset, text) {
       sandbox.replacePreviewSelection({ startLine: line, endLine: line, startOffset: offset, endOffset: offset }, text);
@@ -195,6 +218,62 @@ function previewEditHarness(raw, display, type = "action") {
     },
   };
 }
+
+test("Preview keeps rendered style and visible/source maps stable across consecutive edits", () => {
+  const editor = previewEditHarness("**bold** and \\*literal\\*", "bold and *literal*");
+  editor.insert(2, "X");
+  assert.equal(editor.source.value, "**boXld** and \\*literal\\*");
+  assert.equal(editor.line.dataset.display, "boXld and *literal*");
+  assert.match(editor.line.innerHTML, /<strong>boXld<\/strong>/);
+  editor.insert(3, "Y");
+  assert.equal(editor.source.value, "**boXYld** and \\*literal\\*");
+  assert.equal(editor.line.dataset.display, "boXYld and *literal*");
+  assert.match(editor.line.innerHTML, /<strong>boXYld<\/strong>/);
+  assert.doesNotMatch(editor.line.innerHTML, /<em>literal/);
+});
+
+test("Preview deleting a whole formatted grapheme removes its now-empty delimiters", () => {
+  const editor = previewEditHarness("**👩🏽‍💻** tail", "👩🏽‍💻 tail");
+  editor.remove(0, "forward");
+  assert.equal(editor.source.value, " tail");
+  assert.equal(editor.line.dataset.display, " tail");
+});
+
+test("Cancelled/no-change native Preview input does not create history or rewrite DOM", () => {
+  const { source, line, sandbox } = presenceHarness();
+  let changes = 0;
+  Object.assign(sandbox, {
+    canEditDocument: () => true,
+    sourceChanged() { changes += 1; },
+  });
+  runInNewContext(functionSource("syncPreviewLine", "replacePreviewSelection"), sandbox);
+  sandbox.syncPreviewLine(line);
+  assert.equal(source.value, "The door opens.");
+  assert.equal(changes, 0);
+  assert.equal(line.innerHTML, undefined);
+});
+
+test("Soft-line deletion fallback measures the wrapped visual row rather than the paragraph", () => {
+  const line = { textContent: "first second" };
+  const sandbox = {
+    line,
+    graphemeBoundaries,
+    previewTextPoint: (_line, offset) => ({ node: line, offset }),
+    getSelection: () => ({ rangeCount: 1, getRangeAt: () => ({ getClientRects: () => [{ top: 20 }] }) }),
+    document: {
+      createRange() {
+        return {
+          setStart(_node, offset) { this.offset = offset; }, setEnd() {},
+          getClientRects() { return [{ top: this.offset < 6 ? 0 : 20 }]; },
+        };
+      },
+    },
+  };
+  runInNewContext(functionSource("previewVisualLineBounds", "previewDeleteSelection"), sandbox);
+  const range = sandbox.previewVisualLineBounds(line, 9);
+  assert.equal(range.start, 6);
+  assert.equal(range.end, 12);
+});
 
 test("Preview typing preserves hidden forced-action markers and their indentation", () => {
   for (const prefix of ["!", "  !"]) {
@@ -241,7 +320,9 @@ test("Preview maps rendered emphasis consistently without swallowing literal tex
     const rendered = editor.sandbox.fountainInlineHtml(raw).replace(/<[^>]+>/g, "");
     const map = editor.sandbox.fountainInlineSourceMap(raw);
     assert.equal(map.startMap.length - 1, rendered.length, raw);
-    if (!["*a*", "**a**", "***a***", "_a_", "* a *"].includes(raw)) {
+    if (raw.startsWith("\\*")) {
+      assert.equal(rendered, raw.slice(1), "the escape prefix is source syntax, not displayed text");
+    } else if (!["*a*", "**a**", "***a***", "_a_"].includes(raw)) {
       assert.equal(rendered, raw);
       assert.deepEqual([...map.caretMap], Array.from({ length: raw.length + 1 }, (_, offset) => offset));
     }
