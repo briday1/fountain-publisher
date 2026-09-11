@@ -3095,12 +3095,14 @@ async function saveGoogleDrive({ keepBrowser = false } = {}) {
   try {
     if (file) {
       if (collaboration.closed || collaboration.fileId !== file.id) throw new Error("Reconnect this Drive document before saving, or save a local copy.");
+      if (!collaboration.synced) throw new Error("Wait for initial live synchronization before saving, or save a local copy.");
       collaboration.replace(content);
     }
     const result = file
       ? await collaboration.checkpoint()
       : await googleRequest("/api/google/drive/files", { method: "POST", body: JSON.stringify({ name: normalizedFilename("fountain"), content }) });
     if (documentRevision !== state.documentRevision || account !== state.googleAccount || !state.googleConnected) return;
+    if (!result?.file || (file && typeof result.content !== "string")) throw new Error("Drive did not confirm the saved document. Keep a local copy and retry.");
     state.googleDriveFile = { ...file, ...result.file };
     if (!file) {
       connectDriveCollaboration(result.file, content);

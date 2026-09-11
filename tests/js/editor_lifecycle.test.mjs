@@ -31,7 +31,7 @@ function harness() {
       return elements.get(id);
     },
     collaboration: {
-      fileId: "existing-file", closed: false,
+      fileId: "existing-file", closed: false, synced: true,
       disconnect() { events.push("disconnect"); h.linkedRoom = null; },
       replace(value) { if (h.linkedRoom) events.push(["publish", h.linkedRoom, value]); },
       async checkpoint() { requests.push({ kind: "checkpoint" }); return { file: { id: "existing-file" }, content: source.value }; },
@@ -260,6 +260,18 @@ test("saves do not export transient composition text", async () => {
     await h.context.saveFile(); await h.context.saveGoogleDrive();
     assert.equal(h.requests.length, 0); assert.equal(h.writes.length, 0);
     assert.equal(h.state.savedSource, "saved");
+  }
+});
+
+test("Save during initial sync or an invalid checkpoint reports recovery guidance without claiming a save", async () => {
+  for (const failure of ["initial-sync", "invalid-result"]) {
+    const h = harness(); h.state.googleDriveFile = { id: "existing-file", capabilities: { canEdit: true } };
+    h.context.collaboration.synced = failure !== "initial-sync";
+    h.context.collaboration.checkpoint = async () => undefined;
+    await h.context.saveGoogleDrive();
+    assert.equal(h.state.savedSource, "saved"); assert.equal(h.state.googleSaving, false);
+    assert.match(h.events.at(-1), /local copy/);
+    assert.ok(!h.events.some(event => typeof event === "string" && event.includes("Cannot read properties")));
   }
 });
 
