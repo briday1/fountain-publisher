@@ -128,7 +128,7 @@ test("Worker establishes hardened Google sessions and limits Drive access", asyn
   assert.match(worker, /update\.length > MAX_ROOM_BYTES/);
   assert.match(worker, /await this\.authorize\(identity, payload\.type === "update"\)/);
   assert.ok(worker.indexOf("this.state.acceptWebSocket(server)") < worker.indexOf("server.serializeAttachment(identity)"));
-  assert.match(worker, /response\.status !== 101/);
+  assert.match(worker, /if \(response\.status === 101\) return response;/);
 });
 
 test("browser connects Drive documents to resumable Yjs collaboration", async () => {

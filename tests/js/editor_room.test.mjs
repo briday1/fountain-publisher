@@ -12,6 +12,65 @@ const Y = await import(pathToFileURL(workerRequire.resolve("yjs").replace(/yjs\.
 const fileId = "drive_file_123456";
 const documentId = "a".repeat(48);
 const encode = (value) => Buffer.from(value).toString("base64url");
+const nativeFetch = globalThis.fetch.bind(globalThis);
+
+async function immutableResponse(response) {
+  const guard = (await nativeFetch("data:text/plain,")).headers;
+  const immutableHeaders = new Proxy(response.headers, {
+    get(target, property) {
+      if (["set", "append", "delete"].includes(property)) return guard[property].bind(guard);
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  Object.defineProperty(response, "headers", { value: immutableHeaders });
+  assert.throws(() => response.headers.set("x-mutation-probe", "blocked"), /immutable/i);
+  return response;
+}
+
+async function forwardImmutableRoomResponses(t, h, beforeFetch = () => {}) {
+  // Node requires duplex for stream bodies; workerd accepts this forwarding
+  // Request directly. Adapt only that constructor difference in this harness.
+  const NativeRequest = globalThis.Request;
+  t.mock.method(globalThis, "Request", class extends NativeRequest {
+    constructor(input, options) { super(input, options?.body?.getReader ? { ...options, duplex: "half" } : options); }
+  });
+  // In-process new Response() headers are writable, unlike a response crossing
+  // a real Durable Object fetch boundary. Preserve the actual room body/status
+  // and headers, but delegate mutations to a native fetch's immutable guard.
+  // The data URL is local and never sends fixture text or credentials anywhere.
+  const responses = [];
+  h.env.COLLAB_ROOMS = {
+    idFromName(name) { assert.equal(name, documentId); return name; },
+    get(id) {
+      assert.equal(id, documentId);
+      return { async fetch(request) {
+        await beforeFetch(request);
+        const response = await h.room.fetch(request);
+        responses.push({ status: response.status, body: await response.clone().text(), headers: new Headers(response.headers) });
+        return immutableResponse(response);
+      } };
+    },
+  };
+  return responses;
+}
+
+function outerRoomRequest(h, action = "checkpoint", { origin = h.env.APP_ORIGIN, cookie = "fp_google_session=session-a", expectedContent = h.room.document.getText("source").toString() } = {}) {
+  const method = action === "recovery" ? "GET" : "POST";
+  return worker.fetch(new Request(`https://api.fountain-publisher.com/api/collaboration/${documentId}/${action}?fileId=${fileId}`, {
+    method, headers: { origin, cookie }, ...(method === "POST" ? { body: JSON.stringify({ expectedContent }) } : {}),
+  }), h.env);
+}
+
+async function assertForwardedRoomResponse(h, response, forwarded, status) {
+  assert.equal(forwarded.status, status);
+  assert.equal(response.status, status);
+  assert.equal(await response.text(), forwarded.body, "CORS wrapping must preserve the exact room response body");
+  for (const [name, value] of forwarded.headers) assert.equal(response.headers.get(name), value, `room header ${name} is preserved`);
+  assert.equal(response.headers.get("access-control-allow-origin"), h.env.APP_ORIGIN);
+  assert.equal(response.headers.get("access-control-allow-credentials"), "true");
+  assert.equal(response.headers.get("vary"), "Origin");
+}
 
 function memoryStorage() {
   let records = new Map();
@@ -206,6 +265,174 @@ test("checkpoint writes only authoritative room content and returns that exact s
   assert.equal(h.drive.content, saved.content);
   assert.equal(h.room.meta.savedRevision, h.room.meta.revision);
   assert.equal(h.room.meta.pendingCheckpoint, null);
+});
+
+test("outer Worker preserves a successful checkpoint across immutable Durable Object response headers", async (t) => {
+  const h = await setup(t);
+  t.mock.method(console, "error", () => {});
+  const responses = await forwardImmutableRoomResponses(t, h);
+  await h.room.webSocketMessage(h.socket(), h.edit(" live edit"));
+  const response = await outerRoomRequest(h);
+  assert.equal(h.drive.writes.length, 1, "the actual room write succeeds before the Worker adds CORS");
+  assert.equal(h.drive.content, "Original live edit");
+  assert.equal(responses.length, 1);
+  await assertForwardedRoomResponse(h, response, responses[0], 200);
+  assert.equal(h.room.meta.savedRevision, h.room.meta.revision);
+  assert.equal(h.room.meta.pendingCheckpoint, null);
+});
+
+test("outer Worker preserves snapshot-conflict status and body instead of reporting a generic save failure", async (t) => {
+  const h = await setup(t);
+  t.mock.method(console, "error", () => {});
+  const responses = await forwardImmutableRoomResponses(t, h);
+  await h.room.webSocketMessage(h.socket(), h.edit(" live edit"));
+  const response = await outerRoomRequest(h, "checkpoint", { expectedContent: "Original" });
+  assert.equal(h.drive.writes.length, 0);
+  assert.equal(responses.length, 1);
+  assert.match(JSON.parse(responses[0].body).error, /live document changed/);
+  await assertForwardedRoomResponse(h, response, responses[0], 409);
+});
+
+test("outer Worker preserves an external Drive conflict without writing over either version", async (t) => {
+  const h = await setup(t);
+  t.mock.method(console, "error", () => {});
+  const responses = await forwardImmutableRoomResponses(t, h);
+  await h.room.webSocketMessage(h.socket(), h.edit(" room version"));
+  h.drive.content = "External Drive version"; h.drive.etag = '"external"';
+  const response = await outerRoomRequest(h);
+  assert.equal(h.drive.writes.length, 0);
+  assert.equal(h.drive.content, "External Drive version");
+  assert.equal(h.room.document.getText("source").toString(), "Original room version");
+  assert.match(JSON.parse(responses[0].body).error, /edited outside the live room/);
+  await assertForwardedRoomResponse(h, response, responses[0], 412);
+});
+
+test("outer Worker preserves a missing-ETag retry error instead of inventing a successful save", async (t) => {
+  const h = await setup(t);
+  t.mock.method(console, "error", () => {});
+  const responses = await forwardImmutableRoomResponses(t, h);
+  await h.room.webSocketMessage(h.socket(), h.edit(" room version"));
+  h.drive.etag = undefined;
+  const response = await outerRoomRequest(h);
+  assert.equal(h.drive.writes.length, 0);
+  assert.equal(h.drive.content, "Original");
+  assert.match(JSON.parse(responses[0].body).error, /usable version validator/);
+  await assertForwardedRoomResponse(h, response, responses[0], 503);
+});
+
+test("outer Worker preserves the room's read-only denial and never attempts a Drive write", async (t) => {
+  const h = await setup(t);
+  t.mock.method(console, "error", () => {});
+  const responses = await forwardImmutableRoomResponses(t, h);
+  await h.room.webSocketMessage(h.socket(), h.edit(" room version"));
+  h.drive.canEdit = false;
+  const response = await outerRoomRequest(h);
+  assert.equal(h.drive.writes.length, 0);
+  assert.match(JSON.parse(responses[0].body).error, /Editing permission was removed/);
+  await assertForwardedRoomResponse(h, response, responses[0], 403);
+});
+
+test("session expiry between outer authorization and room fetch preserves the room's 401 response", async (t) => {
+  const h = await setup(t);
+  t.mock.method(console, "error", () => {});
+  const responses = await forwardImmutableRoomResponses(t, h, () => h.sessions.clear());
+  const response = await outerRoomRequest(h);
+  assert.equal(h.drive.writes.length, 0);
+  assert.equal(responses.length, 1);
+  assert.match(JSON.parse(responses[0].body).error, /Sign in again/);
+  await assertForwardedRoomResponse(h, response, responses[0], 401);
+});
+
+test("outer Worker rejects missing authentication before forwarding any room request", async (t) => {
+  const h = await setup(t);
+  const responses = await forwardImmutableRoomResponses(t, h);
+  const response = await outerRoomRequest(h, "checkpoint", { cookie: "" });
+  assert.equal(response.status, 401);
+  assert.match((await response.json()).error, /Not signed in/);
+  assert.equal(response.headers.get("access-control-allow-origin"), h.env.APP_ORIGIN);
+  assert.equal(h.fetch.mock.callCount(), 0);
+  assert.equal(responses.length, 0);
+  assert.equal(h.drive.writes.length, 0);
+});
+
+test("outer Worker rejects checkpoint and recovery requests from a different origin without exposing room data", async (t) => {
+  const h = await setup(t);
+  const responses = await forwardImmutableRoomResponses(t, h);
+  for (const action of ["checkpoint", "recovery"]) {
+    const response = await outerRoomRequest(h, action, { origin: "https://untrusted.example" });
+    assert.equal(response.status, 403);
+    assert.match((await response.json()).error, /Invalid request origin/);
+    assert.equal(response.headers.get("access-control-allow-origin"), null);
+    assert.equal(response.headers.get("access-control-allow-credentials"), null);
+  }
+  assert.equal(h.fetch.mock.callCount(), 0);
+  assert.equal(responses.length, 0);
+  assert.equal(h.drive.writes.length, 0);
+});
+
+test("outer recovery preserves both versions, view-only access and no-store across immutable room headers", async (t) => {
+  const h = await setup(t);
+  t.mock.method(console, "error", () => {});
+  const responses = await forwardImmutableRoomResponses(t, h);
+  await h.room.webSocketMessage(h.socket(), h.edit(" room version"));
+  h.drive.content = "External Drive version"; h.drive.etag = '"external"'; h.drive.canEdit = false;
+  const response = await outerRoomRequest(h, "recovery");
+  const recovered = JSON.parse(responses[0].body);
+  assert.equal(recovered.roomContent, "Original room version");
+  assert.equal(recovered.driveContent, "External Drive version");
+  assert.equal(recovered.file.capabilities.canEdit, false);
+  assert.equal(h.drive.writes.length, 0);
+  assert.equal(h.drive.content, "External Drive version");
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  await assertForwardedRoomResponse(h, response, responses[0], 200);
+});
+
+test("legacy Drive Save forwarding also preserves the room's successful immutable response", async (t) => {
+  const h = await setup(t);
+  t.mock.method(console, "error", () => {});
+  const responses = await forwardImmutableRoomResponses(t, h);
+  await h.room.webSocketMessage(h.socket(), h.edit(" legacy save"));
+  const response = await worker.fetch(new Request(`https://api.fountain-publisher.com/api/google/drive/files/${fileId}`, {
+    method: "PUT", headers: { origin: h.env.APP_ORIGIN, cookie: "fp_google_session=session-a" },
+    body: JSON.stringify({ content: "Original legacy save" }),
+  }), h.env);
+  assert.equal(h.drive.writes.length, 1);
+  assert.equal(h.drive.content, "Original legacy save");
+  assert.equal(responses.length, 1);
+  await assertForwardedRoomResponse(h, response, responses[0], 200);
+});
+
+test("unexpected provider errors identify Google Drive and collaboration rather than incorrectly blaming GitHub", async (t) => {
+  const h = await setup(t);
+  t.mock.method(console, "error", () => {});
+  h.env.DB.prepare = () => { throw new Error("Synthetic database failure"); };
+  for (const [path, method, expected] of [
+    ["/api/google/session", "GET", "Google Drive integration failed. Please try again."],
+    [`/api/collaboration/${documentId}/checkpoint?fileId=${fileId}`, "POST", "Collaboration request failed. Please try again."],
+    ["/api/session", "GET", "GitHub integration failed"],
+  ]) {
+    const response = await worker.fetch(new Request(`https://api.fountain-publisher.com${path}`, {
+      method, headers: { origin: h.env.APP_ORIGIN, cookie: "fp_google_session=session-a; fp_github_session=fixture-session" },
+    }), h.env);
+    assert.equal(response.status, 500);
+    assert.deepEqual(await response.json(), { error: expected });
+    assert.equal(response.headers.get("access-control-allow-origin"), h.env.APP_ORIGIN);
+  }
+  assert.equal(h.fetch.mock.callCount(), 0);
+  assert.equal(h.drive.writes.length, 0);
+});
+
+test("outer Worker also safely wraps caught immutable error Responses without losing retry headers", async (t) => {
+  const h = await setup(t);
+  t.mock.method(console, "error", () => {});
+  const body = JSON.stringify({ error: "Retry this request later" });
+  const responseError = await immutableResponse(new Response(body, { status: 429, headers: { "content-type": "application/json", "retry-after": "7", "cache-control": "no-store" } }));
+  h.env.DB.prepare = () => { throw responseError; };
+  const response = await outerRoomRequest(h);
+  await assertForwardedRoomResponse(h, response, { status: 429, body, headers: new Headers(responseError.headers) }, 429);
+  assert.equal(response.headers.get("retry-after"), "7");
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.equal(h.drive.writes.length, 0);
 });
 
 test("an external Drive edit is never silently overwritten by the live room", async (t) => {
