@@ -11,22 +11,39 @@ function section(start, end) {
   return app.slice(offset, limit);
 }
 
-function harness() {
+function harness({ idle = false } = {}) {
   const elements = new Map();
   const jobs = [], downloads = [], metrics = [], urls = [], revoked = [], notices = [];
-  const timers = new Map();
-  let nextTimer = 0;
+  const timers = new Map(), timerDelays = new Map(), idleCallbacks = new Map(), listeners = new Map();
+  const cancelled = [], promoted = [];
+  let nextTimer = 0, now = 0;
   const state = { documentRevision: 1, compileRevision: 1, pdfRevision: 0, filename: "First.fountain", previewMode: "live", metadata: { titleFields: [], pageCount: 5, lastPageEighths: 6 } };
   const source = { value: "INT. FIRST - DAY\n\nFirst draft." };
   const docSettings = { sceneNumbers: "margin", sceneNumberFormat: "sequential" };
   const $ = id => {
-    if (!elements.has(id)) elements.set(id, { value: "letter", hidden: false, disabled: false, innerHTML: "", textContent: "", title: "", classList: { add() {}, remove() {} }, close() { this.closed = true; } });
+    if (!elements.has(id)) elements.set(id, { value: "letter", hidden: false, disabled: false, innerHTML: "", textContent: "", title: "", classList: { add() {}, remove() {}, contains() { return false; } }, close() { this.closed = true; } });
     return elements.get(id);
   };
   const context = {
     state, source, docSettings, $, Error,
-    setTimeout(callback) { const id = ++nextTimer; timers.set(id, callback); return id; },
-    clearTimeout(id) { timers.delete(id); },
+    document: { hidden: false, addEventListener(type, handler) {
+      if (!listeners.has(type)) listeners.set(type, []);
+      listeners.get(type).push(handler);
+    } },
+    window: idle ? {
+      requestIdleCallback(callback, options) {
+        assert.equal(options, undefined, "Idle work must never be forced through a busy-frame timeout");
+        const id = ++nextTimer; idleCallbacks.set(id, callback); return id;
+      },
+      cancelIdleCallback(id) { idleCallbacks.delete(id); },
+    } : {},
+    performance: { now: () => now },
+    setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id, callback); timerDelays.set(id, delay); return id; },
+    clearTimeout(id) { timers.delete(id); timerDelays.delete(id); },
+    compilerClient: {
+      cancelBackground(key) { cancelled.push(key); },
+      promoteBackground(key) { promoted.push(key); },
+    },
     compileLocally(kind, request, options) {
       return new Promise((resolve, reject) => jobs.push({ kind, request, options, resolve, reject }));
     },
@@ -43,7 +60,21 @@ function harness() {
     section("async function exportDocument(", "function openExport("),
     section("function showPdfLoading(", "function setTheme("),
   ].join("\n"), context);
-  return { context, state, source, docSettings, $, jobs, downloads, metrics, urls, revoked, notices, timers };
+  return {
+    context, state, source, docSettings, $, jobs, downloads, metrics, urls, revoked, notices,
+    timers, timerDelays, idleCallbacks, cancelled, promoted,
+    advance(milliseconds) { now += milliseconds; },
+    dispatch(type, event = {}) { for (const handler of listeners.get(type) || []) handler(event); },
+    runTimer() {
+      const [id, callback] = timers.entries().next().value;
+      now += timerDelays.get(id); timers.delete(id); timerDelays.delete(id);
+      return callback();
+    },
+    runIdle(remaining = 50) {
+      const [id, callback] = idleCallbacks.entries().next().value;
+      idleCallbacks.delete(id); return callback({ timeRemaining: () => remaining });
+    },
+  };
 }
 
 const result = (label, pageCount = 2, lastPageEighths = 3) => ({ blob: new Blob([label]), pageCount, lastPageEighths });
@@ -212,6 +243,7 @@ test("debounced compilation skips superseded jobs and runs only in its owning ta
 test("PDF preview publishes only the latest request and revokes replaced local URLs", async () => {
   const h = harness(); h.state.previewMode = "pdf";
   const first = h.context.refreshPdf();
+  h.source.value += "\nNewer draft"; ++h.state.compileRevision;
   const second = h.context.refreshPdf();
   h.jobs[1].resolve(result("newest"));
   await second;
@@ -219,6 +251,7 @@ test("PDF preview publishes only the latest request and revokes replaced local U
   await first;
   assert.equal(h.urls.length, 1);
   assert.equal(await h.urls[0].blob.text(), "newest");
+  h.source.value += "\nLatest draft"; ++h.state.compileRevision;
   const third = h.context.refreshPdf();
   h.jobs[2].resolve(result("replacement"));
   await third;
@@ -273,4 +306,212 @@ test("a PDF failure is escaped and the next attempt restores the loading state",
   h.jobs[1].resolve(result("recovered"));
   await retry;
   assert.equal(h.$("#pdf-placeholder").hidden, true);
+});
+
+test("automatic page counts wait ten quiet seconds even when callers request an immediate refresh", async () => {
+  const h = harness();
+  h.context.installCompileActivityTracking();
+  h.context.scheduleCompile(0);
+  assert.deepEqual([...h.timerDelays.values()], [10000]);
+  const textarea = { matches: () => true };
+  for (let index = 0; index < 120; index += 1) {
+    h.advance(500);
+    h.dispatch("input", { target: textarea });
+    assert.equal(h.jobs.length, 0, "Typing in a note/search draft must not run the PDF engine");
+    assert.equal(h.timers.size, 1);
+    assert.deepEqual([...h.timerDelays.values()], [10000]);
+  }
+  const pending = h.runTimer();
+  assert.equal(h.jobs.length, 1);
+  assert.equal(h.jobs[0].options.backgroundKey, "page-count");
+  h.jobs[0].resolve(result("quiet"));
+  await pending;
+});
+
+test("automatic work additionally waits for an idle frame and typing cancels its pending idle callback", async () => {
+  const h = harness({ idle: true });
+  h.context.installCompileActivityTracking();
+  h.context.scheduleCompile();
+  h.runTimer();
+  assert.equal(h.jobs.length, 0);
+  assert.equal(h.idleCallbacks.size, 1);
+  h.runIdle(0);
+  assert.equal(h.jobs.length, 0);
+  assert.equal(h.idleCallbacks.size, 1);
+  const staleIdle = [...h.idleCallbacks.values()][0];
+  h.dispatch("beforeinput", { target: { isContentEditable: true } });
+  assert.equal(h.idleCallbacks.size, 0);
+  await staleIdle({ timeRemaining: () => 50 });
+  assert.equal(h.jobs.length, 0);
+  h.runTimer();
+  const pending = h.runIdle();
+  h.jobs[0].resolve(result("idle"));
+  await pending;
+});
+
+test("hidden tabs defer automatic work until another ten seconds of foreground quiet", async () => {
+  const h = harness();
+  h.context.installCompileActivityTracking();
+  h.context.scheduleCompile();
+  h.context.document.hidden = true;
+  h.dispatch("visibilitychange");
+  assert.equal(h.timers.size, 0);
+  assert.equal(h.jobs.length, 0);
+  h.advance(120000);
+  h.context.document.hidden = false;
+  h.dispatch("visibilitychange");
+  assert.deepEqual([...h.timerDelays.values()], [10000]);
+  const pending = h.runTimer();
+  h.jobs[0].resolve(result("foreground"));
+  await pending;
+});
+
+test("note/search IME candidate pauses do not start automatic work until composition ends or blurs", async () => {
+  for (const finish of ["compositionend", "focusout"]) {
+    const h = harness();
+    h.context.installCompileActivityTracking();
+    h.context.scheduleCompile();
+    const textarea = { matches: () => true };
+    h.dispatch("compositionstart", { target: textarea });
+    await h.runTimer();
+    assert.equal(h.jobs.length, 0);
+    assert.equal(h.timers.size, 0);
+    assert.equal(h.state.compilePending, true);
+    h.advance(120000);
+    h.dispatch(finish, { target: textarea });
+    assert.deepEqual([...h.timerDelays.values()], [10000]);
+    const pending = h.runTimer();
+    h.jobs[0].resolve(result("finished composition"));
+    await pending;
+  }
+});
+
+test("automatic cadence is at least a minute and rechecks delayed worker startup", async () => {
+  const h = harness();
+  h.context.scheduleCompile();
+  const first = h.runTimer(); // Queued at ten seconds, engine still loading.
+  h.source.value += "\nNew edit";
+  h.context.scheduleCompile();
+  assert.deepEqual([...h.timerDelays.values()], [60000]);
+  h.advance(20000);
+  h.jobs[0].options.onStart(); // Actual worker dispatch at thirty seconds.
+  h.jobs[0].resolve(result("old"));
+  await first;
+  // The original timeout was due at seventy seconds; startup moved the
+  // earliest next dispatch to ninety seconds, which is rechecked here.
+  h.advance(40000);
+  [...h.timers.values()][0]();
+  assert.equal(h.jobs.length, 1);
+  assert.deepEqual([...h.timerDelays.values()], [20000]);
+  const second = h.runTimer();
+  assert.equal(h.jobs.length, 2);
+  h.jobs[1].resolve(result("new"));
+  await second;
+});
+
+test("draft input discards queued or active automatic results without interrupting an export", async () => {
+  const h = harness();
+  h.context.installCompileActivityTracking();
+  h.context.scheduleCompile();
+  const pending = h.runTimer();
+  const exporting = h.context.exportDocument("pdf");
+  h.dispatch("compositionstart", { target: { matches: () => true } });
+  assert.equal(h.$("#compile-status").textContent, "Count pending", "Discarded work must not leave a Compiling badge while the user types");
+  assert.match(h.$("#compile-status").title, /10 seconds.*once a minute.*Open PDF or export.*private/);
+  assert.equal(h.jobs[0].options.isCurrent(), false);
+  assert.equal(h.jobs[1].options, undefined, "Explicit exports must not use a background cancellation guard");
+  h.jobs[0].resolve(result("discard", 99));
+  await pending;
+  assert.equal(h.metrics.length, 0);
+  h.jobs[1].resolve(result("export", 4));
+  await exporting;
+  assert.equal(h.downloads.length, 1);
+  assert.equal(h.state.metadata.pageCount, 4);
+});
+
+test("repeated typing does not rewrite an unchanged pending-count badge", () => {
+  const h = harness();
+  h.context.installCompileActivityTracking();
+  const status = h.$("#compile-status");
+  let text = "", title = "", textWrites = 0, titleWrites = 0;
+  Object.defineProperties(status, {
+    textContent: { get: () => text, set(value) { text = value; textWrites += 1; } },
+    title: { get: () => title, set(value) { title = value; titleWrites += 1; } },
+  });
+  h.context.scheduleCompile();
+  for (let index = 0; index < 100; index += 1) h.dispatch("input", { target: { matches: () => true } });
+  assert.equal(textWrites, 1);
+  assert.equal(titleWrites, 1);
+  assert.equal(text, "Count pending");
+});
+
+test("explicit PDF requests bypass quiet/cadence, coalesce and reuse the exact local result", async () => {
+  const h = harness({ idle: true });
+  h.state.lastAutomaticCompileAt = 0;
+  h.state.previewMode = "pdf";
+  h.context.scheduleCompile(0);
+  const first = h.context.refreshPdf();
+  const second = h.context.refreshPdf();
+  assert.equal(h.timers.size, 0);
+  assert.equal(h.idleCallbacks.size, 0);
+  assert.equal(h.jobs.length, 1);
+  assert.equal(h.jobs[0].options.backgroundKey, null);
+  h.jobs[0].resolve(result("preview", 7, 6));
+  await Promise.all([first, second]);
+  assert.equal(h.state.metadata.pageCount, 7);
+  assert.equal(h.urls.length, 1);
+  await h.context.refreshPdf();
+  assert.equal(h.jobs.length, 1);
+  assert.equal(h.urls.length, 1, "Reopening an unchanged PDF must not reset its iframe URL");
+  assert.equal(h.revoked.length, 0);
+});
+
+test("explicit PDF preview promotes matching background work instead of compiling twice", async () => {
+  const h = harness();
+  h.context.installCompileActivityTracking();
+  h.context.scheduleCompile();
+  const background = h.runTimer();
+  h.state.previewMode = "pdf";
+  const preview = h.context.refreshPdf();
+  assert.deepEqual(h.promoted, ["page-count"]);
+  assert.equal(h.jobs.length, 1);
+  h.dispatch("input", { target: { matches: () => true } });
+  assert.equal(h.jobs[0].options.isCurrent(), true);
+  assert.equal(h.timers.size, 0);
+  h.jobs[0].resolve(result("shared", 8));
+  await Promise.all([background, preview]);
+  assert.equal(h.urls.length, 1);
+  assert.equal(h.state.metadata.pageCount, 8);
+});
+
+test("PDF exports update only matching current settings and seed preview reuse", async () => {
+  for (const change of [null, "page-size", "source", "sceneNumbers", "sceneNumberFormat", "documentRevision"]) {
+    const h = harness();
+    const pending = h.context.exportDocument("pdf");
+    if (change === "page-size") h.$("#page-size").value = "a4";
+    else if (change === "source") h.source.value += "\nNew text";
+    else if (change === "documentRevision") ++h.state.documentRevision;
+    else if (change) h.docSettings[change] = "changed";
+    h.jobs[0].resolve(result("export", 8));
+    await pending;
+    assert.equal(h.downloads.length, 1);
+    assert.equal(h.metrics.length, change ? 0 : 1);
+    if (!change) {
+      h.state.previewMode = "pdf";
+      await h.context.refreshPdf();
+      assert.equal(h.jobs.length, 1);
+      assert.equal(h.urls.length, 1);
+    }
+  }
+});
+
+test("PDF cache never guesses that notes or managed annotation edits are unchanged", async () => {
+  const h = harness(); h.state.previewMode = "pdf";
+  const first = h.context.refreshPdf();
+  h.jobs[0].resolve(result("first")); await first;
+  h.source.value += "\n[[A new note]]";
+  h.context.scheduleCompile();
+  const second = h.context.refreshPdf();
+  assert.equal(h.jobs.length, 2);
+  h.jobs[1].resolve(result("new note")); await second;
 });

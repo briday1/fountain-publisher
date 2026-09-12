@@ -154,6 +154,7 @@ function controllerHarness(t, { invalidateOnApply = true } = {}) {
   t.mock.method(globalThis, "clearTimeout", (id) => timers.delete(id));
   const snapshot = { text: "cat cat", documentRevision: 1, editRevision: 1, composing: false, readOnly: false };
   let selection = { anchor: 0, head: 0, surface: "preview" };
+  const reads = { snapshot: 0, dialog: 0 };
   const navigations = [], restores = [], applications = [], notices = [];
   const client = fakeClient();
   const elements = new Map();
@@ -162,7 +163,7 @@ function controllerHarness(t, { invalidateOnApply = true } = {}) {
     activeElement: null,
     body: { classList: { toggle() {} } },
     querySelector(selector) {
-      if (selector === "dialog[open]") return dialog;
+      if (selector === "dialog[open]") { reads.dialog += 1; return dialog; }
       assert.ok(selector.startsWith("#"));
       return get(selector.slice(1));
     },
@@ -203,7 +204,7 @@ function controllerHarness(t, { invalidateOnApply = true } = {}) {
   let acceptEdits = true;
   const adapter = {
     client,
-    getSnapshot: () => ({ ...snapshot }),
+    getSnapshot: () => { reads.snapshot += 1; return { ...snapshot }; },
     canEdit: () => !snapshot.readOnly && !snapshot.composing,
     captureSelection: () => ({ ...selection }),
     restoreSelection(value) { restores.push(value); selection = { ...value }; root.activeElement = editor; },
@@ -229,7 +230,7 @@ function controllerHarness(t, { invalidateOnApply = true } = {}) {
   controller = createDocumentSearch(adapter, root);
   t.after(() => controller.close({ restore: false }));
   return {
-    controller, snapshot, client, navigations, restores, applications, notices, root, editor, get, timers,
+    controller, snapshot, client, navigations, restores, applications, notices, root, editor, get, timers, reads,
     select(value) { selection = { ...selection, ...value }; },
     rejectEdits() { acceptEdits = false; },
     setDialog(value) { dialog = value; },
@@ -418,6 +419,33 @@ test("Vim search cancellation restores its entry selection and rejects pending n
   assert.deepEqual(h.navigations, []);
   assert.equal(h.restores.at(-1).head, 4);
   assert.equal(h.root.activeElement, h.editor);
+});
+
+test("ordinary typing bypasses search snapshot and modal queries in both editor and note fields", (t) => {
+  const h = controllerHarness(t);
+  const before = { ...h.reads };
+  for (const target of [h.editor, h.get("unrelated-input")]) {
+    for (const key of ["a", "f", "h", "g", " ", "Enter", "Backspace", "ArrowLeft", "Shift"]) {
+      assert.equal(h.controller.handleShortcut({ key, target }), false);
+    }
+    assert.equal(h.controller.handleShortcut({ key: "s", ctrlKey: true, target }), false);
+  }
+  assert.deepEqual(h.reads, before);
+  assert.equal(h.client.jobs.length, 0);
+});
+
+test("search shortcut prefilter retains Escape, Ctrl/Cmd Find and Replace", (t) => {
+  const h = controllerHarness(t);
+  const shortcut = (key, properties = {}) => ({ key, target: h.editor, preventDefault() {}, ...properties });
+  assert.equal(h.controller.handleShortcut(shortcut("f", { ctrlKey: true })), true);
+  assert.equal(h.get("search-dock").hidden, false);
+  assert.equal(h.controller.handleShortcut(shortcut("Escape")), true);
+  assert.equal(h.get("search-dock").hidden, true);
+  assert.equal(h.controller.handleShortcut(shortcut("h", { ctrlKey: true })), true);
+  assert.equal(h.get("search-replace-row").hidden, false);
+  h.controller.close();
+  assert.equal(h.controller.handleShortcut(shortcut("f", { metaKey: true, altKey: true })), true);
+  assert.equal(h.get("search-replace-row").hidden, false);
 });
 
 test("search shortcuts respect composition, unrelated fields and open dialogs", (t) => {

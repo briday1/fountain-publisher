@@ -82,6 +82,56 @@ test("active background responses become stale while new jobs remain bounded", a
   assert.equal(workers[0].posts.length, 3);
 });
 
+test("input cancellation drops background jobs but preserves explicit exports and the worker", async (t) => {
+  const { client, workers } = fixture(t);
+  const background = client.compile("pdf", { source: "Background" }, { backgroundKey: "page-count" });
+  const exported = client.compile("pdf", { source: "Export" });
+  client.cancelBackground("page-count");
+  assert.equal(await background, null);
+  workers[0].ready();
+  assert.equal(workers[0].posts.at(-1).data.input.request.source, "Export");
+  const pending = client.compile("pdf", { source: "Next background" }, { backgroundKey: "page-count" });
+  workers[0].reply({ exported: true });
+  assert.deepEqual(await exported, { exported: true });
+  client.cancelBackground("page-count");
+  assert.equal(workers[0].terminated, false);
+  workers[0].reply();
+  assert.equal(await pending, null);
+});
+
+test("explicit promotion protects matching background work during startup and execution", async (t) => {
+  for (const readyBeforePromotion of [false, true]) {
+    const { client, workers } = fixture(t);
+    const pending = client.compile("pdf", { source: "Matching preview" }, { backgroundKey: "page-count" });
+    if (readyBeforePromotion) workers[0].ready();
+    client.promoteBackground("page-count");
+    client.cancelBackground("page-count");
+    if (!readyBeforePromotion) workers[0].ready();
+    assert.equal(workers[0].posts.length, 2);
+    workers[0].reply({ preview: true });
+    assert.deepEqual(await pending, { preview: true });
+    assert.equal(workers[0].terminated, false);
+  }
+});
+
+test("dispatch callbacks measure actual worker jobs, excluding coalesced or cancelled requests", async (t) => {
+  const { client, workers } = fixture(t);
+  const starts = [];
+  const old = client.compile("pdf", { source: "Old" }, { backgroundKey: "page-count", onStart: () => starts.push("old") });
+  const pending = client.compile("pdf", { source: "Latest" }, { backgroundKey: "page-count", onStart: () => starts.push("latest") });
+  assert.equal(await old, null);
+  assert.deepEqual(starts, []);
+  workers[0].ready();
+  assert.deepEqual(starts, ["latest"]);
+  workers[0].ready();
+  assert.deepEqual(starts, ["latest"]);
+  const cancelled = client.compile("pdf", { source: "Cancelled" }, { backgroundKey: "other", onStart: () => starts.push("cancelled") });
+  client.cancelBackground("other");
+  assert.equal(await cancelled, null);
+  workers[0].reply(); await pending;
+  assert.deepEqual(starts, ["latest"]);
+});
+
 test("results are checked against current document state after worker execution", async (t) => {
   const { client, workers } = fixture(t);
   let current = true;

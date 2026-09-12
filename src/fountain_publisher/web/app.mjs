@@ -232,7 +232,16 @@ const state = {
   githubSaving: false,
   githubConflict: null,
   metadata: emptyMetadata(),
+  renderedInsightMetadata: null,
+  insightsDirty: false,
   compileTimer: 0,
+  compileIdle: 0,
+  compilePending: false,
+  compileActivityRevision: 0,
+  compileComposing: null,
+  lastAutomaticCompileAt: null,
+  compileJob: null,
+  compiledPdf: null,
   compileRevision: 0,
   insightTimer: 0,
   completionItems: [],
@@ -413,7 +422,11 @@ function hyperspaceCanvases() {
 }
 
 function visibleBackgroundElements(selector) {
-  return $$(selector).filter((element) => backgroundElementVisible(element, document.hidden)
+  const openDialogs = $$("dialog[open]");
+  // Modal backdrops cover workspace decoration. Keep the settings preview alive,
+  // but conservatively pause it too if a second dialog covers that preview.
+  return $$(selector).filter((element) => openDialogs.every((dialog) => dialog.contains(element))
+    && backgroundElementVisible(element, document.hidden)
     && (!element.closest(".preview-panel") || state.previewMode === "live"));
 }
 
@@ -734,8 +747,11 @@ const backgroundVisibilityObserver = new MutationObserver((records) => {
     || (record.oldValue || "").split(/\s+/).includes("zen-mode") !== document.body.classList.contains("zen-mode"));
   if (affectsVisibility) scheduleBackgroundRefresh();
 });
-for (const element of [$("#source-panel"), $("#beat-sheet-panel"), $(".preview-panel"), $("#preview-scroll"), $("#background-dialog")]) {
-  backgroundVisibilityObserver.observe(element, { attributes: true, attributeFilter: ["hidden", "open", "class"] });
+for (const element of [$("#source-panel"), $("#beat-sheet-panel"), $(".preview-panel"), $("#preview-scroll")]) {
+  backgroundVisibilityObserver.observe(element, { attributes: true, attributeFilter: ["hidden", "class"] });
+}
+for (const dialog of $$("dialog")) {
+  backgroundVisibilityObserver.observe(dialog, { attributes: true, attributeFilter: ["open"] });
 }
 backgroundVisibilityObserver.observe(document.body, { attributes: true, attributeFilter: ["class", "data-mobile-tab"], attributeOldValue: true });
 backgroundVisibilityObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-effective-theme"] });
@@ -906,7 +922,10 @@ function analyzeLocally(text) {
   let dialogueWords = 0;
   let actionWords = 0;
   typed.forEach((line, index) => {
-    const words = (line.display.match(/[\p{L}\p{N}'’-]+/gu) || []).length;
+    // Notes can contain large encoded payloads; they do not contribute spoken
+    // or action words. Avoid scanning those payloads on every keystroke.
+    const counted = line.type === "dialogue" || !["empty", "parenthetical", "section", "scene", "character", "synopsis", "note", "boneyard", "title-value", "title-value title"].includes(line.type);
+    const words = counted ? (line.display.match(/[\p{L}\p{N}'’-]+/gu) || []).length : 0;
     if (line.prefix) titleFields.push(line.prefix.slice(0, -1));
     if (line.type === "section") {
       const match = line.raw.trim().match(/^(#{1,6})\s+(.+)$/);
@@ -964,15 +983,18 @@ function previewLineHtml(line, sceneLabel = null, annotation = null) {
     display = sceneLabel !== null && docSettings.sceneNumbers === "inline" ? `${sceneLabel}. ${cleanDisplay}` : cleanDisplay;
   }
   const note = type === "note" ? managedNote(line.raw) : null;
-  const content = display ? fountainInlineHtml(display) : "<br>";
-  const sceneAttr = sceneLabel !== null ? escapeHtml(sceneLabel) : "";
+  // Notes are represented by annotation controls or empty source anchors.
+  // Never build inline markup/maps for their potentially large encoded text.
   if (type === "note" && !note) return "";
   if (type === "note" && note) return `<div class="script-line note managed-note" data-line="${line.index}"></div>`;
+  const parsed = parseFountainInline(display);
+  const content = display ? parsed.html : "<br>";
+  const sceneAttr = sceneLabel !== null ? escapeHtml(sceneLabel) : "";
   const orb = annotation
     ? `<button class="annotation-orb" type="button" data-annotation-line="${annotation.index}" title="${escapeHtml(annotation.text)}" aria-label="Edit annotation: ${escapeHtml(annotation.text)}"></button>`
     : "";
   const spellcheckAttr = type === "character" ? ` spellcheck="false" autocorrect="off" autocomplete="off"` : "";
-  return `<div class="${className}" data-line="${line.index}" data-type="${escapeHtml(type)}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(parseFountainInline(display).text)}"${spellcheckAttr}>${content}${orb}</div>`;
+  return `<div class="${className}" data-line="${line.index}" data-type="${escapeHtml(type)}" data-prefix="${escapeHtml(prefix)}" data-scene-number="${sceneAttr}" data-display="${escapeHtml(parsed.text)}"${spellcheckAttr}>${content}${orb}</div>`;
 }
 
 function annotationAfter(lines, index) {
@@ -1727,16 +1749,50 @@ function updateCursor({ scrollPreview = false, scrollBlock = "nearest" } = {}) {
   $("#editor-status").textContent = labels[type] || type[0].toUpperCase() + type.slice(1);
   syncSourceCurrentLine(position.line);
   updatePreviewCursor(scrollPreview, scrollBlock);
+  updateCursor.snapshot = { text: source.value, start: source.selectionStart, end: source.selectionEnd, direction: source.selectionDirection };
+}
+
+let sourceSelectionFrame = 0;
+let sourceSelectionScrollPending = false;
+
+function scheduleSourceSelectionUpdate({ forceScroll = false } = {}) {
+  if (document.activeElement !== source || state.sourceComposing || state.previewComposing) return;
+  sourceSelectionScrollPending ||= forceScroll;
+  if (sourceSelectionFrame) return;
+  sourceSelectionFrame = requestAnimationFrame(() => {
+    sourceSelectionFrame = 0;
+    const forceScroll = sourceSelectionScrollPending;
+    sourceSelectionScrollPending = false;
+    if (document.activeElement !== source || state.sourceComposing || state.previewComposing) return;
+    const previous = updateCursor.snapshot;
+    const changed = !previous || previous.text !== source.value || previous.start !== source.selectionStart
+      || previous.end !== source.selectionEnd || previous.direction !== source.selectionDirection;
+    // input/sourceChanged already paints the current selection. Native select,
+    // click and keyup notifications may describe that same edit again.
+    if (!changed && !forceScroll) return;
+    updateCursor({ scrollPreview: true });
+    scheduleWorkspaceViewCache();
+  });
+}
+
+function updateInsightHtml(element, markup) {
+  const cache = updateInsightHtml.cache ||= new WeakMap();
+  if (cache.get(element) === markup) return false;
+  element.innerHTML = markup;
+  cache.set(element, markup);
+  return true;
 }
 
 function renderInsights(metadata) {
   state.metadata = metadata;
+  state.renderedInsightMetadata = metadata;
+  state.insightsDirty = false;
   renderPageMetric(metadata);
   $("#stat-scenes").textContent = metadata.scenes.length;
   $("#stat-words").textContent = metadata.wordCount.toLocaleString();
   $("#scene-count").textContent = metadata.scenes.length;
   $("#character-count").textContent = metadata.characters.length;
-  $("#scene-list").innerHTML = renderOutline(metadata);
+  updateInsightHtml($("#scene-list"), renderOutline(metadata));
   renderCharacterTable();
   renderGeneralNotes();
   renderBeatGuide();
@@ -1771,20 +1827,20 @@ function renderPageMetric(metadata) {
 function renderCharacterTable() {
   const characters = state.metadata.characters || [];
   const notes = state.metadata.characterNotes || {};
-  $("#character-line-table").innerHTML = characters.length
+  updateInsightHtml($("#character-line-table"), characters.length
     ? `<table><thead><tr><th>Character</th><th>Lines</th></tr></thead><tbody>${characters.map((character) => {
       const hasNote = Boolean(notes[character.name]?.text);
       return `<tr><td><button type="button" data-character-note="${escapeHtml(character.name)}">${escapeHtml(character.name)}${hasNote ? `<span class="note-indicator" aria-label="Has notes">●</span>` : ""}</button></td><td>${character.lines}</td></tr>`;
     }).join("")}</tbody></table>`
-    : `<div class="empty-list">Characters appear as dialogue is written.</div>`;
+    : `<div class="empty-list">Characters appear as dialogue is written.</div>`);
 }
 
 function renderGeneralNotes() {
   const notes = state.metadata.generalNotes || [];
   $("#general-note-count").textContent = notes.length;
-  $("#general-notes").innerHTML = notes.length
+  updateInsightHtml($("#general-notes"), notes.length
     ? notes.map((note) => `<button type="button" data-general-note-line="${note.line}"><span>${escapeHtml(note.text)}</span><small>Edit</small></button>`).join("")
-    : `<div class="empty-list">No general notes yet.</div>`;
+    : `<div class="empty-list">No general notes yet.</div>`);
 }
 
 function renderBeatGuide() {
@@ -1796,22 +1852,36 @@ function renderBeatGuide() {
   layer.hidden = !enabled;
   layer.classList.toggle("empty", !beats.length);
   $(".preview-panel").classList.toggle("beat-runner-on", enabled);
-  requestAnimationFrame(() => document.body.style.setProperty("--zen-beat-guide-height", enabled ? `${layer.offsetHeight}px` : "0px"));
   $(".menu-check", button).textContent = state.beatGuide ? "✓" : "";
-  $$(".script-line.beat-area", page).forEach((line) => line.classList.remove("beat-area", "active-beat-area"));
-  if (!enabled) { layer.innerHTML = ""; return; }
+  if (!enabled) {
+    if (renderBeatGuide.hadAreas) $$(".script-line.beat-area", page).forEach((line) => line.classList.remove("beat-area", "active-beat-area"));
+    renderBeatGuide.hadAreas = false;
+    updateInsightHtml(layer, "");
+    document.body.style.setProperty("--zen-beat-guide-height", "0px");
+    return;
+  }
+  const areas = new Set(), activeAreas = new Set();
   beats.forEach((beat, index) => {
     if (!beat.range) return;
-    for (let line = beat.range.startLine; line <= beat.range.endLine; line += 1) {
-      const target = $(`[data-line="${line}"]`, page);
-      target?.classList.add("beat-area");
-      if (index === state.activeBeat) target?.classList.add("active-beat-area");
+    const end = Math.min(beat.range.endLine, Math.max(0, (state.metadata.lineCount || 1) - 1));
+    for (let line = Math.max(0, beat.range.startLine); line <= end; line += 1) {
+      areas.add(line);
+      if (index === state.activeBeat) activeAreas.add(line);
     }
   });
+  // One document query instead of a full selector search for every covered line.
+  $$(".script-line", page).forEach((line) => {
+    const index = Number(line.dataset.line);
+    for (const [name, enabled] of [["beat-area", areas.has(index)], ["active-beat-area", activeAreas.has(index)]]) {
+      if (line.classList.contains(name) !== enabled) line.classList.toggle(name, enabled);
+    }
+  });
+  renderBeatGuide.hadAreas = areas.size > 0;
   const beat = beats[state.activeBeat];
-  layer.innerHTML = beat
+  updateInsightHtml(layer, beat
     ? `<div class="beat-runner-progress"><small>${state.activeBeat + 1}/${beats.length}</small><strong>Next Beat:</strong><span>${escapeHtml(beat.text)}</span>${beat.range ? `<em>Lines ${beat.range.startLine + 1}–${beat.range.endLine + 1}</em>` : ""}</div><div class="beat-runner-actions"><button type="button" data-previous-beat aria-label="Previous beat"${state.activeBeat ? "" : " disabled"}>←</button><button type="button" data-open-beat-sheet>Edit</button><button class="assign-beat-area" type="button" data-assign-beat-area>Assign + Next</button><button type="button" data-next-beat aria-label="Next beat"${state.activeBeat < beats.length - 1 ? "" : " disabled"}>→</button><button type="button" data-close-beat-guide aria-label="Hide Beat guide">×</button></div>`
-    : `<div class="beat-runner-progress"><strong>Beat Sheet</strong><span>Add beats to start the writing runner.</span></div><div class="beat-runner-actions"><button class="empty-beat-sheet-button" type="button" data-open-beat-sheet>Open Beat Sheet</button><button type="button" data-close-beat-guide aria-label="Hide Beat guide">×</button></div>`;
+    : `<div class="beat-runner-progress"><strong>Beat Sheet</strong><span>Add beats to start the writing runner.</span></div><div class="beat-runner-actions"><button class="empty-beat-sheet-button" type="button" data-open-beat-sheet>Open Beat Sheet</button><button type="button" data-close-beat-guide aria-label="Hide Beat guide">×</button></div>`);
+  requestAnimationFrame(() => document.body.style.setProperty("--zen-beat-guide-height", state.beatGuide && state.previewMode === "live" ? `${layer.offsetHeight}px` : "0px"));
 }
 
 function selectedBeatArea() {
@@ -2214,6 +2284,7 @@ function transformBeatRange(range, editStart, oldCount, newCount) {
 
 function rebaseBeatRanges(previousValue, nextValue) {
   if (!previousValue || previousValue === nextValue) return nextValue;
+  if (!previousValue.includes("[[FP-BEATS:") || !nextValue.includes("[[FP-BEATS:")) return nextValue;
   const previousLines = previousValue.replace(/\r\n?/g, "\n").split("\n");
   const nextLines = nextValue.replace(/\r\n?/g, "\n").split("\n");
   const previousSheet = parseManagedNotes(previousLines).beatSheet;
@@ -2265,29 +2336,192 @@ function sourceChanged({ fromPreview = false, record = true, rebaseBeats = true,
   state.documentSearch?.invalidate();
   if (record) recordHistory(exactHistory);
   document.body.classList.toggle("dirty", source.value !== state.savedSource);
+  // Refresh the model before Preview/beat controls read source line offsets.
+  state.metadata = analyzeLocally(source.value);
   // Source/PDF/beat-sheet edits do not need a second, hidden document tree on
   // every keypress. Refresh it before returning to the live Preview instead.
   if (!fromPreview || state.previewMode !== "live") state.previewDirty = true;
-  if (!fromPreview || state.previewMode === "source") renderEditorChrome();
+  if (state.previewMode === "source") renderEditorChrome();
   if (!fromPreview && state.previewMode === "live") renderPreview();
-  clearTimeout(state.insightTimer);
-  if (fromPreview) state.insightTimer = setTimeout(() => renderInsights(analyzeLocally(source.value)), 80);
-  else renderInsights(analyzeLocally(source.value));
+  // The editing model (including note/beat offsets and completion candidates)
+  // stays current. Expensive sidebar DOM waits until typing settles.
+  state.insightsDirty = true;
+  scheduleInsightsRefresh(origin === "load" || insightTargetsChanged(state.renderedInsightMetadata, state.metadata));
   scheduleCompile();
   scheduleWorkspaceCache();
   if (!state.collaborationApplying) collaboration.replace(source.value);
   return true;
 }
 
-function scheduleCompile(delay = 350) {
-  clearTimeout(state.compileTimer);
+function insightTargetsChanged(previous, next) {
+  if (!previous) return true;
+  const sameTargets = (before = [], after = [], keys) => before.length === after.length
+    && before.every((item, index) => keys.every((key) => item[key] === after[index][key]));
+  // Do not leave clickable outline/note rows pointing at old source positions.
+  return !sameTargets(previous.scenes, next.scenes, ["line", "heading"])
+    || !sameTargets(previous.sections, next.sections, ["line", "title"])
+    || !sameTargets(previous.generalNotes, next.generalNotes, ["line", "text"])
+    || !sameTargets(previous.characters, next.characters, ["name"])
+    || JSON.stringify(previous.beatSheet) !== JSON.stringify(next.beatSheet);
+}
+
+function flushInsights() {
+  clearTimeout(state.insightTimer);
+  state.insightTimer = 0;
+  if (!state.insightsDirty || document.hidden) return;
+  const modal = document.querySelector("dialog[open]");
+  if (modal) {
+    // Keep an exposed analytics chart aligned with its clickable scene groups
+    // after collaborator edits, without repainting the covered sidebar.
+    if (modal.id === "character-analytics-dialog" && !document.querySelector("dialog[open]:not(#character-analytics-dialog)")) renderCharacterAnalytics();
+    return;
+  }
+  renderInsights(state.metadata);
+  state.insightsDirty = false;
+}
+
+function scheduleInsightsRefresh(immediate = false) {
+  clearTimeout(state.insightTimer);
+  if (immediate) flushInsights();
+  else state.insightTimer = setTimeout(flushInsights, 650);
+}
+
+function scheduleCompile(delay = 10000) {
   const revision = ++state.compileRevision;
-  $("#compile-status").textContent = "Editing…";
-  $("#compile-status").title = "Compilation runs privately in this browser tab.";
-  $("#compile-status").classList.remove("error");
+  compilerClient.cancelBackground("page-count");
+  showCompilePending();
   // Never leave another document's PDF visible while this one is being edited.
   if (state.previewMode === "pdf") showPdfLoading();
-  state.compileTimer = setTimeout(() => compilePageCount(revision), Math.max(delay, 700));
+  state.compilePending = true;
+  queueAutomaticCompile(revision, Math.max(delay, 10000));
+}
+
+function showCompilePending() {
+  const status = $("#compile-status");
+  const title = "Page counts update after 10 seconds of idle time, at most once a minute. Open PDF or export for an immediate result. Compilation stays private in this browser tab.";
+  if (status.textContent !== "Count pending") status.textContent = "Count pending";
+  if (status.title !== title) status.title = title;
+  if (status.classList.contains("error")) status.classList.remove("error");
+}
+
+function cancelAutomaticCompileWait() {
+  clearTimeout(state.compileTimer);
+  if (state.compileIdle) window.cancelIdleCallback?.(state.compileIdle);
+  state.compileTimer = 0;
+  state.compileIdle = 0;
+}
+
+function queueAutomaticCompile(revision = state.compileRevision, delay = 10000) {
+  cancelAutomaticCompileWait();
+  // Exact page counts require the screenplay layout engine. Even off-thread it
+  // consumes CPU, so run only after ten quiet seconds and at most once a minute.
+  // Explicit PDF/export actions do not go through this automatic scheduler.
+  const activity = state.compileActivityRevision || 0;
+  const remainingCadence = () => state.lastAutomaticCompileAt == null ? 0 : Math.max(0, 60000 - (performance.now() - state.lastAutomaticCompileAt));
+  const current = () => state.compilePending && revision === state.compileRevision && activity === (state.compileActivityRevision || 0);
+  const run = (deadline) => {
+    if (!current()) return;
+    state.compileIdle = 0;
+    if (document.hidden || state.sourceComposing || state.previewComposing || state.compileComposing) return;
+    if (remainingCadence()) { queueAutomaticCompile(revision, remainingCadence()); return; }
+    if (deadline && deadline.timeRemaining() < 5) {
+      state.compileIdle = window.requestIdleCallback(run);
+      return;
+    }
+    state.compilePending = false;
+    return compilePageCount(revision);
+  };
+  state.compileTimer = setTimeout(() => {
+    if (!current()) return;
+    clearTimeout(state.compileTimer);
+    state.compileTimer = 0;
+    // Hidden tabs and active IME sessions resume from their next activity event,
+    // rather than waking a timer repeatedly or competing with ongoing typing.
+    if (document.hidden || state.sourceComposing || state.previewComposing || state.compileComposing) return;
+    // Never force work into a busy UI deadline. Browsers without idle callbacks
+    // still get the ten-second quiet period and one-minute automatic cadence.
+    if (window.requestIdleCallback) state.compileIdle = window.requestIdleCallback(run);
+    else return run();
+  }, Math.max(delay, 10000, remainingCadence()));
+}
+
+function deferAutomaticCompile() {
+  if (!state.compilePending && !state.compileJob?.automatic) return;
+  state.compileActivityRevision = (state.compileActivityRevision || 0) + 1;
+  state.compilePending = true;
+  showCompilePending();
+  compilerClient.cancelBackground("page-count");
+  cancelAutomaticCompileWait();
+  if (!document.hidden) queueAutomaticCompile();
+}
+
+function installCompileActivityTracking() {
+  const editable = (event) => event.target?.isContentEditable
+    || event.target?.matches?.("textarea, input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit])");
+  const onInput = (event) => { if (editable(event)) deferAutomaticCompile(); };
+  for (const type of ["beforeinput", "input"]) document.addEventListener(type, onInput, true);
+  document.addEventListener("compositionstart", (event) => {
+    if (!editable(event)) return;
+    state.compileComposing = event.target;
+    deferAutomaticCompile();
+  }, true);
+  const finishComposition = (event) => {
+    if (state.compileComposing !== event.target) return;
+    state.compileComposing = null;
+    deferAutomaticCompile();
+  };
+  document.addEventListener("compositionend", finishComposition, true);
+  document.addEventListener("focusout", finishComposition, true);
+  document.addEventListener("keydown", (event) => {
+    if (editable(event) && !event.metaKey && !event.ctrlKey && (event.key.length === 1 || ["Backspace", "Delete", "Enter"].includes(event.key))) deferAutomaticCompile();
+  }, true);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) deferAutomaticCompile();
+    else if (state.compilePending) queueAutomaticCompile();
+  });
+}
+
+function sameCompileContent(left, right) {
+  return left?.documentRevision === right.documentRevision
+    && left.source === right.source && left.pageSize === right.pageSize
+    && left.sceneNumbers === right.sceneNumbers && left.sceneNumberFormat === right.sceneNumberFormat;
+}
+
+function requestDocumentCompilation(request, automatic) {
+  const existing = state.compileJob;
+  if (existing && existing.isCurrent() && sameCompileContent(existing.request, request)) {
+    if (!automatic && existing.automatic) {
+      existing.automatic = false;
+      compilerClient.promoteBackground("page-count");
+    }
+    return existing.promise;
+  }
+  const job = { request, automatic, preview: !automatic, activity: state.compileActivityRevision || 0 };
+  job.isCurrent = () => isCurrentCompile(request)
+    && (!job.preview || state.previewMode === "pdf")
+    && (!job.automatic || (job.activity === (state.compileActivityRevision || 0) && !document.hidden));
+  if (automatic) state.lastAutomaticCompileAt = performance.now();
+  job.promise = compileLocally("pdf", request, { isCurrent: job.isCurrent, backgroundKey: automatic ? "page-count" : null,
+    onStart: () => { if (job.automatic) state.lastAutomaticCompileAt = performance.now(); },
+  })
+    .then((result) => job.isCurrent() ? result : null)
+    .catch((error) => { if (job.isCurrent()) throw error; return null; })
+    .finally(() => { if (state.compileJob === job) state.compileJob = null; });
+  state.compileJob = job;
+  return job.promise;
+}
+
+function acceptCompileResult(request, result) {
+  // Keep just the latest successful snapshot in this tab, including its PDF.
+  // Notes are not stripped or guessed away: cache reuse requires exact source.
+  state.compiledPdf = { request, result };
+  state.metadata.pageCount = result.pageCount;
+  state.metadata.lastPageEighths = result.lastPageEighths;
+  state.metadata.estimatedSeconds = result.pageCount * 60;
+  renderPageMetric(state.metadata);
+  $("#compile-status").textContent = "Compiled";
+  $("#compile-status").classList.remove("error");
+  $("#compile-status").title = "Compilation runs privately in this browser tab.";
 }
 
 function captureCompileRequest(pageSize = $("#page-size").value) {
@@ -2325,13 +2559,10 @@ async function compilePageCount(revision) {
   if (!isCurrentCompile(request)) return;
   $("#compile-status").textContent = "Compiling…";
   try {
-    const result = await compileLocally("pdf", request, { isCurrent: () => isCurrentCompile(request), backgroundKey: "page-count" });
+    const result = sameCompileContent(state.compiledPdf?.request, request)
+      ? state.compiledPdf.result : await requestDocumentCompilation(request, true);
     if (!result || !isCurrentCompile(request)) return;
-    state.metadata.pageCount = result.pageCount;
-    state.metadata.lastPageEighths = result.lastPageEighths;
-    state.metadata.estimatedSeconds = result.pageCount * 60;
-    renderPageMetric(state.metadata);
-    $("#compile-status").textContent = "Compiled";
+    acceptCompileResult(request, result);
     // Reuse this tab's PDF for the visible preview; no second compilation needed.
     if (state.previewMode === "pdf") {
       ++state.pdfRevision;
@@ -4105,6 +4336,7 @@ async function shareOrDownload(blob, filename) {
 
 const compilerClient = createCompilerWorkerClient();
 const compileLocally = compilerClient.compile;
+installCompileActivityTracking();
 
 function compileBeatSheetPdf(title, premise, beats, selectedPageSize = $("#page-size").value) {
   return compilerClient.beatSheet({ title, premise, beats, pageSize: selectedPageSize });
@@ -4137,7 +4369,9 @@ async function exportDocument(format) {
   $("#confirm-export").disabled = true;
   try {
     // Explicit exports keep the click-time snapshot even if editing continues.
-    const { blob } = await compileLocally(format, request);
+    const result = await compileLocally(format, request);
+    const { blob } = result;
+    if (format === "pdf" && isCurrentCompile(request)) acceptCompileResult(request, result);
     await shareOrDownload(blob, filename); $("#export-dialog").close(); toast(`Exported ${format.toUpperCase()}`);
   } catch (error) { if (error.name !== "AbortError") toast(error.message); }
   finally { $("#confirm-export").disabled = false; }
@@ -4165,6 +4399,7 @@ async function setPreviewMode(mode) {
     state.livePreviewScrollTop = preview.scrollTop;
     state.livePreviewScrollLeft = preview.scrollLeft;
   }
+  if (state.previewMode === "beats") persistBeatSheet();
   state.previewMode = mode; localStorage.setItem("fountain-publisher.preview", mode);
   const mobilePanel = mode === "source" ? "source" : mode === "beats" ? "beats" : "preview";
   document.body.dataset.mobileTab = mobilePanel;
@@ -4203,19 +4438,29 @@ function showPdfError(error) {
 }
 
 function publishPdf(blob) {
+  if (state.pdfUrl && state.pdfBlob === blob) {
+    $("#pdf-frame").hidden = false; $("#pdf-placeholder").hidden = true;
+    return;
+  }
   if (state.pdfUrl) URL.revokeObjectURL(state.pdfUrl);
+  state.pdfBlob = blob;
   state.pdfUrl = URL.createObjectURL(blob);
   $("#pdf-frame").src = state.pdfUrl; $("#pdf-frame").hidden = false; $("#pdf-placeholder").hidden = true;
 }
 
 async function refreshPdf() {
+  // An explicit PDF request replaces the deferred automatic job and also
+  // supplies its page metrics, so the idle timer must not compile it again.
+  cancelAutomaticCompileWait();
+  state.compilePending = false;
   const revision = ++state.pdfRevision;
   const request = captureCompileRequest();
   const isCurrent = () => revision === state.pdfRevision && state.previewMode === "pdf" && isCurrentCompile(request);
   showPdfLoading();
   try {
-    const result = await compileLocally("pdf", request, { isCurrent, backgroundKey: "pdf-preview" });
-    if (result && isCurrent()) publishPdf(result.blob);
+    const result = sameCompileContent(state.compiledPdf?.request, request)
+      ? state.compiledPdf.result : await requestDocumentCompilation(request, false);
+    if (result && isCurrent()) { acceptCompileResult(request, result); publishPdf(result.blob); }
   } catch (error) { if (isCurrent()) showPdfError(error); }
 }
 
@@ -4504,9 +4749,13 @@ function screenplayWordProgress() {
   return { progress, total };
 }
 
-function renderBeatProgressGraph(beats = currentBeatCards()) {
+function renderBeatProgressGraph(beats, { force = false } = {}) {
+  // The graph is a separate dialog; editing its labels must not rebuild a
+  // hidden SVG or scan every beat and screenplay line on each keystroke.
+  if (!force && !$("#beat-progress-dialog").open) return;
   const graph = $("#beat-progress-graph");
   if (!graph) return;
+  beats ??= currentBeatCards();
   const count = beats.length;
   if (!count) { graph.innerHTML = ""; graph.hidden = true; return; }
   graph.hidden = false;
@@ -4539,12 +4788,12 @@ function renderBeatProgressGraph(beats = currentBeatCards()) {
 }
 
 function openBeatProgressGraph() {
-  renderBeatProgressGraph();
+  renderBeatProgressGraph(undefined, { force: true });
   $("#beat-progress-dialog").showModal();
 }
 
 async function saveBeatProgressPng() {
-  renderBeatProgressGraph();
+  renderBeatProgressGraph(undefined, { force: true });
   const sourceSvg = $("#beat-progress-graph svg");
   if (!sourceSvg) { toast("Add a beat before saving the pacing graph"); return; }
   const clone = sourceSvg.cloneNode(true);
@@ -4596,6 +4845,9 @@ function currentBeatCards() {
 }
 
 function renderBeatSheetView() {
+  if (beatSheetComposing && state.beatSheetDocumentRevision === state.documentRevision) return;
+  beatSheetComposing = false;
+  state.beatSheetDocumentRevision = state.documentRevision;
   const sheet = state.metadata.beatSheet || { premise: "", beats: [] };
   const hasBeatSheet = Boolean(sheet.premise?.trim() || sheet.beats.some((beat) => (typeof beat === "string" ? beat : beat.text)?.trim()));
   $("#beat-sheet-empty-state").hidden = hasBeatSheet;
@@ -5596,9 +5848,12 @@ source.addEventListener("scroll", () => scheduleSourceGeometry({ saveScroll: tru
 const sourceResizeObserver = new ResizeObserver(() => scheduleSourceGeometry({ resize: true }));
 sourceResizeObserver.observe(source);
 document.fonts?.ready.then(() => renderEditorChrome());
-source.addEventListener("click", () => { updateCursor({ scrollPreview: true }); hideCompletions(); scheduleWorkspaceCache(); });
-source.addEventListener("select", () => { updateCursor({ scrollPreview: document.activeElement === source }); scheduleWorkspaceCache(); });
-source.addEventListener("keyup", (event) => { if (!["Enter", "Tab", "Escape"].includes(event.key)) updateCursor({ scrollPreview: true }); scheduleWorkspaceCache(); });
+source.addEventListener("click", () => { hideCompletions(); scheduleSourceSelectionUpdate({ forceScroll: true }); });
+source.addEventListener("select", () => scheduleSourceSelectionUpdate());
+source.addEventListener("keyup", (event) => {
+  if (event.isComposing || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(event.key)) return;
+  scheduleSourceSelectionUpdate();
+});
 let sourceTouchMenuTimer = 0;
 let sourceTouchStart = null;
 function cancelSourceTouchMenu() {
@@ -5951,6 +6206,7 @@ function finishPointerBeatDrag(event) {
 $("#beat-list").addEventListener("pointerup", finishPointerBeatDrag);
 $("#beat-list").addEventListener("pointercancel", finishPointerBeatDrag);
 $("#beat-list").addEventListener("keydown", (event) => {
+  if (event.isComposing || beatSheetComposing || event.keyCode === 229) return;
   const handle = event.target.closest(".beat-drag");
   if (handle && ["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
     event.preventDefault();
@@ -5974,23 +6230,54 @@ $("#beat-list").addEventListener("keydown", (event) => {
   $(".beat-text", next).focus();
 });
 let beatSheetSaveTimer = 0;
+let beatSheetComposing = false;
 function persistBeatSheet() {
+  if (beatSheetComposing || state.beatSheetDocumentRevision !== state.documentRevision) return;
+  clearTimeout(beatSheetSaveTimer);
+  beatSheetSaveTimer = 0;
   const premise = $("#beat-premise").value.trim();
   const beats = currentBeatCards().filter((beat) => beat.text);
   const existingLine = state.metadata.beatSheet?.line;
-  if (!premise && !beats.length) deleteNoteLine(existingLine, { record: false });
+  if (!premise && !beats.length) {
+    if (existingLine !== null && existingLine !== undefined) deleteNoteLine(existingLine, { record: false });
+  }
   else {
     const value = managedBeatSheetSource(premise, beats);
     if (existingLine === null || existingLine === undefined) appendManagedNote(value);
-    else { const lines = sourceLines(); lines[existingLine] = value; setSourceLines(lines, { record: false }); }
+    else {
+      const lines = sourceLines();
+      if (lines[existingLine] === value) return;
+      lines[existingLine] = value;
+      setSourceLines(lines, { record: false });
+    }
   }
+  renderBeatProgressGraph();
 }
 function scheduleBeatSheetSave() {
   clearTimeout(beatSheetSaveTimer);
-  beatSheetSaveTimer = setTimeout(persistBeatSheet, 300);
+  beatSheetSaveTimer = 0;
+  if (beatSheetComposing || state.beatSheetDocumentRevision !== state.documentRevision) return;
+  const documentRevision = state.documentRevision;
+  const timer = setTimeout(() => {
+    if (beatSheetSaveTimer !== timer) return;
+    beatSheetSaveTimer = 0;
+    if (state.documentRevision === documentRevision) persistBeatSheet();
+  }, 300);
+  beatSheetSaveTimer = timer;
 }
 $("#beat-sheet-form").addEventListener("submit", (event) => event.preventDefault());
-$("#beat-sheet-form").addEventListener("input", () => { renderBeatProgressGraph(); scheduleBeatSheetSave(); });
+$("#beat-sheet-form").addEventListener("compositionstart", () => {
+  beatSheetComposing = true;
+  clearTimeout(beatSheetSaveTimer);
+  beatSheetSaveTimer = 0;
+});
+$("#beat-sheet-form").addEventListener("compositionend", () => {
+  beatSheetComposing = false;
+  scheduleBeatSheetSave();
+});
+$("#beat-sheet-form").addEventListener("input", (event) => {
+  if (!event.isComposing) scheduleBeatSheetSave();
+});
 $("#beat-sheet-form").addEventListener("change", scheduleBeatSheetSave);
 
 $("#annotation-form").addEventListener("submit", (event) => {
@@ -6535,6 +6822,13 @@ window.addEventListener("beforeunload", () => {
   if (clearWorkspaceOnExit()) clearWorkspaceCache();
   else persistWorkspaceNow();
 });
+
+// Typing in a note/search field should not be interrupted by a pending sidebar
+// refresh from the screenplay. Close/resume flushes the newest model, not a
+// captured pre-dialog or previous-document snapshot.
+document.addEventListener("input", () => { if (state.insightsDirty) scheduleInsightsRefresh(); }, true);
+document.addEventListener("close", flushInsights, true);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) flushInsights(); });
 
 let mobileViewportFrame = 0;
 function updateMobileViewport() {

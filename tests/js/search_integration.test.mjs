@@ -36,7 +36,7 @@ function harness(value) {
   };
   const collaboration = { replace(text) { events.push({ type: "replace", text }); }, applyEdits() { return false; } };
   const context = vm.createContext({ state, source, collaboration, canMutateDocument,
-    document: { activeElement: source, body: { classList: { toggle() {} } } },
+    document: { activeElement: source, querySelector: () => null, body: { classList: { toggle() {} } } },
     page: { contains: () => false },
     renderEditorChrome() {}, renderPreview() {}, renderInsights() {}, analyzeLocally() {},
     clearTimeout() {}, setTimeout() { return 0; },

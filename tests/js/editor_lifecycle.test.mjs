@@ -27,7 +27,7 @@ function harness() {
     state, source, Blob, clearTimeout,
     window: {}, document: { title: "", body: { classList: { toggle: (name, value) => value ? classes.add(name) : classes.delete(name) } } },
     $: id => {
-      if (!elements.has(id)) elements.set(id, { dataset: {}, innerHTML: "old presence", textContent: "old status", title: "old title", open: false, close() { this.open = false; } });
+      if (!elements.has(id)) elements.set(id, { dataset: {}, innerHTML: "old presence", textContent: "old status", title: "old title", open: false, showModal() { this.open = true; }, close() { this.open = false; } });
       return elements.get(id);
     },
     collaboration: {
@@ -55,7 +55,9 @@ function harness() {
     section("async function openLocalFile(", "function pdfLayoutToFountain("),
     section("async function openGoogleDriveFile(", "let googlePickerPromise"),
   ].join("\n"), context);
-  return Object.assign(h, { context, elements });
+  return Object.assign(h, { context, elements, createDriveFile: () => context.saveGoogleDrive({
+    destination: { name: state.filename, parentId: "chosen-folder", documentRevision: state.documentRevision, account: state.googleAccount },
+  }) });
 }
 
 test("all document replacements disconnect before changing or publishing source", () => {
@@ -180,7 +182,7 @@ test("Drive save acknowledges the captured snapshot without losing edits made du
 test("new Drive file preserves in-flight typing for initial collaboration sync", async () => {
   const h = harness(); const wait = deferred();
   h.context.googleRequest = () => wait.promise;
-  const saving = h.context.saveGoogleDrive(); h.source.value = "newer";
+  const saving = h.createDriveFile(); h.source.value = "newer";
   wait.resolve({ file: { id: "created-file" } }); await saving;
   assert.equal(h.state.savedSource, "draft");
   assert.deepEqual(h.events.find(event => Array.isArray(event)), ["publish", "created-file", "newer"]);
@@ -191,7 +193,7 @@ test("late Drive saves cannot attach a file to another document or signed-out ac
   for (const invalidate of [h => h.context.setDocument("other", "Other.fountain", true), h => h.state.googleConnected = false, h => h.state.googleAccount = { id: "other-account" }]) {
     const h = harness(); const wait = deferred();
     h.context.googleRequest = () => wait.promise;
-    const saving = h.context.saveGoogleDrive(); invalidate(h);
+    const saving = h.createDriveFile(); invalidate(h);
     const baseline = h.state.savedSource;
     wait.resolve({ file: { id: "created-file" } }); await saving;
     assert.equal(h.state.googleDriveFile, null);
@@ -204,7 +206,7 @@ test("late Drive saves cannot attach a file to another document or signed-out ac
 test("Drive save is single-flight and rejects read-only or signed-out writes", async () => {
   const h = harness(); const wait = deferred();
   h.context.googleRequest = () => { h.requests.push("request"); return wait.promise; };
-  const saving = h.context.saveGoogleDrive(); await h.context.saveGoogleDrive();
+  const saving = h.createDriveFile(); await h.context.saveGoogleDrive();
   assert.equal(h.requests.length, 1);
   wait.resolve({ file: { id: "created-file" } }); await saving;
   h.state.googleDriveFile = { capabilities: { canEdit: false } };
@@ -212,6 +214,15 @@ test("Drive save is single-flight and rejects read-only or signed-out writes", a
   h.state.googleDriveFile = null; h.state.googleConnected = false;
   await h.context.saveGoogleDrive();
   assert.equal(h.requests.length, 1);
+});
+
+test("saving a new Drive document asks for a destination before starting an upload", async () => {
+  const h = harness();
+  await h.context.saveGoogleDrive();
+  assert.equal(h.elements.get("#google-save-dialog").open, true);
+  assert.equal(h.state.googleDriveSave.documentRevision, h.state.documentRevision);
+  assert.equal(h.state.googleDriveSave.account, h.state.googleAccount);
+  assert.equal(h.requests.length, 0);
 });
 
 test("slow local and Drive opens never overwrite newer edits or a switched document", async () => {
