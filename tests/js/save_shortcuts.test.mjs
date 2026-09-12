@@ -327,6 +327,35 @@ test("failed Drive copy preserves the original link and collaboration for retry"
   assert.match(h.notices.at(-1), /Folder access denied/);
 });
 
+test("a view-only Drive file can be copied without modifying the original", async () => {
+  const h = harness();
+  h.state.googleDriveFile = { ...linkedDrive, capabilities: { canEdit: false } };
+  h.source.readOnly = true;
+  h.context.openGoogleDriveSave();
+  await h.context.submitGoogleDriveSave({ submitter: { value: "default" }, preventDefault() {} });
+  assert.equal(h.calls.filter((call) => call.kind === "drive-create").length, 1);
+  assert.equal(h.calls.some((call) => call.kind === "checkpoint"), false);
+  assert.equal(h.source.readOnly, false);
+  assert.equal(h.$("#screenplay-page").contentEditable, "plaintext-only");
+});
+
+test("a late Drive copy response cannot replace a new document or account", async () => {
+  for (const change of ["document", "account"]) {
+    const h = harness(), pending = deferred();
+    h.context.openGoogleDriveSave();
+    h.context.googleRequest = () => pending.promise;
+    const saving = h.context.submitGoogleDriveSave({ submitter: { value: "default" }, preventDefault() {} });
+    if (change === "document") h.state.documentRevision += 1;
+    else h.state.googleAccount = { id: "other" };
+    pending.resolve({ file: { ...linkedDrive } });
+    await saving;
+    assert.equal(h.state.googleDriveFile, null);
+    assert.equal(h.state.saveDestination, "local");
+    assert.equal(h.state.savedSource, "baseline");
+    assert.equal(h.calls.length, 0);
+  }
+});
+
 test("Drive copy uploads only once and preserves edits made while saving", async () => {
   const h = harness(), pending = deferred();
   h.context.openGoogleDriveSave();
@@ -342,6 +371,39 @@ test("Drive copy uploads only once and preserves edits made while saving", async
   assert.equal(h.source.value, "newer edits");
   assert.equal(h.classes.has("dirty"), true);
   assert.equal(h.calls.find((call) => call.kind === "publish").content, "newer edits");
+});
+
+test("Drive dialog Enter targets Save and save shortcuts submit without browser Save Page", async () => {
+  const html = await readFile(new URL("../../src/fountain_publisher/web/index.html", import.meta.url), "utf8");
+  const form = html.match(/<form method="dialog" id="google-save-form">[\s\S]*?<\/form>/)[0];
+  assert.match(form, /id="google-save-cancel" type="button"/);
+  assert.match(form, /id="google-save-confirm"[^>]*type="submit"[^>]*value="default"/);
+  const h = harness();
+  runInNewContext(section('$("#google-save-form").addEventListener', '$("#google-save-choose-folder").addEventListener'), h.context);
+  let submitted = 0;
+  h.$("#google-save-form").requestSubmit = (button) => {
+    assert.equal(button, h.$("#google-save-confirm"));
+    submitted += 1;
+  };
+  for (const modifier of ["ctrlKey", "metaKey"]) {
+    let prevented = false, stopped = false;
+    h.$("#google-save-dialog").listeners.keydown({
+      key: "s", [modifier]: true,
+      preventDefault() { prevented = true; },
+      stopPropagation() { stopped = true; },
+    });
+    assert.equal(prevented, true);
+    assert.equal(stopped, true);
+  }
+  assert.equal(submitted, 2);
+  h.$("#google-save-dialog").showModal();
+  h.state.googleSaving = true;
+  h.$("#google-save-cancel").listeners.click();
+  assert.equal(h.$("#google-save-dialog").open, true);
+  h.state.googleSaving = false;
+  h.$("#google-save-cancel").listeners.click();
+  assert.equal(h.$("#google-save-dialog").open, false);
+  assert.equal(h.calls.length, 0);
 });
 
 test("provider sign-out and missing restored Drive association never silently fall back to another destination", async () => {

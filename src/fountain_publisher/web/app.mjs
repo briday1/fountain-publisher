@@ -3349,6 +3349,7 @@ async function saveGoogleDrive({ keepBrowser = false, destination = null } = {})
   const operation = beginSaveOperation("Google Drive");
   state.googleSaving = true;
   $("#google-save-confirm").disabled = true;
+  $("#google-save-cancel").disabled = true;
   updateGoogleMenu();
   try {
     if (file) {
@@ -3389,7 +3390,7 @@ async function saveGoogleDrive({ keepBrowser = false, destination = null } = {})
     if (keepBrowser) await openGoogleDrive();
     saveFeedback(source.value === acknowledgedContent ? "Saved to Google Drive" : "Saved to Google Drive; newer edits are not saved yet", "success", operation);
   } catch (error) { saveFeedback(error.message, "error", operation); }
-  finally { state.googleSaving = false; $("#google-save-confirm").disabled = false; endSaveOperation(operation); updateGoogleMenu(); }
+  finally { state.googleSaving = false; $("#google-save-confirm").disabled = false; $("#google-save-cancel").disabled = false; endSaveOperation(operation); updateGoogleMenu(); }
 }
 
 function openGoogleDriveSave() {
@@ -6057,7 +6058,21 @@ $("#google-connect").addEventListener("click", connectGoogle);
 $("#google-open").addEventListener("click", openGooglePicker);
 $("#google-save").addEventListener("click", openGoogleDriveSave);
 $("#google-save-form").addEventListener("submit", submitGoogleDriveSave);
-$("#google-save-dialog").addEventListener("keydown", (event) => event.stopPropagation());
+$("#google-save-dialog").addEventListener("keydown", (event) => {
+  if (!event.isComposing && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+    event.preventDefault();
+    $("#google-save-form").requestSubmit($("#google-save-confirm"));
+  }
+  event.stopPropagation();
+});
+$("#google-save-dialog").addEventListener("cancel", (event) => {
+  if (state.googleSaving) event.preventDefault();
+});
+$("#google-save-cancel").addEventListener("click", () => {
+  if (state.googleSaving) return;
+  $("#google-save-dialog").close();
+  saveFeedback("Google Drive save canceled", "cancelled");
+});
 $("#google-save-choose-folder").addEventListener("click", chooseGoogleDriveFolder);
 $("#google-save-root").addEventListener("click", () => {
   if (!state.googleDriveSave || reportSaveInProgress()) return;
