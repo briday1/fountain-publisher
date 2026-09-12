@@ -368,12 +368,16 @@ export function createDocumentSearch(adapter, root = document) {
     }
   }
   function handleShortcut(event) {
-    if (event.defaultPrevented || event.isComposing || adapter.getSnapshot().composing || root.querySelector("dialog[open]")) return false;
+    if (event.defaultPrevented || event.isComposing) return false;
+    const key = event.key.toLowerCase();
+    const modifier = event.ctrlKey || event.metaKey;
+    // This handler also sees ordinary typing in notes and other dialogs. Read
+    // editor state and query the DOM only for keys that can be search commands.
+    if (key !== "escape" && key !== "f3" && !(modifier && ["f", "h", "g"].includes(key))) return false;
+    if (adapter.getSnapshot().composing || root.querySelector("dialog[open]")) return false;
     const target = event.target;
     const inDock = dock.contains(target);
     if (!inDock && target?.closest?.("input, textarea, [contenteditable]") && !adapter.isEditorTarget?.(target)) return false;
-    const key = event.key.toLowerCase();
-    const modifier = event.ctrlKey || event.metaKey;
     if (modifier && ((!event.altKey && ["f", "h"].includes(key)) || (event.metaKey && event.altKey && key === "f"))) {
       event.preventDefault(); open(key === "h" || event.altKey); return true;
     }
