@@ -28,7 +28,7 @@ test("local file opening accepts text-based screenplay PDFs for Fountain reconst
     readFile(new URL("../../src/fountain_publisher/web/THIRD_PARTY_NOTICES.md", import.meta.url), "utf8"),
     readFile(new URL("../../pyproject.toml", import.meta.url), "utf8"),
   ]);
-  assert.match(html, /id="file-input"[^>]*accept="[^"]*\.pdf[^"]*application\/pdf/);
+  assert.match(app, /showOpenFilePicker\([\s\S]*"application\/pdf": \["\.pdf"\]/);
   assert.match(html, /Open Fountain or PDF/);
   assert.match(html, /Text-based PDFs are reconstructed locally/);
   assert.match(app, /function pdfLayoutToFountain\(pages\)[\s\S]*scenePattern[\s\S]*titlePage[\s\S]*const character[\s\S]*const type/);
@@ -43,6 +43,56 @@ test("local file opening accepts text-based screenplay PDFs for Fountain reconst
   assert.match(app, /from pypdf import PdfReader[\s\S]*def _fp_extract_pdf\(path\)[\s\S]*extraction_mode="layout"/);
   assert.match(notices, /pypdf 6\.17\.0 — BSD 3-Clause/);
   assert.match(pyproject, /"pypdf==6\.17\.0"/);
+});
+
+test("fallback file picker leaves unknown Fountain file types selectable on mobile", async () => {
+  const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
+  const input = html.match(/<input\b[^>]*\bid="file-input"[^>]*>/)?.[0];
+  assert.ok(input);
+  assert.match(input, /\btype="file"/);
+  assert.doesNotMatch(input, /\baccept\s*=/i);
+  let clicks = 0;
+  const context = {
+    confirmDiscard: async () => true,
+    window: {},
+    $: (selector) => {
+      assert.equal(selector, "#file-input");
+      return { click: () => clicks++ };
+    },
+  };
+  runInNewContext(app.slice(app.indexOf("async function openFile("), app.indexOf("async function openLocalFile(")), context);
+  await context.openFile();
+  assert.equal(clicks, 1);
+  context.confirmDiscard = async () => false;
+  await context.openFile();
+  assert.equal(clicks, 1, "declining to discard must not open the picker");
+});
+
+test("local imports accept Fountain MIME variants and retain PDF detection", async () => {
+  const app = await readFile(appPath, "utf8");
+  const loaded = [];
+  const pdfs = [];
+  const context = {
+    state: {},
+    setDocument: (...args) => loaded.push(args),
+    importPdfFile: (file) => pdfs.push(file),
+  };
+  runInNewContext(app.slice(app.indexOf("async function openLocalFile("), app.indexOf("function pdfLayoutToFountain(")), context);
+  const content = "INT. OFFICE - DAY\n\nA writer types.";
+  for (const type of ["", "application/octet-stream", "text/x-fountain", "application/x-fountain", "text/plain"]) {
+    await context.openLocalFile({ name: "Script.FOUNTAIN", type, text: async () => content });
+    assert.deepEqual(loaded.at(-1), [content, "Script.FOUNTAIN", true]);
+    assert.equal(context.state.handle, null);
+  }
+  await context.openLocalFile({ name: "Script.txt", type: "text/plain", text: async () => content });
+  assert.deepEqual(loaded.at(-1), [content, "Script.txt", true]);
+  for (const file of [{ name: "Script.PDF", type: "" }, { name: "Script", type: "application/pdf" }]) {
+    await context.openLocalFile(file);
+    assert.equal(pdfs.at(-1), file);
+  }
+  assert.equal(loaded.length, 6, "PDFs must not be imported as plain text");
+  await assert.rejects(context.openLocalFile({ name: "Unreadable.fountain", text: async () => { throw new Error("Read failed"); } }), /Read failed/);
+  assert.equal(loaded.length, 6, "failed reads must preserve the current document");
 });
 
 test("app installs as a standalone PWA and offers desktop window controls", async () => {

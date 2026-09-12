@@ -130,7 +130,8 @@
         <span id="collaboration-presence" class="compile-status"></span>
       </div>
       <button id="mobile-menu-toggle" class="mobile-menu-toggle" type="button" aria-label="Open menu" aria-controls="global-actions" aria-expanded="false"><span></span><span></span><span></span></button>
-      <input id="file-input" type="file" accept=".fountain,.txt,.pdf,text/plain,application/pdf" hidden />
+      <!-- Leave unfiltered: mobile pickers may not recognize .fountain files as text. -->
+      <input id="file-input" type="file" hidden />
     </header>
     <section id="google-picker-controls" aria-labelledby="google-picker-browser-title" hidden>
       <header class="github-header">
