@@ -23,7 +23,9 @@ jobs:
         run: |
           node -e "
           const fs = require('fs');
-          const bundle = fs.readFileSync('./dist/web/app.mjs', 'utf8');
+          // Python now ships in the dedicated worker runtime, never the UI bundle.
+          const runtime = fs.readFileSync('./dist/web/compiler-runtime.mjs', 'utf8');
+          const ui = fs.readFileSync('./dist/web/app.mjs', 'utf8');
 
           const checks = [
             { pattern: 'hasattr.*slug_style',                    name: 'hasattr guard for slug_style' },
@@ -32,9 +34,10 @@ jobs:
             { pattern: 'hasattr.*spaceAfter',                    name: 'hasattr guards for spaceAfter assignments' },
           ];
 
-          let ok = true;
+          let ok = !ui.includes('_fp_compile(');
+          if (!ok) console.error('Python compiler unexpectedly returned to the UI bundle');
           for (const c of checks) {
-            if (new RegExp(c.pattern, 's').test(bundle)) {
+            if (new RegExp(c.pattern, 's').test(runtime)) {
               console.log('✅ Found: ' + c.name);
             } else {
               console.error('❌ Missing: ' + c.name);

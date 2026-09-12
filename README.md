@@ -4,11 +4,13 @@
 
 A source-first Fountain screenplay studio with a Pugflow-style application shell: collapsible and resizable panels, persistent light/dark themes, native file handling, contextual completion, a directly editable published screenplay, exact PDF preview, and production statistics.
 
-The browser and local Python apps use [Screenplain](https://github.com/vilcans/screenplain) 0.12.0 as the authoritative Fountain parser and PDF/Final Draft compiler. The browser runs it in Python/WebAssembly. Both paths pin ReportLab 5.0.1, bundle Courier Prime, and apply the same PDF settings for consistent output.
+The browser and local Python apps use [Screenplain](https://github.com/vilcans/screenplain) 0.12.0 as the authoritative Fountain parser and PDF/Final Draft compiler. The browser runs it in Python/WebAssembly in a dedicated per-tab browser worker, separate from the UI thread. Both paths pin ReportLab 5.0.1, bundle Courier Prime, and apply the same PDF settings for consistent output.
 
 The live site is the complete browser application, including editing, live and PDF preview, file handling, insights, themes, documentation, and PDF/FDX export. Browser compilation always runs in the current tab, including when served by the optional local Python application. The standalone Python CLI uses the same Screenplain compiler.
 
 Collaborators share document edits, not compiler jobs, page counts, PDF previews, or export settings. Each tab compiles its own snapshot with its own settings; stale results cannot replace a newer document's preview. PDF, FDX, and beat-sheet exports never fall back to server compilation. This is compile isolation, not end-to-end encryption: live collaboration still sends document edits to the Cloudflare room.
+
+Scrolling does not reparse the screenplay. Decorative backgrounds have bounded draw work and resolution on large/high-DPI displays, and stop drawing when hidden. See [performance checks and remaining native-browser acceptance](docs/editor-performance.md).
 
 ## GitHub integration
 

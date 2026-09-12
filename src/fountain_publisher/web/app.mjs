@@ -224,6 +224,8 @@ function sourceTabEnabled() {
 const state = {
   filename: "Untitled.fountain",
   handle: null,
+  saveDestination: "local",
+  saveOperation: null,
   savedSource: "",
   documentRevision: 0,
   editRevision: 0,
@@ -246,11 +248,14 @@ const state = {
   insightLine: null,
   previewZoom: "100",
   history: [],
+  historyExact: [],
   historyIndex: -1,
   localSaving: false,
   theme: localStorage.getItem("fountain-publisher.theme") || "system",
   cacheEnabled: false,
   cacheTimer: 0,
+  viewCacheTimer: 0,
+  viewCacheIdle: 0,
   noteEditor: null,
   previewContextLine: null,
   previewContextEdit: null,
@@ -309,6 +314,8 @@ function readWorkspaceCache() {
 function persistWorkspaceNow() {
   if (!state.cacheEnabled) return;
   clearTimeout(state.cacheTimer);
+  state.cacheTimer = 0;
+  cancelWorkspaceViewCache();
   try {
     localStorage.setItem(WORKSPACE_CACHE_KEY, JSON.stringify({
       version: 1,
@@ -323,6 +330,7 @@ function persistWorkspaceNow() {
       previewMode: state.previewMode,
       zoom: state.previewZoom,
       githubFile: state.githubFile,
+      saveDestination: state.saveDestination,
       updatedAt: Date.now(),
     }));
   } catch { /* Editing must continue even if private mode or quota blocks caching. */ }
@@ -330,8 +338,30 @@ function persistWorkspaceNow() {
 
 function scheduleWorkspaceCache() {
   if (!state.cacheEnabled) return;
+  cancelWorkspaceViewCache();
   clearTimeout(state.cacheTimer);
   state.cacheTimer = setTimeout(persistWorkspaceNow, 120);
+}
+
+function cancelWorkspaceViewCache() {
+  clearTimeout(state.viewCacheTimer);
+  if (state.viewCacheIdle) window.cancelIdleCallback?.(state.viewCacheIdle);
+  state.viewCacheTimer = 0;
+  state.viewCacheIdle = 0;
+}
+
+function scheduleWorkspaceViewCache() {
+  if (!state.cacheEnabled) return;
+  cancelWorkspaceViewCache();
+  // Scrolling must not delay an edit backup, or repeatedly serialize the whole
+  // script into synchronous storage during brief pauses in a scroll gesture.
+  if (state.cacheTimer) return;
+  state.viewCacheTimer = setTimeout(() => {
+    state.viewCacheTimer = 0;
+    if (window.requestIdleCallback) {
+      state.viewCacheIdle = window.requestIdleCallback(persistWorkspaceNow, { timeout: 1500 });
+    } else persistWorkspaceNow();
+  }, 700);
 }
 
 function clearWorkspaceOnExit() {
@@ -340,6 +370,8 @@ function clearWorkspaceOnExit() {
 
 function clearWorkspaceCache() {
   clearTimeout(state.cacheTimer);
+  state.cacheTimer = 0;
+  cancelWorkspaceViewCache();
   localStorage.removeItem(WORKSPACE_CACHE_KEY);
 }
 
@@ -348,16 +380,12 @@ const DOT_DIRECTIONS = {
   "up-left": [-Math.SQRT1_2, -Math.SQRT1_2], "up-right": [Math.SQRT1_2, -Math.SQRT1_2],
   "down-left": [-Math.SQRT1_2, Math.SQRT1_2], "down-right": [Math.SQRT1_2, Math.SQRT1_2],
 };
-let dotMotionFrame = 0;
-let dotMotionLastTime = 0;
 let dotRandomChangedAt = 0;
 let dotMotionVector = [0, 0];
 let dotMotionTarget = [0, 0];
 let dotOffset = [0, 0];
 let dotMotionDirection = "still";
 let dotMotionSpeed = 20;
-let hyperspaceFrame = 0;
-let hyperspaceLastTime = 0;
 let hyperspaceSpeed = 20;
 let hyperspaceDensity = 100;
 let hyperspaceColors = false;
@@ -365,12 +393,16 @@ const hyperspaceFields = new WeakMap();
 const AMBIENT_PATTERNS = ["geometric", "constellation", "topographic", "tiles"];
 const ambientFields = new WeakMap();
 const ambientTileFields = new WeakMap();
-let ambientFrame = 0;
-let ambientStartedAt = 0;
 let ambientPattern = "geometric";
 let ambientSpeed = 20;
 let ambientDensity = 100;
 let ambientColors = false;
+let currentBackgroundPattern = "dots";
+let backgroundRefreshFrame = 0;
+const backgroundCanvasGeometry = new WeakMap();
+const backgroundMotionQuery = matchMedia("(prefers-reduced-motion: reduce)");
+const backgroundLoop = createBackgroundLoop({ requestFrame: requestAnimationFrame, cancelFrame: cancelAnimationFrame });
+let hyperspaceInk = "#ffffff";
 
 function backgroundSurfaces() {
   return [$("#preview-scroll"), $("#source-panel"), $("#beat-sheet-panel"), $("#background-pattern-preview")];
@@ -378,6 +410,54 @@ function backgroundSurfaces() {
 
 function hyperspaceCanvases() {
   return $$(".hyperspace-canvas");
+}
+
+function visibleBackgroundElements(selector) {
+  return $$(selector).filter((element) => backgroundElementVisible(element, document.hidden)
+    && (!element.closest(".preview-panel") || state.previewMode === "live"));
+}
+
+function prepareBackgroundCanvas(canvas) {
+  const bounds = canvas.getBoundingClientRect();
+  const width = Math.max(1, Math.round(bounds.width));
+  const height = Math.max(1, Math.round(bounds.height));
+  const bitmap = backgroundBitmapSize(width, height, devicePixelRatio || 1);
+  if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+  }
+  backgroundCanvasGeometry.set(canvas, { context: canvas.getContext("2d"), width, height, ratioX: bitmap.width / width, ratioY: bitmap.height / height });
+}
+
+function refreshBackgroundRendering() {
+  backgroundRefreshFrame = 0;
+  backgroundLoop.stop();
+  if (document.hidden || currentBackgroundPattern === "blank") return;
+  const animated = !backgroundMotionQuery.matches && !isMobilePreview();
+  if (currentBackgroundPattern === "dots") {
+    const layers = visibleBackgroundElements(".background-dots-layer");
+    if (!layers.length) return;
+    backgroundLoop.start((time, dt) => drawDotMotion(layers, time, dt), {
+      animated: animated && dotMotionSpeed > 0 && dotMotionDirection !== "still",
+    });
+    return;
+  }
+  const canvases = visibleBackgroundElements(".hyperspace-canvas");
+  if (!canvases.length) return;
+  canvases.forEach(prepareBackgroundCanvas);
+  hyperspaceInk = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#ffffff";
+  const hyperspace = currentBackgroundPattern === "hyperspace";
+  backgroundLoop.start((time, dt) => {
+    for (const canvas of canvases) {
+      if (hyperspace) drawHyperspace(canvas, dt);
+      else drawAmbient(canvas, time);
+    }
+  }, { animated: animated && (hyperspace ? hyperspaceSpeed : ambientSpeed) > 0 });
+}
+
+function scheduleBackgroundRefresh() {
+  backgroundLoop.stop();
+  if (!backgroundRefreshFrame) backgroundRefreshFrame = requestAnimationFrame(refreshBackgroundRendering);
 }
 
 function resetHyperspaceStar(star, initial = false) {
@@ -388,17 +468,8 @@ function resetHyperspaceStar(star, initial = false) {
 }
 
 function drawHyperspace(canvas, dt = 0) {
-  if (canvas.closest("[hidden]")) return;
-  const bounds = canvas.getBoundingClientRect();
-  const width = Math.max(1, Math.round(bounds.width));
-  const height = Math.max(1, Math.round(bounds.height));
-  const ratio = Math.min(devicePixelRatio || 1, 2);
-  if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
-    canvas.width = Math.round(width * ratio);
-    canvas.height = Math.round(height * ratio);
-  }
-  const context = canvas.getContext("2d");
-  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  const { context, width, height, ratioX, ratioY } = backgroundCanvasGeometry.get(canvas);
+  context.setTransform(ratioX, 0, 0, ratioY, 0, 0);
   context.clearRect(0, 0, width, height);
   let stars = hyperspaceFields.get(canvas);
   const targetCount = Math.max(20, Math.min(430, Math.round(width * height / 7000 * hyperspaceDensity / 100)));
@@ -410,7 +481,7 @@ function drawHyperspace(canvas, dt = 0) {
   const centerY = height / 2;
   const scale = Math.min(width, height) * .42;
   const velocity = .08 + hyperspaceSpeed / 125;
-  const starColor = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#ffffff";
+  const starColor = hyperspaceInk;
   const darkTheme = document.documentElement.dataset.effectiveTheme === "dark";
   const accentColors = darkTheme ? ["#a7e8ef", "#edb4d8", "#f2e3a4"] : ["#318d9a", "#ad5d91", "#9b842d"];
   for (const star of stars) {
@@ -442,31 +513,6 @@ function drawHyperspace(canvas, dt = 0) {
   context.globalAlpha = 1;
 }
 
-function stopHyperspace(clear = true) {
-  cancelAnimationFrame(hyperspaceFrame);
-  hyperspaceFrame = 0;
-  hyperspaceLastTime = 0;
-  if (clear) hyperspaceCanvases().forEach((canvas) => canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height));
-}
-
-function startHyperspace(speed, density, colorsEnabled) {
-  hyperspaceSpeed = speed;
-  hyperspaceDensity = density;
-  hyperspaceColors = colorsEnabled;
-  stopHyperspace(false);
-  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  hyperspaceCanvases().forEach((canvas) => drawHyperspace(canvas));
-  if (speed === 0 || reducedMotion || isMobilePreview()) return;
-  const animate = (time) => {
-    if (!hyperspaceLastTime) hyperspaceLastTime = time;
-    const dt = Math.min((time - hyperspaceLastTime) / 1000, .05);
-    hyperspaceLastTime = time;
-    hyperspaceCanvases().forEach((canvas) => drawHyperspace(canvas, dt));
-    hyperspaceFrame = requestAnimationFrame(animate);
-  };
-  hyperspaceFrame = requestAnimationFrame(animate);
-}
-
 function ambientPalette() {
   const dark = document.documentElement.dataset.effectiveTheme === "dark";
   const neutral = dark ? "#d6dadd" : "#30363b";
@@ -476,15 +522,8 @@ function ambientPalette() {
 }
 
 function ambientCanvas(canvas) {
-  const bounds = canvas.getBoundingClientRect();
-  const width = Math.max(1, Math.round(bounds.width));
-  const height = Math.max(1, Math.round(bounds.height));
-  const ratio = Math.min(devicePixelRatio || 1, 2);
-  if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
-    canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
-  }
-  const context = canvas.getContext("2d");
-  context.setTransform(ratio, 0, 0, ratio, 0, 0); context.clearRect(0, 0, width, height);
+  const { context, width, height, ratioX, ratioY } = backgroundCanvasGeometry.get(canvas);
+  context.setTransform(ratioX, 0, 0, ratioY, 0, 0); context.clearRect(0, 0, width, height);
   return { context, width, height };
 }
 
@@ -503,7 +542,7 @@ function ambientPoints(canvas, count) {
 }
 
 function nextTileState() {
-  return { energy: .08 + Math.random() * .72 };
+  return .08 + Math.random() * .72;
 }
 
 function ambientTiles(canvas, columns, rows, now) {
@@ -533,13 +572,12 @@ function ambientTiles(canvas, columns, rows, now) {
     }
     const progress = Math.max(0, Math.min(1, (now - tile.started) / tile.duration));
     const eased = progress * progress * (3 - 2 * progress);
-    tile.value = Object.fromEntries(Object.keys(tile.to).map((key) => [key, tile.from[key] + (tile.to[key] - tile.from[key]) * eased]));
+    tile.value = tile.from + (tile.to - tile.from) * eased;
   });
   return field;
 }
 
 function drawAmbient(canvas, time = 0) {
-  if (canvas.closest("[hidden]")) return;
   const { context, width, height } = ambientCanvas(canvas);
   const palette = ambientPalette();
   const motion = time * (.000035 + ambientSpeed * .0000018);
@@ -558,25 +596,42 @@ function drawAmbient(canvas, time = 0) {
       context.stroke(); context.restore();
     });
   } else if (ambientPattern === "constellation") {
-    const points = ambientPoints(canvas, Math.max(14, Math.round(38 * scale))).map((point) => ({ ...point, px: (point.x * width + Math.sin(motion + point.phase) * 13 + width) % width, py: (point.y * height + Math.cos(motion * .8 + point.phase) * 11 + height) % height }));
+    const points = ambientPoints(canvas, Math.max(14, Math.round(38 * scale)));
+    for (const point of points) {
+      point.px = (point.x * width + Math.sin(motion + point.phase) * 13 + width) % width;
+      point.py = (point.y * height + Math.cos(motion * .8 + point.phase) * 11 + height) % height;
+    }
     context.strokeStyle = palette[0]; context.lineWidth = .7;
-    points.forEach((point, index) => points.slice(index + 1).forEach((other) => { const distance = Math.hypot(point.px - other.px, point.py - other.py); if (distance < 105) { context.globalAlpha = (1 - distance / 105) * .16; context.beginPath(); context.moveTo(point.px, point.py); context.lineTo(other.px, other.py); context.stroke(); } }));
+    for (let index = 0; index < points.length; index += 1) {
+      const point = points[index];
+      for (let otherIndex = index + 1; otherIndex < points.length; otherIndex += 1) {
+        const other = points[otherIndex];
+        const squaredDistance = (point.px - other.px) ** 2 + (point.py - other.py) ** 2;
+        if (squaredDistance >= 105 ** 2) continue;
+        context.globalAlpha = (1 - Math.sqrt(squaredDistance) / 105) * .16;
+        context.beginPath(); context.moveTo(point.px, point.py); context.lineTo(other.px, other.py); context.stroke();
+      }
+    }
     points.forEach((point, index) => { context.fillStyle = palette[index % palette.length]; context.globalAlpha = .28; context.beginPath(); context.arc(point.px, point.py, 1 + point.size, 0, Math.PI * 2); context.fill(); });
   } else if (ambientPattern === "topographic") {
     const lines = Math.max(7, Math.round(13 * scale));
-    for (let row = 0; row < lines; row += 1) { context.strokeStyle = palette[row % palette.length]; context.globalAlpha = .12; context.lineWidth = .8; context.beginPath(); for (let x = -10; x <= width + 10; x += 8) { const y = (row + .5) / lines * height + Math.sin(x * .014 + row * .72 + motion) * 18 + Math.sin(x * .031 - motion * .7) * 7; if (x < 0) context.moveTo(x, y); else context.lineTo(x, y); } context.stroke(); }
+    const step = Math.max(8, width / 220);
+    for (let row = 0; row < lines; row += 1) { context.strokeStyle = palette[row % palette.length]; context.globalAlpha = .12; context.lineWidth = .8; context.beginPath(); for (let x = -10; x <= width + 10; x += step) { const y = (row + .5) / lines * height + Math.sin(x * .014 + row * .72 + motion) * 18 + Math.sin(x * .031 - motion * .7) * 7; if (x < 0) context.moveTo(x, y); else context.lineTo(x, y); } context.stroke(); }
   } else if (ambientPattern === "tiles") {
-    const unit = Math.max(24, 46 / Math.sqrt(scale));
-    const columns = Math.ceil(width / unit) + 2; const rows = Math.ceil(height / unit) + 2;
-    const tileField = ambientTiles(canvas, columns, rows, performance.now()); const tiles = tileField.tiles;
+    const { unit, columns, rows } = backgroundTileGrid(width, height, ambientDensity);
+    const tileField = ambientTiles(canvas, columns, rows, time); const tiles = tileField.tiles;
     for (let row = 0; row < rows; row += 1) for (let column = 0; column < columns; column += 1) {
       const tile = tiles[row * columns + column].value;
-      const neighbors = [[row - 1, column], [row + 1, column], [row, column - 1], [row, column + 1]]
-        .filter(([nearRow, nearColumn]) => nearRow >= 0 && nearRow < rows && nearColumn >= 0 && nearColumn < columns)
-        .map(([nearRow, nearColumn]) => tiles[nearRow * columns + nearColumn].value.energy);
-      const spread = neighbors.reduce((total, value) => total + value, tile.energy) / (neighbors.length + 1);
-      const migration = tileField.walkers.reduce((strongest, walker) => Math.max(strongest, Math.exp(-(Math.hypot(column - walker.x, row - walker.y) ** 2) / 9)), 0);
-      const shade = Math.min(1, tile.energy * .38 + spread * .22 + migration * .72);
+      let total = tile;
+      let count = 1;
+      if (row > 0) { total += tiles[(row - 1) * columns + column].value; count += 1; }
+      if (row + 1 < rows) { total += tiles[(row + 1) * columns + column].value; count += 1; }
+      if (column > 0) { total += tiles[row * columns + column - 1].value; count += 1; }
+      if (column + 1 < columns) { total += tiles[row * columns + column + 1].value; count += 1; }
+      const spread = total / count;
+      let migration = 0;
+      for (const walker of tileField.walkers) migration = Math.max(migration, Math.exp(-((column - walker.x) ** 2 + (row - walker.y) ** 2) / 9));
+      const shade = Math.min(1, tile * .38 + spread * .22 + migration * .72);
       const left = (column - 1) * unit + 2; const top = (row - 1) * unit + 2; const size = unit - 4;
       context.fillStyle = palette[(Math.abs(row * 3 + column * 5)) % palette.length]; context.globalAlpha = .01 + shade * .09;
       context.fillRect(left, top, size, size);
@@ -584,19 +639,6 @@ function drawAmbient(canvas, time = 0) {
     }
   }
   context.globalAlpha = 1;
-}
-
-function stopAmbient(clear = true) {
-  cancelAnimationFrame(ambientFrame); ambientFrame = 0; ambientStartedAt = 0;
-  if (clear) hyperspaceCanvases().forEach((canvas) => canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height));
-}
-
-function startAmbient(pattern, speed, density, colorsEnabled) {
-  ambientPattern = pattern; ambientSpeed = speed; ambientDensity = density; ambientColors = colorsEnabled; stopAmbient(false);
-  hyperspaceCanvases().forEach((canvas) => drawAmbient(canvas));
-  if (speed === 0 || matchMedia("(prefers-reduced-motion: reduce)").matches || isMobilePreview()) return;
-  const animate = (time) => { if (!ambientStartedAt) ambientStartedAt = time; hyperspaceCanvases().forEach((canvas) => drawAmbient(canvas, time - ambientStartedAt)); ambientFrame = requestAnimationFrame(animate); };
-  ambientFrame = requestAnimationFrame(animate);
 }
 
 function chooseRandomDotDirection() {
@@ -607,52 +649,41 @@ function chooseRandomDotDirection() {
 }
 
 function stopDotMotion(reset = false) {
-  cancelAnimationFrame(dotMotionFrame);
-  dotMotionFrame = 0;
-  dotMotionLastTime = 0;
   if (reset) {
     dotOffset = [0, 0];
-    backgroundSurfaces().forEach((surface) => {
-      surface.style.setProperty("--preview-dot-x", "0px");
-      surface.style.setProperty("--preview-dot-y", "0px");
-    });
+    $$(".background-dots-layer").forEach((layer) => { layer.style.transform = "translate3d(0px, 0px, 0)"; });
   }
 }
 
 function startDotMotion(direction, speed) {
   dotMotionSpeed = speed;
-  if (dotMotionFrame && direction === dotMotionDirection) return;
+  if (direction === dotMotionDirection) return;
   stopDotMotion(direction === "still");
   dotMotionDirection = direction;
-  if (speed === 0 || direction === "still" || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (direction === "still") return;
   if (direction === "random") {
     chooseRandomDotDirection();
     dotMotionVector = [...dotMotionTarget];
-    dotRandomChangedAt = performance.now();
+    dotRandomChangedAt = 0;
   } else {
     dotMotionTarget = DOT_DIRECTIONS[direction] || DOT_DIRECTIONS.down;
     dotMotionVector = [...dotMotionTarget];
   }
-  const animate = (time) => {
-    if (!dotMotionLastTime) dotMotionLastTime = time;
-    const dt = Math.min((time - dotMotionLastTime) / 1000, .1);
-    dotMotionLastTime = time;
-    if (direction === "random") {
-      if (time - dotRandomChangedAt >= 60000) { chooseRandomDotDirection(); dotRandomChangedAt = time; }
-      const ease = 1 - Math.exp(-dt / 6);
-      dotMotionVector[0] += (dotMotionTarget[0] - dotMotionVector[0]) * ease;
-      dotMotionVector[1] += (dotMotionTarget[1] - dotMotionVector[1]) * ease;
-    }
-    const pixelsPerSecond = dotMotionSpeed * .25;
-    dotOffset[0] = (dotOffset[0] + dotMotionVector[0] * pixelsPerSecond * dt) % 16;
-    dotOffset[1] = (dotOffset[1] + dotMotionVector[1] * pixelsPerSecond * dt) % 16;
-    backgroundSurfaces().forEach((surface) => {
-      surface.style.setProperty("--preview-dot-x", `${dotOffset[0].toFixed(2)}px`);
-      surface.style.setProperty("--preview-dot-y", `${dotOffset[1].toFixed(2)}px`);
-    });
-    dotMotionFrame = requestAnimationFrame(animate);
-  };
-  dotMotionFrame = requestAnimationFrame(animate);
+}
+
+function drawDotMotion(layers, time, dt) {
+  if (dotMotionDirection === "random") {
+    if (time - dotRandomChangedAt >= 60000) { chooseRandomDotDirection(); dotRandomChangedAt = time; }
+    const ease = 1 - Math.exp(-dt / 6);
+    dotMotionVector[0] += (dotMotionTarget[0] - dotMotionVector[0]) * ease;
+    dotMotionVector[1] += (dotMotionTarget[1] - dotMotionVector[1]) * ease;
+  }
+  const pixelsPerSecond = dotMotionSpeed * .25;
+  dotOffset[0] = (dotOffset[0] + dotMotionVector[0] * pixelsPerSecond * dt) % 16;
+  dotOffset[1] = (dotOffset[1] + dotMotionVector[1] * pixelsPerSecond * dt) % 16;
+  layers.forEach((layer) => {
+    layer.style.transform = `translate3d(${dotOffset[0].toFixed(2)}px, ${dotOffset[1].toFixed(2)}px, 0)`;
+  });
 }
 
 function applyPreviewBackground() {
@@ -670,8 +701,8 @@ function applyPreviewBackground() {
   const colorsEnabled = localStorage.getItem("fountain-publisher.preview-star-colors") === "true";
   backgroundSurfaces().forEach((surface) => {
     surface.dataset.background = pattern;
-    surface.style.setProperty("--preview-dot-radius", `${radius}px`);
   });
+  $$(".background-dots-layer").forEach((layer) => layer.style.setProperty("--preview-dot-radius", `${radius}px`));
   $("#preview-background").value = pattern;
   $("#preview-dot-radius").value = String(radius);
   $("#preview-dot-radius-value").textContent = `${radius.toFixed(1)}px`;
@@ -687,11 +718,32 @@ function applyPreviewBackground() {
   $("#preview-dot-speed-row").hidden = pattern !== "dots" && !animated;
   $("#preview-star-density-row").hidden = !animated;
   $("#preview-star-colors-row").hidden = !animated;
-  if (pattern === "dots" && !isMobilePreview()) startDotMotion(direction, speed); else stopDotMotion(true);
-  stopHyperspace(); stopAmbient();
-  if (pattern === "hyperspace") startHyperspace(speed, density, colorsEnabled);
-  else if (AMBIENT_PATTERNS.includes(pattern)) startAmbient(pattern, speed, density, colorsEnabled);
+  currentBackgroundPattern = pattern;
+  startDotMotion(direction, speed);
+  hyperspaceSpeed = ambientSpeed = speed;
+  hyperspaceDensity = ambientDensity = density;
+  hyperspaceColors = ambientColors = colorsEnabled;
+  ambientPattern = pattern;
+  scheduleBackgroundRefresh();
 }
+
+const backgroundResizeObserver = new ResizeObserver(scheduleBackgroundRefresh);
+hyperspaceCanvases().forEach((canvas) => backgroundResizeObserver.observe(canvas));
+const backgroundVisibilityObserver = new MutationObserver((records) => {
+  const affectsVisibility = records.some((record) => record.target !== document.body || record.attributeName !== "class"
+    || (record.oldValue || "").split(/\s+/).includes("zen-mode") !== document.body.classList.contains("zen-mode"));
+  if (affectsVisibility) scheduleBackgroundRefresh();
+});
+for (const element of [$("#source-panel"), $("#beat-sheet-panel"), $(".preview-panel"), $("#preview-scroll"), $("#background-dialog")]) {
+  backgroundVisibilityObserver.observe(element, { attributes: true, attributeFilter: ["hidden", "open", "class"] });
+}
+backgroundVisibilityObserver.observe(document.body, { attributes: true, attributeFilter: ["class", "data-mobile-tab"], attributeOldValue: true });
+backgroundVisibilityObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-effective-theme"] });
+backgroundMotionQuery.addEventListener("change", scheduleBackgroundRefresh);
+document.addEventListener("visibilitychange", () => {
+  backgroundLoop.stop();
+  if (!document.hidden) scheduleBackgroundRefresh();
+});
 
 function escapeHtml(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
@@ -772,6 +824,20 @@ function isCharacterCue(lines, index) {
 }
 
 function classifyLines(text) {
+  // Cursor movement, syntax, Preview and insights read the same document in a
+  // single interaction. Keep only that exact source snapshot; classification
+  // has no display-setting dependencies. Frozen records prevent one reader
+  // from silently changing the classification seen by another reader.
+  const cached = classifyLines.cached;
+  if (cached && cached.text === text) return cached.lines;
+  const lines = classifyFountainLines(text);
+  for (const line of lines) Object.freeze(line);
+  Object.freeze(lines);
+  classifyLines.cached = Object.freeze({ text, lines });
+  return lines;
+}
+
+function classifyFountainLines(text) {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
   const result = [];
   let titlePage = true;
@@ -1027,6 +1093,7 @@ function renderPreview({ focusLine = null, focusOffset = null, revealEmptyBefore
   const scrollTop = previewScroll.scrollTop;
   const scrollLeft = previewScroll.scrollLeft;
   page.innerHTML = renderPreviewLines(lines);
+  state.previewDirty = false;
   renderBeatGuide();
   page.spellcheck = $("#spellcheck").checked;
   const meaningful = lines.some((line) => line.raw.trim());
@@ -1430,14 +1497,40 @@ function renderEditorChrome() {
 function renderLineNumbers() {
   const gutter = $("#line-numbers");
   const highlight = $("#source-highlight");
-  const numbers = source.value.split("\n").map((line, index) => {
-    const sourceLine = $(`[data-source-line="${index}"]`, highlight);
-    const top = sourceLine?.offsetTop || 0;
-    return `<span class="line-number" style="top:${Math.max(0, top)}px">${index + 1}</span>`;
-  }).join("");
+  const sourceNodes = Array.from(highlight.children);
+  // Read geometry together before changing the gutter. Direct indexed nodes
+  // avoid scanning the entire highlight tree with one selector per line.
+  const tops = source.value.split("\n").map((_line, index) => {
+    const sourceLine = sourceNodes[index];
+    return Math.max(0, sourceLine?.offsetTop || 0);
+  });
   const scrollHeight = Math.max(source.scrollHeight, highlight.scrollHeight);
-  gutter.innerHTML = `${numbers}<span class="line-number-spacer" style="height:${scrollHeight}px"></span>`;
-  gutter.scrollTop = source.scrollTop;
+  const scrollTop = source.scrollTop;
+  const numbers = Array.from(gutter.children);
+  let spacer = numbers.at(-1);
+  if (spacer?.className === "line-number-spacer") numbers.pop();
+  else {
+    spacer = document.createElement("span");
+    spacer.className = "line-number-spacer";
+  }
+  while (numbers.length > tops.length) numbers.pop().remove();
+  const added = document.createDocumentFragment();
+  for (let index = 0; index < tops.length; index += 1) {
+    let number = numbers[index];
+    if (!number) {
+      number = document.createElement("span");
+      number.className = "line-number";
+      number.textContent = String(index + 1);
+      added.append(number);
+    }
+    const top = `${tops[index]}px`;
+    if (number.style.top !== top) number.style.top = top;
+  }
+  if (added.childElementCount) gutter.insertBefore(added, spacer.parentNode === gutter ? spacer : null);
+  if (spacer.parentNode !== gutter) gutter.append(spacer);
+  const height = `${scrollHeight}px`;
+  if (spacer.style.height !== height) spacer.style.height = height;
+  if (gutter.scrollTop !== scrollTop) gutter.scrollTop = scrollTop;
 }
 
 function fountainSyntaxHtml(value) {
@@ -1463,13 +1556,48 @@ function sourceSpellingHtml(value, type, checker) {
 function renderSourceSyntax() {
   const classes = { scene: "scene", character: "character", dialogue: "dialogue", parenthetical: "parenthetical", transition: "transition", section: "section", synopsis: "synopsis", note: "note", boneyard: "boneyard", lyric: "lyric", "title-value": "title", "title-value title": "title" };
   const lines = classifyLines(source.value);
-  const checker = $("#spellcheck").checked ? state.spellchecker : null;
-  $("#source-highlight").innerHTML = lines.map((line) => {
-    const name = classes[line.type];
-    const value = sourceSpellingHtml(line.raw, line.type, checker) || " ";
-    return `<span data-source-line="${line.index}"${name ? ` class="syntax-${name}"` : ""}>${value}</span>`;
-  }).join("");
-  if ($("#spellcheck").checked && !state.spellchecker) void getSpellchecker().then(renderSourceSyntax).catch(() => {});
+  const enabled = $("#spellcheck").checked;
+  const checker = enabled ? state.spellchecker : null;
+  const highlight = $("#source-highlight");
+  const caches = renderSourceSyntax.caches ||= new WeakMap();
+  let cache = caches.get(highlight);
+  if (!cache) { cache = { lines: [] }; caches.set(highlight, cache); }
+  const settingsChanged = cache.checker !== checker || cache.enabled !== enabled;
+  const nodes = Array.from(highlight.children);
+  const added = document.createDocumentFragment();
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    let node = nodes[index];
+    if (!node) { node = document.createElement("span"); added.append(node); }
+    const previous = cache.lines[index];
+    if (settingsChanged || previous?.node !== node || previous.raw !== line.raw || previous.type !== line.type) {
+      const name = classes[line.type];
+      const className = name ? `syntax-${name}` : "";
+      const value = sourceSpellingHtml(line.raw, line.type, checker) || " ";
+      if (node.dataset.sourceLine !== String(index)) node.dataset.sourceLine = String(index);
+      if (node.className !== className) node.className = className;
+      if (previous?.node !== node || node.innerHTML !== value) node.innerHTML = value;
+      cache.lines[index] = { node, raw: line.raw, type: line.type };
+    } else {
+      // Keep substring references on the current source snapshot instead of
+      // retaining old document backing strings through unchanged line records.
+      previous.raw = line.raw;
+    }
+  }
+  while (highlight.childElementCount > lines.length) highlight.lastElementChild.remove();
+  if (added.childElementCount) highlight.append(added);
+  cache.lines.length = lines.length;
+  cache.checker = checker;
+  cache.enabled = enabled;
+  // A long document may receive many edits before the dictionary loads. One
+  // completion callback is enough to refresh its spelling decorations.
+  if (enabled && !state.spellchecker && !renderSourceSyntax.spellcheckerPending) {
+    renderSourceSyntax.spellcheckerPending = true;
+    void getSpellchecker().then(() => {
+      renderSourceSyntax.spellcheckerPending = false;
+      renderSourceSyntax();
+    }).catch(() => { renderSourceSyntax.spellcheckerPending = false; });
+  }
 }
 
 function boundedScrollLeft(element, value = element.scrollLeft) {
@@ -1477,10 +1605,14 @@ function boundedScrollLeft(element, value = element.scrollLeft) {
   return Math.min(max, Math.max(0, value));
 }
 
-function syncSourceOverlay() {
+function syncSourceOverlay({ resize = true } = {}) {
   const highlight = $("#source-highlight");
-  highlight.style.width = source.clientWidth ? `${source.clientWidth}px` : "";
-  highlight.style.height = source.clientHeight ? `${source.clientHeight}px` : "";
+  if (resize) {
+    const width = source.clientWidth ? `${source.clientWidth}px` : "";
+    const height = source.clientHeight ? `${source.clientHeight}px` : "";
+    if (highlight.style.width !== width) highlight.style.width = width;
+    if (highlight.style.height !== height) highlight.style.height = height;
+  }
   const scrollLeft = boundedScrollLeft(source);
   if (scrollLeft !== source.scrollLeft) source.scrollLeft = scrollLeft;
   highlight.scrollTop = source.scrollTop;
@@ -1539,11 +1671,52 @@ function scrollSourceTarget(index, block = "nearest") {
 }
 
 function updatePreviewCursor(scroll = false, scrollBlock = "nearest", revealEmptyBefore = false) {
+  if (state.previewDirty) return;
   const target = $(`[data-line="${currentPosition().line}"]`, page);
   $$(".script-line.source-current", page).forEach((line) => line.classList.remove("source-current"));
   target?.classList.add("source-current");
   revealPreviewEmptyRun(target, revealEmptyBefore);
   if (scroll && state.previewMode === "live" && target) scrollPreviewTarget(target, scrollBlock);
+}
+
+// Scrolling changes viewport geometry, not the document or selection. Keep the
+// semantic line index from updateCursor; never scan source or reveal Preview
+// paragraphs just to move this visual decoration with the textarea viewport.
+let sourceCurrentLineIndex = 0;
+let sourceGeometryFrame = 0;
+let sourceResizePending = false;
+let sourceScrollCachePending = false;
+
+function syncSourceCurrentLine(lineIndex = sourceCurrentLineIndex) {
+  sourceCurrentLineIndex = lineIndex;
+  const computed = getComputedStyle(source);
+  const lineHeight = parseFloat(computed.lineHeight) || 20.15;
+  const sourceLine = $(`[data-source-line="${lineIndex}"]`, $("#source-highlight"));
+  const lineTop = sourceLine
+    ? sourceLine.offsetTop - source.scrollTop - parseFloat(computed.paddingTop)
+    : -source.scrollTop;
+  $("#current-line").style.height = `${lineHeight}px`;
+  $("#current-line").style.transform = `translateY(${lineTop}px)`;
+}
+
+function scheduleSourceGeometry({ resize = false, saveScroll = false } = {}) {
+  sourceResizePending ||= resize;
+  sourceScrollCachePending ||= saveScroll;
+  if (sourceGeometryFrame) return;
+  sourceGeometryFrame = requestAnimationFrame(() => {
+    sourceGeometryFrame = 0;
+    const resize = sourceResizePending;
+    const saveScroll = sourceScrollCachePending;
+    sourceResizePending = false;
+    sourceScrollCachePending = false;
+    // Read the latest dimensions/scroll positions in this frame, rather than
+    // retaining coordinates from an earlier event in a scroll or resize burst.
+    syncSourceOverlay({ resize });
+    if (resize) renderLineNumbers();
+    else $("#line-numbers").scrollTop = source.scrollTop;
+    syncSourceCurrentLine();
+    if (saveScroll) scheduleWorkspaceViewCache();
+  });
 }
 
 function updateCursor({ scrollPreview = false, scrollBlock = "nearest" } = {}) {
@@ -1552,14 +1725,7 @@ function updateCursor({ scrollPreview = false, scrollBlock = "nearest" } = {}) {
   const type = classifyLines(source.value)[position.line]?.type || "action";
   const labels = { scene: "Scene heading", character: "Character", dialogue: "Dialogue", parenthetical: "Parenthetical", transition: "Transition", "title-value": "Title page", "title-value title": "Title" };
   $("#editor-status").textContent = labels[type] || type[0].toUpperCase() + type.slice(1);
-  const computed = getComputedStyle(source);
-  const lineHeight = parseFloat(computed.lineHeight) || 20.15;
-  const sourceLine = $(`[data-source-line="${position.line}"]`, $("#source-highlight"));
-  const lineTop = sourceLine
-    ? sourceLine.offsetTop - source.scrollTop - parseFloat(computed.paddingTop)
-    : -source.scrollTop;
-  $("#current-line").style.height = `${lineHeight}px`;
-  $("#current-line").style.transform = `translateY(${lineTop}px)`;
+  syncSourceCurrentLine(position.line);
   updatePreviewCursor(scrollPreview, scrollBlock);
 }
 
@@ -1582,12 +1748,24 @@ function renderInsights(metadata) {
   if ($("#character-analytics-dialog").open) renderCharacterAnalytics();
 }
 
+function pageMetricParts(metadata) {
+  const pageCount = metadata.pageCount;
+  if (!Number.isInteger(pageCount) || pageCount < 0) return null;
+  const fractions = { 1: [1, 8], 2: [1, 4], 3: [3, 8], 4: [1, 2], 5: [5, 8], 6: [3, 4], 7: [7, 8] };
+  const fraction = pageCount > 0 && Number.isInteger(metadata.lastPageEighths) ? fractions[metadata.lastPageEighths] ?? null : null;
+  // pageCount already includes the final physical screenplay page. Its fraction
+  // replaces that page; it is not an additional page after all counted sheets.
+  return { wholePages: fraction ? pageCount - 1 : pageCount, fraction };
+}
+
 function renderPageMetric(metadata) {
   const target = $("#stat-pages");
-  if (metadata.pageCount == null) { target.textContent = "—"; return; }
-  const fractions = { 1: [1, 8], 2: [1, 4], 3: [3, 8], 4: [1, 2], 5: [5, 8], 6: [3, 4], 7: [7, 8] };
-  const fraction = fractions[metadata.lastPageEighths];
-  target.innerHTML = `${metadata.pageCount}${fraction ? ` <small class="page-fraction"><sup>${fraction[0]}</sup><sub>${fraction[1]}</sub></small>` : ""}`;
+  const parts = pageMetricParts(metadata);
+  if (!parts) { target.textContent = "—"; target.setAttribute("aria-label", "Page count not available"); return; }
+  const { wholePages, fraction } = parts;
+  const whole = wholePages || !fraction ? String(wholePages) : "";
+  target.innerHTML = `${whole}${fraction ? `${whole ? " " : ""}<small class="page-fraction"><sup>${fraction[0]}</sup><sub>${fraction[1]}</sub></small>` : ""}`;
+  target.setAttribute("aria-label", `${whole}${fraction ? `${whole ? " " : ""}${fraction[0]}/${fraction[1]}` : ""} pages`);
 }
 
 function renderCharacterTable() {
@@ -1966,13 +2144,15 @@ async function saveCharacterAnalyticsPng() {
   toast("Character analytics PNG saved");
 }
 
-function recordHistory() {
+function recordHistory(exact = false) {
   if (state.collaborationHistoryActive) return;
   if (state.history[state.historyIndex] === source.value) return;
   state.history.splice(state.historyIndex + 1);
+  (state.historyExact ||= []).splice(state.historyIndex + 1);
   state.history.push(source.value);
   state.historyIndex = state.history.length - 1;
-  if (state.history.length > 250) { state.history.shift(); state.historyIndex -= 1; }
+  state.historyExact[state.historyIndex] = exact;
+  if (state.history.length > 250) { state.history.shift(); state.historyExact.shift(); state.historyIndex -= 1; }
 }
 
 function mergeCurrentManagedNotes(historyValue, currentValue) {
@@ -1993,9 +2173,10 @@ function restoreHistory(index) {
   if (index < 0 || index >= state.history.length || index === state.historyIndex) return;
   const previewLine = page.contains(document.activeElement) ? Number(document.activeElement.dataset.line) : null;
   const sourcePosition = source.selectionStart;
+  const exact = Math.abs(index - state.historyIndex) === 1 && state.historyExact?.[Math.max(index, state.historyIndex)];
   state.historyIndex = index;
-  source.value = mergeCurrentManagedNotes(state.history[index], source.value);
-  sourceChanged({ fromPreview: previewLine !== null, record: false });
+  source.value = exact ? state.history[index] : mergeCurrentManagedNotes(state.history[index], source.value);
+  sourceChanged({ fromPreview: previewLine !== null, record: false, rebaseBeats: !exact });
   if (previewLine !== null) renderPreview({ focusLine: Math.min(previewLine, source.value.split("\n").length - 1) });
   else { source.focus(); source.setSelectionRange(Math.min(sourcePosition, source.value.length), Math.min(sourcePosition, source.value.length)); }
 }
@@ -2060,7 +2241,7 @@ function rebaseBeatRanges(previousValue, nextValue) {
   return nextLines.join("\n");
 }
 
-function sourceChanged({ fromPreview = false, record = true, rebaseBeats = true, origin = "local" } = {}) {
+function sourceChanged({ fromPreview = false, record = true, rebaseBeats = true, origin = "local", exactHistory = false } = {}) {
   // Every legacy command and native-input adapter terminates here. Reject a
   // scripted read-only edit before history, dirty state, persistence or sync.
   if (!canMutateDocument({ readOnly: source.readOnly, composing: state.previewComposing || state.sourceComposing }, origin)) {
@@ -2081,10 +2262,14 @@ function sourceChanged({ fromPreview = false, record = true, rebaseBeats = true,
     }
   }
   state.lastSourceValue = source.value;
-  if (record) recordHistory();
+  state.documentSearch?.invalidate();
+  if (record) recordHistory(exactHistory);
   document.body.classList.toggle("dirty", source.value !== state.savedSource);
+  // Source/PDF/beat-sheet edits do not need a second, hidden document tree on
+  // every keypress. Refresh it before returning to the live Preview instead.
+  if (!fromPreview || state.previewMode !== "live") state.previewDirty = true;
   if (!fromPreview || state.previewMode === "source") renderEditorChrome();
-  if (!fromPreview) renderPreview();
+  if (!fromPreview && state.previewMode === "live") renderPreview();
   clearTimeout(state.insightTimer);
   if (fromPreview) state.insightTimer = setTimeout(() => renderInsights(analyzeLocally(source.value)), 80);
   else renderInsights(analyzeLocally(source.value));
@@ -2140,7 +2325,7 @@ async function compilePageCount(revision) {
   if (!isCurrentCompile(request)) return;
   $("#compile-status").textContent = "Compiling…";
   try {
-    const result = await compileLocally("pdf", request, { isCurrent: () => isCurrentCompile(request) });
+    const result = await compileLocally("pdf", request, { isCurrent: () => isCurrentCompile(request), backgroundKey: "page-count" });
     if (!result || !isCurrentCompile(request)) return;
     state.metadata.pageCount = result.pageCount;
     state.metadata.lastPageEighths = result.lastPageEighths;
@@ -2555,10 +2740,7 @@ async function importPdfFile(file) {
       } catch { /* Static deployments do not expose the loopback Python health endpoint. */ }
     }
     if (!localPython) {
-      const pyodide = await getBrowserScreenplain();
-      pyodide.FS.writeFile("/tmp/fountain-publisher-import.pdf", new Uint8Array(bytes));
-      const extracted = pyodide.runPython(`_fp_extract_pdf("/tmp/fountain-publisher-import.pdf")`);
-      pages = JSON.parse(String(extracted));
+      pages = await compilerClient.extractPdf(bytes);
     } else {
       const response = await fetch("/api/import/pdf", { method: "POST", headers: { "Content-Type": "application/pdf" }, body: bytes });
       const payload = await response.json();
@@ -2584,6 +2766,7 @@ function setDocument(text, filename, saved = false, githubFile = null, googleDri
   // Replacing a document must end the previous session before publishing any
   // source changes. Individual open/new/import callers must not own this rule.
   collaboration.disconnect();
+  state.documentSearch?.invalidate({ reset: true });
   clearTimeout(state.collaborationPresenceTimer);
   state.collaborators.clear();
   state.collaborationApplying = false;
@@ -2598,15 +2781,75 @@ function setDocument(text, filename, saved = false, githubFile = null, googleDri
   $("#collaboration-status").title = "";
   $("#collaboration-status").dataset.status = "";
   state.documentRevision += 1;
+  state.historyExact = [];
   source.value = text; state.history = [text]; state.historyIndex = 0; state.filename = filename || "Untitled.fountain"; if (saved) state.savedSource = text;
   state.lastSourceValue = text;
   state.githubFile = githubFile;
   state.googleDriveFile = googleDriveFile;
+  state.saveDestination = googleDriveFile ? "drive" : githubFile ? "github" : "local";
+  $("#save-status").textContent = "";
+  $("#save-status").hidden = true;
   const canEdit = !googleDriveFile || googleDriveFile.capabilities?.canEdit === true;
   source.readOnly = !canEdit;
   $("#screenplay-page").contentEditable = canEdit ? "plaintext-only" : "false";
   $("#filename").textContent = state.filename; document.title = `${state.filename} — Fountain Publisher`; sourceChanged({ rebaseBeats: false, origin: "load" });
   updateGoogleMenu();
+}
+
+function saveFeedback(message, status = "pending", operation = null) {
+  if (!operation || operation.documentRevision === state.documentRevision) {
+    const label = $("#save-status");
+    label.textContent = status === "pending" ? "Saving…" : status === "success" ? "Saved" : status === "cancelled" ? "Canceled" : "Save failed";
+    label.ariaLabel = message;
+    label.title = message;
+    label.hidden = false;
+    label.className = `compile-status${status === "error" ? " error" : ""}`;
+  }
+  toast(message);
+}
+
+function reportSaveInProgress() {
+  const operation = state.saveOperation;
+  const kind = operation?.kind || (state.githubSaving || state.githubConflict?.busy ? "GitHub" : state.googleSaving ? "Google Drive" : state.localSaving ? "local file" : null);
+  if (!kind) return false;
+  saveFeedback(`Still saving ${operation?.filename || state.filename} to ${kind}…`, "pending", operation);
+  return true;
+}
+
+function beginSaveOperation(kind) {
+  const operation = { kind, filename: state.filename, documentRevision: state.documentRevision };
+  state.saveOperation = operation;
+  saveFeedback(`Saving ${operation.filename} to ${kind}…`, "pending", operation);
+  return operation;
+}
+
+function endSaveOperation(operation) {
+  if (state.saveOperation === operation) state.saveOperation = null;
+}
+
+function handleSaveDialogKeydown(event) {
+  if (!event.defaultPrevented && !event.isComposing && !event.altKey && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+    event.preventDefault();
+    void saveCurrentDocument(event.shiftKey);
+  }
+  event.stopPropagation();
+}
+
+async function saveCurrentDocument(saveAs = false) {
+  if (reportSaveInProgress()) return;
+  if (saveAs) return saveFile(true);
+  if (state.githubConflict && $("#github-conflict-dialog").open) return saveFeedback("Review the GitHub conflict before saving again.", "error");
+  const destination = state.saveDestination || (state.googleDriveFile ? "drive" : state.githubFile ? "github" : "local");
+  if (destination === "drive") {
+    if (!state.googleDriveFile) return saveFeedback("Reopen the Drive document before saving to its original location, or choose Save As for a local copy.", "error");
+    return saveGoogleDrive();
+  }
+  if (destination === "github") {
+    if (!state.githubConnected) return saveFeedback("Connect GitHub before saving to the original repository.", "error");
+    if (!state.githubFile) { saveFeedback("Choose a GitHub destination to save this screenplay."); return openGithubBrowser("save"); }
+    return saveGithubFile({ linked: true });
+  }
+  return saveFile(false);
 }
 
 function captureEditorSelection() {
@@ -2663,9 +2906,10 @@ const collaboration = typeof CollaborationClient === "function" ? new Collaborat
   onBeforeRemoteUpdate: captureEditorSelection,
   onCheckpoint(result) {
     if (state.googleDriveFile?.id !== result.file?.id || typeof result.content !== "string") return;
-    state.savedSource = result.content;
+    const activeSaveDestination = !state.saveDestination || state.saveDestination === "drive";
+    if (activeSaveDestination) state.savedSource = result.content;
     state.googleDriveFile = { ...state.googleDriveFile, ...result.file };
-    document.body.classList.toggle("dirty", source.value !== result.content);
+    if (activeSaveDestination) document.body.classList.toggle("dirty", source.value !== result.content);
     scheduleWorkspaceCache();
   },
   onDocument(value, remote, selection) {
@@ -2693,6 +2937,7 @@ const collaboration = typeof CollaborationClient === "function" ? new Collaborat
     if (status === "read-only") {
       source.readOnly = true;
       page.contentEditable = "false";
+      state.documentSearch?.invalidate();
       if (state.googleDriveFile) state.googleDriveFile.capabilities = { ...state.googleDriveFile.capabilities, canEdit: false };
       updateGoogleMenu();
     }
@@ -3073,15 +3318,16 @@ async function openGooglePicker() {
 }
 
 async function saveGoogleDrive({ keepBrowser = false } = {}) {
-  if (state.googleSaving) return;
-  if (!state.googleConnected) return toast("Sign in with Google before saving");
-  if (state.previewComposing || state.sourceComposing) return toast("Finish composing text before saving");
-  if (collaboration.syncConflict) return toast("Live sync is paused because the shared document changed. Save a local copy before reopening the Drive document.");
+  if (reportSaveInProgress()) return;
+  if (!state.googleConnected) return saveFeedback("Sign in with Google before saving", "error");
+  if (state.previewComposing || state.sourceComposing) return saveFeedback("Finish composing text before saving", "error");
+  if (collaboration.syncConflict) return saveFeedback("Live sync is paused because the shared document changed. Save a local copy before reopening the Drive document.", "error");
   const file = state.googleDriveFile;
-  if (file && file.capabilities?.canEdit !== true) return toast("This Drive document is view only");
+  if (file && file.capabilities?.canEdit !== true) return saveFeedback("This Drive document is view only", "error");
   const documentRevision = state.documentRevision;
   const account = state.googleAccount;
   const content = source.value;
+  const operation = beginSaveOperation("Google Drive");
   state.googleSaving = true;
   updateGoogleMenu();
   try {
@@ -3093,7 +3339,10 @@ async function saveGoogleDrive({ keepBrowser = false } = {}) {
     const result = file
       ? await collaboration.checkpoint()
       : await googleRequest("/api/google/drive/files", { method: "POST", body: JSON.stringify({ name: normalizedFilename("fountain"), content }) });
-    if (documentRevision !== state.documentRevision || account !== state.googleAccount || !state.googleConnected) return;
+    if (documentRevision !== state.documentRevision || account !== state.googleAccount || !state.googleConnected) {
+      saveFeedback("The previous Drive save finished after the document or account changed. Reopen Drive to verify it.", "error", operation);
+      return;
+    }
     if (!result?.file || (file && typeof result.content !== "string")) throw new Error("Drive did not confirm the saved document. Keep a local copy and retry.");
     state.googleDriveFile = { ...file, ...result.file };
     if (!file) {
@@ -3104,14 +3353,15 @@ async function saveGoogleDrive({ keepBrowser = false } = {}) {
     const acknowledgedContent = file ? result.content : content;
     if (typeof acknowledgedContent !== "string") throw new Error("Drive did not confirm the saved document. Keep a local copy and retry.");
     state.savedSource = acknowledgedContent;
+    state.saveDestination = "drive";
     document.body.classList.toggle("dirty", source.value !== acknowledgedContent);
     scheduleWorkspaceCache();
     updateGoogleMenu();
     if ($("#google-drive-dialog").open && !keepBrowser) $("#google-drive-dialog").close();
     if (keepBrowser) await openGoogleDrive();
-    toast(source.value === acknowledgedContent ? "Saved to Google Drive" : "Saved to Google Drive; newer edits are not saved yet");
-  } catch (error) { toast(error.message); }
-  finally { state.googleSaving = false; updateGoogleMenu(); }
+    saveFeedback(source.value === acknowledgedContent ? "Saved to Google Drive" : "Saved to Google Drive; newer edits are not saved yet", "success", operation);
+  } catch (error) { saveFeedback(error.message, "error", operation); }
+  finally { state.googleSaving = false; endSaveOperation(operation); updateGoogleMenu(); }
 }
 
 async function shareGoogleDrive() {
@@ -3136,18 +3386,19 @@ async function inviteGoogleCollaborator() {
 }
 
 async function saveFile(saveAs = false) {
-  if (state.localSaving) return;
-  if (state.previewComposing || state.sourceComposing) return toast("Finish composing text before saving");
+  if (reportSaveInProgress()) return;
+  if (state.previewComposing || state.sourceComposing) return saveFeedback("Finish composing text before saving", "error");
   const documentRevision = state.documentRevision;
   let handle = state.handle;
   let filename = state.filename;
   const downloadName = normalizedFilename("fountain");
+  const operation = beginSaveOperation("local file");
   state.localSaving = true;
   try {
     if (window.showSaveFilePicker && (saveAs || !handle)) {
       handle = await window.showSaveFilePicker({ suggestedName: downloadName, types: [{ description: "Fountain screenplay", accept: { "text/plain": [".fountain"] } }] });
     }
-    if (documentRevision !== state.documentRevision) return;
+    if (documentRevision !== state.documentRevision) { saveFeedback("Save canceled because the open document changed.", "error", operation); return; }
     const content = source.value;
     if (handle) {
       const writable = await handle.createWritable(); await writable.write(content); await writable.close();
@@ -3155,19 +3406,21 @@ async function saveFile(saveAs = false) {
     } else {
       await download(new Blob([content], { type: "text/plain;charset=utf-8" }), downloadName);
     }
-    if (documentRevision !== state.documentRevision) return;
+    if (documentRevision !== state.documentRevision) { saveFeedback(`Saved ${filename}; the newly opened document was not changed.`, "success", operation); return; }
     // A save acknowledges exactly what was written; it is not a document load.
     // Preserve selection, undo history, and any connected document association.
     state.handle = handle;
+    state.saveDestination = handle ? "local" : "download";
     state.filename = filename;
     state.savedSource = content;
     $("#filename").textContent = filename;
     document.title = `${filename} — Fountain Publisher`;
     document.body.classList.toggle("dirty", source.value !== content);
     scheduleWorkspaceCache();
-    toast(source.value === content ? `Saved ${filename}` : `Saved ${filename}; newer edits are not saved yet`);
-  } catch (error) { if (error.name !== "AbortError") toast(error.message); }
-  finally { state.localSaving = false; }
+    const verb = handle ? "Saved" : "Downloaded";
+    saveFeedback(source.value === content ? `${verb} ${filename}` : `${verb} ${filename}; newer edits are not saved yet`, "success", operation);
+  } catch (error) { saveFeedback(error.name === "AbortError" ? "Save canceled; your previous save destination is unchanged." : error.message, error.name === "AbortError" ? "cancelled" : "error", operation); }
+  finally { state.localSaving = false; endSaveOperation(operation); }
 }
 
 async function githubRequest(path, options = {}) {
@@ -3403,7 +3656,7 @@ function prepareGithubKeyboardInputs() {
   }
   if (dialog.dataset.keyboardReady) return;
   dialog.dataset.keyboardReady = "true";
-  dialog.addEventListener("keydown", (event) => event.stopPropagation());
+  dialog.addEventListener("keydown", handleSaveDialogKeydown);
   dialog.addEventListener("beforeinput", (event) => event.stopPropagation());
   dialog.addEventListener("pointerup", (event) => {
     const input = event.target.closest("input, textarea");
@@ -3446,19 +3699,24 @@ async function openGithubFile(path, trigger) {
   }
 }
 
-async function saveGithubFile() {
-  if (state.githubSaving) return;
-  if (state.previewComposing || state.sourceComposing) return toast("Finish composing text before saving");
-  if (state.githubConflict) return $("#github-conflict-dialog").showModal();
-  const repository = selectedGithubRepository();
-  const branch = $("#github-branch").value;
-  const folder = state.githubPath;
-  const filename = $("#github-filename").value.trim();
-  const message = $("#github-commit-message").value.trim();
-  if (!repository || repository.fullName !== state.githubRepository || branch !== state.githubBranch) return toast("Choose a loaded repository and branch");
-  if (!/^[^/]+\.(fountain|txt)$/i.test(filename)) return toast("Enter a .fountain file name");
-  const path = [folder, filename].filter(Boolean).join("/");
+async function saveGithubFile({ linked: useLinkedDestination = false } = {}) {
+  if (reportSaveInProgress()) return;
+  if (state.previewComposing || state.sourceComposing) return saveFeedback("Finish composing text before saving", "error");
+  if (state.githubConflict) {
+    saveFeedback("Review the GitHub conflict before saving again.", "error");
+    if (!$("#github-conflict-dialog").open) $("#github-conflict-dialog").showModal();
+    return;
+  }
   const linked = state.githubFile;
+  if (useLinkedDestination && !linked) return saveFeedback("Choose a GitHub destination before saving.", "error");
+  const repository = useLinkedDestination ? { owner: linked.owner, repo: linked.repo, fullName: `${linked.owner}/${linked.repo}` } : selectedGithubRepository();
+  const branch = useLinkedDestination ? linked.branch : $("#github-branch").value;
+  const folder = useLinkedDestination ? linked.path.split("/").slice(0, -1).join("/") : state.githubPath;
+  const filename = useLinkedDestination ? linked.path.split("/").pop() : $("#github-filename").value.trim();
+  const message = useLinkedDestination ? "" : $("#github-commit-message").value.trim();
+  if (!repository || (!useLinkedDestination && (repository.fullName !== state.githubRepository || branch !== state.githubBranch))) return saveFeedback("Choose a loaded repository and branch", "error");
+  if (!/^[^/]+\.(fountain|txt)$/i.test(filename)) return saveFeedback("Enter a .fountain file name", "error");
+  const path = [folder, filename].filter(Boolean).join("/");
   const existing = state.githubColumns.find((column) => column.path === folder)?.entries.find((entry) => entry.type === "file" && entry.path === path);
   const sha = linked && linked.owner === repository.owner && linked.repo === repository.repo && linked.branch === branch && linked.path === path
     ? linked.sha
@@ -3470,6 +3728,7 @@ async function saveGithubFile() {
   };
   const button = $("#github-save-here");
   const status = $("#github-save-status");
+  const operation = beginSaveOperation("GitHub");
   state.githubSaving = true;
   button.disabled = true;
   button.textContent = "Saving…";
@@ -3485,15 +3744,17 @@ async function saveGithubFile() {
       if (remote.sha === sha) throw error;
       showGithubConflict(attempt, remote);
       status.textContent = "GitHub changed. Review both versions in the conflict dialog.";
+      saveFeedback(status.textContent, "error", operation);
       return;
     }
     await finishGithubSave(attempt, attempt.content, result);
   } catch (error) {
     status.className = "error";
     status.textContent = error.message;
-    toast(error.message);
+    saveFeedback(error.message, "error", operation);
   } finally {
     state.githubSaving = false;
+    endSaveOperation(operation);
     button.disabled = false;
     button.textContent = "Save here";
   }
@@ -3527,6 +3788,7 @@ async function finishGithubSave(target, content, result, resolution = false) {
   const unchanged = sameDocument && state.editRevision === target.editRevision && source.value === target.content && !state.previewComposing && !state.sourceComposing;
   if (sameDocument) {
     state.githubFile = { owner: target.owner, repo: target.repo, branch: target.branch, path: target.path, sha: result.sha };
+    state.saveDestination = "github";
     state.filename = target.filename;
     state.savedSource = content;
     $("#filename").textContent = target.filename;
@@ -3541,7 +3803,7 @@ async function finishGithubSave(target, content, result, resolution = false) {
   const status = $("#github-save-status");
   status.className = "success";
   status.innerHTML = `Saved ${escapeHtml(target.owner)}/${escapeHtml(target.repo)}/${escapeHtml(target.path)} to ${escapeHtml(target.branch)} · <a href="${escapeHtml(result.commit)}" target="_blank" rel="noopener noreferrer">View commit</a>`;
-  if (!unchanged) toast("Saved the submitted version to GitHub. Your newer editor changes were kept.");
+  saveFeedback(unchanged ? `Saved ${target.filename} to GitHub` : "Saved the submitted version to GitHub. Your newer editor changes were kept.", "success", target);
 }
 
 function conflictLines(text) {
@@ -3719,6 +3981,8 @@ async function refreshGithubConflict() {
 async function saveGithubResolution() {
   const conflict = state.githubConflict;
   if (!conflict || conflict.busy || conflict.needsRefresh || !$("#github-conflict-reviewed").checked) return;
+  if (reportSaveInProgress()) return;
+  const operation = beginSaveOperation("GitHub");
   conflict.busy = true;
   updateGithubConflictControls();
   const content = githubConflictResult();
@@ -3741,8 +4005,10 @@ async function saveGithubResolution() {
     $("#github-conflict-dialog").close();
   } catch (error) {
     $("#github-conflict-status").textContent = `${error.message} Your result draft and editor text were kept.`;
+    saveFeedback(error.message, "error", operation);
   } finally {
     conflict.busy = false;
+    endSaveOperation(operation);
     updateGithubConflictControls();
   }
   if (refresh) await refreshGithubConflict();
@@ -3767,320 +4033,11 @@ async function shareOrDownload(blob, filename) {
   await download(blob, filename);
 }
 
-let screenplainPromise;
-const compileLocally = createLocalCompiler(getBrowserScreenplain);
-async function getBrowserScreenplain() {
-  if (!screenplainPromise) screenplainPromise = (async () => {
-    const runtimeBase = new URL("pyodide/", import.meta.url);
-    const { loadPyodide } = await import(new URL("pyodide.mjs", runtimeBase).href);
-    const pyodide = await loadPyodide({ indexURL: runtimeBase.href });
-    await pyodide.loadPackage("micropip");
-    pyodide.globals.set("_fp_charset_wheel", new URL("vendor/charset_normalizer-3.4.7-py3-none-any.whl", import.meta.url).href);
-    pyodide.globals.set("_fp_reportlab_wheel", new URL("vendor/reportlab-5.0.1-py3-none-any.whl", import.meta.url).href);
-    pyodide.globals.set("_fp_pillow_wheel", new URL("vendor/pillow-12.2.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl", import.meta.url).href);
-    pyodide.globals.set("_fp_screenplain_wheel", new URL("vendor/screenplain-0.12.0-py3-none-any.whl", import.meta.url).href);
-    pyodide.globals.set("_fp_six_wheel", new URL("vendor/six-1.17.0-py2.py3-none-any.whl", import.meta.url).href);
-    pyodide.globals.set("_fp_pypdf_wheel", new URL("vendor/pypdf-6.17.0-py3-none-any.whl", import.meta.url).href);
-    const fontFiles = [
-      "CourierPrime-Regular.ttf",
-      "CourierPrime-Bold.ttf",
-      "CourierPrime-Italic.ttf",
-      "CourierPrime-BoldItalic.ttf",
-    ];
-    pyodide.FS.mkdirTree("/fonts");
-    await Promise.all(fontFiles.map(async (fontFile) => {
-      const response = await fetch(new URL(`fonts/${fontFile}`, import.meta.url));
-      if (!response.ok) throw new Error(`Unable to load PDF font ${fontFile}`);
-      pyodide.FS.writeFile(`/fonts/${fontFile}`, new Uint8Array(await response.arrayBuffer()));
-    }));
-    await pyodide.runPythonAsync(`
-import micropip
-await micropip.install(_fp_six_wheel, deps=False)
-await micropip.install(_fp_pillow_wheel, deps=False)
-await micropip.install(_fp_charset_wheel, deps=False)
-await micropip.install(_fp_reportlab_wheel, deps=False)
-await micropip.install(_fp_screenplain_wheel, deps=False)
-await micropip.install(_fp_pypdf_wheel, deps=False)
-`);
-    pyodide.runPython(`
-import io
-import json
-import math
-import re
-from reportlab.lib.pagesizes import A4, letter
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-from xml.sax.saxutils import escape as xml_escape
-from screenplain.export import fdx, pdf
-from screenplain.parsers.fountain import parse
-from screenplain.richstring import bold, plain
-from screenplain.types import Action, Section, Slug
-from pypdf import PdfReader
+const compilerClient = createCompilerWorkerClient();
+const compileLocally = compilerClient.compile;
 
-def _fp_extract_pdf(path):
-    reader = PdfReader(path)
-    pages = []
-    for page in reader.pages:
-        try:
-            text = page.extract_text(extraction_mode="layout") or ""
-        except Exception:
-            text = page.extract_text() or ""
-        pages.append(text)
-    return json.dumps(pages)
-
-def _fp_register_pdf_fonts():
-    try:
-        fonts = {
-            "CourierPrime": "/fonts/CourierPrime-Regular.ttf",
-            "CourierPrime-Bold": "/fonts/CourierPrime-Bold.ttf",
-            "CourierPrime-Italic": "/fonts/CourierPrime-Italic.ttf",
-            "CourierPrime-BoldItalic": "/fonts/CourierPrime-BoldItalic.ttf",
-        }
-        for name, path in fonts.items():
-            try:
-                pdfmetrics.getFont(name)
-            except KeyError:
-                pdfmetrics.registerFont(TTFont(name, path))
-        pdfmetrics.registerFontFamily(
-            "CourierPrime",
-            normal="CourierPrime",
-            bold="CourierPrime-Bold",
-            italic="CourierPrime-Italic",
-            boldItalic="CourierPrime-BoldItalic",
-        )
-        return ("CourierPrime", "CourierPrime", "CourierPrime-Bold", "CourierPrime-Italic", "CourierPrime-BoldItalic")
-    except Exception:
-        return ("Courier", "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique")
-
-def _fp_number_scenes(screenplay, placement="margin", format_type="sequential"):
-    if placement == "off":
-        for paragraph in screenplay.paragraphs:
-            if isinstance(paragraph, Slug):
-                paragraph.scene_number = None
-        return screenplay
-    act_num = 0
-    act_scene_num = 0
-    sequential = 0
-    try:
-        from screenplain.types import Section as _Section
-    except Exception:
-        _Section = None
-    for paragraph in screenplay.paragraphs:
-        if _Section is not None and isinstance(paragraph, _Section) and getattr(paragraph, "level", 0) == 1:
-            act_num += 1
-            act_scene_num = 0
-        elif isinstance(paragraph, Slug):
-            sequential += 1
-            act_scene_num += 1
-            label = f"A{max(act_num, 1)}S{act_scene_num}" if format_type == "act" else str(sequential)
-            if placement == "margin":
-                paragraph.scene_number = plain(label)
-            else:
-                paragraph.line = plain(f"{label}. ") + paragraph.line
-                paragraph.scene_number = None
-    return screenplay
-
-def _fp_prepare_screenplay(source, placement="margin", format_type="sequential"):
-    from screenplain.types import PageBreak
-    source = re.sub(r"(?m)^([^\\S\\r\\n]*)>(\\S(?:.*\\S)?)<[^\\S\\r\\n]*$", r"\\1> \\2 <", source)
-    screenplay = parse(io.StringIO(source))
-    if screenplay.title_page and screenplay.paragraphs and isinstance(screenplay.paragraphs[0], PageBreak):
-        del screenplay.paragraphs[0]
-    return _fp_number_scenes(screenplay, placement, format_type)
-
-def _fp_format_pdf_act_headings(screenplay):
-    screenplay.paragraphs = [
-        Slug(bold(str(paragraph.text).upper()), scene_number=None)
-        if isinstance(paragraph, Section)
-        and getattr(paragraph, "level", 0) == 1
-        and re.match(r"^Act\\b", str(paragraph.text), re.IGNORECASE)
-        else paragraph
-        for paragraph in screenplay.paragraphs
-    ]
-    return screenplay
-
-def _fp_patch_scene_numbers_left_only():
-    try:
-        from reportlab.lib.units import inch as _inch
-        def _left_only_draw(self):
-            self.slug_paragraph.drawOn(self.canv, 0, 0)
-            canvas = self.canv
-            canvas.saveState()
-            canvas.setFont(self.settings.font_settings.family_name, self.settings.font_size)
-            canvas.drawString(-0.75 * _inch, 0, self.scene_number)
-            canvas.restoreState()
-        pdf.SlugWithSceneNumbers.draw = _left_only_draw
-    except Exception:
-        pass
-_fp_patch_scene_numbers_left_only()
-
-def _fp_compile_beat_sheet(title, premise, beats, page_size="letter"):
-    output = io.BytesIO()
-    _, regular_font, bold_font, _, _ = _fp_register_pdf_fonts()
-    selected_size = A4 if page_size == "a4" else letter
-    document = SimpleDocTemplate(
-        output,
-        pagesize=selected_size,
-        leftMargin=54,
-        rightMargin=54,
-        topMargin=58,
-        bottomMargin=52,
-        title=f"{title} - Beat Sheet",
-        author="Fountain Publisher",
-    )
-    ink = colors.HexColor("#22252a")
-    muted = colors.HexColor("#66707a")
-    accent = colors.HexColor("#67516c")
-    soft = colors.HexColor("#f4f0f5")
-    rule = colors.HexColor("#d9d5da")
-    title_style = ParagraphStyle("BeatTitle", fontName=bold_font, fontSize=21, leading=25, textColor=ink, spaceAfter=5)
-    eyebrow_style = ParagraphStyle("BeatEyebrow", fontName=bold_font, fontSize=8, leading=10, textColor=accent, tracking=1.6, spaceAfter=6)
-    premise_style = ParagraphStyle("BeatPremise", fontName=regular_font, fontSize=10.5, leading=15, textColor=ink)
-    beat_style = ParagraphStyle("BeatBody", fontName=regular_font, fontSize=11, leading=15, textColor=ink)
-    number_style = ParagraphStyle("BeatNumber", fontName=bold_font, fontSize=10, leading=14, textColor=accent, alignment=TA_CENTER)
-    story = [
-        Paragraph("BEAT SHEET", eyebrow_style),
-        Paragraph(xml_escape(title), title_style),
-        Spacer(1, 16),
-        Paragraph("PREMISE", eyebrow_style),
-        Table([[Paragraph(xml_escape(premise) if premise else "No premise yet.", premise_style)]], colWidths=[document.width], style=TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), soft),
-            ("BOX", (0, 0), (-1, -1), 0.7, rule),
-            ("LEFTPADDING", (0, 0), (-1, -1), 14),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 14),
-            ("TOPPADDING", (0, 0), (-1, -1), 12),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
-        ])),
-        Spacer(1, 22),
-        Paragraph("STORY BEATS", eyebrow_style),
-    ]
-    if beats:
-        for index, beat in enumerate(beats, 1):
-            row = Table(
-                [[Paragraph(str(index), number_style), Paragraph(xml_escape(str(beat)), beat_style)]],
-                colWidths=[34, document.width - 34],
-                style=TableStyle([
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("LINEBELOW", (0, 0), (-1, -1), 0.6, rule),
-                    ("LEFTPADDING", (0, 0), (0, 0), 0),
-                    ("RIGHTPADDING", (0, 0), (0, 0), 8),
-                    ("LEFTPADDING", (1, 0), (1, 0), 7),
-                    ("RIGHTPADDING", (1, 0), (1, 0), 0),
-                    ("TOPPADDING", (0, 0), (-1, -1), 10),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 11),
-                ]),
-            )
-            story.append(KeepTogether([row]))
-    else:
-        story.append(Paragraph("No beats yet.", premise_style))
-
-    def draw_page(canvas, doc):
-        canvas.saveState()
-        canvas.setStrokeColor(rule)
-        canvas.line(doc.leftMargin, 34, selected_size[0] - doc.rightMargin, 34)
-        canvas.setFont(regular_font, 8)
-        canvas.setFillColor(muted)
-        canvas.drawString(doc.leftMargin, 22, "Fountain Publisher")
-        canvas.drawRightString(selected_size[0] - doc.rightMargin, 22, str(doc.page))
-        canvas.restoreState()
-
-    document.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
-    return output.getvalue()
-
-def _fp_compile(source, kind, page_size, scene_numbers="margin", scene_number_format="sequential"):
-    global _fp_last_page_eighths, _fp_title_page_count
-    _fp_last_page_eighths = 0
-    _fp_title_page_count = 0
-    screenplay = _fp_prepare_screenplay(source, scene_numbers, scene_number_format)
-    font_family, regular_font, bold_font, italic_font, bold_italic_font = _fp_register_pdf_fonts()
-    if kind == "pdf":
-        screenplay = _fp_format_pdf_act_headings(screenplay)
-        output = io.BytesIO()
-        settings = pdf.Settings(page_size=A4 if page_size == "a4" else letter, strong_slugs=False)
-        font_settings = getattr(settings, "font_settings", None)
-        if font_settings is not None:
-            font_settings.family_name = font_family
-            font_settings.regular = regular_font
-            font_settings.bold = bold_font
-            font_settings.italic = italic_font
-            font_settings.bold_italic = bold_italic_font
-        if hasattr(settings, "slug_style"):
-            settings.slug_style.fontName = bold_font
-        settings.title_style.fontSize = settings.font_size
-        title_leading = settings.line_height * 2
-        for style_name in ("title_style", "centered_style", "default_style", "contact_style"):
-            style = getattr(settings, style_name, None)
-            if style is not None:
-                style.fontName = regular_font
-                style.fontSize = settings.font_size
-                style.leading = title_leading
-        if hasattr(settings, "title_style"):
-            settings.title_style.spaceAfter = -settings.line_height
-        if hasattr(settings, "default_style"):
-            settings.default_style.spaceAfter = -settings.line_height
-        if hasattr(settings, "contact_style"):
-            settings.contact_style.spaceAfter = -settings.line_height
-        usage = {"page": 0, "used": 0.0, "title_pages": 0}
-        class NumberedDocTemplate(pdf.DocTemplate):
-            def handle_pageBegin(self):
-                usage["title_pages"] = int(self.has_title_page)
-                _font_settings = getattr(self.settings, "font_settings", None)
-                self.canv.setFont(getattr(_font_settings, "family_name", "Courier"), self.settings.font_size, leading=self.settings.line_height)
-                page = self.page if self.has_title_page else self.page + 1
-                if page >= 1:
-                    self.canv.drawRightString(self.settings.left_margin + self.settings.frame_width, self.settings.page_height - 42, f"{page}.")
-                self._handle_pageBegin()
-            def afterFlowable(self, flowable):
-                title_pages = 1 if self.has_title_page else 0
-                content_page = self.page - title_pages
-                if content_page < 1 or type(flowable).__name__ in {"LCActionFlowable", "NextPageTemplate", "PageBreak"}:
-                    return
-                frame = getattr(self, "frame", None)
-                if frame is None:
-                    return
-                used = max(0.0, min(self.settings.frame_height, frame._y2 - frame._y))
-                if content_page > usage["page"]:
-                    usage.update(page=content_page, used=used)
-                elif content_page == usage["page"]:
-                    usage["used"] = max(usage["used"], used)
-        pdf.to_pdf(screenplay, output, template_constructor=NumberedDocTemplate, settings=settings)
-        _fp_title_page_count = usage["title_pages"]
-        _fp_last_page_eighths = min(8, max(1, math.ceil(usage["used"] / settings.frame_height * 8))) if usage["page"] else 0
-        return output.getvalue()
-    if kind == "fdx":
-        output = io.BytesIO()
-        try:
-            fdx.to_fdx(screenplay, output)
-            return output.getvalue()
-        except TypeError:
-            text = io.StringIO()
-            fdx.to_fdx(screenplay, text)
-            return text.getvalue().encode("utf-8")
-    raise ValueError(f"Unsupported export kind: {kind}")
-`);
-    return pyodide;
-  })().catch((error) => {
-    screenplainPromise = null;
-    throw new Error(`Unable to initialize the bundled Screenplain PDF compiler: ${error.message}`, { cause: error });
-  });
-  return screenplainPromise;
-}
-
-async function compileBeatSheetPdf(title, premise, beats, selectedPageSize = $("#page-size").value) {
-  const beatJson = JSON.stringify(beats);
-  const pyodide = await getBrowserScreenplain();
-  pyodide.globals.set("_fp_beat_title", title);
-  pyodide.globals.set("_fp_beat_premise", premise);
-  pyodide.globals.set("_fp_beat_json", beatJson);
-  pyodide.globals.set("_fp_beat_page_size", selectedPageSize);
-  const value = pyodide.runPython("_fp_compile_beat_sheet(_fp_beat_title, _fp_beat_premise, json.loads(_fp_beat_json), _fp_beat_page_size)");
-  const bytes = value instanceof Uint8Array ? value : value.toJs();
-  value.destroy?.();
-  return new Blob([bytes], { type: "application/pdf" });
+function compileBeatSheetPdf(title, premise, beats, selectedPageSize = $("#page-size").value) {
+  return compilerClient.beatSheet({ title, premise, beats, pageSize: selectedPageSize });
 }
 
 async function exportBeatSheetPdf() {
@@ -4148,6 +4105,7 @@ async function setPreviewMode(mode) {
   $("#beat-sheet-panel").hidden = mode !== "beats";
   $("#preview-page-stage").hidden = mode !== "live"; page.hidden = mode !== "live"; $("#empty-state").hidden = mode !== "live" || Boolean(source.value.trim()); $("#pdf-view").hidden = mode !== "pdf";
   $("#preview-scroll").classList.toggle("pdf-mode", mode === "pdf");
+  if (mode === "live" && state.previewDirty) renderPreview();
   renderBeatGuide();
   requestAnimationFrame(applyZoom);
   scheduleWorkspaceCache();
@@ -4186,7 +4144,7 @@ async function refreshPdf() {
   const isCurrent = () => revision === state.pdfRevision && state.previewMode === "pdf" && isCurrentCompile(request);
   showPdfLoading();
   try {
-    const result = await compileLocally("pdf", request, { isCurrent });
+    const result = await compileLocally("pdf", request, { isCurrent, backgroundKey: "pdf-preview" });
     if (result && isCurrent()) publishPdf(result.blob);
   } catch (error) { if (isCurrent()) showPdfError(error); }
 }
@@ -4299,9 +4257,26 @@ function togglePanel(panel, force) {
 
 function installResizer(element, variable, side, min, max) {
   let startX = 0; let startWidth = 0;
-  const apply = (width) => { const next = Math.max(min, Math.min(max, width)); document.documentElement.style.setProperty(variable, `${next}px`); localStorage.setItem(`fountain-publisher.${variable}`, String(next)); element.setAttribute("aria-valuenow", String(Math.round(next))); if (variable === "--source-w") renderEditorChrome(); if (state.previewZoom === "fit") requestAnimationFrame(applyZoom); };
+  let resizeFrame = 0;
+  let pendingWidth = null;
+  const apply = (width) => { const next = Math.max(min, Math.min(max, width)); document.documentElement.style.setProperty(variable, `${next}px`); localStorage.setItem(`fountain-publisher.${variable}`, String(next)); element.setAttribute("aria-valuenow", String(Math.round(next))); if (variable === "--source-w") scheduleSourceGeometry({ resize: true }); if (state.previewZoom === "fit") applyZoom(); };
+  const flush = () => {
+    if (resizeFrame) cancelAnimationFrame(resizeFrame);
+    resizeFrame = 0;
+    if (pendingWidth === null) return;
+    const width = pendingWidth;
+    pendingWidth = null;
+    apply(width);
+  };
   element.addEventListener("pointerdown", (event) => { startX = event.clientX; startWidth = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(variable)); element.setPointerCapture(event.pointerId); });
-  element.addEventListener("pointermove", (event) => { if (!element.hasPointerCapture(event.pointerId)) return; apply(startWidth + (event.clientX - startX) * side); });
+  element.addEventListener("pointermove", (event) => {
+    if (!element.hasPointerCapture(event.pointerId)) return;
+    pendingWidth = startWidth + (event.clientX - startX) * side;
+    if (!resizeFrame) resizeFrame = requestAnimationFrame(flush);
+  });
+  element.addEventListener("pointerup", flush);
+  element.addEventListener("pointercancel", flush);
+  element.addEventListener("lostpointercapture", flush);
   element.addEventListener("dblclick", () => apply(variable === "--source-w" ? 370 : 330));
   element.addEventListener("keydown", (event) => { if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return; event.preventDefault(); const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(variable)); if (event.key === "Home") apply(min); else if (event.key === "End") apply(max); else apply(current + (event.key === "ArrowRight" ? 1 : -1) * side * (event.shiftKey ? 30 : 10)); });
 }
@@ -5284,6 +5259,20 @@ function handleVimKey(event, surface) {
   }
   event.preventDefault();
   const key = event.key;
+  if (!event.altKey && ["/", "?", ":"].includes(key)) {
+    state.vimPending = "";
+    const visualRange = state.vimMode === "visual"
+      ? [vimLinePosition(Math.min(state.vimVisualAnchor, state.vimVisualFocus)).line + 1,
+        vimLinePosition(Math.max(state.vimVisualAnchor, state.vimVisualFocus)).line + 1]
+      : undefined;
+    state.documentSearch?.openVim(key, { currentLine: vimLinePosition().line + 1, visualRange });
+    return true;
+  }
+  if (!event.altKey && ["n", "N"].includes(key)) {
+    state.vimPending = "";
+    void state.documentSearch?.repeatVim(key === "N");
+    return true;
+  }
   if (state.vimMode === "visual") {
     if (["i", "a"].includes(key)) {
       state.vimPending = key;
@@ -5533,8 +5522,8 @@ source.addEventListener("beforeinput", (event) => {
   if (handleNativeHistory(event)) return;
   if (vimActive() && state.vimMode === "normal") event.preventDefault();
 });
-source.addEventListener("scroll", () => { $("#line-numbers").scrollTop = source.scrollTop; syncSourceOverlay(); updateCursor(); scheduleWorkspaceCache(); });
-const sourceResizeObserver = new ResizeObserver(() => requestAnimationFrame(renderEditorChrome));
+source.addEventListener("scroll", () => scheduleSourceGeometry({ saveScroll: true }), { passive: true });
+const sourceResizeObserver = new ResizeObserver(() => scheduleSourceGeometry({ resize: true }));
 sourceResizeObserver.observe(source);
 document.fonts?.ready.then(() => renderEditorChrome());
 source.addEventListener("click", () => { updateCursor({ scrollPreview: true }); hideCompletions(); scheduleWorkspaceCache(); });
@@ -5991,7 +5980,7 @@ $("#delete-general-note").addEventListener("click", () => {
   $("#general-note-dialog").close();
 });
 
-$("#new-file").addEventListener("click", newFile); $("#open-file").addEventListener("click", openFile); $("#save-file").addEventListener("click", () => saveFile(false)); $("#save-file-as").addEventListener("click", () => saveFile(true));
+$("#new-file").addEventListener("click", newFile); $("#open-file").addEventListener("click", openFile); $("#save-file").addEventListener("click", () => saveCurrentDocument(false)); $("#save-file-as").addEventListener("click", () => saveFile(true));
 $("#github-connect").addEventListener("click", connectGithub);
 $("#github-open").addEventListener("click", () => openGithubBrowser("open"));
 $("#github-save").addEventListener("click", () => openGithubBrowser("save"));
@@ -6149,7 +6138,7 @@ $("#github-conflict-document").addEventListener("input", (event) => {
 $("#github-conflict-reviewed").addEventListener("change", updateGithubConflictControls);
 $("#github-conflict-cancel").addEventListener("click", cancelGithubConflict);
 $("#github-conflict-dialog").addEventListener("cancel", (event) => { event.preventDefault(); cancelGithubConflict(); });
-$("#github-conflict-dialog").addEventListener("keydown", (event) => event.stopPropagation());
+$("#github-conflict-dialog").addEventListener("keydown", handleSaveDialogKeydown);
 $("#github-conflict-dialog").addEventListener("beforeinput", (event) => event.stopPropagation());
 window.addEventListener("message", async (event) => {
   if (event.origin !== GITHUB_API || !["github-connected", "github-installed", "github-error"].includes(event.data?.type)) return;
@@ -6414,7 +6403,7 @@ function setMobileTab(panel) {
 }
 
 $$(".mobile-tab").forEach((tab) => tab.addEventListener("click", () => setMobileTab(tab.dataset.mobilePanel)));
-$("#preview-scroll").addEventListener("scroll", () => { hidePreviewContextMenu(); scheduleWorkspaceCache(); });
+$("#preview-scroll").addEventListener("scroll", () => { hidePreviewContextMenu(); scheduleWorkspaceViewCache(); }, { passive: true });
 $("#mobile-menu-toggle").addEventListener("click", () => setMobileMenu(!document.body.classList.contains("mobile-menu-open")));
 $("#mobile-menu-backdrop").addEventListener("click", () => setMobileMenu(false));
 
@@ -6439,13 +6428,14 @@ document.addEventListener("pointerdown", (event) => {
   if (!menu.hidden && !menu.contains(event.target)) hidePreviewContextMenu();
 });
 document.addEventListener("keydown", (event) => {
+  if (state.documentSearch?.handleShortcut(event)) return;
   if (event.key === "Escape" && !$("#preview-context-menu").hidden) hidePreviewContextMenu();
   else if (event.key === "Escape" && document.body.classList.contains("mobile-menu-open")) setMobileMenu(false);
   else if (event.key === "Escape" && toolbarMenus.some((menu) => menu.open)) { closeMenus(); }
   else if (event.key === "Escape" && document.body.classList.contains("zen-mode")) void setZenMode(false);
   else if ((source === document.activeElement || page.contains(document.activeElement)) && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redoDocument() : undoDocument(); }
   else if ((source === document.activeElement || page.contains(document.activeElement)) && event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === "y") { event.preventDefault(); redoDocument(); }
-  else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); saveFile(event.shiftKey); }
+  else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); saveCurrentDocument(event.shiftKey); }
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "o") { event.preventDefault(); openFile(); }
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") { event.preventDefault(); newFile(); }
 });
@@ -6531,6 +6521,7 @@ async function initialize() {
   if (restore) { text = cached.source; name = cached.filename || name; state.savedSource = typeof cached.savedSource === "string" ? cached.savedSource : text; }
   const enableWorkspaceCache = params.get("demo") !== "1";
   setDocument(text, name, !restore, restore ? cached.githubFile || null : null);
+  if (restore && ["local", "download", "github", "drive"].includes(cached.saveDestination)) state.saveDestination = cached.saveDestination;
   void refreshGithubSession();
   void refreshGoogleSession();
   setMobileTab("preview");
@@ -6560,9 +6551,160 @@ async function initialize() {
   }
 }
 
+// Search coordinates always refer to Fountain source. The adapter is the only
+// place that maps them onto formatted Preview or publishes a replacement.
+function captureSearchSelection() {
+  const selection = captureEditorSelection();
+  return { ...selection, surface: state.previewMode === "source" ? "source" : "preview" };
+}
+
+function clearSearchHighlight() { globalThis.CSS?.highlights?.delete("document-search-current"); }
+
+function navigateSearchMatch(match, { focus = false, vim = false, surface } = {}) {
+  if (state.previewComposing || state.sourceComposing) return "Finish composing text first";
+  const start = Math.max(0, Math.min(match.start, source.value.length));
+  const end = Math.max(start, Math.min(match.end, source.value.length));
+  const previousFocus = document.activeElement;
+  const position = vimLinePosition(start);
+  const endpoint = vimLinePosition(end);
+  const previewFocus = (surface || (state.previewMode === "source" ? "source" : "preview")) === "preview";
+  if (previewFocus && state.previewDirty) renderPreview();
+  let range = null;
+  if (previewFocus) {
+    const first = $(`[data-line="${position.line}"]`, page);
+    const last = $(`[data-line="${endpoint.line}"]`, page);
+    if (previewLineIsEditable(first) && previewLineIsEditable(last)) {
+      const anchor = previewPointAtSourceOffset(start);
+      const head = previewPointAtSourceOffset(end);
+      if (anchor && head) {
+        const candidate = document.createRange();
+        candidate.setStart(anchor.node, anchor.offset);
+        candidate.setEnd(head.node, head.offset);
+        // Markers/metadata hidden by Preview must be revealed in Source, not
+        // silently mapped onto unrelated visible text. Range text omits block
+        // separators, so compare without newlines for multi-line selections.
+        if (candidate.toString().replaceAll("\n", "") === source.value.slice(start, end).replaceAll("\n", "")) range = candidate;
+      }
+    }
+  }
+  clearSearchHighlight();
+  const usePreview = previewFocus && range !== null;
+  const mode = usePreview ? "live" : "source";
+  if (!usePreview && !sourceTabEnabled()) {
+    localStorage.setItem("fountain-publisher.source-tab", "true");
+    document.body.classList.remove("source-tab-hidden");
+    $(".menu-check", $("#menu-toggle-source-tab")).textContent = "✓";
+  }
+  if (state.previewMode !== mode) void setPreviewMode(mode);
+  if (vim && state.vimMode === "visual") focusVimSelection(usePreview, state.vimVisualAnchor, start);
+  else {
+    source.setSelectionRange(start, vim ? start : end);
+    if (usePreview) {
+      if (focus) page.focus({ preventScroll: true });
+      const selection = getSelection();
+      selection?.removeAllRanges();
+      const selectionRange = range.cloneRange();
+      if (vim) selectionRange.collapse(true);
+      selection?.addRange(selectionRange);
+      if (globalThis.CSS?.highlights && typeof Highlight === "function") CSS.highlights.set("document-search-current", new Highlight(range));
+      scrollPreviewTarget($(`[data-line="${position.line}"]`, page));
+    } else {
+      if (focus) source.focus({ preventScroll: true });
+      scrollSourceTarget(position.line);
+    }
+  }
+  if (!focus && previousFocus && document.activeElement !== previousFocus) previousFocus.focus({ preventScroll: true });
+  updateCursor();
+  scheduleWorkspaceCache();
+  return previewFocus && !usePreview ? "Shown in Source (hidden Fountain text)" : "";
+}
+
+function planSearchEdits(value, edits) {
+  // Rebase beat ranges per changed line interval, rather than treating distant
+  // replacements as one deletion covering all the screenplay between them.
+  const lines = value.split("\n");
+  const starts = [];
+  let offset = 0;
+  for (const line of lines) { starts.push(offset); offset += line.length + 1; }
+  const lineAt = (index) => {
+    let low = 0, high = starts.length;
+    while (low + 1 < high) { const middle = (low + high) >>> 1; if (starts[middle] <= index) low = middle; else high = middle; }
+    return low;
+  };
+  const sheet = parseManagedNotes(lines).beatSheet;
+  const changes = edits.filter((edit) => value.slice(edit.start, edit.end) !== edit.text);
+  if (sheet.line !== null && sheet.beats.some((beat) => beat.range)) {
+    const noteStart = starts[sheet.line];
+    const noteEnd = noteStart + lines[sheet.line].length;
+    const touchesNote = changes.some((edit) => edit.start < noteEnd && edit.end > noteStart
+      || (edit.start === edit.end && edit.start >= noteStart && edit.start <= noteEnd));
+    if (!touchesNote) {
+      let beats = sheet.beats;
+      for (const edit of [...changes].reverse()) {
+        const removed = value.slice(edit.start, edit.end).split("\n").length - 1;
+        const added = edit.text.split("\n").length - 1;
+        if (removed === added) continue;
+        const first = lineAt(edit.start);
+        const endpointPreserved = edit.end === starts[lineAt(edit.end)]
+          && (edit.text.endsWith("\n") || (edit.start === starts[first] && !edit.text));
+        beats = beats.map((beat) => ({ ...beat, range: transformBeatRange(beat.range, first,
+          removed + (endpointPreserved ? 0 : 1), added + (endpointPreserved ? 0 : 1)) }));
+      }
+      const note = managedBeatSheetSource(sheet.premise, beats);
+      const changedRanges = beats.some((beat, index) => JSON.stringify(beat.range) !== JSON.stringify(sheet.beats[index].range));
+      if (changedRanges && note !== lines[sheet.line]) changes.push({ start: noteStart, end: noteEnd, text: note });
+    }
+  }
+  return changes.sort((left, right) => left.start - right.start);
+}
+
+function applySearchEdits(edits, target) {
+  if (!canEditDocument() || target.documentRevision !== state.documentRevision
+    || target.editRevision !== state.editRevision || target.text !== source.value) return false;
+  const batch = planSearchEdits(target.text, edits);
+  if (!batch.length) return true;
+  const chunks = [];
+  let previousEnd = 0;
+  for (const edit of batch) {
+    chunks.push(target.text.slice(previousEnd, edit.start), edit.text);
+    previousEnd = edit.end;
+  }
+  chunks.push(target.text.slice(previousEnd));
+  const value = chunks.join("");
+  // A connected or paused collaboration session must never fall back to a
+  // full-buffer splice: that would remove untouched CRDT identities.
+  if (state.collaborationHistoryActive && !collaboration.applyEdits(batch, target.text)) return false;
+  source.value = value;
+  source.setSelectionRange(batch[0].start, batch[0].start);
+  return sourceChanged({ rebaseBeats: false, exactHistory: true });
+}
+
+state.documentSearch = createDocumentSearch({
+  getSnapshot: () => ({ text: source.value, documentRevision: state.documentRevision,
+    editRevision: state.editRevision, composing: state.previewComposing || state.sourceComposing }),
+  captureSelection: captureSearchSelection,
+  navigate: navigateSearchMatch,
+  restoreSelection: (selection) => {
+    if (!selection || selection.documentRevision !== state.documentRevision) return;
+    const relative = selection.relative && collaboration.resolveSelection(selection.relative);
+    const anchor = relative?.anchor ?? selection.anchor;
+    const head = relative?.head ?? selection.head;
+    navigateSearchMatch({ start: Math.min(anchor, head), end: Math.max(anchor, head) }, { focus: true, surface: selection.surface });
+    if (head < anchor) source.setSelectionRange(head, anchor, "backward");
+  },
+  applyEdits: applySearchEdits, canEdit: canEditDocument, clearHighlight: clearSearchHighlight,
+  onOpen: () => { closeMenus(); setMobileMenu(false); hideCompletions(); hidePreviewCompletions(); },
+  onVimComplete: (kind) => { if (kind === ":") { state.vimVisualLine = false; setVimMode("normal"); } },
+  onSave: (saveAs) => void saveCurrentDocument(saveAs),
+  isEditorTarget: (target) => target === source || page.contains(target),
+  notify: toast,
+});
+
 initialize();
 import { CollaborationClient, googleRequest, openGoogleSignIn } from "./collaboration.mjs";
 import { parseFountainInline, replaceFountainRange } from "./fountain-inline.mjs";
 import { deletionRange, graphemeBoundaries, nativeHistoryAction, nextGraphemeBoundary, previousGraphemeBoundary, textDifference } from "./text-input.mjs";
 import { canMutateDocument, captureEditTarget, isCurrentEditTarget } from "./editor-contract.mjs";
-import { createLocalCompiler } from "./local-compiler.mjs";
+import { createDocumentSearch } from "./document-search.mjs";
+import { createCompilerWorkerClient } from "./compiler-client.mjs";
+import { backgroundBitmapSize, backgroundElementVisible, backgroundTileGrid, createBackgroundLoop } from "./background-performance.mjs";
