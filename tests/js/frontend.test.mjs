@@ -221,6 +221,18 @@ test("tablet landscape keeps document identity clear of history controls", async
   assert.match(app, /mode === "source"[\s\S]*shouldAutofocusSource\(\)[\s\S]*source\.focus\(\{ preventScroll: true \}\)/);
 });
 
+test("mobile filenames shrink within the toolbar without obscuring the menu button", async () => {
+  const css = await readFile(cssPath, "utf8");
+  const mobile = css.slice(css.indexOf("@media (max-width: 820px)"));
+  const identity = mobile.match(/\.document-identity\s*\{([^}]+)\}/)?.[1];
+  assert.ok(identity);
+  assert.match(identity, /min-width:\s*0;/);
+  assert.match(identity, /overflow:\s*hidden;/);
+  assert.match(identity, /flex:\s*1 1 auto;/);
+  assert.match(css, /#filename\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/);
+  assert.match(mobile, /\.mobile-menu-toggle\s*\{[^}]*flex:\s*0 0 38px;[^}]*width:\s*38px;/);
+});
+
 test("browser page-count compilation only updates metrics present in the document", async () => {
   const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
   assert.doesNotMatch(html, /id="stat-runtime"/);
