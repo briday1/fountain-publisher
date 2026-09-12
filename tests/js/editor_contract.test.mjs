@@ -18,7 +18,7 @@ function harness(readOnly = true) {
   const state = { previewMode: "source", documentRevision: 1, editRevision: 1, lastSourceValue: source.value, savedSource: source.value, history: ["first", source.value], historyIndex: 1 };
   const context = {
     state, source, events, canMutateDocument, captureEditTarget, isCurrentEditTarget, clearTimeout,
-    document: { body: { classList: { toggle: () => events.push("dirty") } }, activeElement: null },
+    document: { querySelector: () => null, body: { classList: { toggle: () => events.push("dirty") } }, activeElement: null },
     page: { contains: () => false },
     $: () => ({ dataset: {} }),
     collaboration: { replace: () => events.push("sync"), undo: () => events.push("undo"), redo: () => events.push("redo") },

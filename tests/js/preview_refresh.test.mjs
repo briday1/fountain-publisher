@@ -34,7 +34,7 @@ function harness(mode = "source") {
   const context = { state, source, page, canMutateDocument,
     $: (selector) => { if (selector.startsWith("[data-line=")) count.lineQueries += 1; return element(selector); },
     $$: () => [],
-    document: { body: { dataset: {}, classList: { toggle() {} } } },
+    document: { querySelector: () => null, body: { dataset: {}, classList: { toggle() {} } } },
     localStorage: { setItem() {} },
     classifyLines: (text) => { count.parses += 1; return text.split("\n").map((raw, index) => ({ raw, index })); },
     renderPreviewLines: (lines) => { count.html += 1; return lines.map((line) => line.raw).join("\n"); },
@@ -45,12 +45,12 @@ function harness(mode = "source") {
     rebaseBeatRanges: (_before, after) => after,
     recordHistory: () => { count.history += 1; },
     analyzeLocally: (text) => ({ source: text }),
-    renderInsights: (metadata) => { count.insights += 1; state.metadata = metadata; },
+    renderInsights: (metadata) => { count.insights += 1; state.metadata = state.renderedInsightMetadata = metadata; },
     collaboration: { replace() { count.sync += 1; } },
     clearTimeout() {}, setTimeout: () => 0,
     scheduleCompile: () => { count.compile += 1; }, scheduleWorkspaceCache() {},
     sourceTabEnabled: () => true, isMobilePreview: () => false, shouldAutofocusSource: () => false,
-    renderBeatSheetView() {}, refreshPdf: async () => { count.pdf += 1; },
+    renderBeatSheetView() {}, persistBeatSheet() {}, refreshPdf: async () => { count.pdf += 1; },
     requestAnimationFrame: (callback) => frames.push(callback),
   };
   runInNewContext(code, context);
@@ -66,7 +66,8 @@ test("Source typing avoids all hidden Preview classification, HTML, DOM and curs
   assert.equal(h.page.innerHTML, "original");
   assert.equal(h.state.previewDirty, true);
   for (const name of ["parses", "html", "writes", "lineQueries"]) assert.equal(h.count[name], 0, name);
-  for (const name of ["chrome", "history", "insights", "sync", "compile"]) assert.equal(h.count[name], 30, `${name} is not deferred with Preview`);
+  for (const name of ["chrome", "history", "sync", "compile"]) assert.equal(h.count[name], 30, `${name} is not deferred with Preview`);
+  assert.equal(h.count.insights, 1, "only the initial sidebar is painted during continuous typing");
   assert.equal(h.state.metadata.source, "current text 29", "character-completion metadata stays current");
   await h.context.setPreviewMode("live");
   assert.equal(h.page.innerHTML, "current text 29");

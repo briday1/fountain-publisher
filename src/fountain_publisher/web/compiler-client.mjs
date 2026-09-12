@@ -85,11 +85,12 @@ export function createCompilerWorkerClient({
     const instance = worker;
     timer = setTimeout(() => failWorker(new Error("Local compiler job timed out. Please try again."), instance), jobTimeoutMs);
     try {
+      active.onStart?.();
       worker.postMessage({ type: "job", id: active.id, operation: active.operation, input: active.input }, active.transfer);
     } catch (error) { failWorker(error, instance); }
   }
 
-  function enqueue(operation, input, { isCurrent = () => true, backgroundKey = null } = {}, transfer = []) {
+  function enqueue(operation, input, { isCurrent = () => true, backgroundKey = null, onStart } = {}, transfer = []) {
     if (disposed) return Promise.reject(new Error("Local compiler has been closed"));
     return new Promise((resolve, reject) => {
       if (!isCurrent()) { resolve(null); return; }
@@ -105,7 +106,7 @@ export function createCompilerWorkerClient({
         if (active?.backgroundKey === backgroundKey) active.superseded = true;
       }
       if (queue.length >= maxQueuedJobs) { reject(new Error("The local compiler is busy. Wait for the current export and try again.")); return; }
-      queue.push({ id: ++nextId, operation, input, isCurrent, backgroundKey, transfer, resolve, reject, superseded: false });
+      queue.push({ id: ++nextId, operation, input, isCurrent, backgroundKey, onStart, transfer, resolve, reject, superseded: false });
       pump();
     });
   }
@@ -131,6 +132,24 @@ export function createCompilerWorkerClient({
       // Own the transferable buffer without detaching the caller's file bytes.
       const bytes = input instanceof ArrayBuffer ? input.slice(0) : new Uint8Array(input).slice().buffer;
       return enqueue("extract-pdf", { bytes }, {}, [bytes]);
+    },
+    cancelBackground(key) {
+      if (!key) return;
+      queue = queue.filter((job) => {
+        if (job.backgroundKey !== key) return true;
+        job.superseded = true;
+        settle(job, null, null);
+        return false;
+      });
+      if (active?.backgroundKey === key) active.superseded = true;
+      // Never terminate the runtime or interrupt an explicit export/import.
+      pump();
+    },
+    promoteBackground(key) {
+      if (!key) return;
+      if (active?.backgroundKey === key) active.backgroundKey = null;
+      for (const job of queue) if (job.backgroundKey === key) job.backgroundKey = null;
+      pump();
     },
     dispose() {
       disposed = true;

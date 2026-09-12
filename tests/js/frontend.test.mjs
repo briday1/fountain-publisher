@@ -462,8 +462,8 @@ test("screenplay editors disable automatic capitalization and word replacement",
 test("iPad hardware Enter edits Preview directly without waiting for beforeinput", async () => {
   const app = await readFile(appPath, "utf8");
   assert.match(app, /page\.addEventListener\("keydown"[\s\S]*event\.key === "Enter"[\s\S]*event\.preventDefault\(\);[\s\S]*replacePreviewSelection\(edit, "\\n"\)/);
-  assert.match(app, /if \(!fromPreview \|\| state\.previewMode === "source"\) renderEditorChrome\(\)/);
-  assert.match(app, /if \(fromPreview\) state\.insightTimer = setTimeout\(\(\) => renderInsights\(analyzeLocally\(source\.value\)\), 80\)/);
+  assert.match(app, /if \(state\.previewMode === "source"\) renderEditorChrome\(\)/);
+  assert.match(app, /state\.metadata = analyzeLocally\(source\.value\);[\s\S]*scheduleInsightsRefresh/);
 });
 
 test("preview cursor synchronization highlights the active line", async () => {
@@ -483,7 +483,7 @@ test("source and preview navigation scroll in both directions", async () => {
   const app = await readFile(appPath, "utf8");
   const sourceNavigation = app.slice(app.indexOf("function scrollSourceTarget("), app.indexOf("function updatePreviewCursor("));
   assert.match(sourceNavigation, /const top = target\.offsetTop/);
-  assert.match(app, /source\.addEventListener\("select"[^\n]*scrollPreview: document\.activeElement === source/);
+  assert.match(app, /source\.addEventListener\("select"[^\n]*scheduleSourceSelectionUpdate\(\)/);
   assert.match(app, /function updatePreviewCursor[\s\S]*scrollPreviewTarget\(target, scrollBlock\)/);
   assert.match(app, /panel === "source"[\s\S]*scrollSourceTarget\(currentPosition\(\)\.line, "center"\)/);
 });
@@ -514,15 +514,24 @@ test("preview edits are source-backed and preserve the viewport", async () => {
 test("programmatic Source selections never navigate the visible Preview", async () => {
   const app = await readFile(appPath, "utf8");
   const listener = app.split("\n").find((line) => line.startsWith('source.addEventListener("select",'));
+  const scheduler = app.slice(app.indexOf("let sourceSelectionFrame"), app.indexOf("function renderInsights("));
   let handler;
   const source = { addEventListener: (type, callback) => { handler = callback; } };
   const document = { activeElement: {} };
+  const frames = [];
   let scrollPreview;
-  runInNewContext(listener, { source, document, updateCursor: (options) => { scrollPreview = options.scrollPreview; }, scheduleWorkspaceCache() {} });
+  runInNewContext(`${scheduler}\n${listener}`, {
+    source, document, state: {},
+    updateCursor: (options) => { scrollPreview = options.scrollPreview; },
+    scheduleWorkspaceViewCache() {},
+    requestAnimationFrame(callback) { frames.push(callback); return frames.length; },
+  });
   handler();
-  assert.equal(scrollPreview, false);
+  assert.equal(scrollPreview, undefined);
+  assert.equal(frames.length, 0);
   document.activeElement = source;
   handler();
+  frames.shift()();
   assert.equal(scrollPreview, true);
 });
 
@@ -769,7 +778,7 @@ test("the long sample screenplay is opt-in with demo=1", async () => {
   assert.doesNotMatch(sample, /FADE IN:|FADE OUT\.|CUT TO:/);
   assert.match(sample, />\*\*END\*\*</);
   assert.match(app, /function fountainInlineHtml\(value\)\s*\{\s*return parseFountainInline\(value\)\.html/);
-  assert.match(app, /const content = display \? fountainInlineHtml\(display\)/);
+  assert.match(app, /const parsed = parseFountainInline\(display\)/);
 });
 
 test("new documents open to a blank canvas with starter helpers", async () => {
@@ -1100,6 +1109,7 @@ test("Beat Sheet Enter inserts and focuses a new beat after the current beat", a
         return { focus: () => { focused = card; } };
       },
       beatCard: () => "<li></li>",
+      beatSheetComposing: false,
       renumberBeatCards: () => { renumbered += 1; },
       scheduleBeatSheetSave: () => { saved += 1; },
     });
@@ -1169,7 +1179,7 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(css, /#beat-sheet-panel\s*\{[\s\S]*\.beat-card\s*\{[\s\S]*\.beat-flow-editor[\s\S]*\.beat-graph-node[\s\S]*\.beat-guide-layer\s*\{[\s\S]*\.script-line\.beat-area/);
   assert.match(app, /beat-list"\)\.addEventListener\("pointerdown"[\s\S]*event\.pointerType === "mouse" && event\.button !== 0[\s\S]*setPointerCapture[\s\S]*addEventListener\("pointermove"[\s\S]*finishPointerBeatDrag/);
   assert.match(app, /\["ArrowUp", "ArrowDown", "Home", "End"\][\s\S]*prepend\(card\)[\s\S]*append\(card\)[\s\S]*handle\.focus\(\)/);
-  assert.match(app, /function renderBeatProgressGraph\(beats = currentBeatCards\(\)\)[\s\S]*beforeValue[\s\S]*afterValue[\s\S]*beat-plot-point/);
+  assert.match(app, /function renderBeatProgressGraph\(beats, \{ force = false \} = \{\}\)[\s\S]*beforeValue[\s\S]*afterValue[\s\S]*beat-plot-point/);
   assert.match(app, /function saveBeatProgressPng\(\)[\s\S]*XMLSerializer[\s\S]*canvas\.toBlob[\s\S]*beat-pacing\.png/);
   assert.match(runtimeSource, /def _fp_compile_beat_sheet\(title, premise, beats, page_size="letter"\):[\s\S]*SimpleDocTemplate[\s\S]*Paragraph\("PREMISE"[\s\S]*Paragraph\("STORY BEATS"[\s\S]*document\.build/);
   assert.match(app, /async function exportBeatSheetPdf\(\)[\s\S]*currentBeatCards\(\)[\s\S]*compileBeatSheetPdf[\s\S]*Beat Sheet\.pdf/);
@@ -1453,7 +1463,8 @@ test("every host runs Screenplain in the tab's bundled Pyodide runtime", async (
   assert.match(runtimeSource, /CourierPrime-Regular\.ttf/);
   assert.match(runtimeSource, /\/fonts\/CourierPrime-Regular\.ttf/);
   assert.match(runtimeSource, /pdf\.to_pdf\(screenplay, output, template_constructor=NumberedDocTemplate, settings=settings\)/);
-  assert.match(app, /setTimeout\(\(\) => compilePageCount\(revision\)/);
+  assert.match(app, /queueAutomaticCompile/);
+  assert.match(app, /requestIdleCallback/);
   assert.match(app, /const compilerClient = createCompilerWorkerClient\(\)/);
   assert.match(app, /const compileLocally = compilerClient\.compile/);
   assert.doesNotMatch(app, /runPython|loadPyodide|getBrowserScreenplain/);
