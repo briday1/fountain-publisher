@@ -269,7 +269,7 @@ async function driveSnapshot(fileId, token) {
 }
 
 function safeDriveId(value) {
-  return /^[A-Za-z0-9_-]{10,200}$/.test(value || "");
+  return typeof value === "string" && value.length >= 10 && value.length <= 200 && !/[^A-Za-z0-9_-]/.test(value);
 }
 
 function driveMultipart(metadata, content) {
@@ -310,8 +310,18 @@ async function googleApiRequest(request, env, url) {
     if (typeof body.content !== "string" || body.content.length > 5_000_000) return json({ error: "Document content is required and must be under 5 MB" }, 400);
     const name = String(body.name || "Untitled.fountain").trim();
     if (!name || name.length > 200 || /[\\/\0]/.test(name)) return json({ error: "Invalid filename" }, 400);
+    const { parentId } = body;
+    if (parentId !== undefined && parentId !== "root" && !safeDriveId(parentId)) return json({ error: "Invalid Drive folder" }, 400);
+    if (parentId !== undefined && parentId !== "root") {
+      const fields = encodeURIComponent("id,mimeType,trashed,capabilities(canAddChildren)");
+      const folder = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(parentId)}?fields=${fields}`, session.access_token)).json();
+      if (folder.mimeType !== "application/vnd.google-apps.folder" || folder.trashed) return json({ error: "Choose a folder that is not in the trash" }, 400);
+      if (folder.capabilities?.canAddChildren !== true) return json({ error: "You cannot add files to this Drive folder" }, 403);
+    }
     const documentId = randomToken(24);
-    const upload = driveMultipart({ name, mimeType: "text/plain", appProperties: { fountainPublisherDocument: "true", fountainPublisherDocumentId: documentId } }, body.content);
+    const metadata = { name, mimeType: "text/plain", appProperties: { fountainPublisherDocument: "true", fountainPublisherDocumentId: documentId } };
+    if (parentId !== undefined) metadata.parents = [parentId];
+    const upload = driveMultipart(metadata, body.content);
     const file = await (await driveFetch("/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime,appProperties,capabilities(canEdit,canShare)", session.access_token, {
       method: "POST", headers: { "content-type": upload.contentType }, body: upload.body,
     })).json();

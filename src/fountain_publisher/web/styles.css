@@ -657,8 +657,15 @@ body.preview-colors .script-line.section.act { color: color-mix(in srgb, var(--s
 .balance b { color: var(--ink); }
 .empty-list { padding: 14px 6px; color: var(--muted); text-align: center; font-size: 11px; }
 
-#export-dialog { width: min(430px, calc(100vw - 30px)); border: 1px solid var(--border); border-radius: 9px; padding: 0; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
-#export-dialog::backdrop { background: rgb(0 0 0 / 40%); backdrop-filter: blur(2px); }
+#export-dialog, #google-save-dialog { width: min(430px, calc(100vw - 30px)); border: 1px solid var(--border); border-radius: 9px; padding: 0; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+#export-dialog::backdrop, #google-save-dialog::backdrop { background: rgb(0 0 0 / 40%); backdrop-filter: blur(2px); }
+#google-save-dialog { max-height: calc(var(--visual-viewport-height) - 30px); overflow-y: auto; }
+#google-save-form { padding: 24px; }
+#google-save-form p { color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+#google-save-form label { display: grid; gap: 8px; }
+#google-save-form input { width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: 5px; padding: 9px; background: var(--surface); color: var(--ink); }
+#google-save-form .dialog-actions { flex-wrap: wrap; }
+#google-save-form button { color: var(--ink); min-height: 40px; }
 #export-form { padding: 20px; }
 .dialog-heading h2 { margin: 2px 0 0; }
 #export-form > p { color: var(--muted); }

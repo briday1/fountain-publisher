@@ -22,6 +22,7 @@ function pickerHarness({ adoptError = false, configError = false, buildError = f
     constructor(id) { this.id = id; }
     setIncludeFolders(value) { this.includeFolders = value; return this; }
     setSelectFolderEnabled(value) { this.selectFolders = value; return this; }
+    setMimeTypes(value) { this.mimeTypes = value; return this; }
     setMode(value) { this.mode = value; return this; }
     setOwnedByMe(value) { this.ownedByMe = value; return this; }
     setParent(value) { this.parent = value; return this; }
@@ -91,6 +92,7 @@ function pickerHarness({ adoptError = false, configError = false, buildError = f
       calls.push(["open", id]);
     },
     toast: (message) => messages.push(message),
+    saveFeedback: (message) => messages.push(message),
   };
   runInNewContext(app.slice(app.indexOf("let googlePickerActive"), app.indexOf("async function saveGoogleDrive(")), context);
   runInNewContext(app.slice(app.indexOf('$("#google-picker-retry").addEventListener'), app.indexOf('$("#google-drive-filter").addEventListener')), context);
@@ -140,6 +142,41 @@ test("picker selection releases the viewport and grants access through adoption 
   assert.equal(harness.elements.get("#google-picker-help").open, false);
   await harness.pick({ action: "picked", docs: [{ id: "shared-file_123" }] });
   assert.equal(harness.calls.filter(([action]) => action === "open").length, 1);
+});
+
+test("folder Picker selects folders without adopting or opening a screenplay", async () => {
+  const harness = pickerHarness();
+  let selected;
+  await harness.context.openGooglePicker({ selectFolder: true, onPicked: (folder) => { selected = folder; } });
+  assert.equal(harness.elements.get("#google-picker-browser-title").textContent, "Choose destination folder");
+  for (const view of harness.views) {
+    assert.equal(view.selectFolders, true);
+    assert.equal(view.mimeTypes, "application/vnd.google-apps.folder");
+  }
+  await harness.pick({ action: "picked", docs: [{ id: "folder_123456", name: "Screenplays" }] });
+  assert.equal(selected.id, "folder_123456");
+  assert.equal(selected.name, "Screenplays");
+  assert.equal(harness.calls.some(([action]) => action === "open" || action.endsWith("/adopt")), false);
+  assert.equal(harness.classes.size, 0);
+  await harness.context.openGooglePicker();
+  assert.equal(harness.elements.get("#google-picker-browser-title").textContent, "Open screenplay");
+  assert.equal(harness.elements.get("#google-picker-trouble").hidden, false);
+});
+
+test("folder Picker cancellation and failures return to the save dialog without selecting a destination", async () => {
+  for (const action of ["cancel", "escape", "close", "error", "empty", "config", "build"]) {
+    const harness = pickerHarness({ configError: action === "config", buildError: action === "build" });
+    let cancelled = 0, picked = 0;
+    await harness.context.openGooglePicker({ selectFolder: true, onCancel: () => { cancelled += 1; }, onPicked: () => { picked += 1; } });
+    if (action === "escape") harness.inputListeners.get("keydown")({ key: "Escape", preventDefault() {}, stopImmediatePropagation() {} });
+    else if (action === "close") harness.elements.get("#google-picker-dismiss").click();
+    else if (!["config", "build"].includes(action)) await harness.pick({ action: action === "empty" ? "picked" : action, docs: [] });
+    assert.equal(cancelled, 1, action);
+    assert.equal(picked, 0, action);
+    assert.equal(harness.elements.get("#google-picker-help").open, false);
+    assert.equal(harness.classes.size, 0);
+    if (["error", "empty", "config", "build"].includes(action)) assert.equal(harness.messages.length, 1);
+  }
 });
 
 test("picker failures show persistent errors rather than silently ignoring a selection", async () => {
