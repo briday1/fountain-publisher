@@ -276,6 +276,43 @@ export class CollaborationClient {
     this.onStatus(status, detail);
   }
 
+  applyEdits(edits, expectedSource) {
+    if (this.closed || !this.canEdit || !this.synced || !this.doc || !this.text
+        || typeof expectedSource !== "string" || this.text.toString() !== expectedSource || !Array.isArray(edits)) return false;
+    const splitsPair = (index) => index > 0 && index < expectedSource.length
+      && /[\uD800-\uDBFF]/.test(expectedSource[index - 1]) && /[\uDC00-\uDFFF]/.test(expectedSource[index]);
+    const invalidSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+    const replacements = [];
+    let previousEnd = 0;
+    // Validate the complete snapshot-relative batch before changing the CRDT.
+    // Copy primitive fields so the transaction never reads caller-owned edits.
+    for (const edit of edits) {
+      if (!edit || typeof edit !== "object") return false;
+      const { start, end, text } = edit;
+      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || typeof text !== "string"
+          || start < previousEnd || end < start || end > expectedSource.length
+          || splitsPair(start) || splitsPair(end) || invalidSurrogate.test(text)) return false;
+      previousEnd = end;
+      if (expectedSource.slice(start, end) !== text) replacements.push({ start, end, text });
+    }
+    if (!replacements.length) return true;
+    const doc = this.doc;
+    const source = this.text;
+    this.stopCapturing();
+    try {
+      doc.transact(() => {
+        // Reverse order leaves every earlier source coordinate intact. Repeated
+        // zero-length insertions at one offset retain their caller-given order.
+        for (let index = replacements.length - 1; index >= 0; index -= 1) {
+          const { start, end, text } = replacements[index];
+          if (end > start) source.delete(start, end - start);
+          if (text) source.insert(start, text);
+        }
+      }, this.localOrigin);
+    } finally { this.stopCapturing(); }
+    return true;
+  }
+
   replace(value) {
     if (!this.canEdit || !this.text) return;
     if (!this.synced) {

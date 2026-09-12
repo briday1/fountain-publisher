@@ -17,23 +17,47 @@ const context = {
 // directly once the full Fountain block model is extracted.
 runInNewContext(app.slice(app.indexOf("function escapeHtml("), app.indexOf("function alignAnnotationOrbs(")), context);
 
-function measure(operation) {
-  operation();
+function measure(operation, prepare = () => {}) {
+  prepare(); operation();
   const durations = Array.from({ length: 7 }, () => {
+    prepare();
     const start = performance.now(); operation(); return performance.now() - start;
   }).sort((a, b) => a - b);
-  return { medianMs: Number(durations[3].toFixed(2)), maxMs: Number(durations[6].toFixed(2)) };
+  return { medianMs: Number(durations[3].toFixed(4)), maxMs: Number(durations[6].toFixed(4)) };
 }
 
 const results = [150, 600].map(scenes => {
   const text = "Title: Reliability baseline\n\n" + Array.from({ length: scenes }, (_, index) =>
     `INT. ROOM ${index} - DAY\n\nA **bright _blue_ light** crosses the room. A writer types café and 👩‍💻.\n\nMAYA\nThe line continues with enough dialogue to represent a full sentence.\n\n!Ordinary action resumes.\n\n`).join("");
   const classified = context.classifyLines(text);
+  const rawClassify = context.classifyFountainLines || context.classifyLines;
+  const iterations = 120;
+  const editRevisions = Array.from({ length: 30 }, (_, index) => `${text}A new sentence ${index}.`);
+  const consumersPerEdit = 6;
+  const classifyEdits = (classify) => {
+    for (const revision of editRevisions) {
+      for (let consumer = 0; consumer < consumersPerEdit; consumer += 1) classify(revision);
+    }
+  };
   return {
     scenes, utf16Length: text.length, lines: classified.length,
-    classify: measure(() => context.classifyLines(text)),
+    // Report the original parser and cold misses separately; a warm cache hit
+    // is not evidence that classifying a newly edited screenplay is free.
+    classifyUncached: measure(() => rawClassify(text)),
+    classifyCold: measure(() => context.classifyLines(text), () => context.classifyLines(`${text}\n`)),
+    classifyWarm: measure(() => context.classifyLines(text)),
+    repeatedCursorClassification: {
+      calls: iterations,
+      uncached: measure(() => { for (let index = 0; index < iterations; index += 1) rawClassify(text); }),
+      cached: measure(() => { for (let index = 0; index < iterations; index += 1) context.classifyLines(text); }),
+    },
+    changedDocumentClassification: {
+      revisions: editRevisions.length, consumersPerEdit,
+      uncached: measure(() => classifyEdits(rawClassify)),
+      cached: measure(() => classifyEdits(context.classifyLines)),
+    },
     renderHtml: measure(() => context.renderPreviewLines(classified)),
-    analyze: measure(() => context.analyzeLocally(text)),
+    analyzeWarmClassification: measure(() => context.analyzeLocally(text)),
   };
 });
 console.log(JSON.stringify({ scope: "CPU only; excludes DOM layout, input devices, network and storage", results }, null, 2));

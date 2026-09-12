@@ -603,3 +603,210 @@ test("permission downgrade during initial handshake preserves the editor's queue
   assert.equal(h.statuses.at(-1)[0], "read-only");
   assert.deepEqual(socket.sent, []);
 });
+
+test("sparse search replacements form one local transaction and retain untouched CRDT identities", (t) => {
+  const h = harness(t);
+  const original = "cat one two cat";
+  const socket = h.connect();
+  h.sync(socket, h.server(original));
+  h.documents.length = 0;
+  const cursor = h.client.captureSelection({ anchor: 5, head: 9 });
+  const identity = Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(h.client.text, 8));
+  assert.equal(h.client.applyEdits([
+    { start: 0, end: 3, text: "kitten" },
+    { start: 12, end: 15, text: "kitten" },
+  ], original), true);
+  assert.equal(h.client.text.toString(), "kitten one two kitten");
+  assert.deepEqual(h.documents, [{ value: "kitten one two kitten", remote: false }]);
+  assert.equal(socket.sent.length, 1, "the entire replacement batch generates one transport update");
+  assert.equal(h.client.undoManager.undoStack.length, 1);
+  assert.deepEqual(h.client.resolveSelection(cursor), { anchor: 8, head: 12 });
+  assert.deepEqual(Y.encodeRelativePosition(Y.createRelativePositionFromTypeIndex(h.client.text, 11)), identity,
+    "the unchanged middle character keeps its original Yjs ID, rather than being replaced with the outer match range");
+  assert.equal(h.client.undo(), true);
+  assert.equal(h.client.text.toString(), original);
+  assert.equal(h.client.redo(), true);
+  assert.equal(h.client.text.toString(), "kitten one two kitten");
+});
+
+test("concurrent remote insertion between sparse replacements survives delivery, undo and redo", (t) => {
+  const h = harness(t);
+  const original = "cat one two cat";
+  const server = h.server(original);
+  const socket = h.connect();
+  h.sync(socket, server);
+  let remoteUpdate;
+  server.once("update", (value) => { remoteUpdate = value; });
+  server.getText("source").insert(8, "remote ");
+  assert.equal(h.client.applyEdits([
+    { start: 0, end: 3, text: "kitten" },
+    { start: 12, end: 15, text: "kitten" },
+  ], original), true);
+  acknowledge(socket, socket.sent.at(-1), server);
+  deliver(socket, { type: "update", update: encode(remoteUpdate) });
+  assert.equal(h.client.text.toString(), "kitten one remote two kitten");
+  assert.equal(h.client.text.toString(), server.getText("source").toString());
+  assert.equal(h.client.undo(), true);
+  assert.equal(h.client.text.toString(), "cat one remote two cat");
+  acknowledge(socket, socket.sent.at(-1), server);
+  assert.equal(server.getText("source").toString(), h.client.text.toString());
+  assert.equal(h.client.redo(), true);
+  assert.equal(h.client.text.toString(), "kitten one remote two kitten");
+  acknowledge(socket, socket.sent.at(-1), server);
+  assert.equal(server.getText("source").toString(), h.client.text.toString());
+});
+
+test("search replacement undo is isolated from typing immediately before and after the batch", (t) => {
+  const h = harness(t);
+  const socket = h.connect();
+  h.sync(socket, h.server("cat cat"));
+  h.client.replace("cat cat!");
+  assert.equal(h.client.applyEdits([{ start: 0, end: 3, text: "dog" }, { start: 4, end: 7, text: "dog" }], "cat cat!"), true);
+  h.client.replace("dog dog!?");
+  assert.equal(h.client.undoManager.undoStack.length, 3);
+  h.client.undo();
+  assert.equal(h.client.text.toString(), "dog dog!");
+  h.client.undo();
+  assert.equal(h.client.text.toString(), "cat cat!");
+  h.client.undo();
+  assert.equal(h.client.text.toString(), "cat cat");
+});
+
+test("adjacent replacements and repeated zero-length insertions retain caller order", (t) => {
+  const h = harness(t);
+  const socket = h.connect();
+  h.sync(socket, h.server("abcd"));
+  assert.equal(h.client.applyEdits([
+    { start: 0, end: 0, text: "A" },
+    { start: 0, end: 0, text: "B" },
+    { start: 0, end: 1, text: "1" },
+    { start: 1, end: 2, text: "2" },
+    { start: 2, end: 2, text: "C" },
+    { start: 4, end: 4, text: "D" },
+    { start: 4, end: 4, text: "E" },
+  ], "abcd"), true);
+  assert.equal(h.client.text.toString(), "AB12CcdDE");
+  h.client.undo();
+  assert.equal(h.client.text.toString(), "abcd");
+});
+
+test("invalid search batches fail atomically before any edit, history or transport side effect", (t) => {
+  const h = harness(t);
+  const original = "abcdef";
+  const socket = h.connect();
+  h.sync(socket, h.server(original));
+  h.documents.length = 0;
+  const validFirst = { start: 0, end: 1, text: "X" };
+  const invalid = [
+    null, {}, "not an array",
+    [validFirst, null],
+    [validFirst, { start: 0, end: 2, text: "overlap" }],
+    [{ start: 3, end: 4, text: "out of order" }, validFirst],
+    [{ start: -1, end: 1, text: "negative" }],
+    [validFirst, { start: 4, end: 3, text: "reversed" }],
+    [validFirst, { start: 5, end: 7, text: "past end" }],
+    [validFirst, { start: 6.5, end: 6.5, text: "fractional" }],
+    [validFirst, { start: NaN, end: 3, text: "NaN" }],
+    [validFirst, { start: 3, end: Infinity, text: "infinite" }],
+    [validFirst, { start: "3", end: 3, text: "string offset" }],
+    [validFirst, { start: 3, end: 3, text: null }],
+    [validFirst, { start: 3, end: 3, text: 42 }],
+    [validFirst, { start: 3, end: 3, text: "\ud800" }],
+    [validFirst, { start: 3, end: 3, text: "\udfff" }],
+  ];
+  const before = Y.encodeStateAsUpdate(h.client.doc);
+  for (const edits of invalid) {
+    assert.equal(h.client.applyEdits(edits, original), false);
+    assert.equal(h.client.text.toString(), original);
+    assert.deepEqual(Y.encodeStateAsUpdate(h.client.doc), before);
+    assert.equal(h.client.undoManager.undoStack.length, 0);
+    assert.deepEqual(h.documents, []);
+    assert.deepEqual(socket.sent, []);
+    assert.equal(h.timers.size, 0);
+  }
+});
+
+test("stale expected source rejects replacements instead of deleting an intervening remote edit", (t) => {
+  const h = harness(t);
+  const server = h.server("cat cat");
+  const socket = h.connect();
+  h.sync(socket, server);
+  server.getText("source").insert(4, "remote ");
+  deliver(socket, { type: "update", update: encode(Y.encodeStateAsUpdate(server)) });
+  h.documents.length = 0;
+  assert.equal(h.client.applyEdits([{ start: 0, end: 3, text: "dog" }, { start: 4, end: 7, text: "dog" }], "cat cat"), false);
+  assert.equal(h.client.text.toString(), "cat remote cat");
+  assert.equal(h.client.undoManager.undoStack.length, 0);
+  assert.deepEqual(h.documents, []);
+  assert.deepEqual(socket.sent, []);
+});
+
+test("search replacement requires an editable, initialized and connected CRDT lifecycle", (t) => {
+  const h = harness(t);
+  const batch = [{ start: 0, end: 1, text: "B" }];
+  assert.equal(h.client.applyEdits(batch, "A"), false, "a closed client cannot queue edits");
+  const socket = h.connect();
+  assert.equal(h.client.applyEdits(batch, "A"), false, "initial sync must finish before using source coordinates");
+  assert.equal(h.client.pendingContent, null);
+  h.sync(socket, h.server("A"));
+  h.client.canEdit = false;
+  assert.equal(h.client.applyEdits(batch, "A"), false);
+  assert.equal(h.client.text.toString(), "A");
+  h.client.canEdit = true;
+  const text = h.client.text;
+  h.client.text = null;
+  assert.equal(h.client.applyEdits(batch, "A"), false);
+  h.client.text = text;
+  assert.equal(h.client.applyEdits(batch, null), false);
+  h.client.closed = true;
+  assert.equal(h.client.applyEdits(batch, "A"), false);
+  h.client.closed = false;
+  assert.equal(h.client.text.toString(), "A");
+  assert.deepEqual(socket.sent, []);
+});
+
+test("whole emoji replacement is exact and boundaries splitting surrogate pairs are rejected", (t) => {
+  const h = harness(t);
+  const original = "😀 x 😀";
+  const socket = h.connect();
+  h.sync(socket, h.server(original));
+  for (const edit of [{ start: 0, end: 1, text: "A" }, { start: 1, end: 2, text: "A" }, { start: 1, end: 1, text: "A" }, { start: 5, end: 6, text: "A" }]) {
+    assert.equal(h.client.applyEdits([edit], original), false);
+    assert.equal(h.client.text.toString(), original);
+  }
+  assert.equal(h.client.applyEdits([{ start: 0, end: 2, text: "👩🏽‍💻" }, { start: 5, end: 7, text: "😁" }], original), true);
+  assert.equal(h.client.text.toString(), "👩🏽‍💻 x 😁");
+  h.client.undo();
+  assert.equal(h.client.text.toString(), original);
+});
+
+test("no-op search replacements preserve IDs and do not create undo or document updates", (t) => {
+  const h = harness(t);
+  const socket = h.connect();
+  h.sync(socket, h.server("Same"));
+  h.documents.length = 0;
+  const before = Y.encodeStateAsUpdate(h.client.doc);
+  assert.equal(h.client.applyEdits([], "Same"), true);
+  assert.equal(h.client.applyEdits([{ start: 0, end: 4, text: "Same" }, { start: 4, end: 4, text: "" }], "Same"), true);
+  assert.deepEqual(Y.encodeStateAsUpdate(h.client.doc), before);
+  assert.deepEqual(h.documents, []);
+  assert.deepEqual(socket.sent, []);
+  assert.equal(h.client.undoManager.undoStack.length, 0);
+});
+
+test("search replacement during a network outage remains local CRDT work and flushes on reconnect", (t) => {
+  const h = harness(t);
+  const server = h.server("cat cat");
+  const socket = h.connect();
+  h.sync(socket, server);
+  socket.emit("close", { code: 1006 });
+  assert.equal(h.client.applyEdits([{ start: 0, end: 3, text: "dog" }, { start: 4, end: 7, text: "dog" }], "cat cat"), true);
+  assert.equal(h.client.text.toString(), "dog dog");
+  assert.equal(h.client.needsFlush, true);
+  h.client.openSocket();
+  const reopened = h.sockets.at(-1);
+  reopened.emit("open");
+  h.sync(reopened, server);
+  acknowledge(reopened, reopened.sent.at(-1), server);
+  assert.equal(server.getText("source").toString(), "dog dog");
+});

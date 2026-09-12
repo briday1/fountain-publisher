@@ -17,6 +17,7 @@ await Promise.all([
   cp("src/fountain_publisher/web/fountain-inline.mjs", `${output}/fountain-inline.mjs`),
   cp("src/fountain_publisher/web/text-input.mjs", `${output}/text-input.mjs`),
   cp("src/fountain_publisher/web/local-compiler.mjs", `${output}/local-compiler.mjs`),
+  ...["document-search.mjs", "search-engine.mjs", "search-worker.mjs", "search-client.mjs"].map((asset) => cp(`src/fountain_publisher/web/${asset}`, `${output}/${asset}`)),
   cp("src/fountain_publisher/web/icons", `${output}/icons`, { recursive: true }),
   cp("src/fountain_publisher/web/fonts", `${output}/fonts`, { recursive: true }),
   cp("src/fountain_publisher/web/vendor", `${output}/vendor`, { recursive: true }),

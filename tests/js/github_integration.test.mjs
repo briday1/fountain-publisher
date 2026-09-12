@@ -44,7 +44,9 @@ test("app exposes a credentialed GitHub repository browser", async () => {
   assert.match(app, /async function loadGithubFolderPath\(path = ""\)/);
   assert.match(app, /render: finalFolder, animate: false/);
   assert.match(app, /loadGithubFiles\("", \{ remember: !path, render: !path, animate: false \}\)/);
-  assert.match(app, /const folder = state\.githubPath/);
+  assert.match(app, /const folder = useLinkedDestination \? linked\.path\.split\("\/"\)\.slice\(0, -1\)\.join\("\/"\) : state\.githubPath/);
+  assert.match(app, /saveCurrentDocument\(event\.shiftKey\)/);
+  assert.match(app, /saveGithubFile\(\{ linked: true \}\)/);
   assert.match(app, /repository\.fullName !== state\.githubRepository \|\| branch !== state\.githubBranch/);
   assert.match(app, /entry\.type === "file" && entry\.path === path/);
   assert.match(app, /: existing\?\.sha/);

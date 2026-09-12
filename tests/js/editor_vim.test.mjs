@@ -34,7 +34,11 @@ function editor(value, cursor = 0, surface = "source") {
       this.selectionDirection = direction;
     },
   };
-  const calls = { mutations: [], focus: [], undo: 0, redo: 0, halfPage: 0 };
+  const calls = { mutations: [], focus: [], undo: 0, redo: 0, halfPage: 0, search: [], repeatSearch: [] };
+  state.documentSearch = {
+    openVim(kind, context) { calls.search.push({ kind, ...context }); },
+    repeatVim(reverse) { calls.repeatSearch.push(reverse); },
+  };
   const context = {
     state, source, previousGraphemeBoundary, nextGraphemeBoundary,
     vimActive: () => true,
@@ -42,6 +46,7 @@ function editor(value, cursor = 0, surface = "source") {
     sourceOffsetForLine: (lines, line, column) => lines.slice(0, line).reduce((total, text) => total + text.length + 1, 0) + column,
     hideCompletions() {}, hidePreviewCompletions() {}, updateVimUi() {},
     syncVimPreviewPosition() {},
+    vimPreviewTargetLine(line, command) { return Math.max(0, Math.min(source.value.split("\n").length - 1, line + (command === "j" ? 1 : -1))); },
     focusVimCursor(previewFocus, offset = source.selectionStart) {
       source.setSelectionRange(offset, offset);
       calls.focus.push(previewFocus);
@@ -84,6 +89,31 @@ test("Vim h/l/x treat an emoji or combining sequence as one character", () => {
     h.key("x"); assert.equal(h.source.value, " next");
   }
 });
+
+for (const surface of ["source", "preview"]) {
+  test(`${surface}: /, ?, : and n/N reach search from normal mode`, () => {
+    const h = editor("first\nsecond\nthird", 8, surface);
+    for (const key of ["/", "?", ":"]) assert.deepEqual(h.key(key), { handled: true, prevented: true });
+    assert.deepEqual(h.calls.search.map((call) => [call.kind, call.currentLine]), [["/", 2], ["?", 2], [":", 2]]);
+    h.keys("nN");
+    assert.deepEqual(h.calls.repeatSearch, [false, true]);
+    assert.equal(h.calls.mutations.length, 0);
+  });
+  test(`${surface}: visual-line : captures the selected line range`, () => {
+    const h = editor("first\nsecond\nthird", 1, surface);
+    h.keys("Vj:");
+    assert.equal(h.calls.search[0].kind, ":");
+    assert.deepEqual(Array.from(h.calls.search[0].visualRange), [1, 2]);
+  });
+  test(`${surface}: search punctuation remains ordinary input in Insert mode and composition`, () => {
+    const h = editor("first", 0, surface);
+    h.key("i");
+    for (const key of ["/", "?", ":", "n", "N"]) assert.deepEqual(h.key(key), { handled: false, prevented: false });
+    h.key("Escape");
+    assert.deepEqual(h.key("/", { isComposing: true }), { handled: false, prevented: false });
+    assert.equal(h.calls.search.length, 0);
+  });
+}
 
 for (const surface of ["source", "preview"]) {
   for (const command of [

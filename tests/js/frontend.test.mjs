@@ -1022,7 +1022,7 @@ test("source-backed annotations and notes expose preview and sidebar CRUD", asyn
   assert.match(css, /--annotation-accent:\s*var\(--syntax-character\);/);
   assert.match(css, /\.note-indicator\s*\{[^}]*color:\s*var\(--annotation-accent\);[^}]*text-shadow:[^;}]*var\(--annotation-accent\)/s);
   assert.match(css, /\.annotation-orb\s*\{[^}]*appearance:\s*none;[^}]*-webkit-appearance:\s*none;[^}]*background-color:\s*var\(--annotation-accent\)/s);
-  assert.match(worker, /fountain-publisher-shell-v10/);
+  assert.match(worker, /fountain-publisher-shell-v12/);
   assert.match(worker, /\["styles\.css", "app\.mjs"\][\s\S]*fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);
   assert.match(css, /\.annotation-orb\s*\{[^}]*top:\s*1px;/s);
   assert.match(app, /function alignAnnotationOrbs\(\)[\s\S]*marginCenterX[\s\S]*orb\.offsetWidth \* scale \* \.5[\s\S]*orb\.style\.left/);
@@ -1138,7 +1138,7 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /function transformBeatRange\(range, editStart, oldCount, newCount\)[\s\S]*editEnd <= start[\s\S]*editStart >= endExclusive[\s\S]*return null;/);
   assert.match(app, /function rebaseBeatRanges\(previousValue, nextValue\)[\s\S]*while \(prefix[\s\S]*previousSuffix[\s\S]*transformBeatRange\(beat\.range, prefix, oldCount, newCount\)[\s\S]*managedBeatSheetSource/);
   assert.match(app, /function mergeCurrentManagedNotes\(historyValue, currentValue\)[\s\S]*historyLines\.filter\(\(line\) => !managedNote\(line\)\)[\s\S]*currentLines\.filter\(\(line\) => managedNote\(line\)\)[\s\S]*cleanHistory\.push\(\.\.\.managed\)/);
-  assert.match(app, /source\.value = mergeCurrentManagedNotes\(state\.history\[index\], source\.value\);\s*sourceChanged\(\{ fromPreview: previewLine !== null, record: false \}\)/);
+  assert.match(app, /source\.value = exact \? state\.history\[index\] : mergeCurrentManagedNotes\(state\.history\[index\], source\.value\);\s*sourceChanged\(\{ fromPreview: previewLine !== null, record: false, rebaseBeats: !exact \}\)/);
   assert.match(app, /function setSourceLines\(lines, \{ record = true \} = \{\}\)[\s\S]*sourceChanged\(\{ record \}\)/);
   assert.match(app, /assignCurrentBeatArea\(\)[\s\S]*setSourceLines\(lines, \{ record: false \}\)/);
   assert.match(app, /annotation-form[\s\S]*setSourceLines\(lines\);[\s\S]*delete-annotation[\s\S]*deleteNoteLine\(state\.noteEditor\?\.line\)/);
@@ -1706,7 +1706,7 @@ test("GitHub browser text fields accept iPad hardware-keyboard input", async () 
   assert.match(html, /id="github-repository"[^>]*autocapitalize="off"[^>]*inputmode="text"/);
   assert.match(html, /id="github-filename"[^>]*autocapitalize="off"[^>]*inputmode="text"/);
   assert.match(app, /function prepareGithubKeyboardInputs[\s\S]*navigator\.maxTouchPoints > 0[\s\S]*removeAttribute\("list"\)/);
-  assert.match(app, /dialog\.addEventListener\("keydown", \(event\) => event\.stopPropagation\(\)\)/);
+  assert.match(app, /dialog\.addEventListener\("keydown", handleSaveDialogKeydown\)/);
   assert.match(app, /dialog\.addEventListener\("beforeinput", \(event\) => event\.stopPropagation\(\)\)/);
   assert.match(app, /dialog\.addEventListener\("pointerup"[\s\S]*input\.focus\(\{ preventScroll: true \}\)/);
   assert.match(app, /openGithubBrowser[\s\S]*prepareGithubKeyboardInputs\(\)/);

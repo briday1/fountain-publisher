@@ -224,6 +224,8 @@ function sourceTabEnabled() {
 const state = {
   filename: "Untitled.fountain",
   handle: null,
+  saveDestination: "local",
+  saveOperation: null,
   savedSource: "",
   documentRevision: 0,
   editRevision: 0,
@@ -246,6 +248,7 @@ const state = {
   insightLine: null,
   previewZoom: "100",
   history: [],
+  historyExact: [],
   historyIndex: -1,
   localSaving: false,
   theme: localStorage.getItem("fountain-publisher.theme") || "system",
@@ -323,6 +326,7 @@ function persistWorkspaceNow() {
       previewMode: state.previewMode,
       zoom: state.previewZoom,
       githubFile: state.githubFile,
+      saveDestination: state.saveDestination,
       updatedAt: Date.now(),
     }));
   } catch { /* Editing must continue even if private mode or quota blocks caching. */ }
@@ -772,6 +776,20 @@ function isCharacterCue(lines, index) {
 }
 
 function classifyLines(text) {
+  // Cursor movement, syntax, Preview and insights read the same document in a
+  // single interaction. Keep only that exact source snapshot; classification
+  // has no display-setting dependencies. Frozen records prevent one reader
+  // from silently changing the classification seen by another reader.
+  const cached = classifyLines.cached;
+  if (cached && cached.text === text) return cached.lines;
+  const lines = classifyFountainLines(text);
+  for (const line of lines) Object.freeze(line);
+  Object.freeze(lines);
+  classifyLines.cached = Object.freeze({ text, lines });
+  return lines;
+}
+
+function classifyFountainLines(text) {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
   const result = [];
   let titlePage = true;
@@ -1027,6 +1045,7 @@ function renderPreview({ focusLine = null, focusOffset = null, revealEmptyBefore
   const scrollTop = previewScroll.scrollTop;
   const scrollLeft = previewScroll.scrollLeft;
   page.innerHTML = renderPreviewLines(lines);
+  state.previewDirty = false;
   renderBeatGuide();
   page.spellcheck = $("#spellcheck").checked;
   const meaningful = lines.some((line) => line.raw.trim());
@@ -1539,6 +1558,7 @@ function scrollSourceTarget(index, block = "nearest") {
 }
 
 function updatePreviewCursor(scroll = false, scrollBlock = "nearest", revealEmptyBefore = false) {
+  if (state.previewDirty) return;
   const target = $(`[data-line="${currentPosition().line}"]`, page);
   $$(".script-line.source-current", page).forEach((line) => line.classList.remove("source-current"));
   target?.classList.add("source-current");
@@ -1582,12 +1602,24 @@ function renderInsights(metadata) {
   if ($("#character-analytics-dialog").open) renderCharacterAnalytics();
 }
 
+function pageMetricParts(metadata) {
+  const pageCount = metadata.pageCount;
+  if (!Number.isInteger(pageCount) || pageCount < 0) return null;
+  const fractions = { 1: [1, 8], 2: [1, 4], 3: [3, 8], 4: [1, 2], 5: [5, 8], 6: [3, 4], 7: [7, 8] };
+  const fraction = pageCount > 0 && Number.isInteger(metadata.lastPageEighths) ? fractions[metadata.lastPageEighths] ?? null : null;
+  // pageCount already includes the final physical screenplay page. Its fraction
+  // replaces that page; it is not an additional page after all counted sheets.
+  return { wholePages: fraction ? pageCount - 1 : pageCount, fraction };
+}
+
 function renderPageMetric(metadata) {
   const target = $("#stat-pages");
-  if (metadata.pageCount == null) { target.textContent = "—"; return; }
-  const fractions = { 1: [1, 8], 2: [1, 4], 3: [3, 8], 4: [1, 2], 5: [5, 8], 6: [3, 4], 7: [7, 8] };
-  const fraction = fractions[metadata.lastPageEighths];
-  target.innerHTML = `${metadata.pageCount}${fraction ? ` <small class="page-fraction"><sup>${fraction[0]}</sup><sub>${fraction[1]}</sub></small>` : ""}`;
+  const parts = pageMetricParts(metadata);
+  if (!parts) { target.textContent = "—"; target.setAttribute("aria-label", "Page count not available"); return; }
+  const { wholePages, fraction } = parts;
+  const whole = wholePages || !fraction ? String(wholePages) : "";
+  target.innerHTML = `${whole}${fraction ? `${whole ? " " : ""}<small class="page-fraction"><sup>${fraction[0]}</sup><sub>${fraction[1]}</sub></small>` : ""}`;
+  target.setAttribute("aria-label", `${whole}${fraction ? `${whole ? " " : ""}${fraction[0]}/${fraction[1]}` : ""} pages`);
 }
 
 function renderCharacterTable() {
@@ -1966,13 +1998,15 @@ async function saveCharacterAnalyticsPng() {
   toast("Character analytics PNG saved");
 }
 
-function recordHistory() {
+function recordHistory(exact = false) {
   if (state.collaborationHistoryActive) return;
   if (state.history[state.historyIndex] === source.value) return;
   state.history.splice(state.historyIndex + 1);
+  (state.historyExact ||= []).splice(state.historyIndex + 1);
   state.history.push(source.value);
   state.historyIndex = state.history.length - 1;
-  if (state.history.length > 250) { state.history.shift(); state.historyIndex -= 1; }
+  state.historyExact[state.historyIndex] = exact;
+  if (state.history.length > 250) { state.history.shift(); state.historyExact.shift(); state.historyIndex -= 1; }
 }
 
 function mergeCurrentManagedNotes(historyValue, currentValue) {
@@ -1993,9 +2027,10 @@ function restoreHistory(index) {
   if (index < 0 || index >= state.history.length || index === state.historyIndex) return;
   const previewLine = page.contains(document.activeElement) ? Number(document.activeElement.dataset.line) : null;
   const sourcePosition = source.selectionStart;
+  const exact = Math.abs(index - state.historyIndex) === 1 && state.historyExact?.[Math.max(index, state.historyIndex)];
   state.historyIndex = index;
-  source.value = mergeCurrentManagedNotes(state.history[index], source.value);
-  sourceChanged({ fromPreview: previewLine !== null, record: false });
+  source.value = exact ? state.history[index] : mergeCurrentManagedNotes(state.history[index], source.value);
+  sourceChanged({ fromPreview: previewLine !== null, record: false, rebaseBeats: !exact });
   if (previewLine !== null) renderPreview({ focusLine: Math.min(previewLine, source.value.split("\n").length - 1) });
   else { source.focus(); source.setSelectionRange(Math.min(sourcePosition, source.value.length), Math.min(sourcePosition, source.value.length)); }
 }
@@ -2060,7 +2095,7 @@ function rebaseBeatRanges(previousValue, nextValue) {
   return nextLines.join("\n");
 }
 
-function sourceChanged({ fromPreview = false, record = true, rebaseBeats = true, origin = "local" } = {}) {
+function sourceChanged({ fromPreview = false, record = true, rebaseBeats = true, origin = "local", exactHistory = false } = {}) {
   // Every legacy command and native-input adapter terminates here. Reject a
   // scripted read-only edit before history, dirty state, persistence or sync.
   if (!canMutateDocument({ readOnly: source.readOnly, composing: state.previewComposing || state.sourceComposing }, origin)) {
@@ -2081,10 +2116,14 @@ function sourceChanged({ fromPreview = false, record = true, rebaseBeats = true,
     }
   }
   state.lastSourceValue = source.value;
-  if (record) recordHistory();
+  state.documentSearch?.invalidate();
+  if (record) recordHistory(exactHistory);
   document.body.classList.toggle("dirty", source.value !== state.savedSource);
+  // Source/PDF/beat-sheet edits do not need a second, hidden document tree on
+  // every keypress. Refresh it before returning to the live Preview instead.
+  if (!fromPreview || state.previewMode !== "live") state.previewDirty = true;
   if (!fromPreview || state.previewMode === "source") renderEditorChrome();
-  if (!fromPreview) renderPreview();
+  if (!fromPreview && state.previewMode === "live") renderPreview();
   clearTimeout(state.insightTimer);
   if (fromPreview) state.insightTimer = setTimeout(() => renderInsights(analyzeLocally(source.value)), 80);
   else renderInsights(analyzeLocally(source.value));
@@ -2584,6 +2623,7 @@ function setDocument(text, filename, saved = false, githubFile = null, googleDri
   // Replacing a document must end the previous session before publishing any
   // source changes. Individual open/new/import callers must not own this rule.
   collaboration.disconnect();
+  state.documentSearch?.invalidate({ reset: true });
   clearTimeout(state.collaborationPresenceTimer);
   state.collaborators.clear();
   state.collaborationApplying = false;
@@ -2598,15 +2638,75 @@ function setDocument(text, filename, saved = false, githubFile = null, googleDri
   $("#collaboration-status").title = "";
   $("#collaboration-status").dataset.status = "";
   state.documentRevision += 1;
+  state.historyExact = [];
   source.value = text; state.history = [text]; state.historyIndex = 0; state.filename = filename || "Untitled.fountain"; if (saved) state.savedSource = text;
   state.lastSourceValue = text;
   state.githubFile = githubFile;
   state.googleDriveFile = googleDriveFile;
+  state.saveDestination = googleDriveFile ? "drive" : githubFile ? "github" : "local";
+  $("#save-status").textContent = "";
+  $("#save-status").hidden = true;
   const canEdit = !googleDriveFile || googleDriveFile.capabilities?.canEdit === true;
   source.readOnly = !canEdit;
   $("#screenplay-page").contentEditable = canEdit ? "plaintext-only" : "false";
   $("#filename").textContent = state.filename; document.title = `${state.filename} — Fountain Publisher`; sourceChanged({ rebaseBeats: false, origin: "load" });
   updateGoogleMenu();
+}
+
+function saveFeedback(message, status = "pending", operation = null) {
+  if (!operation || operation.documentRevision === state.documentRevision) {
+    const label = $("#save-status");
+    label.textContent = status === "pending" ? "Saving…" : status === "success" ? "Saved" : status === "cancelled" ? "Canceled" : "Save failed";
+    label.ariaLabel = message;
+    label.title = message;
+    label.hidden = false;
+    label.className = `compile-status${status === "error" ? " error" : ""}`;
+  }
+  toast(message);
+}
+
+function reportSaveInProgress() {
+  const operation = state.saveOperation;
+  const kind = operation?.kind || (state.githubSaving || state.githubConflict?.busy ? "GitHub" : state.googleSaving ? "Google Drive" : state.localSaving ? "local file" : null);
+  if (!kind) return false;
+  saveFeedback(`Still saving ${operation?.filename || state.filename} to ${kind}…`, "pending", operation);
+  return true;
+}
+
+function beginSaveOperation(kind) {
+  const operation = { kind, filename: state.filename, documentRevision: state.documentRevision };
+  state.saveOperation = operation;
+  saveFeedback(`Saving ${operation.filename} to ${kind}…`, "pending", operation);
+  return operation;
+}
+
+function endSaveOperation(operation) {
+  if (state.saveOperation === operation) state.saveOperation = null;
+}
+
+function handleSaveDialogKeydown(event) {
+  if (!event.defaultPrevented && !event.isComposing && !event.altKey && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+    event.preventDefault();
+    void saveCurrentDocument(event.shiftKey);
+  }
+  event.stopPropagation();
+}
+
+async function saveCurrentDocument(saveAs = false) {
+  if (reportSaveInProgress()) return;
+  if (saveAs) return saveFile(true);
+  if (state.githubConflict && $("#github-conflict-dialog").open) return saveFeedback("Review the GitHub conflict before saving again.", "error");
+  const destination = state.saveDestination || (state.googleDriveFile ? "drive" : state.githubFile ? "github" : "local");
+  if (destination === "drive") {
+    if (!state.googleDriveFile) return saveFeedback("Reopen the Drive document before saving to its original location, or choose Save As for a local copy.", "error");
+    return saveGoogleDrive();
+  }
+  if (destination === "github") {
+    if (!state.githubConnected) return saveFeedback("Connect GitHub before saving to the original repository.", "error");
+    if (!state.githubFile) { saveFeedback("Choose a GitHub destination to save this screenplay."); return openGithubBrowser("save"); }
+    return saveGithubFile({ linked: true });
+  }
+  return saveFile(false);
 }
 
 function captureEditorSelection() {
@@ -2663,9 +2763,10 @@ const collaboration = typeof CollaborationClient === "function" ? new Collaborat
   onBeforeRemoteUpdate: captureEditorSelection,
   onCheckpoint(result) {
     if (state.googleDriveFile?.id !== result.file?.id || typeof result.content !== "string") return;
-    state.savedSource = result.content;
+    const activeSaveDestination = !state.saveDestination || state.saveDestination === "drive";
+    if (activeSaveDestination) state.savedSource = result.content;
     state.googleDriveFile = { ...state.googleDriveFile, ...result.file };
-    document.body.classList.toggle("dirty", source.value !== result.content);
+    if (activeSaveDestination) document.body.classList.toggle("dirty", source.value !== result.content);
     scheduleWorkspaceCache();
   },
   onDocument(value, remote, selection) {
@@ -2693,6 +2794,7 @@ const collaboration = typeof CollaborationClient === "function" ? new Collaborat
     if (status === "read-only") {
       source.readOnly = true;
       page.contentEditable = "false";
+      state.documentSearch?.invalidate();
       if (state.googleDriveFile) state.googleDriveFile.capabilities = { ...state.googleDriveFile.capabilities, canEdit: false };
       updateGoogleMenu();
     }
@@ -3073,15 +3175,16 @@ async function openGooglePicker() {
 }
 
 async function saveGoogleDrive({ keepBrowser = false } = {}) {
-  if (state.googleSaving) return;
-  if (!state.googleConnected) return toast("Sign in with Google before saving");
-  if (state.previewComposing || state.sourceComposing) return toast("Finish composing text before saving");
-  if (collaboration.syncConflict) return toast("Live sync is paused because the shared document changed. Save a local copy before reopening the Drive document.");
+  if (reportSaveInProgress()) return;
+  if (!state.googleConnected) return saveFeedback("Sign in with Google before saving", "error");
+  if (state.previewComposing || state.sourceComposing) return saveFeedback("Finish composing text before saving", "error");
+  if (collaboration.syncConflict) return saveFeedback("Live sync is paused because the shared document changed. Save a local copy before reopening the Drive document.", "error");
   const file = state.googleDriveFile;
-  if (file && file.capabilities?.canEdit !== true) return toast("This Drive document is view only");
+  if (file && file.capabilities?.canEdit !== true) return saveFeedback("This Drive document is view only", "error");
   const documentRevision = state.documentRevision;
   const account = state.googleAccount;
   const content = source.value;
+  const operation = beginSaveOperation("Google Drive");
   state.googleSaving = true;
   updateGoogleMenu();
   try {
@@ -3093,7 +3196,10 @@ async function saveGoogleDrive({ keepBrowser = false } = {}) {
     const result = file
       ? await collaboration.checkpoint()
       : await googleRequest("/api/google/drive/files", { method: "POST", body: JSON.stringify({ name: normalizedFilename("fountain"), content }) });
-    if (documentRevision !== state.documentRevision || account !== state.googleAccount || !state.googleConnected) return;
+    if (documentRevision !== state.documentRevision || account !== state.googleAccount || !state.googleConnected) {
+      saveFeedback("The previous Drive save finished after the document or account changed. Reopen Drive to verify it.", "error", operation);
+      return;
+    }
     if (!result?.file || (file && typeof result.content !== "string")) throw new Error("Drive did not confirm the saved document. Keep a local copy and retry.");
     state.googleDriveFile = { ...file, ...result.file };
     if (!file) {
@@ -3104,14 +3210,15 @@ async function saveGoogleDrive({ keepBrowser = false } = {}) {
     const acknowledgedContent = file ? result.content : content;
     if (typeof acknowledgedContent !== "string") throw new Error("Drive did not confirm the saved document. Keep a local copy and retry.");
     state.savedSource = acknowledgedContent;
+    state.saveDestination = "drive";
     document.body.classList.toggle("dirty", source.value !== acknowledgedContent);
     scheduleWorkspaceCache();
     updateGoogleMenu();
     if ($("#google-drive-dialog").open && !keepBrowser) $("#google-drive-dialog").close();
     if (keepBrowser) await openGoogleDrive();
-    toast(source.value === acknowledgedContent ? "Saved to Google Drive" : "Saved to Google Drive; newer edits are not saved yet");
-  } catch (error) { toast(error.message); }
-  finally { state.googleSaving = false; updateGoogleMenu(); }
+    saveFeedback(source.value === acknowledgedContent ? "Saved to Google Drive" : "Saved to Google Drive; newer edits are not saved yet", "success", operation);
+  } catch (error) { saveFeedback(error.message, "error", operation); }
+  finally { state.googleSaving = false; endSaveOperation(operation); updateGoogleMenu(); }
 }
 
 async function shareGoogleDrive() {
@@ -3136,18 +3243,19 @@ async function inviteGoogleCollaborator() {
 }
 
 async function saveFile(saveAs = false) {
-  if (state.localSaving) return;
-  if (state.previewComposing || state.sourceComposing) return toast("Finish composing text before saving");
+  if (reportSaveInProgress()) return;
+  if (state.previewComposing || state.sourceComposing) return saveFeedback("Finish composing text before saving", "error");
   const documentRevision = state.documentRevision;
   let handle = state.handle;
   let filename = state.filename;
   const downloadName = normalizedFilename("fountain");
+  const operation = beginSaveOperation("local file");
   state.localSaving = true;
   try {
     if (window.showSaveFilePicker && (saveAs || !handle)) {
       handle = await window.showSaveFilePicker({ suggestedName: downloadName, types: [{ description: "Fountain screenplay", accept: { "text/plain": [".fountain"] } }] });
     }
-    if (documentRevision !== state.documentRevision) return;
+    if (documentRevision !== state.documentRevision) { saveFeedback("Save canceled because the open document changed.", "error", operation); return; }
     const content = source.value;
     if (handle) {
       const writable = await handle.createWritable(); await writable.write(content); await writable.close();
@@ -3155,19 +3263,21 @@ async function saveFile(saveAs = false) {
     } else {
       await download(new Blob([content], { type: "text/plain;charset=utf-8" }), downloadName);
     }
-    if (documentRevision !== state.documentRevision) return;
+    if (documentRevision !== state.documentRevision) { saveFeedback(`Saved ${filename}; the newly opened document was not changed.`, "success", operation); return; }
     // A save acknowledges exactly what was written; it is not a document load.
     // Preserve selection, undo history, and any connected document association.
     state.handle = handle;
+    state.saveDestination = handle ? "local" : "download";
     state.filename = filename;
     state.savedSource = content;
     $("#filename").textContent = filename;
     document.title = `${filename} — Fountain Publisher`;
     document.body.classList.toggle("dirty", source.value !== content);
     scheduleWorkspaceCache();
-    toast(source.value === content ? `Saved ${filename}` : `Saved ${filename}; newer edits are not saved yet`);
-  } catch (error) { if (error.name !== "AbortError") toast(error.message); }
-  finally { state.localSaving = false; }
+    const verb = handle ? "Saved" : "Downloaded";
+    saveFeedback(source.value === content ? `${verb} ${filename}` : `${verb} ${filename}; newer edits are not saved yet`, "success", operation);
+  } catch (error) { saveFeedback(error.name === "AbortError" ? "Save canceled; your previous save destination is unchanged." : error.message, error.name === "AbortError" ? "cancelled" : "error", operation); }
+  finally { state.localSaving = false; endSaveOperation(operation); }
 }
 
 async function githubRequest(path, options = {}) {
@@ -3403,7 +3513,7 @@ function prepareGithubKeyboardInputs() {
   }
   if (dialog.dataset.keyboardReady) return;
   dialog.dataset.keyboardReady = "true";
-  dialog.addEventListener("keydown", (event) => event.stopPropagation());
+  dialog.addEventListener("keydown", handleSaveDialogKeydown);
   dialog.addEventListener("beforeinput", (event) => event.stopPropagation());
   dialog.addEventListener("pointerup", (event) => {
     const input = event.target.closest("input, textarea");
@@ -3446,19 +3556,24 @@ async function openGithubFile(path, trigger) {
   }
 }
 
-async function saveGithubFile() {
-  if (state.githubSaving) return;
-  if (state.previewComposing || state.sourceComposing) return toast("Finish composing text before saving");
-  if (state.githubConflict) return $("#github-conflict-dialog").showModal();
-  const repository = selectedGithubRepository();
-  const branch = $("#github-branch").value;
-  const folder = state.githubPath;
-  const filename = $("#github-filename").value.trim();
-  const message = $("#github-commit-message").value.trim();
-  if (!repository || repository.fullName !== state.githubRepository || branch !== state.githubBranch) return toast("Choose a loaded repository and branch");
-  if (!/^[^/]+\.(fountain|txt)$/i.test(filename)) return toast("Enter a .fountain file name");
-  const path = [folder, filename].filter(Boolean).join("/");
+async function saveGithubFile({ linked: useLinkedDestination = false } = {}) {
+  if (reportSaveInProgress()) return;
+  if (state.previewComposing || state.sourceComposing) return saveFeedback("Finish composing text before saving", "error");
+  if (state.githubConflict) {
+    saveFeedback("Review the GitHub conflict before saving again.", "error");
+    if (!$("#github-conflict-dialog").open) $("#github-conflict-dialog").showModal();
+    return;
+  }
   const linked = state.githubFile;
+  if (useLinkedDestination && !linked) return saveFeedback("Choose a GitHub destination before saving.", "error");
+  const repository = useLinkedDestination ? { owner: linked.owner, repo: linked.repo, fullName: `${linked.owner}/${linked.repo}` } : selectedGithubRepository();
+  const branch = useLinkedDestination ? linked.branch : $("#github-branch").value;
+  const folder = useLinkedDestination ? linked.path.split("/").slice(0, -1).join("/") : state.githubPath;
+  const filename = useLinkedDestination ? linked.path.split("/").pop() : $("#github-filename").value.trim();
+  const message = useLinkedDestination ? "" : $("#github-commit-message").value.trim();
+  if (!repository || (!useLinkedDestination && (repository.fullName !== state.githubRepository || branch !== state.githubBranch))) return saveFeedback("Choose a loaded repository and branch", "error");
+  if (!/^[^/]+\.(fountain|txt)$/i.test(filename)) return saveFeedback("Enter a .fountain file name", "error");
+  const path = [folder, filename].filter(Boolean).join("/");
   const existing = state.githubColumns.find((column) => column.path === folder)?.entries.find((entry) => entry.type === "file" && entry.path === path);
   const sha = linked && linked.owner === repository.owner && linked.repo === repository.repo && linked.branch === branch && linked.path === path
     ? linked.sha
@@ -3470,6 +3585,7 @@ async function saveGithubFile() {
   };
   const button = $("#github-save-here");
   const status = $("#github-save-status");
+  const operation = beginSaveOperation("GitHub");
   state.githubSaving = true;
   button.disabled = true;
   button.textContent = "Saving…";
@@ -3485,15 +3601,17 @@ async function saveGithubFile() {
       if (remote.sha === sha) throw error;
       showGithubConflict(attempt, remote);
       status.textContent = "GitHub changed. Review both versions in the conflict dialog.";
+      saveFeedback(status.textContent, "error", operation);
       return;
     }
     await finishGithubSave(attempt, attempt.content, result);
   } catch (error) {
     status.className = "error";
     status.textContent = error.message;
-    toast(error.message);
+    saveFeedback(error.message, "error", operation);
   } finally {
     state.githubSaving = false;
+    endSaveOperation(operation);
     button.disabled = false;
     button.textContent = "Save here";
   }
@@ -3527,6 +3645,7 @@ async function finishGithubSave(target, content, result, resolution = false) {
   const unchanged = sameDocument && state.editRevision === target.editRevision && source.value === target.content && !state.previewComposing && !state.sourceComposing;
   if (sameDocument) {
     state.githubFile = { owner: target.owner, repo: target.repo, branch: target.branch, path: target.path, sha: result.sha };
+    state.saveDestination = "github";
     state.filename = target.filename;
     state.savedSource = content;
     $("#filename").textContent = target.filename;
@@ -3541,7 +3660,7 @@ async function finishGithubSave(target, content, result, resolution = false) {
   const status = $("#github-save-status");
   status.className = "success";
   status.innerHTML = `Saved ${escapeHtml(target.owner)}/${escapeHtml(target.repo)}/${escapeHtml(target.path)} to ${escapeHtml(target.branch)} · <a href="${escapeHtml(result.commit)}" target="_blank" rel="noopener noreferrer">View commit</a>`;
-  if (!unchanged) toast("Saved the submitted version to GitHub. Your newer editor changes were kept.");
+  saveFeedback(unchanged ? `Saved ${target.filename} to GitHub` : "Saved the submitted version to GitHub. Your newer editor changes were kept.", "success", target);
 }
 
 function conflictLines(text) {
@@ -3719,6 +3838,8 @@ async function refreshGithubConflict() {
 async function saveGithubResolution() {
   const conflict = state.githubConflict;
   if (!conflict || conflict.busy || conflict.needsRefresh || !$("#github-conflict-reviewed").checked) return;
+  if (reportSaveInProgress()) return;
+  const operation = beginSaveOperation("GitHub");
   conflict.busy = true;
   updateGithubConflictControls();
   const content = githubConflictResult();
@@ -3741,8 +3862,10 @@ async function saveGithubResolution() {
     $("#github-conflict-dialog").close();
   } catch (error) {
     $("#github-conflict-status").textContent = `${error.message} Your result draft and editor text were kept.`;
+    saveFeedback(error.message, "error", operation);
   } finally {
     conflict.busy = false;
+    endSaveOperation(operation);
     updateGithubConflictControls();
   }
   if (refresh) await refreshGithubConflict();
@@ -4148,6 +4271,7 @@ async function setPreviewMode(mode) {
   $("#beat-sheet-panel").hidden = mode !== "beats";
   $("#preview-page-stage").hidden = mode !== "live"; page.hidden = mode !== "live"; $("#empty-state").hidden = mode !== "live" || Boolean(source.value.trim()); $("#pdf-view").hidden = mode !== "pdf";
   $("#preview-scroll").classList.toggle("pdf-mode", mode === "pdf");
+  if (mode === "live" && state.previewDirty) renderPreview();
   renderBeatGuide();
   requestAnimationFrame(applyZoom);
   scheduleWorkspaceCache();
@@ -5284,6 +5408,20 @@ function handleVimKey(event, surface) {
   }
   event.preventDefault();
   const key = event.key;
+  if (!event.altKey && ["/", "?", ":"].includes(key)) {
+    state.vimPending = "";
+    const visualRange = state.vimMode === "visual"
+      ? [vimLinePosition(Math.min(state.vimVisualAnchor, state.vimVisualFocus)).line + 1,
+        vimLinePosition(Math.max(state.vimVisualAnchor, state.vimVisualFocus)).line + 1]
+      : undefined;
+    state.documentSearch?.openVim(key, { currentLine: vimLinePosition().line + 1, visualRange });
+    return true;
+  }
+  if (!event.altKey && ["n", "N"].includes(key)) {
+    state.vimPending = "";
+    void state.documentSearch?.repeatVim(key === "N");
+    return true;
+  }
   if (state.vimMode === "visual") {
     if (["i", "a"].includes(key)) {
       state.vimPending = key;
@@ -5991,7 +6129,7 @@ $("#delete-general-note").addEventListener("click", () => {
   $("#general-note-dialog").close();
 });
 
-$("#new-file").addEventListener("click", newFile); $("#open-file").addEventListener("click", openFile); $("#save-file").addEventListener("click", () => saveFile(false)); $("#save-file-as").addEventListener("click", () => saveFile(true));
+$("#new-file").addEventListener("click", newFile); $("#open-file").addEventListener("click", openFile); $("#save-file").addEventListener("click", () => saveCurrentDocument(false)); $("#save-file-as").addEventListener("click", () => saveFile(true));
 $("#github-connect").addEventListener("click", connectGithub);
 $("#github-open").addEventListener("click", () => openGithubBrowser("open"));
 $("#github-save").addEventListener("click", () => openGithubBrowser("save"));
@@ -6149,7 +6287,7 @@ $("#github-conflict-document").addEventListener("input", (event) => {
 $("#github-conflict-reviewed").addEventListener("change", updateGithubConflictControls);
 $("#github-conflict-cancel").addEventListener("click", cancelGithubConflict);
 $("#github-conflict-dialog").addEventListener("cancel", (event) => { event.preventDefault(); cancelGithubConflict(); });
-$("#github-conflict-dialog").addEventListener("keydown", (event) => event.stopPropagation());
+$("#github-conflict-dialog").addEventListener("keydown", handleSaveDialogKeydown);
 $("#github-conflict-dialog").addEventListener("beforeinput", (event) => event.stopPropagation());
 window.addEventListener("message", async (event) => {
   if (event.origin !== GITHUB_API || !["github-connected", "github-installed", "github-error"].includes(event.data?.type)) return;
@@ -6439,13 +6577,14 @@ document.addEventListener("pointerdown", (event) => {
   if (!menu.hidden && !menu.contains(event.target)) hidePreviewContextMenu();
 });
 document.addEventListener("keydown", (event) => {
+  if (state.documentSearch?.handleShortcut(event)) return;
   if (event.key === "Escape" && !$("#preview-context-menu").hidden) hidePreviewContextMenu();
   else if (event.key === "Escape" && document.body.classList.contains("mobile-menu-open")) setMobileMenu(false);
   else if (event.key === "Escape" && toolbarMenus.some((menu) => menu.open)) { closeMenus(); }
   else if (event.key === "Escape" && document.body.classList.contains("zen-mode")) void setZenMode(false);
   else if ((source === document.activeElement || page.contains(document.activeElement)) && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? redoDocument() : undoDocument(); }
   else if ((source === document.activeElement || page.contains(document.activeElement)) && event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === "y") { event.preventDefault(); redoDocument(); }
-  else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); saveFile(event.shiftKey); }
+  else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); saveCurrentDocument(event.shiftKey); }
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "o") { event.preventDefault(); openFile(); }
   else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") { event.preventDefault(); newFile(); }
 });
@@ -6531,6 +6670,7 @@ async function initialize() {
   if (restore) { text = cached.source; name = cached.filename || name; state.savedSource = typeof cached.savedSource === "string" ? cached.savedSource : text; }
   const enableWorkspaceCache = params.get("demo") !== "1";
   setDocument(text, name, !restore, restore ? cached.githubFile || null : null);
+  if (restore && ["local", "download", "github", "drive"].includes(cached.saveDestination)) state.saveDestination = cached.saveDestination;
   void refreshGithubSession();
   void refreshGoogleSession();
   setMobileTab("preview");
@@ -6560,9 +6700,159 @@ async function initialize() {
   }
 }
 
+// Search coordinates always refer to Fountain source. The adapter is the only
+// place that maps them onto formatted Preview or publishes a replacement.
+function captureSearchSelection() {
+  const selection = captureEditorSelection();
+  return { ...selection, surface: state.previewMode === "source" ? "source" : "preview" };
+}
+
+function clearSearchHighlight() { globalThis.CSS?.highlights?.delete("document-search-current"); }
+
+function navigateSearchMatch(match, { focus = false, vim = false, surface } = {}) {
+  if (state.previewComposing || state.sourceComposing) return "Finish composing text first";
+  const start = Math.max(0, Math.min(match.start, source.value.length));
+  const end = Math.max(start, Math.min(match.end, source.value.length));
+  const previousFocus = document.activeElement;
+  const position = vimLinePosition(start);
+  const endpoint = vimLinePosition(end);
+  const previewFocus = (surface || (state.previewMode === "source" ? "source" : "preview")) === "preview";
+  if (previewFocus && state.previewDirty) renderPreview();
+  let range = null;
+  if (previewFocus) {
+    const first = $(`[data-line="${position.line}"]`, page);
+    const last = $(`[data-line="${endpoint.line}"]`, page);
+    if (previewLineIsEditable(first) && previewLineIsEditable(last)) {
+      const anchor = previewPointAtSourceOffset(start);
+      const head = previewPointAtSourceOffset(end);
+      if (anchor && head) {
+        const candidate = document.createRange();
+        candidate.setStart(anchor.node, anchor.offset);
+        candidate.setEnd(head.node, head.offset);
+        // Markers/metadata hidden by Preview must be revealed in Source, not
+        // silently mapped onto unrelated visible text. Range text omits block
+        // separators, so compare without newlines for multi-line selections.
+        if (candidate.toString().replaceAll("\n", "") === source.value.slice(start, end).replaceAll("\n", "")) range = candidate;
+      }
+    }
+  }
+  clearSearchHighlight();
+  const usePreview = previewFocus && range !== null;
+  const mode = usePreview ? "live" : "source";
+  if (!usePreview && !sourceTabEnabled()) {
+    localStorage.setItem("fountain-publisher.source-tab", "true");
+    document.body.classList.remove("source-tab-hidden");
+    $(".menu-check", $("#menu-toggle-source-tab")).textContent = "✓";
+  }
+  if (state.previewMode !== mode) void setPreviewMode(mode);
+  if (vim && state.vimMode === "visual") focusVimSelection(usePreview, state.vimVisualAnchor, start);
+  else {
+    source.setSelectionRange(start, vim ? start : end);
+    if (usePreview) {
+      if (focus) page.focus({ preventScroll: true });
+      const selection = getSelection();
+      selection?.removeAllRanges();
+      const selectionRange = range.cloneRange();
+      if (vim) selectionRange.collapse(true);
+      selection?.addRange(selectionRange);
+      if (globalThis.CSS?.highlights && typeof Highlight === "function") CSS.highlights.set("document-search-current", new Highlight(range));
+      scrollPreviewTarget($(`[data-line="${position.line}"]`, page));
+    } else {
+      if (focus) source.focus({ preventScroll: true });
+      scrollSourceTarget(position.line);
+    }
+  }
+  if (!focus && previousFocus && document.activeElement !== previousFocus) previousFocus.focus({ preventScroll: true });
+  updateCursor();
+  scheduleWorkspaceCache();
+  return previewFocus && !usePreview ? "Shown in Source (hidden Fountain text)" : "";
+}
+
+function planSearchEdits(value, edits) {
+  // Rebase beat ranges per changed line interval, rather than treating distant
+  // replacements as one deletion covering all the screenplay between them.
+  const lines = value.split("\n");
+  const starts = [];
+  let offset = 0;
+  for (const line of lines) { starts.push(offset); offset += line.length + 1; }
+  const lineAt = (index) => {
+    let low = 0, high = starts.length;
+    while (low + 1 < high) { const middle = (low + high) >>> 1; if (starts[middle] <= index) low = middle; else high = middle; }
+    return low;
+  };
+  const sheet = parseManagedNotes(lines).beatSheet;
+  const changes = edits.filter((edit) => value.slice(edit.start, edit.end) !== edit.text);
+  if (sheet.line !== null && sheet.beats.some((beat) => beat.range)) {
+    const noteStart = starts[sheet.line];
+    const noteEnd = noteStart + lines[sheet.line].length;
+    const touchesNote = changes.some((edit) => edit.start < noteEnd && edit.end > noteStart
+      || (edit.start === edit.end && edit.start >= noteStart && edit.start <= noteEnd));
+    if (!touchesNote) {
+      let beats = sheet.beats;
+      for (const edit of [...changes].reverse()) {
+        const removed = value.slice(edit.start, edit.end).split("\n").length - 1;
+        const added = edit.text.split("\n").length - 1;
+        if (removed === added) continue;
+        const first = lineAt(edit.start);
+        const endpointPreserved = edit.end === starts[lineAt(edit.end)]
+          && (edit.text.endsWith("\n") || (edit.start === starts[first] && !edit.text));
+        beats = beats.map((beat) => ({ ...beat, range: transformBeatRange(beat.range, first,
+          removed + (endpointPreserved ? 0 : 1), added + (endpointPreserved ? 0 : 1)) }));
+      }
+      const note = managedBeatSheetSource(sheet.premise, beats);
+      const changedRanges = beats.some((beat, index) => JSON.stringify(beat.range) !== JSON.stringify(sheet.beats[index].range));
+      if (changedRanges && note !== lines[sheet.line]) changes.push({ start: noteStart, end: noteEnd, text: note });
+    }
+  }
+  return changes.sort((left, right) => left.start - right.start);
+}
+
+function applySearchEdits(edits, target) {
+  if (!canEditDocument() || target.documentRevision !== state.documentRevision
+    || target.editRevision !== state.editRevision || target.text !== source.value) return false;
+  const batch = planSearchEdits(target.text, edits);
+  if (!batch.length) return true;
+  const chunks = [];
+  let previousEnd = 0;
+  for (const edit of batch) {
+    chunks.push(target.text.slice(previousEnd, edit.start), edit.text);
+    previousEnd = edit.end;
+  }
+  chunks.push(target.text.slice(previousEnd));
+  const value = chunks.join("");
+  // A connected or paused collaboration session must never fall back to a
+  // full-buffer splice: that would remove untouched CRDT identities.
+  if (state.collaborationHistoryActive && !collaboration.applyEdits(batch, target.text)) return false;
+  source.value = value;
+  source.setSelectionRange(batch[0].start, batch[0].start);
+  return sourceChanged({ rebaseBeats: false, exactHistory: true });
+}
+
+state.documentSearch = createDocumentSearch({
+  getSnapshot: () => ({ text: source.value, documentRevision: state.documentRevision,
+    editRevision: state.editRevision, composing: state.previewComposing || state.sourceComposing }),
+  captureSelection: captureSearchSelection,
+  navigate: navigateSearchMatch,
+  restoreSelection: (selection) => {
+    if (!selection || selection.documentRevision !== state.documentRevision) return;
+    const relative = selection.relative && collaboration.resolveSelection(selection.relative);
+    const anchor = relative?.anchor ?? selection.anchor;
+    const head = relative?.head ?? selection.head;
+    navigateSearchMatch({ start: Math.min(anchor, head), end: Math.max(anchor, head) }, { focus: true, surface: selection.surface });
+    if (head < anchor) source.setSelectionRange(head, anchor, "backward");
+  },
+  applyEdits: applySearchEdits, canEdit: canEditDocument, clearHighlight: clearSearchHighlight,
+  onOpen: () => { closeMenus(); setMobileMenu(false); hideCompletions(); hidePreviewCompletions(); },
+  onVimComplete: (kind) => { if (kind === ":") { state.vimVisualLine = false; setVimMode("normal"); } },
+  onSave: (saveAs) => void saveCurrentDocument(saveAs),
+  isEditorTarget: (target) => target === source || page.contains(target),
+  notify: toast,
+});
+
 initialize();
 import { CollaborationClient, googleRequest, openGoogleSignIn } from "./collaboration.mjs";
 import { parseFountainInline, replaceFountainRange } from "./fountain-inline.mjs";
 import { deletionRange, graphemeBoundaries, nativeHistoryAction, nextGraphemeBoundary, previousGraphemeBoundary, textDifference } from "./text-input.mjs";
 import { canMutateDocument, captureEditTarget, isCurrentEditTarget } from "./editor-contract.mjs";
 import { createLocalCompiler } from "./local-compiler.mjs";
+import { createDocumentSearch } from "./document-search.mjs";

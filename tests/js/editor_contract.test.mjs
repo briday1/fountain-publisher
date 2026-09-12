@@ -15,7 +15,7 @@ function harness(readOnly = true) {
     setSelectionRange(start, end, direction) { this.selectionStart = start; this.selectionEnd = end; this.selectionDirection = direction; },
     focus() { events.push("focus"); }, select() { events.push("select"); },
   };
-  const state = { documentRevision: 1, editRevision: 1, lastSourceValue: source.value, savedSource: source.value, history: ["first", source.value], historyIndex: 1 };
+  const state = { previewMode: "source", documentRevision: 1, editRevision: 1, lastSourceValue: source.value, savedSource: source.value, history: ["first", source.value], historyIndex: 1 };
   const context = {
     state, source, events, canMutateDocument, captureEditTarget, isCurrentEditTarget, clearTimeout,
     document: { body: { classList: { toggle: () => events.push("dirty") } }, activeElement: null },
@@ -78,6 +78,7 @@ test("a missed legacy guard is rejected centrally before all editing side effect
 test("remote and load updates still render a view-only document without granting permission", () => {
   for (const origin of ["remote", "load"]) {
     const h = harness(); h.state.collaborationApplying = true;
+    h.state.previewMode = "live";
     h.source.value = "authoritative";
     assert.equal(h.sourceChanged({ origin, record: false }), true);
     assert.equal(h.source.value, "authoritative");
