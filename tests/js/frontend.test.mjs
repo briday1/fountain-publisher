@@ -28,7 +28,6 @@ test("local file opening accepts text-based screenplay PDFs for Fountain reconst
     readFile(new URL("../../src/fountain_publisher/web/THIRD_PARTY_NOTICES.md", import.meta.url), "utf8"),
     readFile(new URL("../../pyproject.toml", import.meta.url), "utf8"),
   ]);
-  assert.match(html, /id="file-input"[^>]*accept="[^"]*\.pdf[^"]*application\/pdf/);
   assert.match(html, /Open Fountain or PDF/);
   assert.match(html, /Text-based PDFs are reconstructed locally/);
   assert.match(app, /function pdfLayoutToFountain\(pages\)[\s\S]*scenePattern[\s\S]*titlePage[\s\S]*const character[\s\S]*const type/);
@@ -43,6 +42,82 @@ test("local file opening accepts text-based screenplay PDFs for Fountain reconst
   assert.match(app, /from pypdf import PdfReader[\s\S]*def _fp_extract_pdf\(path\)[\s\S]*extraction_mode="layout"/);
   assert.match(notices, /pypdf 6\.17\.0 — BSD 3-Clause/);
   assert.match(pyproject, /"pypdf==6\.17\.0"/);
+});
+
+test("fallback file picker leaves unknown Fountain file types selectable on mobile", async () => {
+  const [html, app] = await Promise.all([readFile(htmlPath, "utf8"), readFile(appPath, "utf8")]);
+  const input = html.match(/<input\b[^>]*\bid="file-input"[^>]*>/)?.[0];
+  assert.ok(input);
+  assert.match(input, /\btype="file"/);
+  assert.doesNotMatch(input, /\baccept\s*=/i);
+  let clicks = 0;
+  const context = {
+    confirmDiscard: async () => true,
+    window: {},
+    $: (selector) => {
+      assert.equal(selector, "#file-input");
+      return { click: () => clicks++ };
+    },
+  };
+  runInNewContext(app.slice(app.indexOf("async function openFile("), app.indexOf("async function openLocalFile(")), context);
+  await context.openFile();
+  assert.equal(clicks, 1);
+  context.confirmDiscard = async () => false;
+  await context.openFile();
+  assert.equal(clicks, 1, "declining to discard must not open the picker");
+});
+
+test("native file picker leaves Android BIN files selectable and preserves the file handle", async () => {
+  const app = await readFile(appPath, "utf8");
+  const loaded = [];
+  const options = [];
+  const content = "INT. OFFICE - DAY\n\nA writer types.";
+  const file = { name: "Screenplay - Draft (1).fountain", type: "application/octet-stream", text: async () => content };
+  const handle = { getFile: async () => file };
+  const context = {
+    state: {},
+    confirmDiscard: async () => true,
+    window: { showOpenFilePicker: async (option) => { options.push(option); return [handle]; } },
+    setDocument: (...args) => loaded.push(args),
+    toast: (message) => assert.fail(message),
+    $: () => assert.fail("Browsers with showOpenFilePicker must not use the fallback input"),
+  };
+  runInNewContext(app.slice(app.indexOf("async function openFile("), app.indexOf("function pdfLayoutToFountain(")), context);
+  await context.openFile();
+  assert.deepEqual({ ...options[0] }, { multiple: false }, "native pickers must not filter out unknown MIME types");
+  assert.deepEqual(loaded, [[content, file.name, true]]);
+  assert.equal(context.state.handle, handle);
+  context.confirmDiscard = async () => false;
+  await context.openFile();
+  assert.equal(options.length, 1, "declining to discard must not open the native picker");
+  assert.equal(loaded.length, 1);
+});
+
+test("local imports accept Fountain MIME variants and retain PDF detection", async () => {
+  const app = await readFile(appPath, "utf8");
+  const loaded = [];
+  const pdfs = [];
+  const context = {
+    state: {},
+    setDocument: (...args) => loaded.push(args),
+    importPdfFile: (file) => pdfs.push(file),
+  };
+  runInNewContext(app.slice(app.indexOf("async function openLocalFile("), app.indexOf("function pdfLayoutToFountain(")), context);
+  const content = "INT. OFFICE - DAY\n\nA writer types.";
+  for (const type of ["", "application/octet-stream", "text/x-fountain", "application/x-fountain", "text/plain"]) {
+    await context.openLocalFile({ name: "Script.FOUNTAIN", type, text: async () => content });
+    assert.deepEqual(loaded.at(-1), [content, "Script.FOUNTAIN", true]);
+    assert.equal(context.state.handle, null);
+  }
+  await context.openLocalFile({ name: "Script.txt", type: "text/plain", text: async () => content });
+  assert.deepEqual(loaded.at(-1), [content, "Script.txt", true]);
+  for (const file of [{ name: "Script.PDF", type: "" }, { name: "Script", type: "application/pdf" }]) {
+    await context.openLocalFile(file);
+    assert.equal(pdfs.at(-1), file);
+  }
+  assert.equal(loaded.length, 6, "PDFs must not be imported as plain text");
+  await assert.rejects(context.openLocalFile({ name: "Unreadable.fountain", text: async () => { throw new Error("Read failed"); } }), /Read failed/);
+  assert.equal(loaded.length, 6, "failed reads must preserve the current document");
 });
 
 test("app installs as a standalone PWA and offers desktop window controls", async () => {
@@ -144,6 +219,18 @@ test("tablet landscape keeps document identity clear of history controls", async
   assert.doesNotMatch(css, /#undo, #redo\s*\{\s*display:\s*none;/);
   assert.match(app, /function shouldAutofocusSource\(\)\s*\{[\s\S]*navigator\.maxTouchPoints === 0/);
   assert.match(app, /mode === "source"[\s\S]*shouldAutofocusSource\(\)[\s\S]*source\.focus\(\{ preventScroll: true \}\)/);
+});
+
+test("mobile filenames shrink within the toolbar without obscuring the menu button", async () => {
+  const css = await readFile(cssPath, "utf8");
+  const mobile = css.slice(css.indexOf("@media (max-width: 820px)"));
+  const identity = mobile.match(/\.document-identity\s*\{([^}]+)\}/)?.[1];
+  assert.ok(identity);
+  assert.match(identity, /min-width:\s*0;/);
+  assert.match(identity, /overflow:\s*hidden;/);
+  assert.match(identity, /flex:\s*1 1 auto;/);
+  assert.match(css, /#filename\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/);
+  assert.match(mobile, /\.mobile-menu-toggle\s*\{[^}]*flex:\s*0 0 38px;[^}]*width:\s*38px;/);
 });
 
 test("browser page-count compilation only updates metrics present in the document", async () => {

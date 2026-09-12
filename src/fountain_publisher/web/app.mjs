@@ -2285,7 +2285,8 @@ async function openFile() {
   if (!(await confirmDiscard())) return;
   if (window.showOpenFilePicker) {
     try {
-      const [handle] = await window.showOpenFilePicker({ types: [{ description: "Screenplay", accept: { "text/plain": [".fountain", ".txt"], "application/pdf": [".pdf"] } }], multiple: false });
+      // Android Chrome uses this picker too; MIME filters can disable .fountain files reported as BIN.
+      const [handle] = await window.showOpenFilePicker({ multiple: false });
       await openLocalFile(await handle.getFile(), handle);
       return;
     } catch (error) { if (error.name !== "AbortError") toast(error.message); return; }
