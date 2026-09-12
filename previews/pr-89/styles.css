@@ -589,8 +589,19 @@ body.preview-colors .script-line.section.act { color: color-mix(in srgb, var(--s
 #pdf-placeholder { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; color: var(--muted); }
 .spinner { width: 25px; height: 25px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.toast { position: absolute; bottom: 18px; left: 50%; transform: translate(-50%, 10px); opacity: 0; pointer-events: none; padding: 8px 12px; border-radius: 5px; background: var(--ink); color: var(--surface); box-shadow: var(--shadow); transition: .2s; }
-.toast.show { opacity: 1; transform: translate(-50%, 0); }
+/* Shared notifications sit above the workspace, outside hidden/scrolling panels.
+   Keep them click-through and below native modal dialogs and Zen controls. */
+.toast {
+  position: fixed; z-index: 60;
+  top: calc(var(--visual-viewport-top) + var(--visual-viewport-height) - max(18px, env(safe-area-inset-bottom, 0px)));
+  left: calc(var(--visual-viewport-left) + var(--visual-viewport-width) / 2);
+  width: max-content; max-width: min(560px, calc(var(--visual-viewport-width) - 32px));
+  max-height: calc(var(--visual-viewport-height) - 36px); overflow: hidden; overflow-wrap: anywhere; white-space: normal;
+  transform: translate(-50%, calc(-100% + 10px)); opacity: 0; pointer-events: none;
+  padding: 8px 12px; border-radius: 5px; background: var(--ink); color: var(--surface); box-shadow: var(--shadow);
+  transition: opacity .2s, transform .2s;
+}
+.toast.show { opacity: 1; transform: translate(-50%, -100%); }
 
 .insights-scroll { overflow: auto; flex: 1; padding-bottom: 30px; }
 .metric-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
