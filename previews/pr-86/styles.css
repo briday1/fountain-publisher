@@ -984,7 +984,7 @@ button:disabled { cursor: default; opacity: .45; }
   :root { --mobile-tabs-h: 0px; }
   .desktop-setting, .vim-status { display: none !important; }
   .app-toolbar::after { display: none; }
-  .document-identity { position: relative; inset: auto; z-index: 81; width: auto; max-width: none; height: 100%; display: flex !important; flex: 1 1 auto; justify-content: flex-end; }
+  .document-identity { position: relative; inset: auto; z-index: 81; width: auto; min-width: 0; max-width: none; overflow: hidden; height: 100%; display: flex !important; flex: 1 1 auto; justify-content: flex-end; }
 
   .mobile-panel-tabs { display: none; }
   .mobile-tab {
