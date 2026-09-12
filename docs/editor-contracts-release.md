@@ -145,10 +145,12 @@ edits using the same local result as page-count compilation. IME cancellation
 reschedules work skipped while composition was active.
 
 Collaboration shares text/presence, never compiler jobs or compiled results.
-This does not change the collaboration encryption model. Compilation still uses
-synchronous Python/WebAssembly in the tab; isolation does not establish typing
-latency guarantees for large scripts. Background browser-worker execution is a
-separate performance improvement, not part of this change.
+This does not change the collaboration encryption model. The initial contract
+pass used synchronous Python/WebAssembly on the UI thread. The subsequent
+[interaction-performance pass](editor-performance.md) moves the runtime into a
+dedicated per-tab browser worker while retaining these snapshot/result contracts.
+Native-browser latency still requires measurement; local isolation alone is not
+a performance guarantee.
 
 Tests: directly imported `local-compiler` suite, `compiler_ui` handler regressions,
 loopback runtime-asset/CSP tests, and `npm run test:wasm` executing the actual

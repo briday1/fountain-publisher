@@ -188,7 +188,7 @@
     </nav>
 
     <main id="workspace">
-      <aside id="source-panel" aria-label="Fountain source" hidden><canvas class="hyperspace-canvas" aria-hidden="true"></canvas>
+      <aside id="source-panel" aria-label="Fountain source" hidden><div class="background-dots-layer" aria-hidden="true"></div><canvas class="hyperspace-canvas" aria-hidden="true"></canvas>
         <div class="panel-title">
           <div><small>SOURCE</small><h1>Fountain</h1></div>
           <div class="view-switcher" role="group" aria-label="Workspace view">
@@ -211,6 +211,7 @@
       </aside>
 
       <section class="preview-panel" aria-label="Screenplay document">
+        <div class="background-dots-layer" aria-hidden="true"></div>
         <canvas class="hyperspace-canvas" aria-hidden="true"></canvas>
         <header class="preview-toolbar">
           <div class="preview-heading">
@@ -261,7 +262,7 @@
         <button type="button" data-context-action="select-all" role="menuitem">Select all</button>
       </div>
 
-      <section id="beat-sheet-panel" aria-labelledby="beat-sheet-heading" hidden><canvas class="hyperspace-canvas" aria-hidden="true"></canvas>
+      <section id="beat-sheet-panel" aria-labelledby="beat-sheet-heading" hidden><div class="background-dots-layer" aria-hidden="true"></div><canvas class="hyperspace-canvas" aria-hidden="true"></canvas>
         <form id="beat-sheet-form" class="beat-sheet-shell">
           <header class="beat-sheet-header"><div><small>STORY MAP</small><h2 id="beat-sheet-heading">Beat Sheet</h2></div><div class="view-switcher" role="group" aria-label="Workspace view"><button data-preview-mode="source" type="button">Source</button><button data-preview-mode="live" type="button">Preview</button><button class="active" data-preview-mode="beats" type="button">Beat Sheet</button><button data-preview-mode="pdf" type="button">PDF</button></div><div class="preview-actions workspace-zoom-actions"><button data-zoom-out type="button" aria-label="Zoom out">−</button><select data-workspace-zoom aria-label="Workspace zoom"><option value="fit" hidden>100%</option><option value="70">70%</option><option value="85">85%</option><option value="100" selected>100%</option><option value="115">115%</option><option value="130">130%</option><option value="150">150%</option><option value="175">175%</option><option value="200">200%</option></select><button data-zoom-in type="button" aria-label="Zoom in">+</button><button class="zoom-fit" data-zoom-fit type="button" aria-label="Fit workspace to pane width" aria-pressed="false">Fit</button><button class="insights-open-button" data-toggle-stats type="button" aria-label="Open Insights panel" aria-controls="stats-panel" aria-expanded="false"><i aria-hidden="true"></i><b>Insights</b><span>‹</span></button></div></header>
           <div class="beat-sheet-workspace">
@@ -394,7 +395,7 @@
     <dialog id="background-dialog" aria-labelledby="background-dialog-title">
       <form method="dialog" id="background-form">
         <div class="dialog-heading"><small>APPEARANCE</small><h2 id="background-dialog-title">Preview background</h2></div>
-        <div id="background-pattern-preview" class="background-pattern-preview" data-background="dots" aria-hidden="true"><canvas class="hyperspace-canvas"></canvas><span></span></div>
+        <div id="background-pattern-preview" class="background-pattern-preview" data-background="dots" aria-hidden="true"><div class="background-dots-layer"></div><canvas class="hyperspace-canvas"></canvas><span></span></div>
         <label>Pattern<select id="preview-background"><option value="blank">Blank</option><option value="dots" selected>Dots</option><option value="hyperspace">Hyperspace</option><option value="geometric">Geometric drift</option><option value="constellation">Constellation</option><option value="topographic">Topographic</option><option value="tiles">Tiles</option></select></label>
         <label id="preview-dot-radius-row">Dot radius<span class="range-setting"><input id="preview-dot-radius" type="range" min="0.6" max="1.8" step="0.1" value="1" /><output id="preview-dot-radius-value">1.0px</output></span></label>
         <label id="preview-dot-direction-row">Direction<select id="preview-dot-direction"><option value="still" selected>Still</option><option value="up">Up</option><option value="down">Down</option><option value="left">Left</option><option value="right">Right</option><option value="up-left">Up-left</option><option value="up-right">Up-right</option><option value="down-left">Down-left</option><option value="down-right">Down-right</option><option value="random">Random</option></select></label>
