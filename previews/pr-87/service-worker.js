@@ -1,5 +1,5 @@
-const CACHE_NAME = "fountain-publisher-shell-v11";
-const APP_SHELL = ["./", "./index.html", "./styles.css", "./app.mjs", "./collaboration.mjs", "./editor-contract.mjs", "./fountain-inline.mjs", "./text-input.mjs", "./local-compiler.mjs", "./compiler-client.mjs", "./compiler-worker.mjs", "./compiler-runtime.mjs", "./background-performance.mjs", "./vendor/yjs.mjs", "./app.webmanifest", "./icons/app-icon-192.png", "./icons/app-icon-512.png"];
+const CACHE_NAME = "fountain-publisher-shell-v12";
+const APP_SHELL = ["./", "./index.html", "./styles.css", "./app.mjs", "./collaboration.mjs", "./editor-contract.mjs", "./fountain-inline.mjs", "./text-input.mjs", "./local-compiler.mjs", "./document-search.mjs", "./search-engine.mjs", "./search-worker.mjs", "./search-client.mjs", "./compiler-client.mjs", "./compiler-worker.mjs", "./compiler-runtime.mjs", "./background-performance.mjs", "./vendor/yjs.mjs", "./app.webmanifest", "./icons/app-icon-192.png", "./icons/app-icon-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
@@ -22,7 +22,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   if (["styles.css", "app.mjs"].some((asset) => url.pathname.endsWith(`/${asset}`))
-    || ["collaboration.mjs", "editor-contract.mjs", "fountain-inline.mjs", "text-input.mjs", "local-compiler.mjs", "compiler-client.mjs", "compiler-worker.mjs", "compiler-runtime.mjs", "background-performance.mjs", "yjs.mjs"].some((asset) => url.pathname.endsWith(`/${asset}`))) {
+    || ["collaboration.mjs", "editor-contract.mjs", "fountain-inline.mjs", "text-input.mjs", "local-compiler.mjs", "document-search.mjs", "search-engine.mjs", "search-worker.mjs", "search-client.mjs", "compiler-client.mjs", "compiler-worker.mjs", "compiler-runtime.mjs", "background-performance.mjs", "yjs.mjs"].some((asset) => url.pathname.endsWith(`/${asset}`))) {
     event.respondWith(fetch(request).then((response) => {
       if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
       return response;
