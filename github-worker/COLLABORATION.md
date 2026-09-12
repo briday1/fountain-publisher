@@ -102,3 +102,10 @@ Before removing draft/release gates, test on a nonproduction Drive document:
 `tests/js/editor_room.test.mjs` imports the real Worker and room with controlled
 storage, Drive, sessions and sockets. They cover repeatable integrity failures,
 not real IME behavior or production load/cost characteristics.
+
+`npm test` in `github-worker/` also exercises the real Workers runtime's
+Worker-to-Durable-Object response boundary. It verifies that immutable upstream
+headers do not turn successful checkpoints, permission/conflict errors, or
+recovery downloads into generic 500s, and that WebSocket upgrades remain intact.
+This runs in CI after installing Worker dependencies. Sessions and Google Drive
+are synthetic in this test; it is not a live Google Drive acceptance test.

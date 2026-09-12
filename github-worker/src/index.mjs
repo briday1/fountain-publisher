@@ -25,6 +25,16 @@ function corsHeaders(request, env) {
   } : {};
 }
 
+function withCors(response, cors) {
+  // Fetch responses from Durable Objects have immutable headers, including
+  // successful saves and returned errors. Rebuild without consuming the body.
+  // WebSocket upgrades must retain their original socket-bearing response.
+  if (response.status === 101) return response;
+  const result = new Response(response.body, response);
+  Object.entries(cors).forEach(([key, value]) => result.headers.set(key, value));
+  return result;
+}
+
 function randomToken(bytes = 32) {
   const value = new Uint8Array(bytes);
   crypto.getRandomValues(value);
@@ -630,17 +640,15 @@ export default {
     }
     if (Math.random() < 0.01) context.waitUntil(cleanupExpired(env));
     try {
-      const response = await handle(request, env);
-      // WebSocket upgrade responses have immutable headers in the Workers runtime.
-      if (response.status !== 101) Object.entries(cors).forEach(([key, value]) => response.headers.set(key, value));
-      return response;
+      return withCors(await handle(request, env), cors);
     } catch (error) {
-      if (error instanceof Response) {
-        Object.entries(cors).forEach(([key, value]) => error.headers.set(key, value));
-        return error;
-      }
+      if (error instanceof Response) return withCors(error, cors);
       console.error("Worker request failed", error?.stack || error);
-      return json({ error: "GitHub integration failed" }, 500, cors);
+      const path = new URL(request.url).pathname;
+      const message = path.startsWith("/api/collaboration/") ? "Collaboration request failed. Please try again."
+        : path.startsWith("/api/google/") || path.startsWith("/auth/google/") ? "Google Drive integration failed. Please try again."
+        : "GitHub integration failed";
+      return json({ error: message }, 500, cors);
     }
   },
   async scheduled(_controller, env, context) {

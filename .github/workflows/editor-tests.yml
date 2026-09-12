@@ -50,6 +50,10 @@ jobs:
         working-directory: github-worker
         run: npm ci
 
+      - name: Test actual Worker response boundaries
+        working-directory: github-worker
+        run: npm test
+
       - name: Validate Worker build without deploying
         working-directory: github-worker
         run: npx wrangler deploy --dry-run
