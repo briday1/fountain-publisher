@@ -8,6 +8,7 @@ const appPath = new URL("../../src/fountain_publisher/web/app.mjs", import.meta.
 const htmlPath = new URL("../../src/fountain_publisher/web/index.html", import.meta.url);
 const cssPath = new URL("../../src/fountain_publisher/web/styles.css", import.meta.url);
 const workerPath = new URL("../../src/fountain_publisher/web/service-worker.js", import.meta.url);
+const runtimeSource = await readFile(new URL("../../src/fountain_publisher/web/compiler-runtime.mjs", import.meta.url), "utf8");
 
 test("browser module has valid JavaScript syntax", () => {
   const result = spawnSync(process.execPath, ["--check", appPath.pathname], { encoding: "utf8" });
@@ -37,9 +38,9 @@ test("local file opening accepts text-based screenplay PDFs for Fountain reconst
   assert.match(app, /source\.addEventListener\("paste"[\s\S]*clipboardTextForEditor\(pasted\)[\s\S]*setRangeText/);
   assert.match(app, /page\.addEventListener\("paste"[\s\S]*clipboardTextForEditor[\s\S]*replacePreviewSelection/);
   assert.match(html, /paste text copied from a conventionally formatted screenplay PDF/);
-  assert.match(app, /async function importPdfFile\(file\)[\s\S]*file\.arrayBuffer\(\)[\s\S]*fetch\("\/healthz", \{ cache: "no-store" \}\)[\s\S]*health\?\.status === "ok"[\s\S]*if \(!localPython\)[\s\S]*_fp_extract_pdf[\s\S]*\/api\/import\/pdf[\s\S]*pdfLayoutToFountain\(pages\)[\s\S]*\.fountain/);
-  assert.match(app, /pypdf-6\.17\.0-py3-none-any\.whl[\s\S]*micropip\.install\(_fp_pypdf_wheel, deps=False\)/);
-  assert.match(app, /from pypdf import PdfReader[\s\S]*def _fp_extract_pdf\(path\)[\s\S]*extraction_mode="layout"/);
+  assert.match(app, /async function importPdfFile\(file\)[\s\S]*file\.arrayBuffer\(\)[\s\S]*fetch\("\/healthz", \{ cache: "no-store" \}\)[\s\S]*health\?\.status === "ok"[\s\S]*if \(!localPython\)[\s\S]*compilerClient\.extractPdf\(bytes\)[\s\S]*\/api\/import\/pdf[\s\S]*pdfLayoutToFountain\(pages\)[\s\S]*\.fountain/);
+  assert.match(runtimeSource, /pypdf-6\.17\.0-py3-none-any\.whl[\s\S]*micropip\.install\(_fp_pypdf_wheel, deps=False\)/);
+  assert.match(runtimeSource, /from pypdf import PdfReader[\s\S]*def _fp_extract_pdf\(path\)[\s\S]*extraction_mode="layout"/);
   assert.match(notices, /pypdf 6\.17\.0 — BSD 3-Clause/);
   assert.match(pyproject, /"pypdf==6\.17\.0"/);
 });
@@ -374,8 +375,8 @@ test("source highlighting follows the textarea viewport and rendered line geomet
   const app = await readFile(appPath, "utf8");
   assert.match(app, /function boundedScrollLeft\(/);
   assert.match(app, /Math\.max\(0, element\.scrollWidth - element\.clientWidth\)/);
-  assert.match(app, /function syncSourceOverlay\(\)/);
-  assert.match(app, /highlight\.style\.width = source\.clientWidth/);
+  assert.match(app, /function syncSourceOverlay\(\{ resize = true \} = \{\}\)/);
+  assert.match(app, /const width = source\.clientWidth[\s\S]*highlight\.style\.width = width/);
   assert.match(app, /if \(scrollLeft !== source\.scrollLeft\) source\.scrollLeft = scrollLeft/);
   assert.match(app, /highlight\.scrollLeft = boundedScrollLeft\(highlight, scrollLeft\)/);
   assert.match(app, /data-source-line=/);
@@ -599,8 +600,8 @@ test("top-level act headings are supported in the live editor", async () => {
   assert.match(app, /match\(\/\^#\\s\+\(Act\\b\.\*\)\$\/i\)/);
   assert.match(app, /appendToSource\("# Act 1\\n\\n"\)/);
   assert.match(css, /\.script-line\.section\.act[^}]*display:\s*block;/);
-  assert.match(app, /def _fp_format_pdf_act_headings\(screenplay\)/);
-  assert.match(app, /Slug\(bold\(str\(paragraph\.text\)\.upper\(\)\), scene_number=None\)/);
+  assert.match(runtimeSource, /def _fp_format_pdf_act_headings\(screenplay\)/);
+  assert.match(runtimeSource, /Slug\(bold\(str\(paragraph\.text\)\.upper\(\)\), scene_number=None\)/);
   assert.match(css, /\.script-line\.section\.act[^}]*font:\s*700 16px\/1 var\(--screenplay\);[^}]*text-align:\s*left;/s);
 });
 
@@ -756,7 +757,7 @@ test("blank documents retain a page and title inference is constrained", async (
 test("compact centered bold markup renders without literal angle markers", async () => {
   const app = await readFile(appPath, "utf8");
   assert.match(app, /line\.raw\.trim\(\)\.match\(\/\^>\\s\*\(\.\*\?\)\\s\*</);
-  assert.match(app, /source = re\.sub\(r"\(\?m\)\^\(\[\^\\\\S\\\\r\\\\n\]\*\)>\(\\\\S/);
+  assert.match(runtimeSource, /source = re\.sub\(r"\(\?m\)\^\(\[\^\\\\S\\\\r\\\\n\]\*\)>\(\\\\S/);
 });
 
 test("the long sample screenplay is opt-in with demo=1", async () => {
@@ -884,7 +885,7 @@ test("live preview numbers scene headings via computed labels", async () => {
   assert.match(app, /function computeSceneLabels\(/);
   assert.match(app, /line\.display\.replace\(\/\^\\\.\//);
   assert.match(app, /sceneLabels\.get\(lines\[i\]\.index\)/);
-  assert.match(app, /paragraph\.line = plain\(f"\{label\}\. "\) \+ paragraph\.line/);
+  assert.match(runtimeSource, /paragraph\.line = plain\(f"\{label\}\. "\) \+ paragraph\.line/);
 });
 
 test("page totals come from the compiled Screenplain PDF", async () => {
@@ -898,11 +899,11 @@ test("page totals come from the compiled Screenplain PDF", async () => {
   assert.match(css, /\.page-fraction sup, \.page-fraction sub\s*\{[^}]*place-items:\s*center;[^}]*transform:\s*none;/s);
   assert.match(app, /function compilePageCount/);
   assert.match(compiler, /pageCount: Math\.max\(0, physicalPages - titlePages\)/);
-  assert.match(app, /usage\["title_pages"\] = int\(self\.has_title_page\)/);
+  assert.match(runtimeSource, /usage\["title_pages"\] = int\(self\.has_title_page\)/);
   assert.match(app, /lastPageEighths/);
-  assert.match(app, /_fp_last_page_eighths/);
+  assert.match(runtimeSource, /_fp_last_page_eighths/);
   assert.match(app, /estimatedSeconds = result\.pageCount \* 60/);
-  assert.match(app, /_fp_prepare_screenplay[\s\S]*isinstance\(screenplay\.paragraphs\[0\], PageBreak\)/);
+  assert.match(runtimeSource, /_fp_prepare_screenplay[\s\S]*isinstance\(screenplay\.paragraphs\[0\], PageBreak\)/);
   assert.ok(compiler.includes('/Type\\s*\\/Page\\b'));
 });
 
@@ -1170,7 +1171,7 @@ test("Beat Sheet provides a source-backed draggable story map and Preview guide"
   assert.match(app, /\["ArrowUp", "ArrowDown", "Home", "End"\][\s\S]*prepend\(card\)[\s\S]*append\(card\)[\s\S]*handle\.focus\(\)/);
   assert.match(app, /function renderBeatProgressGraph\(beats = currentBeatCards\(\)\)[\s\S]*beforeValue[\s\S]*afterValue[\s\S]*beat-plot-point/);
   assert.match(app, /function saveBeatProgressPng\(\)[\s\S]*XMLSerializer[\s\S]*canvas\.toBlob[\s\S]*beat-pacing\.png/);
-  assert.match(app, /def _fp_compile_beat_sheet\(title, premise, beats, page_size="letter"\):[\s\S]*SimpleDocTemplate[\s\S]*Paragraph\("PREMISE"[\s\S]*Paragraph\("STORY BEATS"[\s\S]*document\.build/);
+  assert.match(runtimeSource, /def _fp_compile_beat_sheet\(title, premise, beats, page_size="letter"\):[\s\S]*SimpleDocTemplate[\s\S]*Paragraph\("PREMISE"[\s\S]*Paragraph\("STORY BEATS"[\s\S]*document\.build/);
   assert.match(app, /async function exportBeatSheetPdf\(\)[\s\S]*currentBeatCards\(\)[\s\S]*compileBeatSheetPdf[\s\S]*Beat Sheet\.pdf/);
   assert.match(css, /\.beat-progress-line\s*\{[^}]*stroke:/s);
   assert.match(css, /\.beat-graph-node > \.beat-number\s*\{[^}]*cursor:\s*grab;[^}]*touch-action:\s*none;[^}]*user-select:\s*none;/s);
@@ -1242,7 +1243,7 @@ test("source word wrap defaults on and preserves logical line numbers", async ()
   assert.doesNotMatch(app, /function renderLineNumbers\(\)[\s\S]*?getBoundingClientRect\(\)[\s\S]*?function fountainSyntaxHtml/);
   assert.match(app, /function scrollSourceTarget[\s\S]*const top = target\.offsetTop;/);
   assert.match(app, /sourceLine\.offsetTop - source\.scrollTop - parseFloat\(computed\.paddingTop\)/);
-  assert.match(app, /new ResizeObserver\(\(\) => requestAnimationFrame\(renderEditorChrome\)\)[\s\S]*observe\(source\)/);
+  assert.match(app, /new ResizeObserver\(\(\) => scheduleSourceGeometry\(\{ resize: true \}\)\)[\s\S]*observe\(source\)/);
   assert.match(app, /document\.fonts\?\.ready\.then\(\(\) => renderEditorChrome\(\)\)/);
   assert.match(app, /gutter\.scrollTop = source\.scrollTop/);
   assert.match(app, /lines\.map\(\(line\) => \{[\s\S]*<span data-source-line="\$\{line\.index\}"[\s\S]*>\$\{value\}<\/span>`;\s*\}\)\.join\(""\)/);
@@ -1445,13 +1446,15 @@ test("dual dialogue renders concurrently in the live screenplay", async () => {
 
 test("every host runs Screenplain in the tab's bundled Pyodide runtime", async () => {
   const app = await readFile(appPath, "utf8");
-  assert.match(app, /function getBrowserScreenplain\(/);
-  assert.match(app, /screenplain-0\.12\.0-py3-none-any\.whl/);
-  assert.match(app, /CourierPrime-Regular\.ttf/);
-  assert.match(app, /\/fonts\/CourierPrime-Regular\.ttf/);
-  assert.match(app, /pdf\.to_pdf\(screenplay, output, template_constructor=NumberedDocTemplate, settings=settings\)/);
+  assert.match(runtimeSource, /function loadCompilerRuntime\(/);
+  assert.match(runtimeSource, /screenplain-0\.12\.0-py3-none-any\.whl/);
+  assert.match(runtimeSource, /CourierPrime-Regular\.ttf/);
+  assert.match(runtimeSource, /\/fonts\/CourierPrime-Regular\.ttf/);
+  assert.match(runtimeSource, /pdf\.to_pdf\(screenplay, output, template_constructor=NumberedDocTemplate, settings=settings\)/);
   assert.match(app, /setTimeout\(\(\) => compilePageCount\(revision\)/);
-  assert.match(app, /const compileLocally = createLocalCompiler\(getBrowserScreenplain\)/);
+  assert.match(app, /const compilerClient = createCompilerWorkerClient\(\)/);
+  assert.match(app, /const compileLocally = compilerClient\.compile/);
+  assert.doesNotMatch(app, /runPython|loadPyodide|getBrowserScreenplain/);
 });
 
 test("compilation and export have no server path or server fallback", async () => {
@@ -1460,6 +1463,20 @@ test("compilation and export have no server path or server fallback", async () =
   assert.doesNotMatch(app, /\/api\/(?:compile|render\/pdf|export\/fdx)|shouldUseBrowserCompiler|requestBinary/);
   assert.doesNotMatch(compiler, /fetch\(|WebSocket|localStorage|BroadcastChannel|collaboration/);
   assert.match(app, /await compileLocally\(format, request\)/);
+});
+
+test("compiler and background modules ship in production and refreshed offline shells", async () => {
+  const [build, shell, html] = await Promise.all([
+    readFile(new URL("../../scripts/build-web.mjs", import.meta.url), "utf8"),
+    readFile(workerPath, "utf8"), readFile(htmlPath, "utf8"),
+  ]);
+  for (const name of ["compiler-client.mjs", "compiler-worker.mjs", "compiler-runtime.mjs", "local-compiler.mjs", "background-performance.mjs"]) {
+    assert.ok(build.includes(`web/${name}`), `${name} must be copied into the production assets`);
+    assert.ok(shell.includes(`"./${name}"`), `${name} must be available offline`);
+    assert.ok(shell.includes(`"${name}"`), `${name} must use network-first updates`);
+    assert.ok((await readFile(new URL(`../../src/fountain_publisher/web/${name}`, import.meta.url), "utf8")).length);
+  }
+  assert.match(html, /worker-src 'self'/);
 });
 
 test("scene numbers default to margin, support act format, and apply to PDF", async () => {
@@ -1565,9 +1582,10 @@ test("preview background popup supports themed, directional dot motion", async (
   assert.match(html, /id="preview-dot-speed" type="range" min="0" max="100" step="1" value="20"/);
   assert.match(html, /id="preview-star-density" type="range" min="30" max="240" step="5" value="100"/);
   assert.match(html, /id="preview-star-colors-row"[^>]*hidden[\s\S]*id="preview-star-colors" type="checkbox" role="switch"/);
-  assert.match(css, /\.preview-scroll\[data-background="dots"\][^}]*radial-gradient[^}]*background-size:\s*16px 16px;/s);
+  assert.match(css, /\.background-dots-layer\s*\{[^}]*radial-gradient[^}]*background-size:\s*16px 16px;/s);
   assert.match(css, /\.background-pattern-preview\s*\{[^}]*background-color:\s*var\(--bg\);/s);
-  assert.match(css, /background-position:\s*var\(--preview-dot-x, 0px\) var\(--preview-dot-y, 0px\)/);
+  assert.match(app, /layer\.style\.transform = `translate3d/);
+  assert.doesNotMatch(app + css, /--preview-dot-x|--preview-dot-y/);
   assert.doesNotMatch(css, /data-background="damascus"|repeating-radial-gradient/);
   assert.match(css, /#background-dialog\s*\{[^}]*width:\s*min\(380px,/s);
   assert.match(css, /#background-form > label\s*\{[^}]*flex-direction:\s*column;[^}]*gap:\s*5px;[^}]*margin:\s*13px 0;/s);
@@ -1576,17 +1594,16 @@ test("preview background popup supports themed, directional dot motion", async (
   assert.doesNotMatch(css, /\.preview-scroll\s*\{[^}]*background-color:/s);
   assert.match(app, /function applyPreviewBackground\(\)/);
   assert.match(app, /function drawHyperspace\(canvas, dt = 0\)[\s\S]*star\.x \/ star\.z[\s\S]*context\.lineTo\(x, y\)/);
-  assert.match(app, /function startHyperspace\(speed, density, colorsEnabled\)[\s\S]*prefers-reduced-motion[\s\S]*requestAnimationFrame/);
-  assert.match(app, /function startHyperspace\(speed, density, colorsEnabled\)[\s\S]*speed === 0/);
+  assert.match(app, /function refreshBackgroundRendering\(\)[\s\S]*backgroundLoop\.stop\(\)[\s\S]*document\.hidden/);
+  assert.match(app, /animated = !backgroundMotionQuery\.matches && !isMobilePreview\(\)/);
   assert.match(app, /const AMBIENT_PATTERNS = \["geometric", "constellation", "topographic", "tiles"\]/);
   assert.match(app, /function drawAmbient\(canvas, time = 0\)[\s\S]*ambientPattern === "geometric"[\s\S]*ambientPattern === "constellation"[\s\S]*ambientPattern === "topographic"[\s\S]*ambientPattern === "tiles"/);
   assert.match(app, /function ambientTiles\(canvas, columns, rows, now\)[\s\S]*Math\.random\(\)[\s\S]*progress \* progress \* \(3 - 2 \* progress\)/);
   assert.match(app, /const speedRatio = ambientSpeed \/ 100;[\s\S]*speedRatio \* speedRatio \* 6[\s\S]*speedRatio \* speedRatio \* 4/);
-  assert.match(app, /ambientPattern === "tiles"[\s\S]*ambientTiles\(canvas, columns, rows, performance\.now\(\)\)[\s\S]*const spread = neighbors\.reduce[\s\S]*const migration = tileField\.walkers\.reduce[\s\S]*context\.fillRect\(left, top, size, size\)/);
+  assert.match(app, /ambientPattern === "tiles"[\s\S]*backgroundTileGrid\(width, height, ambientDensity\)[\s\S]*ambientTiles\(canvas, columns, rows, time\)[\s\S]*const spread = total \/ count[\s\S]*for \(const walker of tileField\.walkers\)[\s\S]*context\.fillRect\(left, top, size, size\)/);
   assert.doesNotMatch(app, /tile\.rotation|tile\.x|tile\.y/);
-  assert.match(app, /function startAmbient\(pattern, speed, density, colorsEnabled\)[\s\S]*prefers-reduced-motion[\s\S]*requestAnimationFrame/);
-  assert.match(app, /function startAmbient\(pattern, speed, density, colorsEnabled\)[\s\S]*speed === 0/);
-  assert.match(app, /function startDotMotion\(direction, speed\)[\s\S]*speed === 0/);
+  assert.match(app, /backgroundLoop\.start\([\s\S]*\(hyperspace \? hyperspaceSpeed : ambientSpeed\) > 0/);
+  assert.match(app, /animated: animated && dotMotionSpeed > 0 && dotMotionDirection !== "still"/);
   assert.match(app, /storedSpeedValue !== null && storedSpeed >= 0/);
   assert.match(app, /star\.tint >= \.82[\s\S]*accentColors\[colorIndex\]/);
   assert.match(app, /preview-star-density[\s\S]*preview-star-density-value[\s\S]*const animated = pattern === "hyperspace" \|\| AMBIENT_PATTERNS\.includes\(pattern\)/);
@@ -1596,7 +1613,7 @@ test("preview background popup supports themed, directional dot motion", async (
   assert.match(css, /\.background-pattern-preview span\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*1;/s);
   assert.match(css, /\.background-pattern-preview\s*\{[^}]*position:\s*relative;[^}]*isolation:\s*isolate;[^}]*contain:\s*paint;/s);
   assert.match(css, /\.background-pattern-preview \.hyperspace-canvas\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*0;[^}]*width:\s*100%;[^}]*height:\s*100%;/s);
-  assert.match(app, /pattern === "dots" && !isMobilePreview\(\)/);
+  assert.match(css, /@media\s*\(max-width:\s*820px\)[\s\S]*\.background-dots-layer\s*\{\s*display:\s*none !important/);
   assert.match(css, /\.beat-guide-layer\s*\{[^}]*position:\s*absolute;/s);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-background", event\.target\.value\)/);
   assert.match(app, /localStorage\.setItem\("fountain-publisher\.preview-dot-radius", event\.target\.value\)/);
@@ -1636,13 +1653,12 @@ test("line numbers are correct before the source panel is interacted with", asyn
 });
 
 test("browser Screenplain compile handles missing style attributes defensively", async () => {
-  const app = await readFile(appPath, "utf8");
   // slug_style access must be guarded
-  assert.match(app, /hasattr\(settings,\s*"slug_style"\)/);
+  assert.match(runtimeSource, /hasattr\(settings,\s*"slug_style"\)/);
   // style loop uses getattr with None default
-  assert.match(app, /getattr\(settings,\s*style_name,\s*None\)/);
+  assert.match(runtimeSource, /getattr\(settings,\s*style_name,\s*None\)/);
   // handle_pageBegin uses getattr for font_settings
-  assert.match(app, /getattr\(_font_settings,\s*"family_name",\s*"Courier"\)/);
+  assert.match(runtimeSource, /getattr\(_font_settings,\s*"family_name",\s*"Courier"\)/);
 });
 
 test("mobile exports use the share sheet with download fallback", async () => {

@@ -1,42 +1,10 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import { runInNewContext } from "node:vm";
-import { loadPyodide } from "pyodide";
+import { Worker } from "node:worker_threads";
 import { createLocalCompiler } from "../src/fountain_publisher/web/local-compiler.mjs";
+import { createCompilerWorkerClient } from "../src/fountain_publisher/web/compiler-client.mjs";
+import { loadNodeCompilerRuntime } from "./compiler-node-runtime.mjs";
 
-const webRoot = new URL("../src/fountain_publisher/web/", import.meta.url);
-const pyodide = await loadPyodide();
-await pyodide.loadPackage(new URL("vendor/micropip-0.11.1-py3-none-any.whl", webRoot).href);
-const wheels = [
-  "six-1.17.0-py2.py3-none-any.whl",
-  "pillow-12.2.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl",
-  "charset_normalizer-3.4.7-py3-none-any.whl",
-  "reportlab-5.0.1-py3-none-any.whl",
-  "screenplain-0.12.0-py3-none-any.whl",
-  "pypdf-6.17.0-py3-none-any.whl",
-];
-for (const wheel of wheels) pyodide.FS.writeFile(`/${wheel}`, await readFile(new URL(`vendor/${wheel}`, webRoot)));
-pyodide.FS.mkdirTree("/fonts");
-for (const font of ["CourierPrime-Regular.ttf", "CourierPrime-Bold.ttf", "CourierPrime-Italic.ttf", "CourierPrime-BoldItalic.ttf"]) {
-  pyodide.FS.writeFile(`/fonts/${font}`, await readFile(new URL(`fonts/${font}`, webRoot)));
-}
-pyodide.globals.set("_wheels", wheels);
-await pyodide.runPythonAsync(`
-import micropip
-for wheel in _wheels:
-    await micropip.install("emfs:/" + wheel, deps=False)
-`);
-
-// Exercise the browser's production helpers, not a separate simplified compiler.
-// Decode only this static JS string literal so escaped Python regular expressions
-// have exactly the same meaning here as when app.mjs initializes the runtime.
-const appSource = await readFile(new URL("app.mjs", webRoot), "utf8");
-const helperTemplate = appSource.match(/pyodide\.runPython\((`\nimport io\n[\s\S]*?\n`)\);/)?.[1];
-assert.ok(helperTemplate, "The browser compiler's Python helper template must be present");
-assert.ok(!helperTemplate.slice(1, -1).includes("`"), "The helper template must contain no nested JavaScript literals");
-assert.ok(!helperTemplate.includes("${"), "The helper template must contain no JavaScript interpolation");
-const helpers = runInNewContext(helperTemplate, Object.create(null), { timeout: 1000 });
-pyodide.runPython(helpers);
+const pyodide = await loadNodeCompilerRuntime();
 
 const summary = JSON.parse(pyodide.runPython(`
 import xml.etree.ElementTree as ET
@@ -146,4 +114,66 @@ const empty = await compileLocally("pdf", { ...firstRequest, source: "" });
 assert.equal(empty.pageCount, 0);
 assert.equal(empty.lastPageEighths, 0);
 summary.adapterCompiles = 5;
+
+// Measure the old UI-thread execution against the exact same engine in a real
+// dedicated thread. A timer heartbeat is a scheduling check, not browser FPS.
+const representative = "Title: Worker Responsiveness\nAuthor: Local Writer\n\n"
+  + Array.from({ length: 80 }, (_, scene) => `INT. TEST ROOM ${scene + 1} - DAY\n\n`
+    + Array.from({ length: 8 }, () => "A writer studies the screenplay, compares the pages, and makes another careful revision.\n\nWRITER\nThe next scene needs a little more room to breathe.\n\n").join("")).join("");
+const benchmarkRequest = { ...firstRequest, source: representative };
+async function measure(operation) {
+  let heartbeats = 0;
+  let longestGap = 0;
+  let lastTick = performance.now();
+  const ticker = setInterval(() => {
+    const now = performance.now();
+    longestGap = Math.max(longestGap, now - lastTick);
+    lastTick = now;
+    heartbeats += 1;
+  }, 10);
+  const started = performance.now();
+  try {
+    const result = await operation();
+    const elapsedMs = performance.now() - started;
+    return { result, elapsedMs: Math.round(elapsedMs), heartbeats, longestGapMs: Math.round(Math.max(longestGap, performance.now() - lastTick)) };
+  } finally { clearInterval(ticker); }
+}
+const baseline = await measure(() => compileLocally("pdf", benchmarkRequest));
+const workerInstances = [];
+const client = createCompilerWorkerClient({ createWorker() {
+  const worker = new Worker(new URL("./compiler-worker-node.mjs", import.meta.url), { execArgv: [] });
+  workerInstances.push(worker);
+  return {
+    addEventListener(type, handler) {
+      worker.on(type, (data) => handler(type === "message" ? { data } : data));
+    },
+    postMessage(data, transfer) { worker.postMessage(data, transfer); },
+    terminate() { void worker.terminate(); },
+  };
+} });
+try {
+  // Warm both runtimes before comparing compilation itself, excluding startup.
+  const warmed = await client.compile("pdf", firstRequest);
+  assert.equal(warmed.pageCount, firstJob.pageCount);
+  const offThread = await measure(() => client.compile("pdf", benchmarkRequest));
+  assert.equal(offThread.result.pageCount, baseline.result.pageCount);
+  assert.equal(offThread.result.lastPageEighths, baseline.result.lastPageEighths);
+  assert.equal(baseline.heartbeats, 0, "The baseline must demonstrate the synchronous engine's main-thread blockage");
+  assert.ok(offThread.heartbeats >= 2, "The main thread must keep servicing timers while the worker compiles");
+  const imported = await client.extractPdf(await firstJob.blob.arrayBuffer());
+  assert.equal(imported.length, 2);
+  assert.ok(imported.some((page) => page.includes("Unique first document action.")));
+  const beatSheet = await client.beatSheet({ title: "Worker Beats", premise: "Local only", beats: ["A worker exports a beat sheet"], pageSize: "a4" });
+  assert.equal(beatSheet.type, "application/pdf");
+  assert.equal(await physicalPageCount(beatSheet), 1);
+  summary.worker = {
+    pages: offThread.result.pageCount,
+    baseline: { elapsedMs: baseline.elapsedMs, heartbeats: baseline.heartbeats, longestGapMs: baseline.longestGapMs },
+    dedicatedThread: { elapsedMs: offThread.elapsedMs, heartbeats: offThread.heartbeats, longestGapMs: offThread.longestGapMs },
+    importPages: imported.length,
+  };
+} finally {
+  client.dispose();
+  await Promise.all(workerInstances.map((worker) => worker.terminate()));
+}
 console.log(`Browser Screenplain WebAssembly smoke passed: ${JSON.stringify(summary)}`);

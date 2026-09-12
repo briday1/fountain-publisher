@@ -501,9 +501,12 @@ body.source-wrap #source, body.source-wrap .source-highlight { white-space: pre-
 
 .preview-panel { min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; position: relative; background: var(--bg); }
 .hyperspace-canvas { display: none; position: absolute; z-index: 0; inset: 58px 0 0; width: 100%; height: calc(100% - 58px); pointer-events: none; }
+.background-dots-layer { display: none; position: absolute; z-index: 0; inset: -16px; pointer-events: none; contain: paint; transform: translate3d(0, 0, 0); background-image: radial-gradient(color-mix(in srgb, var(--ink) 14%, transparent) var(--preview-dot-radius, 1px), transparent var(--preview-dot-radius, 1px)); background-size: 16px 16px; }
+.preview-panel > .background-dots-layer { top: 42px; }
+[data-background="dots"] > .background-dots-layer, .preview-panel:has(.preview-scroll[data-background="dots"]) > .background-dots-layer { display: block; }
 [data-background="hyperspace"] > .hyperspace-canvas, [data-background="geometric"] > .hyperspace-canvas, [data-background="constellation"] > .hyperspace-canvas, [data-background="topographic"] > .hyperspace-canvas, [data-background="tiles"] > .hyperspace-canvas, .preview-panel:has(.preview-scroll:not([data-background="blank"]):not([data-background="dots"])) > .hyperspace-canvas { display: block; }
 .preview-toolbar, #source-panel > .panel-title, .beat-sheet-header { position: relative; z-index: 2; }
-.preview-scroll, #source-panel > :not(.hyperspace-canvas), #beat-sheet-panel > :not(.hyperspace-canvas) { position: relative; z-index: 1; }
+.preview-scroll, #source-panel > :not(.hyperspace-canvas):not(.background-dots-layer), #beat-sheet-panel > :not(.hyperspace-canvas):not(.background-dots-layer) { position: relative; z-index: 1; }
 .preview-scroll:not([data-background="blank"]):not([data-background="dots"]), #source-panel:not([data-background="blank"]):not([data-background="dots"]), #beat-sheet-panel:not([data-background="blank"]):not([data-background="dots"]) { background-color: transparent; background-image: none; }
 .preview-toolbar { flex: 0 0 auto; min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 12px 6px 15px; border-bottom: 1px solid var(--border); background: var(--panel); }
 .preview-heading { display: flex; align-items: center; gap: 16px; }
@@ -520,7 +523,6 @@ body.source-tab-hidden [data-preview-mode="source"], body.source-tab-hidden [dat
 .preview-actions .zoom-fit[aria-pressed="true"] { border-color: var(--border); color: var(--ink); background: var(--surface-2); box-shadow: inset 0 1px 2px rgb(0 0 0 / 9%); }
 .preview-actions select { width: 72px; padding-left: 8px !important; padding-right: 20px !important; text-align: center; text-align-last: center; }
 .preview-scroll { --preview-dot-radius: 1px; flex: 1 1 0; min-height: 0; overflow: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 34px 20px; }
-.preview-scroll[data-background="dots"], #source-panel[data-background="dots"], #beat-sheet-panel[data-background="dots"], .background-pattern-preview[data-background="dots"] { background-image: radial-gradient(color-mix(in srgb, var(--ink) 14%, transparent) var(--preview-dot-radius), transparent var(--preview-dot-radius)); background-position: var(--preview-dot-x, 0px) var(--preview-dot-y, 0px); background-size: 16px 16px; }
 #source-panel, #beat-sheet-panel { position: relative; }
 .preview-scroll.pdf-mode { padding: 0; overflow: hidden; }
 .preview-page-stage { position: relative; width: 816px; min-height: 1056px; margin: 0 auto; }
@@ -663,6 +665,7 @@ body.preview-colors .script-line.section.act { color: color-mix(in srgb, var(--s
 #background-form select { height: 35px; border: 1px solid var(--border); background: var(--surface); border-radius: 5px; padding: 0 8px; color: var(--ink); }
 .background-pattern-preview { --preview-dot-radius: 1px; position: relative; isolation: isolate; contain: paint; width: 100%; height: 92px; overflow: hidden; border: 1px solid var(--border); border-radius: 7px; margin: 13px 0; background-color: var(--bg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--surface) 35%, transparent); }
 .background-pattern-preview .hyperspace-canvas { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; }
+.background-pattern-preview .background-dots-layer { inset: -16px; }
 .background-pattern-preview span { position: relative; z-index: 1; display: block; width: 68px; height: 52px; margin: 20px auto; border: 1px solid var(--border-strong); border-radius: 3px; background: var(--paper); box-shadow: var(--shadow); }
 #background-form .range-setting { width: 100%; }
 #background-form .range-setting input { flex: 1; width: auto; }
@@ -1118,6 +1121,7 @@ button:disabled { cursor: default; opacity: .45; }
   .preview-scroll { padding: 0; overflow-x: hidden; scrollbar-gutter: auto; }
   #preview-scroll, #source-panel, #beat-sheet-panel { background-image: none !important; }
   .hyperspace-canvas { display: none !important; }
+  .background-dots-layer { display: none !important; }
   #source-panel { background: var(--source-bg); }
   #source-panel .editor-shell, #source-panel .editor-footer { width: 100%; margin: 0; border: 0; border-radius: 0; box-shadow: none; zoom: 1; }
   .preview-panel.beat-runner-on .preview-scroll { padding-top: 0; }
@@ -1259,6 +1263,7 @@ body.zen-mode .app-toolbar, body.zen-mode .mobile-menu-backdrop, body.zen-mode .
 body.zen-mode #workspace { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; grid-template-columns: minmax(0, 1fr) 0 0 !important; }
 body.zen-mode #source-panel .editor-shell { margin: 34px auto; border-bottom: 1px solid var(--border); border-radius: 4px; }
 body.zen-mode .hyperspace-canvas { inset: 0; height: 100%; }
+body.zen-mode .background-dots-layer { inset: -16px; }
 body.zen-mode .beat-sheet-workspace { margin-top: 0; }
 body.zen-mode .beat-guide-layer { top: 0; }
 body.zen-mode .zen-controls { top: calc(var(--visual-viewport-top) + var(--zen-beat-guide-height, 0px) + 10px); left: calc(var(--visual-viewport-left) + var(--visual-viewport-width) / 2); }
