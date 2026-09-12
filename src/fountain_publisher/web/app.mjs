@@ -3008,7 +3008,7 @@ function scheduleCollaborationPresence() {
 function updateGoogleMenu() {
   $("#google-connect").textContent = state.googleConnected ? `Google: ${state.googleAccount?.email}` : "Sign in with Google…";
   $("#google-open").disabled = !state.googleConnected;
-  $("#google-save").disabled = !state.googleConnected || state.googleSaving || collaboration.syncConflict || Boolean(state.googleDriveFile && !state.googleDriveFile.capabilities?.canEdit);
+  $("#google-save").disabled = !state.googleConnected || state.googleSaving || collaboration.syncConflict;
   $("#google-share").disabled = !state.googleDriveFile?.capabilities?.canShare;
   $("#google-recovery").disabled = !state.googleDriveFile?.appProperties?.fountainPublisherDocumentId;
 }
@@ -3177,7 +3177,7 @@ function showGooglePickerStatus(message) {
   if (!dialog.open) dialog.showModal();
 }
 
-async function openGooglePicker() {
+async function openGooglePicker({ selectFolder = false, onPicked = null, onCancel = null } = {}) {
   if (googlePickerActive) return;
   googlePickerActive = true;
   const focus = document.activeElement;
@@ -3224,6 +3224,13 @@ async function openGooglePicker() {
     if (finished) return;
     finished = true;
     cleanup();
+    onCancel?.();
+  };
+  const reportError = (message) => {
+    if (selectFolder) {
+      onCancel?.();
+      saveFeedback(message, "error");
+    } else showGooglePickerStatus(message);
   };
   const onKeyDown = (event) => {
     if (event.key !== "Escape") return;
@@ -3242,6 +3249,8 @@ async function openGooglePicker() {
     $("#google-picker-help").close();
     focus?.blur();
     dismissGooglePicker = dismiss;
+    $("#google-picker-browser-title").textContent = selectFolder ? "Choose destination folder" : "Open screenplay";
+    $("#google-picker-trouble").hidden = selectFolder;
     $("#google-picker-loading").hidden = false;
     resizePicker();
     $("#google-picker-controls").hidden = false;
@@ -3256,8 +3265,12 @@ async function openGooglePicker() {
     await loadGooglePicker();
     if (finished) return;
     const picker = window.google.picker;
-    const docsView = () => new picker.DocsView(picker.ViewId.DOCS)
-      .setIncludeFolders(true).setSelectFolderEnabled(false).setMode(picker.DocsViewMode.LIST);
+    const docsView = () => {
+      const view = new picker.DocsView(picker.ViewId.DOCS)
+        .setIncludeFolders(true).setSelectFolderEnabled(selectFolder).setMode(picker.DocsViewMode.LIST);
+      if (selectFolder) view.setMimeTypes("application/vnd.google-apps.folder");
+      return view;
+    };
     const shared = docsView().setOwnedByMe(false).setLabel("Shared with me");
     const myDrive = docsView().setParent("root").setLabel("My Drive");
     const allFiles = docsView().setLabel("All files");
@@ -3271,7 +3284,7 @@ async function openGooglePicker() {
     browser = new picker.PickerBuilder()
       .setAppId(config.appId).setDeveloperKey(config.apiKey).setOAuthToken(config.accessToken)
       .setOrigin(window.location.origin)
-      .setTitle("Choose a .fountain or .txt screenplay, then tap Select")
+      .setTitle(selectFolder ? "Choose a folder, then tap Select" : "Choose a .fountain or .txt screenplay, then tap Select")
       .setSize(width, height)
       .addView(shared).addView(myDrive).addView(allFiles).addView(sharedDrives)
       .enableFeature(picker.Feature.SUPPORT_DRIVES)
@@ -3279,14 +3292,18 @@ async function openGooglePicker() {
         if (finished || ![picker.Action.PICKED, picker.Action.CANCEL, picker.Action.ERROR].includes(data.action)) return;
         finished = true;
         cleanup();
-        if (data.action === picker.Action.CANCEL) return;
+        if (data.action === picker.Action.CANCEL) { onCancel?.(); return; }
         if (data.action === picker.Action.ERROR) {
-          showGooglePickerStatus("Google's Drive browser could not access your account or files. Your Fountain Publisher connection may still be working.");
+          reportError("Google's Drive browser could not access your account or files. Your Fountain Publisher connection may still be working.");
           return;
         }
         const fileId = data.docs?.[0]?.id;
         if (!fileId) {
-          showGooglePickerStatus("Google did not return a selected file. Try again and tap Select after choosing a screenplay.");
+          reportError(selectFolder ? "Google did not return a selected folder. Choose a folder and try again." : "Google did not return a selected file. Try again and tap Select after choosing a screenplay.");
+          return;
+        }
+        if (selectFolder) {
+          onPicked?.(data.docs[0]);
           return;
         }
         googlePickerActive = true;
@@ -3313,22 +3330,25 @@ async function openGooglePicker() {
     if (finished) return;
     finished = true;
     cleanup();
-    showGooglePickerStatus(error.message);
+    reportError(error.message);
   }
 }
 
-async function saveGoogleDrive({ keepBrowser = false } = {}) {
+async function saveGoogleDrive({ keepBrowser = false, destination = null } = {}) {
   if (reportSaveInProgress()) return;
   if (!state.googleConnected) return saveFeedback("Sign in with Google before saving", "error");
   if (state.previewComposing || state.sourceComposing) return saveFeedback("Finish composing text before saving", "error");
   if (collaboration.syncConflict) return saveFeedback("Live sync is paused because the shared document changed. Save a local copy before reopening the Drive document.", "error");
-  const file = state.googleDriveFile;
+  if (destination && (destination.documentRevision !== state.documentRevision || destination.account !== state.googleAccount)) return saveFeedback("The document or Google account changed. Choose the Drive destination again.", "error");
+  const file = destination ? null : state.googleDriveFile;
+  if (!file && !destination) return openGoogleDriveSave();
   if (file && file.capabilities?.canEdit !== true) return saveFeedback("This Drive document is view only", "error");
   const documentRevision = state.documentRevision;
   const account = state.googleAccount;
   const content = source.value;
   const operation = beginSaveOperation("Google Drive");
   state.googleSaving = true;
+  $("#google-save-confirm").disabled = true;
   updateGoogleMenu();
   try {
     if (file) {
@@ -3338,7 +3358,7 @@ async function saveGoogleDrive({ keepBrowser = false } = {}) {
     }
     const result = file
       ? await collaboration.checkpoint()
-      : await googleRequest("/api/google/drive/files", { method: "POST", body: JSON.stringify({ name: normalizedFilename("fountain"), content }) });
+      : await googleRequest("/api/google/drive/files", { method: "POST", body: JSON.stringify({ name: destination.name, parentId: destination.parentId, content }) });
     if (documentRevision !== state.documentRevision || account !== state.googleAccount || !state.googleConnected) {
       saveFeedback("The previous Drive save finished after the document or account changed. Reopen Drive to verify it.", "error", operation);
       return;
@@ -3346,6 +3366,13 @@ async function saveGoogleDrive({ keepBrowser = false } = {}) {
     if (!result?.file || (file && typeof result.content !== "string")) throw new Error("Drive did not confirm the saved document. Keep a local copy and retry.");
     state.googleDriveFile = { ...file, ...result.file };
     if (!file) {
+      collaboration.disconnect();
+      state.collaborators.clear();
+      state.filename = result.file.name || destination.name;
+      $("#filename").textContent = state.filename;
+      document.title = `${state.filename} — Fountain Publisher`;
+      source.readOnly = false;
+      $("#screenplay-page").contentEditable = "plaintext-only";
       connectDriveCollaboration(result.file, content);
       // Preserve typing that happened during the upload when the new room syncs.
       collaboration.replace(source.value);
@@ -3357,11 +3384,53 @@ async function saveGoogleDrive({ keepBrowser = false } = {}) {
     document.body.classList.toggle("dirty", source.value !== acknowledgedContent);
     scheduleWorkspaceCache();
     updateGoogleMenu();
+    $("#google-save-dialog").close();
     if ($("#google-drive-dialog").open && !keepBrowser) $("#google-drive-dialog").close();
     if (keepBrowser) await openGoogleDrive();
     saveFeedback(source.value === acknowledgedContent ? "Saved to Google Drive" : "Saved to Google Drive; newer edits are not saved yet", "success", operation);
   } catch (error) { saveFeedback(error.message, "error", operation); }
-  finally { state.googleSaving = false; endSaveOperation(operation); updateGoogleMenu(); }
+  finally { state.googleSaving = false; $("#google-save-confirm").disabled = false; endSaveOperation(operation); updateGoogleMenu(); }
+}
+
+function openGoogleDriveSave() {
+  if (reportSaveInProgress()) return;
+  if (!state.googleConnected) return saveFeedback("Sign in with Google before saving", "error");
+  state.googleDriveSave = { documentRevision: state.documentRevision, account: state.googleAccount, parentId: "root" };
+  $("#google-save-filename").value = normalizedFilename("fountain");
+  $("#google-save-folder").textContent = "My Drive (root)";
+  $("#google-drive-dialog").close();
+  $("#google-save-dialog").showModal();
+}
+
+async function chooseGoogleDriveFolder() {
+  const draft = state.googleDriveSave;
+  if (!draft || googlePickerActive || reportSaveInProgress()) return;
+  const restore = () => {
+    if (draft !== state.googleDriveSave || draft.documentRevision !== state.documentRevision || draft.account !== state.googleAccount || !state.googleConnected) return;
+    $("#google-save-dialog").showModal();
+  };
+  $("#google-save-dialog").close();
+  await openGooglePicker({
+    selectFolder: true,
+    onCancel: restore,
+    onPicked: (folder) => {
+      if (draft !== state.googleDriveSave || draft.documentRevision !== state.documentRevision || draft.account !== state.googleAccount || !state.googleConnected) return;
+      draft.parentId = folder.id;
+      $("#google-save-folder").textContent = folder.name || "Selected folder";
+      restore();
+    },
+  });
+}
+
+async function submitGoogleDriveSave(event) {
+  if (event.submitter?.value !== "default") return;
+  event.preventDefault();
+  let name = $("#google-save-filename").value.trim();
+  if (!name || /[\\/\0]/.test(name)) return saveFeedback("Enter a filename without slashes", "error");
+  if (!/\.fountain$/i.test(name)) name += ".fountain";
+  if (name.length > 200) return saveFeedback("Filename must be at most 200 characters", "error");
+  if (!state.googleDriveSave) return;
+  await saveGoogleDrive({ destination: { ...state.googleDriveSave, name } });
 }
 
 async function shareGoogleDrive() {
@@ -5986,7 +6055,15 @@ $("#github-open").addEventListener("click", () => openGithubBrowser("open"));
 $("#github-save").addEventListener("click", () => openGithubBrowser("save"));
 $("#google-connect").addEventListener("click", connectGoogle);
 $("#google-open").addEventListener("click", openGooglePicker);
-$("#google-save").addEventListener("click", saveGoogleDrive);
+$("#google-save").addEventListener("click", openGoogleDriveSave);
+$("#google-save-form").addEventListener("submit", submitGoogleDriveSave);
+$("#google-save-dialog").addEventListener("keydown", (event) => event.stopPropagation());
+$("#google-save-choose-folder").addEventListener("click", chooseGoogleDriveFolder);
+$("#google-save-root").addEventListener("click", () => {
+  if (!state.googleDriveSave || reportSaveInProgress()) return;
+  state.googleDriveSave.parentId = "root";
+  $("#google-save-folder").textContent = "My Drive (root)";
+});
 $("#google-recovery").addEventListener("click", openGoogleRecovery);
 $("#google-recovery-close").addEventListener("click", () => $("#google-recovery-dialog").close());
 $("#google-recovery-dialog").addEventListener("close", () => { state.googleRecovery = null; });
@@ -6019,7 +6096,7 @@ $("#google-picker-local").addEventListener("click", () => {
   openFile();
 });
 $("#google-drive-filter").addEventListener("input", renderGoogleDriveFiles);
-$("#google-save-current").addEventListener("click", () => saveGoogleDrive({ keepBrowser: true }));
+$("#google-save-current").addEventListener("click", openGoogleDriveSave);
 $("#google-drive-open-selected").addEventListener("click", () => {
   if (state.googleDriveSelected) openGoogleDriveFile(state.googleDriveSelected.id).catch((error) => toast(error.message));
 });
@@ -6041,7 +6118,7 @@ $("#google-disconnect").addEventListener("click", async () => {
   toast("Signed out of Google");
 });
 $("#google-drive-files").addEventListener("click", (event) => {
-  if (event.target.closest("[data-google-save-current]")) return void saveGoogleDrive({ keepBrowser: true });
+  if (event.target.closest("[data-google-save-current]")) return void openGoogleDriveSave();
   const file = event.target.closest("[data-google-file]");
   if (file) selectGoogleDriveFile(file.dataset.googleFile).catch((error) => toast(error.message));
 });

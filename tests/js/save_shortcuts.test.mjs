@@ -213,6 +213,9 @@ test("Save on an opened Drive file checkpoints that file without creating a new 
 test("successful explicit Drive upload selects Drive, while a local copy selects downloads", async () => {
   const h = harness();
   await h.context.saveGoogleDrive();
+  assert.equal(h.$("#google-save-dialog").open, true);
+  assert.equal(h.calls.length, 0);
+  await h.context.submitGoogleDriveSave({ submitter: { value: "default" }, preventDefault() {} });
   assert.equal(h.state.saveDestination, "drive");
   assert.equal(h.calls.filter((call) => call.kind === "drive-create").length, 1);
   await h.context.saveFile(true);
@@ -236,6 +239,109 @@ test("Drive read-only, conflict, disconnected and initial-sync guards stay fail-
     assert.equal(h.$("#save-status").textContent, "Save failed");
     assert.ok(h.notices.length > 0);
   }
+});
+
+test("Drive save dialog creates a named copy in the chosen folder, then Save updates that copy", async () => {
+  const h = harness();
+  h.state.googleDriveFile = { ...linkedDrive };
+  h.state.saveDestination = "drive";
+  h.context.openGoogleDriveSave();
+  assert.equal(h.state.googleDriveSave.parentId, "root");
+  assert.equal(h.$("#google-save-filename").value, "Draft.fountain");
+  h.state.googleDriveSave.parentId = "chosen-folder";
+  h.$("#google-save-filename").value = "Second draft";
+  h.context.googleRequest = async (path, options) => {
+    h.calls.push({ kind: "drive-create", payload: JSON.parse(options.body) });
+    return { file: { ...linkedDrive, id: "new-copy", name: "Second draft.fountain" } };
+  };
+  let disconnected = false;
+  h.context.collaboration.disconnect = () => { disconnected = true; };
+  h.context.connectDriveCollaboration = (file) => { h.context.collaboration.fileId = file.id; };
+  await h.context.submitGoogleDriveSave({ submitter: { value: "default" }, preventDefault() {} });
+  assert.deepEqual(h.calls[0].payload, { name: "Second draft.fountain", parentId: "chosen-folder", content: "draft" });
+  assert.equal(h.calls.some((call) => call.kind === "checkpoint"), false);
+  assert.equal(disconnected, true);
+  assert.equal(h.state.googleDriveFile.id, "new-copy");
+  assert.equal(h.state.filename, "Second draft.fountain");
+  assert.equal(h.$("#google-save-dialog").open, false);
+  await h.context.saveCurrentDocument();
+  assert.equal(h.calls.filter((call) => call.kind === "checkpoint").length, 1);
+  assert.equal(h.calls.filter((call) => call.kind === "drive-create").length, 1);
+});
+
+test("folder selection preserves the save draft on cancel and ignores stale document/account callbacks", async () => {
+  for (const change of ["none", "document", "account"]) {
+    const h = harness();
+    h.context.googlePickerActive = false;
+    let picker;
+    h.context.openGooglePicker = async (options) => { picker = options; };
+    h.context.openGoogleDriveSave();
+    h.$("#google-save-filename").value = "Custom.fountain";
+    await h.context.chooseGoogleDriveFolder();
+    assert.equal(h.$("#google-save-dialog").open, false);
+    picker.onCancel();
+    assert.equal(h.state.googleDriveSave.parentId, "root");
+    assert.equal(h.$("#google-save-filename").value, "Custom.fountain");
+    assert.equal(h.$("#google-save-dialog").open, true);
+    await h.context.chooseGoogleDriveFolder();
+    if (change === "document") h.state.documentRevision += 1;
+    if (change === "account") h.state.googleAccount = { id: "other" };
+    picker.onPicked({ id: "chosen-folder", name: "My scripts" });
+    assert.equal(h.state.googleDriveSave.parentId, change === "none" ? "chosen-folder" : "root");
+    assert.equal(h.$("#google-save-dialog").open, change === "none");
+    assert.equal(h.calls.length, 0);
+  }
+});
+
+test("cancelled, invalid, and stale Drive saves do not upload or switch destinations", async () => {
+  for (const reason of ["cancel", "empty", "slashes", "long", "document", "account", "signedout"]) {
+    const h = harness();
+    h.context.openGoogleDriveSave();
+    if (reason === "empty") h.$("#google-save-filename").value = " ";
+    if (reason === "slashes") h.$("#google-save-filename").value = "folder/file";
+    if (reason === "long") h.$("#google-save-filename").value = "a".repeat(200);
+    if (reason === "document") h.state.documentRevision += 1;
+    if (reason === "account") h.state.googleAccount = { id: "other" };
+    if (reason === "signedout") h.state.googleConnected = false;
+    await h.context.submitGoogleDriveSave({ submitter: { value: reason === "cancel" ? "cancel" : "default" }, preventDefault() {} });
+    assert.equal(h.calls.length, 0, reason);
+    assert.equal(h.state.saveDestination, "local", reason);
+    assert.equal(h.state.savedSource, "baseline", reason);
+  }
+});
+
+test("failed Drive copy preserves the original link and collaboration for retry", async () => {
+  const h = harness();
+  h.state.googleDriveFile = { ...linkedDrive };
+  h.state.saveDestination = "drive";
+  h.context.openGoogleDriveSave();
+  h.state.googleDriveSave.parentId = "no-access-folder";
+  h.context.googleRequest = async () => { throw new Error("Folder access denied"); };
+  h.context.collaboration.disconnect = () => { throw new Error("Must not disconnect"); };
+  await h.context.submitGoogleDriveSave({ submitter: { value: "default" }, preventDefault() {} });
+  assert.equal(h.state.googleDriveFile.id, linkedDrive.id);
+  assert.equal(h.state.savedSource, "baseline");
+  assert.equal(h.state.saveDestination, "drive");
+  assert.equal(h.$("#google-save-dialog").open, true);
+  assert.equal(h.$("#google-save-confirm").disabled, false);
+  assert.match(h.notices.at(-1), /Folder access denied/);
+});
+
+test("Drive copy uploads only once and preserves edits made while saving", async () => {
+  const h = harness(), pending = deferred();
+  h.context.openGoogleDriveSave();
+  h.context.googleRequest = async (path, options) => { h.calls.push({ kind: "drive-create", payload: JSON.parse(options.body) }); return pending.promise; };
+  const event = { submitter: { value: "default" }, preventDefault() {} };
+  const saving = h.context.submitGoogleDriveSave(event);
+  await h.context.submitGoogleDriveSave(event);
+  assert.equal(h.calls.length, 1);
+  h.source.value = "newer edits";
+  pending.resolve({ file: { ...linkedDrive } });
+  await saving;
+  assert.equal(h.state.savedSource, "draft");
+  assert.equal(h.source.value, "newer edits");
+  assert.equal(h.classes.has("dirty"), true);
+  assert.equal(h.calls.find((call) => call.kind === "publish").content, "newer edits");
 });
 
 test("provider sign-out and missing restored Drive association never silently fall back to another destination", async () => {
