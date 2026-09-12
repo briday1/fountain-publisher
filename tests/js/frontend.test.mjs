@@ -28,7 +28,6 @@ test("local file opening accepts text-based screenplay PDFs for Fountain reconst
     readFile(new URL("../../src/fountain_publisher/web/THIRD_PARTY_NOTICES.md", import.meta.url), "utf8"),
     readFile(new URL("../../pyproject.toml", import.meta.url), "utf8"),
   ]);
-  assert.match(app, /showOpenFilePicker\([\s\S]*"application\/pdf": \["\.pdf"\]/);
   assert.match(html, /Open Fountain or PDF/);
   assert.match(html, /Text-based PDFs are reconstructed locally/);
   assert.match(app, /function pdfLayoutToFountain\(pages\)[\s\S]*scenePattern[\s\S]*titlePage[\s\S]*const character[\s\S]*const type/);
@@ -66,6 +65,32 @@ test("fallback file picker leaves unknown Fountain file types selectable on mobi
   context.confirmDiscard = async () => false;
   await context.openFile();
   assert.equal(clicks, 1, "declining to discard must not open the picker");
+});
+
+test("native file picker leaves Android BIN files selectable and preserves the file handle", async () => {
+  const app = await readFile(appPath, "utf8");
+  const loaded = [];
+  const options = [];
+  const content = "INT. OFFICE - DAY\n\nA writer types.";
+  const file = { name: "Screenplay - Draft (1).fountain", type: "application/octet-stream", text: async () => content };
+  const handle = { getFile: async () => file };
+  const context = {
+    state: {},
+    confirmDiscard: async () => true,
+    window: { showOpenFilePicker: async (option) => { options.push(option); return [handle]; } },
+    setDocument: (...args) => loaded.push(args),
+    toast: (message) => assert.fail(message),
+    $: () => assert.fail("Browsers with showOpenFilePicker must not use the fallback input"),
+  };
+  runInNewContext(app.slice(app.indexOf("async function openFile("), app.indexOf("function pdfLayoutToFountain(")), context);
+  await context.openFile();
+  assert.deepEqual({ ...options[0] }, { multiple: false }, "native pickers must not filter out unknown MIME types");
+  assert.deepEqual(loaded, [[content, file.name, true]]);
+  assert.equal(context.state.handle, handle);
+  context.confirmDiscard = async () => false;
+  await context.openFile();
+  assert.equal(options.length, 1, "declining to discard must not open the native picker");
+  assert.equal(loaded.length, 1);
 });
 
 test("local imports accept Fountain MIME variants and retain PDF detection", async () => {
