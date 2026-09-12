@@ -41,13 +41,33 @@ function scrollHarness({ lineCount = 4 } = {}) {
     clientWidth: 400, scrollWidth: 1000, scrollHeight: source.scrollHeight,
     scrollTop: 0, scrollLeft: 0,
     innerHTML: "Existing highlighted text",
+    get children() { return [...rows.values()]; },
   };
-  const gutter = {
+  const makeNode = (fragment = false) => ({
+    fragment, children: [], parentNode: null, className: "", style: {}, textContent: "",
+    get childElementCount() { return this.children.length; },
+    append(node) { this.insertBefore(node, null); },
+    insertBefore(node, before) {
+      if (node.fragment) { for (const child of [...node.children]) this.insertBefore(child, before); return; }
+      node.remove();
+      const index = before === null ? this.children.length : this.children.indexOf(before);
+      assert.ok(index >= 0);
+      this.children.splice(index, 0, node); node.parentNode = this;
+    },
+    remove() {
+      if (!this.parentNode) return;
+      const siblings = this.parentNode.children;
+      siblings.splice(siblings.indexOf(this), 1); this.parentNode = null;
+    },
+  });
+  const gutter = Object.assign(makeNode(), {
     scrollTop: 0,
     html: "Existing line numbers",
-    set innerHTML(value) { calls.gutterWrites += 1; this.html = value; },
-    get innerHTML() { return this.html; },
-  };
+  });
+  Object.defineProperty(gutter, "innerHTML", {
+    set(value) { calls.gutterWrites += 1; this.html = value; },
+    get() { return this.children.length ? this.children.map((node) => `<span class="${node.className}" style="top:${node.style.top}">${node.textContent}</span>`).join("") : this.html; },
+  });
   const currentLine = { style: {} };
   const remoteLayers = [{ scrollTop: 0, scrollLeft: 0, innerHTML: "Remote cursor markup" }];
   const remoteContainer = {};
@@ -56,6 +76,7 @@ function scrollHarness({ lineCount = 4 } = {}) {
   const computed = { lineHeight: "20px", paddingTop: "14px" };
   const sandbox = {
     source,
+    document: { createElement: () => makeNode(), createDocumentFragment: () => makeNode(true) },
     $(selector, root) {
       if (root === highlight) return rows.get(Number(selector.match(/\d+/)?.[0]));
       return { "#source-highlight": highlight, "#line-numbers": gutter, "#current-line": currentLine, "#collaboration-cursors": remoteContainer, "#cursor-position": cursor, "#editor-status": status }[selector];
@@ -183,7 +204,8 @@ test("resize bursts refresh existing wrap geometry and gutter positions without 
   assert.equal(editor.currentLine.style.transform, "translateY(40px)");
   assert.match(editor.gutter.innerHTML, /top:94px">2<\/span>/);
   assert.match(editor.gutter.innerHTML, /top:154px">3<\/span>/);
-  assert.equal(editor.calls.gutterWrites, 1);
+  assert.equal(editor.calls.gutterWrites, 0, "resize must not replace the entire gutter HTML");
+  assert.equal(editor.gutter.children.length, 5, "four logical line numbers and their spacer");
   assert.equal(editor.calls.classification, 0);
   assert.equal(editor.calls.syntax, 0);
   assert.equal(editor.calls.preview, 0);
@@ -202,7 +224,8 @@ test("resize and scroll share a frame without losing either resize work or the n
   editor.source.scrollLeft = 27;
   editor.flush();
   assert.equal(editor.frames.size, 0);
-  assert.equal(editor.calls.gutterWrites, 1);
+  assert.equal(editor.calls.gutterWrites, 0, "shared geometry frame reuses gutter nodes");
+  assert.equal(editor.gutter.children.length, 5);
   assert.equal(editor.calls.cache, 1);
   assert.equal(editor.highlight.style.width, "320px");
   assert.equal(editor.highlight.style.height, "180px");

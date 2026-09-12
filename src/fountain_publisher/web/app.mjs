@@ -1497,14 +1497,40 @@ function renderEditorChrome() {
 function renderLineNumbers() {
   const gutter = $("#line-numbers");
   const highlight = $("#source-highlight");
-  const numbers = source.value.split("\n").map((line, index) => {
-    const sourceLine = $(`[data-source-line="${index}"]`, highlight);
-    const top = sourceLine?.offsetTop || 0;
-    return `<span class="line-number" style="top:${Math.max(0, top)}px">${index + 1}</span>`;
-  }).join("");
+  const sourceNodes = Array.from(highlight.children);
+  // Read geometry together before changing the gutter. Direct indexed nodes
+  // avoid scanning the entire highlight tree with one selector per line.
+  const tops = source.value.split("\n").map((_line, index) => {
+    const sourceLine = sourceNodes[index];
+    return Math.max(0, sourceLine?.offsetTop || 0);
+  });
   const scrollHeight = Math.max(source.scrollHeight, highlight.scrollHeight);
-  gutter.innerHTML = `${numbers}<span class="line-number-spacer" style="height:${scrollHeight}px"></span>`;
-  gutter.scrollTop = source.scrollTop;
+  const scrollTop = source.scrollTop;
+  const numbers = Array.from(gutter.children);
+  let spacer = numbers.at(-1);
+  if (spacer?.className === "line-number-spacer") numbers.pop();
+  else {
+    spacer = document.createElement("span");
+    spacer.className = "line-number-spacer";
+  }
+  while (numbers.length > tops.length) numbers.pop().remove();
+  const added = document.createDocumentFragment();
+  for (let index = 0; index < tops.length; index += 1) {
+    let number = numbers[index];
+    if (!number) {
+      number = document.createElement("span");
+      number.className = "line-number";
+      number.textContent = String(index + 1);
+      added.append(number);
+    }
+    const top = `${tops[index]}px`;
+    if (number.style.top !== top) number.style.top = top;
+  }
+  if (added.childElementCount) gutter.insertBefore(added, spacer.parentNode === gutter ? spacer : null);
+  if (spacer.parentNode !== gutter) gutter.append(spacer);
+  const height = `${scrollHeight}px`;
+  if (spacer.style.height !== height) spacer.style.height = height;
+  if (gutter.scrollTop !== scrollTop) gutter.scrollTop = scrollTop;
 }
 
 function fountainSyntaxHtml(value) {
@@ -1530,13 +1556,48 @@ function sourceSpellingHtml(value, type, checker) {
 function renderSourceSyntax() {
   const classes = { scene: "scene", character: "character", dialogue: "dialogue", parenthetical: "parenthetical", transition: "transition", section: "section", synopsis: "synopsis", note: "note", boneyard: "boneyard", lyric: "lyric", "title-value": "title", "title-value title": "title" };
   const lines = classifyLines(source.value);
-  const checker = $("#spellcheck").checked ? state.spellchecker : null;
-  $("#source-highlight").innerHTML = lines.map((line) => {
-    const name = classes[line.type];
-    const value = sourceSpellingHtml(line.raw, line.type, checker) || " ";
-    return `<span data-source-line="${line.index}"${name ? ` class="syntax-${name}"` : ""}>${value}</span>`;
-  }).join("");
-  if ($("#spellcheck").checked && !state.spellchecker) void getSpellchecker().then(renderSourceSyntax).catch(() => {});
+  const enabled = $("#spellcheck").checked;
+  const checker = enabled ? state.spellchecker : null;
+  const highlight = $("#source-highlight");
+  const caches = renderSourceSyntax.caches ||= new WeakMap();
+  let cache = caches.get(highlight);
+  if (!cache) { cache = { lines: [] }; caches.set(highlight, cache); }
+  const settingsChanged = cache.checker !== checker || cache.enabled !== enabled;
+  const nodes = Array.from(highlight.children);
+  const added = document.createDocumentFragment();
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    let node = nodes[index];
+    if (!node) { node = document.createElement("span"); added.append(node); }
+    const previous = cache.lines[index];
+    if (settingsChanged || previous?.node !== node || previous.raw !== line.raw || previous.type !== line.type) {
+      const name = classes[line.type];
+      const className = name ? `syntax-${name}` : "";
+      const value = sourceSpellingHtml(line.raw, line.type, checker) || " ";
+      if (node.dataset.sourceLine !== String(index)) node.dataset.sourceLine = String(index);
+      if (node.className !== className) node.className = className;
+      if (previous?.node !== node || node.innerHTML !== value) node.innerHTML = value;
+      cache.lines[index] = { node, raw: line.raw, type: line.type };
+    } else {
+      // Keep substring references on the current source snapshot instead of
+      // retaining old document backing strings through unchanged line records.
+      previous.raw = line.raw;
+    }
+  }
+  while (highlight.childElementCount > lines.length) highlight.lastElementChild.remove();
+  if (added.childElementCount) highlight.append(added);
+  cache.lines.length = lines.length;
+  cache.checker = checker;
+  cache.enabled = enabled;
+  // A long document may receive many edits before the dictionary loads. One
+  // completion callback is enough to refresh its spelling decorations.
+  if (enabled && !state.spellchecker && !renderSourceSyntax.spellcheckerPending) {
+    renderSourceSyntax.spellcheckerPending = true;
+    void getSpellchecker().then(() => {
+      renderSourceSyntax.spellcheckerPending = false;
+      renderSourceSyntax();
+    }).catch(() => { renderSourceSyntax.spellcheckerPending = false; });
+  }
 }
 
 function boundedScrollLeft(element, value = element.scrollLeft) {

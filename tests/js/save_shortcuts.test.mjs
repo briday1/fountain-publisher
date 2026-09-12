@@ -58,6 +58,7 @@ function harness() {
     section("function prepareGithubKeyboardInputs(", "function decodeGithubContent("),
     section("function normalizedFilename(", "async function download("),
     section("function persistWorkspaceNow(", "function scheduleWorkspaceCache("),
+    section("function cancelWorkspaceViewCache(", "function scheduleWorkspaceViewCache("),
   ].join("\n"), context);
   runInNewContext(section('$("#github-conflict-dialog").addEventListener("keydown"', '\n$("#github-conflict-dialog").addEventListener("beforeinput"'), context);
   context.writeGithubFile = async (target, content, sha) => {
@@ -257,6 +258,24 @@ test("the selected method is persisted alongside the recovered document and GitH
   cached = JSON.parse(h.storage.get("workspace"));
   assert.equal(cached.saveDestination, "download");
   assert.equal(cached.githubFile.path, linkedGithub.path);
+});
+
+test("saving persists the destination immediately and cancels obsolete view-only cache work", () => {
+  const h = harness(), cancelledTimers = [], cancelledIdle = [];
+  h.state.saveDestination = "github"; h.state.githubFile = { ...linkedGithub };
+  h.state.cacheTimer = 7; h.state.viewCacheTimer = 42; h.state.viewCacheIdle = 88;
+  h.context.clearTimeout = (id) => cancelledTimers.push(id);
+  h.context.window.cancelIdleCallback = (id) => cancelledIdle.push(id);
+  h.context.persistWorkspaceNow();
+  const cached = JSON.parse(h.storage.get("workspace"));
+  assert.equal(cached.saveDestination, "github");
+  assert.equal(cached.githubFile.path, linkedGithub.path);
+  assert.equal(cached.source, "draft");
+  assert.deepEqual(cancelledTimers, [7, 42]);
+  assert.deepEqual(cancelledIdle, [88]);
+  assert.equal(h.state.cacheTimer, 0);
+  assert.equal(h.state.viewCacheTimer, 0);
+  assert.equal(h.state.viewCacheIdle, 0);
 });
 
 test("automatic Drive checkpoints cannot mark text saved to a different selected destination", () => {
