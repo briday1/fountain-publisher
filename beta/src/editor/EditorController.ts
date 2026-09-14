@@ -3,6 +3,7 @@ import {
   EditorState,
   Plugin,
   PluginKey,
+  Selection,
   TextSelection,
 } from "prosemirror-state";
 import type { Command, Transaction } from "prosemirror-state";
@@ -101,6 +102,7 @@ export interface EditorCollaboration {
 }
 interface LiveBinding extends EditorCollaboration {
   undoManager: Y.UndoManager;
+  beforeRemoteTransaction: (transaction: Y.Transaction) => void;
   metadataObserver: (
     events: Y.YEvent<Y.AbstractType<unknown>>[],
     transaction: Y.Transaction,
@@ -109,7 +111,7 @@ interface LiveBinding extends EditorCollaboration {
 
 /** Native selectionchange may arrive after the next keydown, especially after
  * a click or arrow movement. Commands must use the caret the writer can see. */
-function syncNativeSelection(view: EditorView) {
+function pendingNativeSelection(view: EditorView): Selection | undefined {
   const selection = view.dom.ownerDocument.getSelection();
   if (
     !view.hasFocus() ||
@@ -126,11 +128,14 @@ function syncNativeSelection(view: EditorView) {
     head === view.state.selection.head
   )
     return;
-  const next = TextSelection.between(
+  return TextSelection.between(
     view.state.doc.resolve(anchor),
     view.state.doc.resolve(head),
   );
-  view.dispatch(view.state.tr.setSelection(next));
+}
+function syncNativeSelection(view: EditorView) {
+  const next = pendingNativeSelection(view);
+  if (next) view.dispatch(view.state.tr.setSelection(next));
 }
 
 /** All editing state belongs to ProseMirror. React mounts one persistent surface. */
@@ -192,6 +197,9 @@ export class EditorController {
             !input.cancelable
           )
             return false;
+          // Native text insertion (mobile, dictation, insertText) may not have a
+          // keydown. Read the visible caret before any command or DOM insertion.
+          syncNativeSelection(view);
           const command = (
             {
               insertParagraph: screenplayEnter,
@@ -204,7 +212,6 @@ export class EditorController {
             } as Record<string, Command>
           )[input.inputType];
           if (!command) return false;
-          syncNativeSelection(view);
           // Mobile keyboards and accessibility input need not emit keydown.
           // Route their paragraph, format, and history actions through the same state.
           input.preventDefault();
@@ -428,6 +435,17 @@ export class EditorController {
 
   private dispatch(transaction: Transaction): void {
     if (this.destroyed) return;
+    if (
+      this.live &&
+      !this.view.composing &&
+      !transaction.docChanged &&
+      !transaction.selectionSet
+    ) {
+      // A presence redraw must not restore an old broad selection while the
+      // browser's ArrowRight/click selectionchange event is still queued.
+      const native = pendingNativeSelection(this.view);
+      if (native) transaction.setSelection(native);
+    }
     const sharedOrigin =
       transaction.getMeta(ySyncPluginKey)?.isChangeOrigin === true;
     if (transaction.docChanged && !this.writable && !sharedOrigin) return;
@@ -577,7 +595,16 @@ export class EditorController {
           options.onMetadata?.();
       });
     };
-    this.live = { ...options, undoManager, metadataObserver };
+    const beforeRemoteTransaction = (transaction: Y.Transaction) => {
+      if (!transaction.local && !this.destroyed && !this.view.composing)
+        syncNativeSelection(this.view);
+    };
+    this.live = {
+      ...options,
+      undoManager,
+      metadataObserver,
+      beforeRemoteTransaction,
+    };
     const next = this.createState(readSharedDocument(options.doc));
     const from = anchor && anchorPosition(next.doc, anchor);
     const to = head && anchorPosition(next.doc, head);
@@ -588,6 +615,10 @@ export class EditorController {
           )
         : next,
     );
+    // This runs before the remote CRDT mutates. The selection-only view update
+    // also refreshes ySync's relative snapshot, so remote text maps the visible
+    // native caret rather than its potentially stale ProseMirror selection.
+    options.doc.on("beforeTransaction", beforeRemoteTransaction);
     // Undo recreates deleted Yjs items. Its local redone links are not transmitted,
     // so publish fresh relative IDs for restored anchors before peers resolve them.
     undoManager.on("stack-item-popped", () => {
@@ -611,12 +642,13 @@ export class EditorController {
     if (!live) return;
     const snapshot = readSharedDocument(live.doc, this.sharedView());
     const selection = this.view.state.selection.toJSON();
+    live.doc.off("beforeTransaction", live.beforeRemoteTransaction);
     sharedDetails(live.doc).unobserveDeep(live.metadataObserver);
     this.live = undefined;
     const state = this.createState(snapshot);
     this.view.updateState(
       state.apply(
-        state.tr.setSelection(TextSelection.fromJSON(state.doc, selection)),
+        state.tr.setSelection(Selection.fromJSON(state.doc, selection)),
       ),
     );
     this.notifySelection();

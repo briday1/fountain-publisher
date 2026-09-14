@@ -1,7 +1,12 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import { Awareness } from "y-protocols/awareness";
-import { TextSelection } from "prosemirror-state";
+import { AllSelection, TextSelection } from "prosemirror-state";
+import { yCursorPluginKey } from "y-prosemirror";
+import {
+  applyAwarenessUpdate,
+  encodeAwarenessUpdate,
+} from "y-protocols/awareness";
 import { EditorController } from "../src/editor/EditorController";
 import { screenplayEnter } from "../src/editor/commands";
 import {
@@ -65,7 +70,13 @@ function peer(doc: Y.Doc, canEdit = true) {
   );
   const element = editor.view.dom;
   editor.attachCollaboration({ doc, awareness, canEdit });
-  return { doc, editor, element, current: () => editor.getDocument(initial) };
+  return {
+    doc,
+    editor,
+    awareness,
+    element,
+    current: () => editor.getDocument(initial),
+  };
 }
 function pair(base = fixture()) {
   const first = createSharedDocument(base);
@@ -102,6 +113,91 @@ function at(editor: EditorController, id: string, offset: number) {
 }
 
 describe("live screenplay editing", () => {
+  it("synchronizes native insertText input without keydown and preserves select-all through detach", () => {
+    const { a } = pair();
+    a.editor.focus();
+    a.editor.view.dispatch(
+      a.editor.view.state.tr.setSelection(
+        new AllSelection(a.editor.view.state.doc),
+      ),
+    );
+    const text = a.editor.view.dom.querySelector(
+      'p[data-id="ending"]',
+    )!.firstChild!;
+    window.getSelection()!.collapse(text, text.textContent!.length);
+    a.editor.view.dom.dispatchEvent(
+      new InputEvent("beforeinput", {
+        inputType: "insertText",
+        data: " Added.",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(a.editor.view.state.selection.empty).toBe(true);
+    type(a.editor, " Added.");
+    expect(a.current().blocks[2].text).toBe("After the signal. Added.");
+    a.editor.view.dispatch(
+      a.editor.view.state.tr.setSelection(
+        new AllSelection(a.editor.view.state.doc),
+      ),
+    );
+    expect(() => a.editor.detachCollaboration()).not.toThrow();
+    expect(a.editor.view.state.selection).toBeInstanceOf(AllSelection);
+  });
+
+  it.each(["presence", "text"])(
+    "keeps a native collapsed selection when %s arrives before selectionchange",
+    (incoming) => {
+      const { a, b, sync } = pair();
+      const original = a.editor.view.dom.querySelector('p[data-id="opening"]');
+      if (incoming === "text") {
+        select(b.editor, 1);
+        type(b.editor, "Remote ");
+      }
+      a.editor.focus();
+      a.editor.view.dispatch(
+        a.editor.view.state.tr.setSelection(
+          new AllSelection(a.editor.view.state.doc),
+        ),
+      );
+      const text = a.editor.view.dom.querySelector(
+        'p[data-id="ending"]',
+      )!.firstChild!;
+      // Native ArrowRight collapses first; selectionchange arrives in a later task.
+      window.getSelection()!.collapse(text, text.textContent!.length);
+      expect(a.editor.view.state.selection.empty).toBe(false);
+      if (incoming === "presence") {
+        b.awareness.setLocalState({
+          user: { name: "Peer", color: "#3377bb" },
+          cursor: {
+            anchor: { tname: "script", assoc: -1 },
+            head: { tname: "script", assoc: -1 },
+          },
+        });
+        applyAwarenessUpdate(
+          a.awareness,
+          encodeAwarenessUpdate(b.awareness, [b.doc.clientID]),
+          "network",
+        );
+        a.editor.view.dispatch(
+          a.editor.view.state.tr.setMeta(yCursorPluginKey, {
+            awarenessUpdated: true,
+          }),
+        );
+      } else sync();
+      expect(a.editor.view.state.selection.empty).toBe(true);
+      expect(window.getSelection()!.isCollapsed).toBe(true);
+      type(a.editor, " Appended.");
+      sync();
+      expect(a.current().blocks).toHaveLength(3);
+      expect(a.current().blocks[2].text).toBe("After the signal. Appended.");
+      expect(a.editor.view.dom.querySelector('p[data-id="opening"]')).toBe(
+        original,
+      );
+      expect(a.current()).toEqual(b.current());
+    },
+  );
+
   it("initializes and round-trips portable screenplay metadata, marks, and precise ranges", () => {
     const base = fixture(true);
     base.titlePage.title = "Shared draft";

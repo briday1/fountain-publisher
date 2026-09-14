@@ -20,7 +20,10 @@ import {
 } from "../src/collaboration/sharedDocument";
 import { parseFountain, serializeFountain } from "../src/core/fountain";
 
-const modifier = process.platform === "darwin" ? "Meta" : "Control";
+// Exercise the Linux keymap locally as well as the host platform in CI.
+const linuxKeys = process.env.TEST_LINUX_KEYS === "1";
+const modifier =
+  !linuxKeys && process.platform === "darwin" ? "Meta" : "Control";
 const fileId = "shared-radio-script";
 const filename = "Shared Signals.fountain";
 const source =
@@ -106,6 +109,13 @@ class SharedDriveRoom {
   }
 
   async install(context: BrowserContext, person: Person) {
+    if (linuxKeys)
+      await context.addInitScript(() => {
+        Object.defineProperty(navigator, "platform", {
+          value: "Linux x86_64",
+          configurable: true,
+        });
+      });
     await context.addInitScript(() => {
       Object.defineProperty(window, "showSaveFilePicker", {
         value: undefined,
@@ -428,9 +438,39 @@ async function openShared(page: Page, viaDrive = false) {
 }
 
 async function endOfScript(page: Page) {
-  await editor(page).click();
-  await page.keyboard.press(`${modifier}+a`);
-  await page.keyboard.press("ArrowRight");
+  await editor(page)
+    .locator("p[data-id]")
+    .last()
+    .evaluate((paragraph) => {
+      const surface = paragraph.closest<HTMLElement>(".screenplay-editor")!;
+      surface.focus();
+      const range = document.createRange();
+      range.selectNodeContents(paragraph);
+      range.collapse(false);
+      const selection = window.getSelection()!;
+      selection.removeAllRanges();
+      selection.addRange(range);
+      paragraph.scrollIntoView({ block: "nearest" });
+    });
+  await expect
+    .poll(() =>
+      editor(page).evaluate((surface) => {
+        const selection = window.getSelection();
+        const last = surface.querySelector("p[data-id]:last-of-type");
+        return Boolean(
+          selection?.isCollapsed &&
+          selection.anchorNode &&
+          last?.contains(selection.anchorNode),
+        );
+      }),
+    )
+    .toBe(true);
+  // Allow the browser's selectionchange to reach the editor before sending
+  // network traffic. Native select-all/collapse is covered independently below.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+  );
 }
 
 async function append(page: Page, text: string) {
@@ -469,6 +509,9 @@ test("shared Drive writers converge concurrent edits, retain local undo, and kee
   for (const page of [alice, bob]) {
     await expect(editor(page)).toContainText("Alice adds a signal.");
     await expect(editor(page)).toContainText("Bob answers the signal.");
+    await expect(editor(page)).toContainText("The radio waits.");
+    await expect(editor(page)).toContainText("Both writers have a turn.");
+    await expect(editor(page).locator("p[data-id]")).toHaveCount(3);
   }
   await expect.poll(() => writing(alice)).toBe(await writing(bob));
   await expect(live(alice)).toContainText("Bob Writer");
@@ -505,6 +548,47 @@ test("shared Drive writers converge concurrent edits, retain local undo, and kee
       .join("\n"),
   ).toBe(room.screenplay.blocks.map((block) => block.text).join("\n"));
   expect(room.unexpectedMessages).toEqual([]);
+});
+
+test("native select-all collapse preserves the draft during collaborator cursor updates", async ({
+  room,
+  alice,
+  bob,
+}) => {
+  await openShared(alice);
+  await openShared(bob);
+  await endOfScript(bob);
+  await expect(live(alice)).toContainText("Bob Writer");
+  await expect(live(bob)).toContainText("Alice Writer");
+  const original = await writing(alice);
+  const paragraphs = await editor(alice).locator("p[data-id]").count();
+
+  // Exercise actual keyboard selection and native collapse, including the
+  // awareness update that can arrive before native selectionchange is handled.
+  await editor(alice).click();
+  await alice.keyboard.press(`${modifier}+a`);
+  await expect
+    .poll(() => alice.evaluate(() => window.getSelection()?.isCollapsed))
+    .toBe(false);
+  await alice.keyboard.press("ArrowRight");
+  room.cursorAtStart(people.bob);
+  await expect(
+    alice.locator(".screenplay-editor > .collaboration-cursor"),
+  ).toHaveText("Bob Writer");
+  await expect
+    .poll(() => alice.evaluate(() => window.getSelection()?.isCollapsed))
+    .toBe(true);
+  await alice.keyboard.insertText(" A safe new sentence.");
+
+  for (const page of [alice, bob]) {
+    await expect(editor(page)).toContainText("A safe new sentence.");
+    await expect(editor(page).locator("p[data-id]")).toHaveCount(paragraphs);
+    await expect
+      .poll(async () =>
+        (await writing(page)).replace(" A safe new sentence.", ""),
+      )
+      .toBe(original);
+  }
 });
 
 test("disconnected local writing survives reconnection and merges the other writer's changes", async ({
@@ -835,6 +919,7 @@ test.describe("long shared screenplay", () => {
     await expect(live(alice)).toContainText("Bob Writer");
     await expect(live(bob)).toContainText("Alice Writer");
     const paragraphCount = await editor(alice).locator("p").count();
+    const originalWriting = await writing(alice);
     expect(paragraphCount).toBeGreaterThanOrEqual(1200);
     const firstAlice = (await editor(alice)
       .locator("p")
@@ -923,6 +1008,11 @@ test.describe("long shared screenplay", () => {
       ).toBe(true);
     }
     await expect.poll(() => writing(alice)).toBe(await writing(bob));
+    await expect(editor(alice).locator("p[data-id]")).toHaveCount(
+      paragraphCount,
+    );
+    await expect(editor(bob).locator("p[data-id]")).toHaveCount(paragraphCount);
+    expect(await writing(alice)).toBe(originalWriting + addition);
     expect(room.content).toContain(addition.trim());
     expect(room.unexpectedMessages).toEqual([]);
     await alice.screenshot({
