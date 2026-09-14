@@ -36,7 +36,7 @@ for (const width of [390, 820]) {
       expect(styles.color).toBe(styles.paper);
       expect(styles.margin).toBe("0px");
       expect(styles.max).toBe("none");
-      await page.getByRole("button", { name: "Exit Zen mode", exact: true }).click();
+      await page.getByRole("button", { name: "Exit Zen", exact: true }).click();
     }
   });
 }
