@@ -7,6 +7,7 @@ import {
 } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import * as Y from "yjs";
+import * as awarenessEncoding from "lib0/encoding";
 import {
   Awareness,
   applyAwarenessUpdate,
@@ -287,6 +288,37 @@ class SharedDriveRoom {
       this.apply(connection, message);
   }
 
+  cursorAtStart(person: Person) {
+    const connection = [...this.connections].find(
+      (entry) => entry.person.id === person.id,
+    )!;
+    const clientId = connection.clientId;
+    const state = this.awareness.getStates().get(clientId)!;
+    const clock = this.awareness.meta.get(clientId)!.clock + 1;
+    const position = Y.relativePositionToJSON(
+      Y.createRelativePositionFromTypeIndex(
+        this.document.getXmlFragment("script"),
+        0,
+      ),
+    );
+    const frame = awarenessEncoding.createEncoder();
+    awarenessEncoding.writeVarUint(frame, 1);
+    awarenessEncoding.writeVarUint(frame, clientId);
+    awarenessEncoding.writeVarUint(frame, clock);
+    awarenessEncoding.writeVarString(
+      frame,
+      JSON.stringify({
+        ...state,
+        cursor: { anchor: position, head: position },
+      }),
+    );
+    applyAwarenessUpdate(
+      this.awareness,
+      awarenessEncoding.toUint8Array(frame),
+      connection,
+    );
+  }
+
   async disconnect(person: Person) {
     this.blocked.add(person.id);
     for (const connection of [...this.connections]) {
@@ -366,6 +398,7 @@ const live = (page: Page) =>
 const writing = (page: Page) =>
   editor(page).evaluate((element) =>
     [...element.children]
+      .filter((block) => block.matches("p[data-id]"))
       .map((block) => {
         const content = block.cloneNode(true) as HTMLElement;
         content
@@ -797,6 +830,10 @@ test.describe("long shared screenplay", () => {
   }, testInfo) => {
     await openShared(alice);
     await openShared(bob);
+    await endOfScript(bob);
+    await endOfScript(alice);
+    await expect(live(alice)).toContainText("Bob Writer");
+    await expect(live(bob)).toContainText("Alice Writer");
     const paragraphCount = await editor(alice).locator("p").count();
     expect(paragraphCount).toBeGreaterThanOrEqual(1200);
     const firstAlice = (await editor(alice)
@@ -804,11 +841,27 @@ test.describe("long shared screenplay", () => {
       .nth(1)
       .elementHandle())!;
     const firstBob = (await editor(bob).locator("p").nth(1).elementHandle())!;
+    const retained = await Promise.all(
+      [firstAlice, firstBob].map(async (node) => ({
+        node,
+        id: (await node.getAttribute("data-id"))!,
+      })),
+    );
     const aliceEditor = (await editor(alice).elementHandle())!;
     const bobEditor = (await editor(bob).elementHandle())!;
-    await endOfScript(bob);
-    await endOfScript(alice);
-    await expect(live(alice)).toContainText("Bob Writer");
+    // A valid cursor at the root boundary is a sibling before the first
+    // paragraph. It changes child indices without replacing writing nodes.
+    room.cursorAtStart(people.bob);
+    await expect(
+      alice.locator(".screenplay-editor > .collaboration-cursor"),
+    ).toHaveText("Bob Writer");
+    expect(
+      await firstAlice.evaluate(
+        (element) =>
+          element.isConnected &&
+          element !== document.querySelector(".screenplay-editor")?.children[1],
+      ),
+    ).toBe(true);
     await alice.evaluate(() => {
       const scope = window as unknown as { liveTypingTimes: number[] };
       scope.liveTypingTimes = [];
@@ -856,12 +909,16 @@ test.describe("long shared screenplay", () => {
         ),
       ).toBe(true);
     }
-    for (const node of [firstAlice, firstBob]) {
+    for (const { node, id } of retained) {
       expect(
         await node.evaluate(
-          (element) =>
+          (element, id) =>
+            element.isConnected &&
             element ===
-            document.querySelector(".screenplay-editor")?.children[1],
+              document.querySelector(
+                `.screenplay-editor > p[data-id="${CSS.escape(id)}"]`,
+              ),
+          id,
         ),
       ).toBe(true);
     }
