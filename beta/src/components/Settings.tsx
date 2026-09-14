@@ -116,7 +116,7 @@ export function Settings({
             <option value="act">By act · A1S1, A1S2</option>
           </select>
         </label>
-        <label>
+        <label className="workspace-background-setting">
           Workspace background
           <select
             value={value.background}
