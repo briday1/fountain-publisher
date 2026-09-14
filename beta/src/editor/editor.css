@@ -5,38 +5,45 @@
   outline: none;
   white-space: pre-wrap;
   overflow-wrap: break-word;
-  font-family: "Courier Prime", "Courier New", monospace;
-  font-size: 16px;
-  line-height: 1.45;
+  font:
+    400 16px/1 "Courier Prime",
+    "Courier New",
+    monospace;
   tab-size: 4;
   min-height: 800px;
   caret-color: currentColor;
 }
 .screenplay-editor p {
-  margin: 0 0 1.35em;
-  min-height: 1.45em;
+  margin: 0;
+  min-height: 1em;
+}
+.screenplay-editor p + p {
+  margin-top: 1em;
 }
 .screenplay-editor p[data-kind="scene"] {
-  font-weight: 700;
+  font-weight: inherit;
   text-transform: uppercase;
-  margin-top: 1.9em;
+  margin-top: 2em;
+  margin-bottom: 1em;
 }
 .screenplay-editor p[data-kind="scene"]:first-child {
   margin-top: 0;
 }
 .screenplay-editor p[data-kind="character"] {
   text-transform: uppercase;
-  margin-left: 37%;
-  margin-right: 7%;
+  margin-left: 33.3333%;
+  margin-right: 10%;
   margin-bottom: 0;
 }
 .screenplay-editor p[data-kind="dialogue"] {
-  margin-left: 20%;
-  margin-right: 19%;
+  margin-left: 16.6667%;
+  margin-right: 25%;
+  margin-top: 0;
 }
 .screenplay-editor p[data-kind="parenthetical"] {
-  margin-left: 29%;
-  margin-right: 25%;
+  margin-left: 27.7778%;
+  margin-right: 20%;
+  margin-top: 0;
   margin-bottom: 0;
 }
 .screenplay-editor p[data-kind="dialogue"]:has(+ p[data-kind="parenthetical"]) {
@@ -50,11 +57,12 @@
   text-align: center;
 }
 .screenplay-editor p[data-kind="section"] {
-  font-family: var(--font-ui, system-ui, sans-serif);
-  font-size: 1.05em;
+  font-family: inherit;
+  font-size: 1em;
   font-weight: 700;
-  color: var(--accent, #a77b3e);
+  color: inherit;
   margin-top: 2em;
+  text-transform: uppercase;
 }
 .screenplay-editor p[data-kind="synopsis"],
 .screenplay-editor p[data-kind="note"] {

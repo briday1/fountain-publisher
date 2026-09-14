@@ -210,6 +210,86 @@ test("desktop and mobile layout expose a usable editor without horizontal app ov
   await page.screenshot({ path: "test-results/mobile.png", fullPage: true });
 });
 
+test("title presentation and heading preferences retain the active editor and its undo history", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page
+    .getByRole("button", { name: "New screenplay", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Title page preview" }),
+  ).toHaveCount(0);
+  await editor.click();
+  await page.keyboard.type("INT. STUDIO - NIGHT");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("A voice finds its way home.");
+  const originalEditor = await editor.elementHandle();
+  await page.getByRole("button", { name: "Title page", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Title page", exact: true });
+  await dialog
+    .getByRole("textbox", { name: "Title", exact: true })
+    .fill("The Quiet Hour\nA radio play");
+  await dialog
+    .getByRole("textbox", { name: "Author", exact: true })
+    .fill("Renée Writer");
+  await dialog
+    .getByRole("textbox", { name: "Contact", exact: true })
+    .fill("writer@example.com\nNew York");
+  await dialog
+    .getByRole("textbox", { name: "Copyright", exact: true })
+    .fill("© 2026 Renée Writer");
+  await dialog.getByRole("button", { name: "Save title page" }).click();
+  const title = page.getByRole("region", { name: "Title page preview" });
+  await expect(title).toContainText("A radio play");
+  await expect(title).toContainText("© 2026 Renée Writer");
+  await expect(title.locator('[data-title-field="title"]')).toHaveCSS(
+    "font-weight",
+    "400",
+  );
+  await expect(title.locator('[data-title-field="title"]')).toHaveCSS(
+    "font-family",
+    /Courier Prime/,
+  );
+  await expect(editor).toHaveCSS("line-height", "16px");
+  await expect(editor.locator('[data-kind="scene"]')).toHaveCSS(
+    "font-weight",
+    "700",
+  );
+  await page.getByRole("button", { name: "Appearance settings" }).click();
+  await page.getByRole("switch", { name: "Bold scene headings" }).uncheck();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(editor.locator('[data-kind="scene"]')).toHaveCSS(
+    "font-weight",
+    "400",
+  );
+  expect(
+    await originalEditor!.evaluate(
+      (el) => el === document.querySelector(".screenplay-editor"),
+    ),
+  ).toBe(true);
+  await page.getByRole("button", { name: "Undo", exact: true }).first().click();
+  await expect(editor).not.toContainText("A voice finds its way home.");
+  await expect(editor).toContainText("INT. STUDIO - NIGHT");
+  await page.getByRole("button", { name: "Redo", exact: true }).first().click();
+  await expect(editor).toContainText("A voice finds its way home.");
+  await expect(
+    page.getByText("Saved on this device", { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(title).toContainText("© 2026 Renée Writer");
+  await expect(editor.locator('[data-kind="scene"]')).toHaveCSS(
+    "font-weight",
+    "400",
+  );
+  await page.screenshot({
+    path: "test-results/title-presentation.png",
+    fullPage: true,
+  });
+});
+
 test("long screenplay keeps native typing responsive with insights enabled", async ({
   page,
 }, testInfo) => {

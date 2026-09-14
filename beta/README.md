@@ -20,12 +20,15 @@ Open http://127.0.0.1:5173. Writing, imports, local recovery, insights, beat she
 - One native text selection and transaction history across the whole screenplay.
 - Contextual scene headings, character/dialogue progression, Tab element cycling, and explicit element controls.
 - Bold, italic, underline, native spellcheck, Unicode input, find/replace, undo/redo, and cross-paragraph clipboard operations.
-- A scene outline; character dialogue, speech, scene-presence and timing statistics; locations; character notes; and story notes.
-- Beat cards with acts, colors, descriptions, scene assignments, reordering, a 15-beat starting guide, pacing, PDF export, and CSV export.
-- Title-page editing, six themes, responsive panels, keyboard panel resizing, focus mode, typewriter scrolling, zoom, Letter/A4, and scene numbering.
+- A scene outline; character dialogue, speech, scene-presence and timing statistics; locations; character notes; and story notes. Character Analytics restores the cast overview and scene/act Gantt charts alongside the full-dialogue browser.
+- A connected beat sheet with acts, colors, descriptions, scene assignments, reordering, a 15-beat starting guide, cumulative-word pacing, PDF export, and CSV export.
+- Courier Prime screenplay typography and a compact dashed title-page frame on the writing canvas. Multiline title details and copyright remain editable without changing the active editor or undo history.
+- Six themes, responsive panels, keyboard panel resizing, focus mode, typewriter scrolling, zoom, Letter/A4, scene numbering, and optional bold scene headings.
 - Fountain import/export, Final Draft FDX export, formatted HTML, and independently compiled PDF pages. PDF fonts and composition run outside the editor's main thread.
 - Device-local IndexedDB drafts and retained versions. Concurrent tabs use revision checks and independent recovery records. Saves do not load the document or reset undo.
 - Installable app shell and offline loading after the first successful installation. Cloud requests are never cached by the service worker.
+
+PDF presentation follows the original application's twelve-point Courier Prime layout: a restrained centered title, date/contact lower-left, copyright centered, left-margin scene numbers, page numbering from the first screenplay page, and the original dialogue indents. Long fields and dialogue retain overflow and continuation protection.
 
 The sample screenplay is editable example content. File → New screenplay starts a blank document.
 

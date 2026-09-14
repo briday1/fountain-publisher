@@ -1,5 +1,5 @@
-import { analyzeScreenplay } from "../core/insights";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import {
   Plus,
   Trash2,
@@ -7,9 +7,12 @@ import {
   ChevronDown,
   Download,
   ArrowUpRight,
+  ChartNoAxesCombined,
 } from "lucide-react";
 import { newId } from "../core/model";
 import type { Beat, Screenplay } from "../core/model";
+import { BeatPacing } from "./BeatPacing";
+import "./beat-presentation.css";
 const guide = [
   ["Opening image", "The world before everything changes.", "Act I"],
   ["Theme stated", "The question your story asks.", "Act I"],
@@ -46,104 +49,125 @@ export function BeatBoard({
 }) {
   const [showPacing, setShowPacing] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [dragged, setDragged] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const inputs = useRef(new Map<string, HTMLInputElement>());
+  const pendingFocus = useRef<string | null>(null);
   const beats = doc.metadata.beats;
-  const pacing = analyzeScreenplay(doc).scenes;
-  const scenes = doc.blocks.filter((b) => b.kind === "scene");
+  const scenes = doc.blocks.filter((block) => block.kind === "scene");
+  const sceneIds = new Set(scenes.map((scene) => scene.id));
+  const linked = beats.filter(
+    (beat) => beat.sceneId && sceneIds.has(beat.sceneId),
+  ).length;
+  useEffect(() => {
+    if (pendingFocus.current) {
+      inputs.current.get(pendingFocus.current)?.focus();
+      pendingFocus.current = null;
+    }
+  }, [beats]);
   const update = (items: Beat[]) =>
     onChange({ ...doc, metadata: { ...doc.metadata, beats: items } });
   const edit = (id: string, patch: Partial<Beat>) =>
-    update(beats.map((b) => (b.id === id ? { ...b, ...patch } : b)));
-  const move = (i: number, delta: number) => {
-    const arr = [...beats];
-    [arr[i], arr[i + delta]] = [arr[i + delta], arr[i]];
-    update(arr);
+    update(
+      beats.map((beat) => (beat.id === id ? { ...beat, ...patch } : beat)),
+    );
+  const moveTo = (from: number, to: number) => {
+    if (
+      from < 0 ||
+      to < 0 ||
+      from >= beats.length ||
+      to >= beats.length ||
+      from === to
+    )
+      return;
+    const next = [...beats];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    update(next);
+    setAnnouncement(`${moved.title || "Beat"} moved to position ${to + 1}.`);
   };
-  const add = () =>
+  const add = () => {
+    const id = newId();
+    pendingFocus.current = id;
     update([
       ...beats,
       {
-        id: newId(),
+        id,
         title: "",
         description: "",
-        act: "Act I",
+        act: beats.at(-1)?.act || "Act I",
         color: "#75a8ed",
       },
     ]);
+  };
+  const toggleDetails = (id: string) =>
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   return (
-    <section className="beat-board" aria-label="Beat sheet">
-      <div className="board-heading">
-        <div>
-          <small>THE SHAPE OF YOUR STORY</small>
-          <h1>Beat sheet</h1>
-          <p>A little structure. Room for the unexpected.</p>
+    <section className="beat-board beat-sheet-paper" aria-label="Beat sheet">
+      {!beats.length && (
+        <div className="beat-start-note">
+          <strong>Map the story before—or while—you write.</strong>
+          <p>
+            Start with the premise, then add each story beat below. Connect
+            beats to scenes as your screenplay takes shape.
+          </p>
         </div>
-        <div className="board-export">
-          <button onClick={onExportCsv}>CSV</button>
-          <button onClick={onExport}>
-            <Download size={15} />
-            PDF
-          </button>
-        </div>
-      </div>
-      <label className="premise">
-        Premise
+      )}
+      <label className="beat-premise-field">
+        <span>Premise</span>
         <textarea
           value={String(doc.metadata.premise ?? "")}
-          onChange={(e) =>
+          onChange={(event) =>
             onChange({
               ...doc,
-              metadata: { ...doc.metadata, premise: e.target.value },
+              metadata: { ...doc.metadata, premise: event.target.value },
             })
           }
-          placeholder="A person wants something. Something stands in their way."
-          rows={2}
+          placeholder="What is this story really about?"
+          rows={3}
         />
       </label>
-      <div className="board-tools">
-        <span>
-          {beats.length} beats · {beats.filter((b) => b.sceneId).length} linked
-          to scenes
-        </span>
+      <div className="beat-flow-heading">
         <div>
-          <button
-            aria-pressed={showPacing}
-            onClick={() => setShowPacing(!showPacing)}
-          >
-            Pacing
+          <small>STORY FLOW</small>
+          <h1>Beats and assignments</h1>
+        </div>
+        <div className="beat-flow-tools">
+          <button onClick={onExportCsv} aria-label="Export beat sheet CSV">
+            CSV
           </button>
-          <button
-            aria-pressed={showGuide}
-            onClick={() => setShowGuide(!showGuide)}
-          >
-            Beat guide
+          <button onClick={onExport} aria-label="Export beat sheet PDF">
+            <Download size={14} />
+            <span>Export PDF</span>
+          </button>
+          <button onClick={() => setShowPacing(true)} aria-haspopup="dialog">
+            <ChartNoAxesCombined size={14} />
+            <span>View pacing graph</span>
           </button>
           <button className="primary" onClick={add}>
-            <Plus size={15} />
+            <Plus size={14} />
             Add beat
           </button>
         </div>
       </div>
-      {showPacing && (
-        <section className="pacing-chart" aria-label="Scene pacing">
-          <h3>Words per scene</h3>
-          <div>
-            {pacing.map((scene) => (
-              <button
-                key={scene.id}
-                style={{
-                  height: `${Math.max(12, (scene.wordCount / Math.max(1, ...pacing.map((s) => s.wordCount))) * 100)}%`,
-                }}
-                title={`${scene.heading}: ${scene.wordCount} words`}
-                aria-label={`Scene ${scene.number}, ${scene.wordCount} words`}
-                onClick={() => onScene(scene.id)}
-              >
-                <span>{scene.number}</span>
-              </button>
-            ))}
-          </div>
-          <p>Each bar is one scene. Select it to return to the screenplay.</p>
-        </section>
-      )}
+      <div className="beat-flow-summary">
+        <span>
+          {beats.length} beats · {linked} linked to scenes
+        </span>
+        <button
+          onClick={() => setShowGuide(!showGuide)}
+          aria-expanded={showGuide}
+        >
+          Beat guide
+        </button>
+      </div>
       {showGuide && (
         <div className="beat-guide">
           <p>
@@ -174,109 +198,241 @@ export function BeatBoard({
           </button>
         </div>
       )}
+      <ol className="beat-flow-list">
+        {beats.map((beat, index) => {
+          const isLinked = !!beat.sceneId && sceneIds.has(beat.sceneId);
+          const open = expanded.has(beat.id);
+          return (
+            <li
+              key={beat.id}
+              className={`beat-flow-row ${isLinked ? "linked" : ""} ${dragged === beat.id ? "dragging" : ""}`}
+              style={{ "--beat-color": beat.color } as CSSProperties}
+              onDragOver={(event) => {
+                if (dragged) {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                }
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                if (dragged)
+                  moveTo(
+                    beats.findIndex((item) => item.id === dragged),
+                    index,
+                  );
+                setDragged(null);
+              }}
+            >
+              <div className="beat-flow-node-lane">
+                <button
+                  className="beat-flow-number"
+                  draggable
+                  aria-label={`Reorder beat ${index + 1}: ${beat.title || "Untitled"}`}
+                  title="Drag or use arrow keys to reorder"
+                  aria-keyshortcuts="ArrowUp ArrowDown Home End"
+                  onDragStart={(event) => {
+                    setDragged(beat.id);
+                    event.dataTransfer.setData("text/plain", beat.id);
+                    event.dataTransfer.effectAllowed = "move";
+                  }}
+                  onDragEnd={() => setDragged(null)}
+                  onKeyDown={(event) => {
+                    const destination =
+                      event.key === "ArrowUp"
+                        ? index - 1
+                        : event.key === "ArrowDown"
+                          ? index + 1
+                          : event.key === "Home"
+                            ? 0
+                            : event.key === "End"
+                              ? beats.length - 1
+                              : null;
+                    if (destination !== null) {
+                      event.preventDefault();
+                      moveTo(index, destination);
+                    }
+                  }}
+                >
+                  {index + 1}
+                </button>
+                <div
+                  className="beat-flow-move"
+                  role="group"
+                  aria-label={`Move beat ${index + 1}`}
+                >
+                  <button
+                    aria-label={`Move beat ${index + 1} up`}
+                    disabled={index === 0}
+                    onClick={() => moveTo(index, index - 1)}
+                  >
+                    <ChevronUp size={13} />
+                  </button>
+                  <button
+                    aria-label={`Move beat ${index + 1} down`}
+                    disabled={index === beats.length - 1}
+                    onClick={() => moveTo(index, index + 1)}
+                  >
+                    <ChevronDown size={13} />
+                  </button>
+                </div>
+              </div>
+              <div className="beat-flow-body">
+                <div className="beat-flow-main">
+                  <input
+                    className="beat-flow-title"
+                    aria-label={`Beat ${index + 1} title`}
+                    placeholder="What happens in this beat?"
+                    value={beat.title}
+                    ref={(element) => {
+                      if (element) inputs.current.set(beat.id, element);
+                      else inputs.current.delete(beat.id);
+                    }}
+                    onChange={(event) =>
+                      edit(beat.id, { title: event.target.value })
+                    }
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === "Enter" &&
+                        !event.nativeEvent.isComposing
+                      ) {
+                        event.preventDefault();
+                        const next = beats[index + 1];
+                        if (next) inputs.current.get(next.id)?.focus();
+                        else add();
+                      }
+                    }}
+                  />
+                  <div className="beat-flow-assignment">
+                    <select
+                      aria-label={`Beat ${index + 1} scene`}
+                      value={beat.sceneId ?? ""}
+                      onChange={(event) =>
+                        edit(beat.id, {
+                          sceneId: event.target.value || undefined,
+                        })
+                      }
+                    >
+                      <option value="">Unassigned</option>
+                      {beat.sceneId && !isLinked && (
+                        <option value={beat.sceneId}>
+                          Scene no longer available
+                        </option>
+                      )}
+                      {scenes.map((scene, sceneIndex) => (
+                        <option key={scene.id} value={scene.id}>
+                          {sceneIndex + 1}. {scene.text}
+                        </option>
+                      ))}
+                    </select>
+                    {isLinked && (
+                      <button
+                        className="icon-button"
+                        aria-label={`Go to beat ${index + 1} linked scene`}
+                        onClick={() => onScene(beat.sceneId!)}
+                      >
+                        <ArrowUpRight size={14} />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    className="icon-button beat-flow-disclosure"
+                    aria-label={`Beat ${index + 1} details`}
+                    aria-expanded={open}
+                    aria-controls={`beat-details-${beat.id}`}
+                    onClick={() => toggleDetails(beat.id)}
+                  >
+                    <ChevronDown size={15} />
+                  </button>
+                  <button
+                    className="icon-button beat-flow-delete"
+                    aria-label={`Delete beat ${index + 1}`}
+                    onClick={() => {
+                      update(beats.filter((item) => item.id !== beat.id));
+                      setAnnouncement(`Beat ${index + 1} deleted.`);
+                    }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                {open && (
+                  <div
+                    className="beat-flow-details"
+                    id={`beat-details-${beat.id}`}
+                  >
+                    <textarea
+                      aria-label={`Beat ${index + 1} description`}
+                      value={beat.description}
+                      onChange={(event) =>
+                        edit(beat.id, { description: event.target.value })
+                      }
+                      placeholder="What changes in this moment?"
+                      rows={2}
+                    />
+                    <div>
+                      <label>
+                        Act
+                        <select
+                          aria-label={`Beat ${index + 1} act`}
+                          value={beat.act}
+                          onChange={(event) =>
+                            edit(beat.id, { act: event.target.value })
+                          }
+                        >
+                          {[
+                            ...new Set([
+                              "Act I",
+                              "Act II",
+                              "Act III",
+                              beat.act,
+                            ]),
+                          ]
+                            .filter(Boolean)
+                            .map((act) => (
+                              <option key={act}>{act}</option>
+                            ))}
+                        </select>
+                      </label>
+                      <label>
+                        Color
+                        <input
+                          type="color"
+                          aria-label={`Beat ${index + 1} color`}
+                          value={beat.color}
+                          onChange={(event) =>
+                            edit(beat.id, { color: event.target.value })
+                          }
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
       {!beats.length && (
-        <div className="board-empty">
-          <span className="empty-mark">✦</span>
-          <h2>Every story starts with a possibility.</h2>
-          <p>Add a beat, or open the guide for a starting structure.</p>
+        <div className="beat-first">
           <button onClick={add}>
-            <Plus size={16} />
+            <Plus size={15} />
             Your first beat
           </button>
         </div>
       )}
-      <ol className="beat-list">
-        {beats.map((beat, i) => (
-          <li
-            className="beat-card"
-            key={beat.id}
-            style={{ borderLeftColor: beat.color }}
-          >
-            <div className="beat-index">{String(i + 1).padStart(2, "0")}</div>
-            <div className="beat-fields">
-              <div className="beat-top">
-                <input
-                  aria-label={`Beat ${i + 1} title`}
-                  placeholder="Name this moment"
-                  value={beat.title}
-                  onChange={(e) => edit(beat.id, { title: e.target.value })}
-                />
-                <select
-                  aria-label={`Beat ${i + 1} act`}
-                  value={beat.act}
-                  onChange={(e) => edit(beat.id, { act: e.target.value })}
-                >
-                  {["Act I", "Act II", "Act III"].map((a) => (
-                    <option key={a}>{a}</option>
-                  ))}
-                </select>
-                <input
-                  type="color"
-                  aria-label={`Beat ${i + 1} color`}
-                  value={beat.color}
-                  onChange={(e) => edit(beat.id, { color: e.target.value })}
-                />
-              </div>
-              <textarea
-                aria-label={`Beat ${i + 1} description`}
-                placeholder="What changes in this moment?"
-                value={beat.description}
-                onChange={(e) => edit(beat.id, { description: e.target.value })}
-                rows={2}
-              />
-              <div className="beat-bottom">
-                <select
-                  aria-label={`Beat ${i + 1} scene`}
-                  value={beat.sceneId ?? ""}
-                  onChange={(e) =>
-                    edit(beat.id, { sceneId: e.target.value || undefined })
-                  }
-                >
-                  <option value="">Link a scene…</option>
-                  {scenes.map((s, j) => (
-                    <option key={s.id} value={s.id}>
-                      {j + 1}. {s.text}
-                    </option>
-                  ))}
-                </select>
-                {beat.sceneId && (
-                  <button
-                    className="icon-button"
-                    aria-label="Go to linked scene"
-                    onClick={() => onScene(beat.sceneId!)}
-                  >
-                    <ArrowUpRight size={15} />
-                  </button>
-                )}
-                <div className="spacer" />
-                <button
-                  className="icon-button"
-                  disabled={i === 0}
-                  aria-label="Move beat up"
-                  onClick={() => move(i, -1)}
-                >
-                  <ChevronUp size={15} />
-                </button>
-                <button
-                  className="icon-button"
-                  disabled={i === beats.length - 1}
-                  aria-label="Move beat down"
-                  onClick={() => move(i, 1)}
-                >
-                  <ChevronDown size={15} />
-                </button>
-                <button
-                  className="icon-button"
-                  aria-label={`Delete beat ${i + 1}`}
-                  onClick={() => update(beats.filter((b) => b.id !== beat.id))}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            </div>
-          </li>
-        ))}
-      </ol>
+      <footer className="beat-flow-footer">
+        Changes save automatically. Drag a number or use its arrow keys to
+        reorder. Press Enter to move to the next beat.
+      </footer>
+      <span className="sr-only" role="status">
+        {announcement}
+      </span>
+      {showPacing && (
+        <BeatPacing
+          doc={doc}
+          onClose={() => setShowPacing(false)}
+          onScene={onScene}
+        />
+      )}
     </section>
   );
 }

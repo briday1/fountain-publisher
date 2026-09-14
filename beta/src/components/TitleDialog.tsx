@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Modal } from "./Modal";
 import type { TitlePage } from "../core/model";
+import { titlePageExtra, withTitlePageExtra } from "../core/titlePage";
 export function TitleDialog({
   value,
   onSave,
@@ -32,10 +33,11 @@ export function TitleDialog({
           ).map(([key, label]) => (
             <label key={key}>
               {label}
-              <input
+              <textarea
                 value={draft[key]}
                 onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
                 autoFocus={key === "title"}
+                rows={key === "title" || key === "source" ? 2 : 1}
               />
             </label>
           ))}
@@ -45,6 +47,15 @@ export function TitleDialog({
               rows={3}
               value={draft.contact}
               onChange={(e) => setDraft({ ...draft, contact: e.target.value })}
+            />
+          </label>
+          <label>
+            Copyright
+            <input
+              value={titlePageExtra(draft, "Copyright")}
+              onChange={(e) =>
+                setDraft(withTitlePageExtra(draft, "Copyright", e.target.value))
+              }
             />
           </label>
         </div>

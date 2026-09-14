@@ -2,6 +2,7 @@ import type { PDFFont, PDFPage } from "pdf-lib";
 import { newId } from "./model";
 import type { Screenplay, ScriptBlock, TextMark, TextSpan } from "./model";
 import { blockSpans } from "./fountain";
+import { hasTitlePage, titlePageExtra } from "./titlePage";
 import { analyzeScreenplay, publishedKinds } from "./insights";
 import regularFontUrl from "@fontsource/courier-prime/files/courier-prime-latin-400-normal.woff?url";
 import boldFontUrl from "@fontsource/courier-prime/files/courier-prime-latin-700-normal.woff?url";
@@ -12,6 +13,7 @@ export interface PdfOptions {
   includeTitlePage?: boolean;
   pageSize?: "letter" | "a4";
   sceneNumbers?: "margin" | "inline" | "off";
+  boldSceneHeadings?: boolean;
   sceneNumberFormat?: "sequential" | "act";
   /** Supply font bytes for non-browser rendering or custom font deployments. */
   fontBytes?: {
@@ -211,11 +213,12 @@ export async function exportPdf(
   const [pageWidth, pageHeight] =
     options.pageSize === "a4" ? [595.28, 841.89] : [612, 792];
   const left = 108;
-  const right = 72;
-  const fullWidth = pageWidth - left - right;
-  const top = pageHeight - 72;
-  const bottom = 72;
+  // Keep the established 61-column, 55-line screenplay page on both paper sizes.
+  const fullWidth = 61 * 7.2;
+  const right = pageWidth - left - fullWidth;
   const leading = 12;
+  const top = pageHeight - 72 - leading;
+  const bottom = top - 54 * leading;
   let page: PDFPage;
   let y = top;
   let scriptPageCount = 0;
@@ -276,101 +279,136 @@ export async function exportPdf(
     page = pdf.addPage([pageWidth, pageHeight]);
     y = top;
     scriptPageCount++;
-    if (scriptPageCount > 1)
-      drawLine(
-        textLines(`${scriptPageCount}.`, left, fullWidth, "right")[0],
-        pageHeight - 36,
-      );
+    drawLine(
+      textLines(`${scriptPageCount}.`, left, fullWidth, "right")[0],
+      pageHeight - 42,
+    );
   };
-  const hasTitle = !!(
-    document.titlePage.title ||
-    document.titlePage.author ||
-    document.titlePage.source ||
-    document.titlePage.contact ||
-    document.titlePage.draftDate
-  );
-  if (options.includeTitlePage !== false && hasTitle) {
+  if (options.includeTitlePage !== false && hasTitlePage(document.titlePage)) {
     let titlePage = pdf.addPage([pageWidth, pageHeight]);
     titlePageCount = 1;
-    const fields = [
-      document.titlePage.title || "Untitled",
-      document.titlePage.credit,
-      document.titlePage.author,
-      document.titlePage.source,
-    ].filter(Boolean);
-    const centerLines = fields.map((field, i) =>
-      textLines(
-        field,
-        72,
-        pageWidth - 144,
-        "center",
-        i === 0 ? ["bold"] : undefined,
-      ),
-    );
-    let titleY = pageHeight * 0.66;
-    for (const field of centerLines) {
-      for (const line of field) {
-        if (titleY < 240) {
-          titlePage = pdf.addPage([pageWidth, pageHeight]);
-          titlePageCount++;
-          titleY = top;
-        }
-        drawLine(line, titleY, titlePage);
-        titleY -= leading;
+    const titleWidth = pageWidth - 2 * left;
+    const titleLeading = leading * 2;
+    type CoverRow = { line: Line; gap: number };
+    const rows = (
+      fields: { text: string; align: Line["align"]; gap: number }[],
+    ) => {
+      const result: CoverRow[] = [];
+      for (const field of fields) {
+        if (!field.text) continue;
+        textLines(field.text, left, titleWidth, field.align).forEach(
+          (line, index) =>
+            result.push({
+              line,
+              gap: result.length ? (index ? titleLeading : field.gap) : 0,
+            }),
+        );
       }
-      titleY -= 24;
-    }
-    const footer = [document.titlePage.contact, document.titlePage.draftDate]
-      .filter(Boolean)
-      .join("\n\n");
-    const footerLines = textLines(footer, 72, pageWidth - 144);
-    let footerY = Math.min(
-      216,
-      72 + Math.max(0, footerLines.length - 1) * leading,
+      return result;
+    };
+    const centerRows = rows([
+      { text: document.titlePage.title, align: "center", gap: titleLeading },
+      {
+        text: document.titlePage.credit,
+        align: "center",
+        gap: titleLeading + leading,
+      },
+      { text: document.titlePage.author, align: "center", gap: titleLeading },
+      { text: document.titlePage.source, align: "center", gap: titleLeading },
+    ]);
+    const footerRows = rows([
+      { text: document.titlePage.draftDate, align: "left", gap: titleLeading },
+      {
+        text: document.titlePage.contact,
+        align: "left",
+        gap: titleLeading + leading,
+      },
+      {
+        text: titlePageExtra(document.titlePage, "copyright"),
+        align: "center",
+        gap: titleLeading + leading,
+      },
+    ]);
+    // The cover keeps the same twelve-point type as the script. Each multiline
+    // field is double spaced, with a little more room before credit and contact.
+    const centerHeight = centerRows.reduce((sum, row) => sum + row.gap, 0);
+    const footerY =
+      bottom + 18 + footerRows.reduce((sum, row) => sum + row.gap, 0);
+    let titleY = Math.min(
+      top,
+      Math.max(top - 220, footerY + centerHeight + titleLeading),
     );
-    for (const line of footerLines) {
-      if (footerY < 60) {
-        titlePage = pdf.addPage([pageWidth, pageHeight]);
-        titlePageCount++;
-        footerY = top;
+    const nextTitlePage = () => {
+      titlePage = pdf.addPage([pageWidth, pageHeight]);
+      titlePageCount++;
+      titleY = top;
+    };
+    const drawRows = (coverRows: CoverRow[]) => {
+      for (const row of coverRows) {
+        titleY -= row.gap;
+        if (titleY < bottom) nextTitlePage();
+        drawLine(row.line, titleY, titlePage);
       }
-      drawLine(line, footerY, titlePage);
-      footerY -= leading;
+    };
+    drawRows(centerRows);
+    if (footerRows.length) {
+      // Long title/contact fields remain complete, even when an extra cover
+      // page is necessary; none can overlap or be clipped below the paper.
+      if (centerRows.length && titleY < footerY + titleLeading) nextTitlePage();
+      titleY = Math.min(top, footerY);
+      drawRows(footerRows);
     }
   }
   newPage();
   const numbers = sceneNumbers(document, options.sceneNumberFormat);
-  const blocks = document.blocks.filter((block) =>
-    publishedKinds.has(block.kind),
+  const numberStyle = options.sceneNumbers ?? "margin";
+  const isActHeading = (block: ScriptBlock) =>
+    block.kind === "section" &&
+    (block.level ?? 1) === 1 &&
+    /^Act\b/i.test(block.text);
+  const blocks = document.blocks.filter(
+    (block) => publishedKinds.has(block.kind) || isActHeading(block),
   );
   const styledLines = (block: ScriptBlock, dualColumn?: number): Line[] => {
     let x = left;
     let width = fullWidth;
     let align: Line["align"] = "left";
     if (dualColumn !== undefined) {
-      const columnWidth = (fullWidth - 24) / 2;
-      x = left + dualColumn * (columnWidth + 24);
+      const columnWidth = fullWidth / 2;
+      x = left + dualColumn * columnWidth;
       width = columnWidth;
       if (block.kind === "character") {
-        x += 24;
-        width -= 24;
-      }
-      if (block.kind === "parenthetical") {
-        x += 12;
-        width -= 12;
+        x += 19 * 3.6;
+        width -= 19 * 3.6;
+      } else if (block.kind === "dialogue" || block.kind === "lyrics") {
+        x += 9 * 3.6;
+        width = 36 * 3.6;
+      } else if (block.kind === "parenthetical") {
+        x += 13 * 3.6;
+        width -= 13 * 3.6;
       }
     } else if (block.kind === "character") {
-      x = 252;
+      x = left + 19 * 7.2;
       width = pageWidth - right - x;
     } else if (block.kind === "dialogue" || block.kind === "lyrics") {
-      x = 180;
-      width = Math.min(252, pageWidth - right - x);
+      x = left + 9 * 7.2;
+      width = 36 * 7.2;
     } else if (block.kind === "parenthetical") {
-      x = 216;
-      width = Math.min(216, pageWidth - right - x);
+      x = left + 13 * 7.2;
+      width = pageWidth - right - x;
     } else if (block.kind === "transition") align = "right";
     else if (block.kind === "centered") align = "center";
     let spans = blockSpans(block);
+    if (isActHeading(block))
+      spans = spans.map((span) => ({ ...span, text: span.text.toUpperCase() }));
+    if (
+      isActHeading(block) ||
+      (block.kind === "scene" && options.boldSceneHeadings !== false)
+    )
+      spans = spans.map((span) => ({
+        ...span,
+        marks: [...new Set([...(span.marks ?? []), "bold" as const])],
+      }));
     if (block.kind === "parenthetical")
       spans = [
         ...(!block.text.startsWith("(") ? [{ text: "(" }] : []),
@@ -382,8 +420,14 @@ export async function exportPdf(
         ...span,
         marks: [...new Set([...(span.marks ?? []), "italic" as const])],
       }));
-    if (block.kind === "scene" && options.sceneNumbers === "inline")
-      spans = [{ text: `${numbers.get(block.id)}  ` }, ...spans];
+    if (block.kind === "scene" && numberStyle === "inline")
+      spans = [
+        {
+          text: `${numbers.get(block.id)}  `,
+          marks: options.boldSceneHeadings !== false ? ["bold"] : undefined,
+        },
+        ...spans,
+      ];
     return wrap(spans, fonts, x, width, warnings, align);
   };
   const drawDialogue = (groups: ScriptBlock[][]) => {
@@ -474,8 +518,8 @@ export async function exportPdf(
       : leading;
     if (y < top) y -= gap;
     const reserve =
-      block.kind === "scene"
-        ? Math.min(3, lines.length + 2)
+      block.kind === "scene" || isActHeading(block)
+        ? lines.length + 2
         : Math.min(2, lines.length);
     if (y - (reserve - 1) * leading < bottom) newPage();
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
@@ -483,11 +527,10 @@ export async function exportPdf(
       if (
         block.kind === "scene" &&
         lineIndex === 0 &&
-        options.sceneNumbers === "margin"
+        numberStyle === "margin"
       ) {
         const number = numbers.get(block.id)!;
-        drawLine(textLines(number, 42, 54, "right")[0], y);
-        drawLine(textLines(number, pageWidth - right + 12, right - 24)[0], y);
+        drawLine(textLines(number, 54, 48)[0], y);
       }
       drawLine(lines[lineIndex], y);
       y -= leading;

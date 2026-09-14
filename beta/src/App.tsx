@@ -47,9 +47,11 @@ import { cloud } from "./storage/cloud";
 import type { CloudDocument, Provider } from "./storage/cloud";
 import { EditorSurface } from "./components/EditorSurface";
 import { CharacterDialog } from "./components/CharacterDialog";
+import { CharacterAnalytics } from "./components/CharacterAnalytics";
 import { BeatBoard } from "./components/BeatBoard";
 import { Settings, readPreferences } from "./components/Settings";
 import { TitleDialog } from "./components/TitleDialog";
+import { TitlePreview } from "./components/TitlePreview";
 import { Modal } from "./components/Modal";
 import { Menu, MenuItem } from "./components/Menu";
 import { Resizable } from "./components/Resizable";
@@ -70,7 +72,14 @@ export default function App() {
   );
   const [kind, setKind] = useState<BlockKind>("action");
   const [dialog, setDialog] = useState<
-    "settings" | "title" | "help" | "library" | "history" | "rename" | null
+    | "settings"
+    | "title"
+    | "help"
+    | "library"
+    | "history"
+    | "rename"
+    | "characters"
+    | null
   >(null);
   const [cloudDialog, setCloudDialog] = useState<{
     provider: Provider;
@@ -386,6 +395,7 @@ export default function App() {
           : snap.screenplay;
       const result = await publishPdf(outputDoc, {
         pageSize: preferences.pageSize,
+        boldSceneHeadings: preferences.boldSceneHeadings,
         sceneNumbers: preferences.sceneNumbers,
         sceneNumberFormat: preferences.sceneNumberFormat,
       });
@@ -428,6 +438,7 @@ export default function App() {
     const timer = setTimeout(() => {
       publishPdf(snapshot.screenplay, {
         pageSize: preferences.pageSize,
+        boldSceneHeadings: preferences.boldSceneHeadings,
         sceneNumbers: preferences.sceneNumbers,
         sceneNumberFormat: preferences.sceneNumberFormat,
       })
@@ -462,6 +473,7 @@ export default function App() {
     mode,
     snapshot,
     preferences.pageSize,
+    preferences.boldSceneHeadings,
     preferences.sceneNumbers,
     preferences.sceneNumberFormat,
   ]);
@@ -1119,10 +1131,14 @@ export default function App() {
                 <button onClick={() => setDialog("title")}>Title page</button>
               </div>
               <article
-                className={`screenplay-paper ${preferences.colors ? "element-colors" : ""} numbers-${preferences.sceneNumbers}`}
+                className={`screenplay-paper ${preferences.colors ? "element-colors" : ""} ${preferences.boldSceneHeadings ? "bold-scenes" : ""} numbers-${preferences.sceneNumbers}`}
                 data-number-format={preferences.sceneNumberFormat}
                 aria-label="Screenplay page"
               >
+                <TitlePreview
+                  value={doc.titlePage}
+                  onEdit={() => setDialog("title")}
+                />
                 <EditorSurface
                   initial={doc}
                   onReady={onReady}
@@ -1303,6 +1319,13 @@ export default function App() {
                     </small>
                   </button>
                 ))}
+                <button
+                  className="pacing-link"
+                  onClick={() => setDialog("characters")}
+                >
+                  <BarChart3 size={15} />
+                  Character analytics<span aria-hidden="true">→</span>
+                </button>
               </section>
               <section className="insight-section">
                 <div className="section-label">
@@ -1393,7 +1416,25 @@ export default function App() {
           doc={doc}
           onChange={changeDoc}
           onScene={scene}
+          onAnalytics={() => {
+            setCharacter(null);
+            setDialog("characters");
+          }}
           onClose={() => setCharacter(null)}
+        />
+      )}
+      {dialog === "characters" && (
+        <CharacterAnalytics
+          doc={doc}
+          onCharacter={(name) => {
+            setDialog(null);
+            setCharacter(name);
+          }}
+          onScene={(id) => {
+            setDialog(null);
+            scene(id);
+          }}
+          onClose={() => setDialog(null)}
         />
       )}
       {dialog === "settings" && (

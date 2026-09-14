@@ -6,12 +6,14 @@ export function CharacterDialog({
   doc,
   onChange,
   onScene,
+  onAnalytics,
   onClose,
 }: {
   name: string;
   doc: Screenplay;
   onChange: (doc: Screenplay) => void;
   onScene: (id: string) => void;
+  onAnalytics?: () => void;
   onClose: () => void;
 }) {
   const stats = analyzeScreenplay(doc);
@@ -37,6 +39,11 @@ export function CharacterDialog({
   ) as Record<string, string>;
   return (
     <Modal title={name} eyebrow="CHARACTER ANALYTICS" onClose={onClose} wide>
+      {onAnalytics && (
+        <button className="character-analytics-back" onClick={onAnalytics}>
+          All character analytics
+        </button>
+      )}
       <div className="character-metrics">
         <span>
           <strong>{person?.dialogueWords ?? 0}</strong>spoken words

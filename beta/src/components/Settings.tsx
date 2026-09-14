@@ -4,6 +4,7 @@ export interface Preferences {
   zoom: number;
   spellcheck: boolean;
   colors: boolean;
+  boldSceneHeadings: boolean;
   sceneNumbers: "margin" | "inline" | "off";
   sceneNumberFormat: "sequential" | "act";
   pageSize: "letter" | "a4";
@@ -19,6 +20,7 @@ export const defaults: Preferences = {
   zoom: 100,
   spellcheck: true,
   colors: false,
+  boldSceneHeadings: true,
   sceneNumbers: "margin",
   sceneNumberFormat: "sequential",
   pageSize: "letter",
@@ -134,6 +136,15 @@ export function Settings({
             role="switch"
             checked={value.spellcheck}
             onChange={(e) => patch({ spellcheck: e.target.checked })}
+          />
+        </label>
+        <label>
+          Bold scene headings
+          <input
+            type="checkbox"
+            role="switch"
+            checked={value.boldSceneHeadings}
+            onChange={(e) => patch({ boldSceneHeadings: e.target.checked })}
           />
         </label>
         <label>
