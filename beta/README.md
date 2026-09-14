@@ -20,11 +20,12 @@ Open http://127.0.0.1:5173. Writing, imports, local recovery, insights, beat she
 - One native text selection and transaction history across the whole screenplay.
 - Contextual scene headings, character/dialogue progression, Tab element cycling, and explicit element controls.
 - Bold, italic, underline, native spellcheck, Unicode input, find/replace, undo/redo, and cross-paragraph clipboard operations.
-- A scene outline; character dialogue, speech, scene-presence and timing statistics; locations; character notes; and story notes. Character Analytics restores the cast overview and scene/act Gantt charts alongside the full-dialogue browser.
-- A connected beat sheet with acts, colors, descriptions, scene assignments, reordering, a 15-beat starting guide, cumulative-word pacing, PDF export, and CSV export.
+- A scene outline; character dialogue, speech, scene-presence and timing statistics; locations; character notes; and story notes. Character Analytics restores the cast overview and scene/act Gantt charts alongside the full-dialogue browser. Clicking a dialogue line selects and reveals that exact line; scrolling dialogs stays inside them.
+- A connected beat sheet with acts, colors, descriptions, precise line assignments, reordering, a 15-beat starting guide, cumulative-word pacing, PDF export, and CSV export. Assign native text selections or enter line ranges; assignments follow edits and undo/redo. Pacing counts story words before each beat's first assigned line.
+- A persistent writing guide shows the next beat over the canvas, with navigation and Assign + Next to bind the selected lines and continue writing.
 - Courier Prime screenplay typography and a compact dashed title-page frame on the writing canvas. Multiline title details and copyright remain editable without changing the active editor or undo history.
 - Six themes, responsive panels, keyboard panel resizing, focus mode, typewriter scrolling, zoom, Letter/A4, scene numbering, and optional bold scene headings.
-- Fountain import/export, Final Draft FDX export, formatted HTML, and independently compiled PDF pages. PDF fonts and composition run outside the editor's main thread.
+- Fountain import/export, Final Draft FDX export, formatted HTML, and independently compiled PDF pages. The page counter comes from the generated PDF, including its title page, and refreshes after writing settles. PDF fonts and composition run outside the editor's main thread.
 - Device-local IndexedDB drafts and retained versions. Concurrent tabs use revision checks and independent recovery records. Saves do not load the document or reset undo.
 - Installable app shell and offline loading after the first successful installation. Cloud requests are never cached by the service worker.
 

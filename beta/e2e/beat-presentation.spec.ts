@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 
 test("beat flow retains editing and shows cumulative pacing with a PNG export", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.addInitScript(() =>
     Object.defineProperty(window, "showOpenFilePicker", {
       value: undefined,
@@ -42,11 +42,23 @@ test("beat flow retains editing and shows cumulative pacing with a PNG export", 
       .fill(title);
   }
   await page
+    .getByRole("button", { name: "Beat 1 details", exact: true })
+    .click();
+  await page
     .getByRole("combobox", { name: "Beat 1 scene" })
     .selectOption({ label: "1. INT. FIRST ROOM - DAY" });
   await page
+    .getByRole("button", { name: "Beat 1 details", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Beat 3 details", exact: true })
+    .click();
+  await page
     .getByRole("combobox", { name: "Beat 3 scene" })
     .selectOption({ label: "3. EXT. FINAL ROOM - NIGHT" });
+  await page
+    .getByRole("button", { name: "Beat 3 details", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Beat 2 details", exact: true })
     .click();
@@ -65,7 +77,7 @@ test("beat flow retains editing and shows cumulative pacing with a PNG export", 
     "50%",
   );
   await page.screenshot({
-    path: "test-results/beat-sheet-presentation.png",
+    path: testInfo.outputPath("beat-sheet-presentation.png"),
     fullPage: true,
   });
 
@@ -93,7 +105,7 @@ test("beat flow retains editing and shows cumulative pacing with a PNG export", 
   await expect(rows.nth(2)).toContainText("15");
   await expect(rows.nth(3)).toContainText("30");
   await page.screenshot({
-    path: "test-results/beat-pacing-presentation.png",
+    path: testInfo.outputPath("beat-pacing-presentation.png"),
     fullPage: true,
   });
   const download = page.waitForEvent("download");
@@ -133,9 +145,144 @@ test("beat flow retains editing and shows cumulative pacing with a PNG export", 
   );
 });
 
+test("precise ranges distinguish two beats within one scene and reject invalid edits", async ({
+  page,
+}, testInfo) => {
+  await page.addInitScript(() =>
+    Object.defineProperty(window, "showOpenFilePicker", {
+      value: undefined,
+      configurable: true,
+    }),
+  );
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await expect(editor).toBeVisible();
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: /^Open Fountain/ }).click();
+  await (
+    await chooser
+  ).setFiles({
+    name: "Precise ranges.fountain",
+    mimeType: "text/plain",
+    buffer: Buffer.from(
+      "INT. ROOM - DAY\n\none two three\nfour five six seven\neight nine ten\n",
+    ),
+  });
+  await expect(editor.locator('[data-kind="scene"]')).toHaveCount(1);
+  await page.getByRole("tab", { name: "Beat Sheet" }).click();
+  for (const [index, line] of [3, 5].entries()) {
+    await page.getByRole("button", { name: "Add beat", exact: true }).click();
+    await page
+      .getByRole("textbox", { name: `Beat ${index + 1} title`, exact: true })
+      .fill(index ? "A later moment" : "The opening moment");
+    await page
+      .getByRole("button", { name: `Beat ${index + 1} details`, exact: true })
+      .click();
+    await page
+      .getByRole("spinbutton", {
+        name: `Beat ${index + 1} start line`,
+        exact: true,
+      })
+      .fill(String(line));
+    await page
+      .getByRole("spinbutton", {
+        name: `Beat ${index + 1} end line`,
+        exact: true,
+      })
+      .fill(String(line));
+    await page
+      .getByRole("button", {
+        name: `Apply beat ${index + 1} line range`,
+        exact: true,
+      })
+      .click();
+    await expect(
+      page.getByRole("button", {
+        name: `Show beat ${index + 1} lines ${line}–${line}`,
+        exact: true,
+      }),
+    ).toBeVisible();
+  }
+  await page
+    .getByRole("spinbutton", { name: "Beat 2 start line", exact: true })
+    .fill("6");
+  await page
+    .getByRole("button", { name: "Apply beat 2 line range", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Choose a range containing screenplay text",
+  );
+  await expect(
+    page.getByRole("button", { name: "Show beat 2 lines 5–5", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("spinbutton", { name: "Beat 2 start line", exact: true })
+    .fill("5");
+  await page
+    .getByRole("button", { name: "Apply beat 2 line range", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).not.toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("beat-range-fields.png"),
+    fullPage: true,
+  });
+  await page
+    .getByRole("button", { name: "View pacing graph", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: "Pacing Graph",
+    exact: true,
+  });
+  await expect(
+    dialog.getByRole("button", {
+      name: "Beat 1: The opening moment, 0 words, lines 3–3",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await dialog
+    .getByRole("button", {
+      name: "Beat 2: A later moment, 7 words, lines 5–5",
+      exact: true,
+    })
+    .click();
+  await expect(dialog.getByRole("status").first()).toContainText(
+    "7 words · Lines 5–5",
+  );
+  await page.screenshot({
+    path: testInfo.outputPath("beat-range-pacing.png"),
+    fullPage: true,
+  });
+  await dialog
+    .getByRole("button", { name: "Show assigned lines", exact: true })
+    .click();
+  await expect(editor).toBeVisible();
+  await page.getByRole("tab", { name: "Beat Sheet" }).click();
+  await page
+    .getByRole("button", { name: "Beat 2 details", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Clear beat 2 range", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Show beat 2 lines 5–5", exact: true }),
+  ).not.toBeVisible();
+  await expect(
+    page.getByText("Saved on this device", { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await page.getByRole("tab", { name: "Beat Sheet" }).click();
+  await expect(
+    page.getByRole("button", { name: "Show beat 1 lines 3–3", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Show beat 2 lines 5–5", exact: true }),
+  ).not.toBeVisible();
+});
+
 test("beat rows and graph controls remain usable on a narrow screen", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await expect(
@@ -154,7 +301,7 @@ test("beat rows and graph controls remain usable on a narrow screen", async ({
   const paper = await page.locator(".beat-sheet-paper").boundingBox();
   expect(paper!.width).toBeLessThanOrEqual(390);
   await page.screenshot({
-    path: "test-results/beat-sheet-mobile.png",
+    path: testInfo.outputPath("beat-sheet-mobile.png"),
     fullPage: true,
   });
   await page
@@ -171,7 +318,7 @@ test("beat rows and graph controls remain usable on a narrow screen", async ({
     dialog.getByRole("button", { name: "Save PNG", exact: true }),
   ).toBeInViewport();
   await page.screenshot({
-    path: "test-results/beat-pacing-mobile.png",
+    path: testInfo.outputPath("beat-pacing-mobile.png"),
     fullPage: true,
   });
   await page.keyboard.press("Escape");

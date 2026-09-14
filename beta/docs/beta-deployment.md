@@ -33,6 +33,8 @@ Wrangler uses the existing authenticated Cloudflare account. `wrangler.jsonc` bi
 
 The Worker proxies public static assets from the preserved Pages beta subtree. Its bundled static assets remain useful for local dry runs; the configured Pages origin supplies hosted assets. Browser API requests bypass Pages entirely.
 
+HTML, `sw.js`, and other mutable shell files bypass upstream CDN caching and return `no-store`. Hashed assets retain caching. Each service-worker release precaches its own versioned HTML with matching assets, so offline loading cannot mix deployments. Updates wait for existing clients to close; they do not reload an active writing session.
+
 ## OAuth callback routing
 
 Two additional exact routes are registered on the existing API host:

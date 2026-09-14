@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { beatPacing } from "../src/components/beat-pacing";
 import { emptyScreenplay } from "../src/core/model";
 import type { Beat } from "../src/core/model";
+import { screenplayLines } from "../src/core/beatRanges";
 
 const beat = (id: string, sceneId?: string): Beat => ({
   id,
@@ -43,6 +44,78 @@ const screenplay = () => ({
 });
 
 describe("beat pacing", () => {
+  test("two beats inside one scene have different positions at their first assigned lines", () => {
+    const doc = screenplay();
+    const first = doc.blocks.find((block) => block.id === "a1")!;
+    first.text = "one two three\nfour five six seven\neight nine ten";
+    const lines = screenplayLines(doc);
+    const line1 = lines.find(
+      (line) => line.blockId === "a1" && line.start === 0,
+    )!;
+    const line3 = lines.find(
+      (line) => line.blockId === "a1" && line.text === "eight nine ten",
+    )!;
+    doc.metadata.beats = [
+      {
+        ...beat("first"),
+        range: {
+          start: { blockId: "a1", offset: line1.start },
+          end: { blockId: "a1", offset: line1.end },
+        },
+      },
+      {
+        ...beat("later"),
+        range: {
+          start: { blockId: "a1", offset: line3.start + 2 },
+          end: { blockId: "a1", offset: line3.end },
+        },
+      },
+    ];
+    const result = beatPacing(doc);
+    expect(result.positions.map((point) => point.words)).toEqual([0, 7]);
+    expect(result.positions.map((point) => point.startLine)).toEqual([
+      line1.number,
+      line3.number,
+    ]);
+    expect(result.positions.map((point) => point.sceneHeading)).toEqual([
+      "INT. FIRST ROOM - DAY",
+      "INT. FIRST ROOM - DAY",
+    ]);
+    expect(result.total).toBe(30);
+  });
+  test("an explicit range takes priority over a legacy scene link", () => {
+    const doc = screenplay();
+    doc.metadata.beats = [
+      {
+        ...beat("range", "s1"),
+        range: {
+          start: { blockId: "d1", offset: 0 },
+          end: { blockId: "d1", offset: 10 },
+        },
+      },
+    ];
+    expect(beatPacing(doc).positions[0]).toMatchObject({
+      assigned: true,
+      words: 10,
+      sceneHeading: "INT. SECOND ROOM - DAY",
+    });
+  });
+  test("invalid explicit ranges never fall back to legacy scene links", () => {
+    const doc = screenplay();
+    doc.metadata.beats = [
+      {
+        ...beat("invalid", "s1"),
+        range: {
+          start: { blockId: "deleted", offset: 0 },
+          end: { blockId: "a1", offset: 10 },
+        },
+      },
+    ];
+    const result = beatPacing(doc).positions[0];
+    expect(result).toMatchObject({ assigned: false, words: 15 });
+    expect(result.range).toBeUndefined();
+    expect(result.startLine).toBeUndefined();
+  });
   test("counts screenplay prose and positions assigned beats at scene starts", () => {
     const doc = screenplay();
     doc.metadata.beats = [

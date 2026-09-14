@@ -36,4 +36,18 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   </ErrorBoundary>,
 );
 
-if(import.meta.env.PROD && 'serviceWorker' in navigator){window.addEventListener('load',()=>{void navigator.serviceWorker.register('/sw.js').catch(()=>{/* Writing and local recovery do not depend on offline installation. */});});}
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  const registerOfflineShell = () => {
+    void navigator.serviceWorker
+      .register("/sw.js", { updateViaCache: "none" })
+      .catch((error: unknown) => {
+        // A failed network/cache install must never interrupt writing or local saves.
+        console.warn(
+          "Offline support could not finish installing; it will retry on the next visit.",
+          error,
+        );
+      });
+  };
+  if (document.readyState === "complete") registerOfflineShell();
+  else window.addEventListener("load", registerOfflineShell, { once: true });
+}

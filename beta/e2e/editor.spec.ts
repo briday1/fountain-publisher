@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { parseFountain, serializeFountain } from "../src/core/fountain";
 const mod = process.platform === "darwin" ? "Meta" : "Control";
 test("deployed beta starts both account sign-ins using the existing callbacks", async ({
   request,
@@ -290,7 +291,7 @@ test("title presentation and heading preferences retain the active editor and it
   });
 });
 
-test("long screenplay keeps native typing responsive with insights enabled", async ({
+test("long screenplay keeps native typing responsive with insights and assigned beats", async ({
   page,
 }, testInfo) => {
   await page.addInitScript(() => {
@@ -310,7 +311,24 @@ test("long screenplay keeps native typing responsive with insights enabled", asy
       () =>
         `!The room is quiet. A writer watches the door and waits for a familiar voice. The light changes. Nobody moves. It is a moment that could last forever, or end before anyone has time to notice.\n\n`,
     ).join("");
-  const source = Array.from({ length: 120 }, (_, i) => scene(i + 1)).join("\n");
+  const draft = parseFountain(
+    Array.from({ length: 120 }, (_, i) => scene(i + 1)).join("\n"),
+  );
+  draft.metadata.beats = draft.blocks
+    .filter((block) => block.kind === "action")
+    .filter((_, index) => index % 120 === 0)
+    .map((block, index) => ({
+      id: `performance-beat-${index}`,
+      title: `Beat ${index + 1}`,
+      description: "",
+      color: "#75a8ed",
+      act: "Act I",
+      range: {
+        start: { blockId: block.id, offset: 0 },
+        end: { blockId: block.id, offset: block.text.length },
+      },
+    }));
+  const source = serializeFountain(draft);
   await page.getByRole("button", { name: "File", exact: true }).click();
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: /^Open Fountain/ }).click();
@@ -323,6 +341,10 @@ test("long screenplay keeps native typing responsive with insights enabled", asy
   });
   const editor = page.getByRole("textbox", { name: "Screenplay editor" });
   await expect(editor.locator("p")).toHaveCount(1920, { timeout: 20000 });
+  const untouchedParagraph = await editor
+    .locator("p")
+    .nth(1000)
+    .elementHandle();
   await editor.locator("p").first().click();
   await page.keyboard.press("End");
   await page.evaluate(() => {
@@ -345,12 +367,16 @@ test("long screenplay keeps native typing responsive with insights enabled", asy
   const times = await page.evaluate(
     () => (window as unknown as { typingTimes: number[] }).typingTimes,
   );
+  expect(await untouchedParagraph!.evaluate((node) => node.isConnected)).toBe(
+    true,
+  );
   times.sort((a, b) => a - b);
   const p95 = times[Math.floor(times.length * 0.95)] ?? Infinity;
   await testInfo.attach("typing-performance", {
     body: JSON.stringify(
       {
         blocks: 1920,
+        assignedBeats: draft.metadata.beats.length,
         bytes: Buffer.byteLength(source),
         keystrokes: times.length,
         p95Ms: p95,

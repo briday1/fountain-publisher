@@ -175,16 +175,38 @@ export function createBetaWorker(network: typeof fetch = fetch) {
       if (!url.pathname.startsWith("/beta/api/")) {
         if (!["GET", "HEAD"].includes(request.method))
           return new Response("Method not allowed", { status: 405 });
+        const immutableAsset =
+          /^\/assets\/.+-[\w-]+\.[\w]+$/.test(url.pathname) ||
+          /^\/offline-shell-[a-f0-9]+\.html$/.test(url.pathname);
         const assetUrl = env.BETA_ASSET_ORIGIN
-          ? `${env.BETA_ASSET_ORIGIN}${url.pathname}${url.search}`
+          ? new URL(`${env.BETA_ASSET_ORIGIN}${url.pathname}${url.search}`)
           : undefined;
+        // The Pages origin is itself behind a CDN. A unique upstream URL also
+        // bypasses already-cached responses there, independent of zone cache rules.
+        if (assetUrl && !immutableAsset)
+          assetUrl.searchParams.set("_fp_refresh", crypto.randomUUID());
         const response = assetUrl
-          ? await network(assetUrl, {
+          ? await network(assetUrl.href, {
               method: request.method,
               redirect: "follow",
+              ...(immutableAsset
+                ? {}
+                : {
+                    cache: "no-store" as const,
+                    headers: { "Cache-Control": "no-cache" },
+                  }),
             })
           : await env.ASSETS.fetch(request);
         const headers = new Headers(response.headers);
+        if (!immutableAsset || !response.ok) {
+          // Mutable HTML and sw.js must always agree with the current release.
+          // In particular, a stale sw.js can reference assets removed by Pages.
+          headers.set("Cache-Control", "no-store");
+          headers.set("CDN-Cache-Control", "no-store");
+          headers.set("Cloudflare-CDN-Cache-Control", "no-store");
+          headers.delete("Expires");
+          headers.delete("Age");
+        }
         headers.set("X-Content-Type-Options", "nosniff");
         headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
         headers.set(

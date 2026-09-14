@@ -27,7 +27,8 @@ import {
   X,
 } from "lucide-react";
 import { emptyScreenplay, blockLabels, newId } from "./core/model";
-import type { BlockKind, Screenplay } from "./core/model";
+import type { BeatRange, BlockKind, Screenplay } from "./core/model";
+import { resolveBeatRange } from "./core/beatRanges";
 import { parseFountain, serializeFountain } from "./core/fountain";
 import { analyzeScreenplay } from "./core/insights";
 import { example } from "./core/example";
@@ -49,6 +50,7 @@ import { EditorSurface } from "./components/EditorSurface";
 import { CharacterDialog } from "./components/CharacterDialog";
 import { CharacterAnalytics } from "./components/CharacterAnalytics";
 import { BeatBoard } from "./components/BeatBoard";
+import { BeatGuide } from "./components/BeatGuide";
 import { Settings, readPreferences } from "./components/Settings";
 import { TitleDialog } from "./components/TitleDialog";
 import { TitlePreview } from "./components/TitlePreview";
@@ -71,6 +73,15 @@ export default function App() {
     "screenplay",
   );
   const [kind, setKind] = useState<BlockKind>("action");
+  const [assigningBeat, setAssigningBeat] = useState<string | null>(null);
+  const [newBeatTitle, setNewBeatTitle] = useState("");
+  const [beatGuide, setBeatGuide] = useState(() => {
+    try {
+      return localStorage.getItem("fp2.beatGuide") === "true";
+    } catch {
+      return false;
+    }
+  });
   const [dialog, setDialog] = useState<
     | "settings"
     | "title"
@@ -93,11 +104,14 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [pdfUrl, setPdfUrl] = useState("");
   const [pdfError, setPdfError] = useState("");
+  const [pdfWorking, setPdfWorking] = useState(false);
+  const [pdfRetry, setPdfRetry] = useState(0);
   const [pdfWarnings, setPdfWarnings] = useState<string[]>([]);
   const [pdfPages, setPdfPages] = useState<{
     epoch: number;
     id: string;
     pages: number;
+    options: string;
   }>();
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -113,11 +127,78 @@ export default function App() {
   const latest = useRef({ preferences, mode });
   latest.current = { preferences, mode };
   const pdfGeneration = useRef(0);
+  const pdfBuildQueue = useRef<Promise<void>>(Promise.resolve());
+  const pdfResult = useRef<{
+    id: string;
+    epoch: number;
+    options: string;
+    result: Awaited<ReturnType<typeof publishPdf>>;
+  } | null>(null);
   const pdfObject = useRef("");
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
   const searchInput = useRef<HTMLInputElement>(null);
+  const pdfOptions = {
+    pageSize: preferences.pageSize,
+    boldSceneHeadings: preferences.boldSceneHeadings,
+    sceneNumbers: preferences.sceneNumbers,
+    sceneNumberFormat: preferences.sceneNumberFormat,
+  };
+  const pdfOptionsKey = JSON.stringify(pdfOptions);
+  function acceptPdf(
+    result: Awaited<ReturnType<typeof publishPdf>>,
+    published: SessionSnapshot,
+    options: string,
+  ): boolean {
+    const current = sessionRef.current?.token();
+    const prefs = latest.current.preferences;
+    const currentOptions = JSON.stringify({
+      pageSize: prefs.pageSize,
+      boldSceneHeadings: prefs.boldSceneHeadings,
+      sceneNumbers: prefs.sceneNumbers,
+      sceneNumberFormat: prefs.sceneNumberFormat,
+    });
+    if (
+      current?.id !== published.id ||
+      current.epoch !== published.epoch ||
+      options !== currentOptions
+    )
+      return false;
+    const url = URL.createObjectURL(
+      new Blob([result.bytes as BlobPart], { type: "application/pdf" }),
+    );
+    if (pdfObject.current) URL.revokeObjectURL(pdfObject.current);
+    pdfObject.current = url;
+    pdfResult.current = {
+      id: published.id,
+      epoch: published.epoch,
+      options,
+      result,
+    };
+    setPdfUrl(url);
+    setPdfWarnings(result.warnings);
+    setPdfPages({
+      id: published.id,
+      epoch: published.epoch,
+      options,
+      pages: result.pageCount,
+    });
+    setPdfError("");
+    setPdfWorking(false);
+    return true;
+  }
+  useEffect(() => {
+    try {
+      localStorage.setItem("fp2.beatGuide", String(beatGuide));
+    } catch {
+      /* A writing preference does not affect document persistence. */
+    }
+  }, [beatGuide]);
+  useEffect(() => {
+    setAssigningBeat(null);
+    setNewBeatTitle("");
+  }, [snapshot?.id]);
   function tell(message: string) {
     setNotice(message);
     clearTimeout(noticeTimer.current);
@@ -353,6 +434,94 @@ export default function App() {
     editor.current?.focus();
   }
   const changeDoc = (doc: Screenplay) => session?.updateMetadata(doc);
+  function showBeatRange(range: BeatRange) {
+    setMode("screenplay");
+    if (matchMedia("(max-width: 950px)").matches)
+      setPreferences((value) => ({
+        ...value,
+        outline: false,
+        ...(matchMedia("(max-width: 720px)").matches
+          ? { insights: false }
+          : {}),
+      }));
+    requestAnimationFrame(() => {
+      if (!editor.current?.focusRange(range))
+        tell(
+          "These lines are no longer in the screenplay. Select a new range for this beat.",
+        );
+    });
+  }
+  function startBeatAssignment(id = "") {
+    setAssigningBeat(id);
+    setNewBeatTitle("");
+    setMode("screenplay");
+    requestAnimationFrame(() => editor.current?.focus());
+  }
+  function assignBeatRange(beatId: string, range: BeatRange): boolean {
+    if (!session) return false;
+    const current = session.capture().screenplay;
+    const resolved = resolveBeatRange(current, range);
+    if (
+      !resolved ||
+      !current.metadata.beats.some((beat) => beat.id === beatId)
+    ) {
+      tell("Select the screenplay lines you want to assign.");
+      return false;
+    }
+    changeDoc({
+      ...current,
+      metadata: {
+        ...current.metadata,
+        beats: current.metadata.beats.map((beat) =>
+          beat.id === beatId ? { ...beat, range, sceneId: undefined } : beat,
+        ),
+      },
+    });
+    // Assign + Next leaves the caret ready to continue after the assigned text.
+    editor.current?.focusRange({ start: range.end, end: range.end });
+    return true;
+  }
+  function assignSelectedLines() {
+    if (!session || !editor.current) return;
+    const range = editor.current.selectedLines();
+    const current = session.capture().screenplay;
+    const resolved = range && resolveBeatRange(current, range);
+    if (!range || !resolved) {
+      tell("Select the screenplay lines you want to assign.");
+      return;
+    }
+    const existing = current.metadata.beats.find(
+      (beat) => beat.id === assigningBeat,
+    );
+    const beatTitle = existing?.title || newBeatTitle.trim();
+    if (!existing && !beatTitle) {
+      tell("Give the new beat a title, or choose an existing beat.");
+      return;
+    }
+    const beats = existing
+      ? current.metadata.beats.map((beat) =>
+          beat.id === existing.id
+            ? { ...beat, range, sceneId: undefined }
+            : beat,
+        )
+      : [
+          ...current.metadata.beats,
+          {
+            id: newId(),
+            title: beatTitle,
+            description: "",
+            act: "Act I",
+            color: "#75a8ed",
+            range,
+          },
+        ];
+    changeDoc({ ...current, metadata: { ...current.metadata, beats } });
+    setAssigningBeat(null);
+    tell(
+      `${beatTitle || "Beat"} assigned to ${resolved.startLine === resolved.endLine ? `line ${resolved.startLine}` : `lines ${resolved.startLine}–${resolved.endLine}`} · ${resolved.words.toLocaleString()} words before this beat.`,
+    );
+    editor.current.focusRange(range);
+  }
   function insert(k: BlockKind) {
     setMode("screenplay");
     editor.current?.insertBlock(
@@ -362,6 +531,14 @@ export default function App() {
   }
   function scene(id: string) {
     setMode("screenplay");
+    if (matchMedia("(max-width: 950px)").matches)
+      setPreferences((value) => ({
+        ...value,
+        outline: false,
+        ...(matchMedia("(max-width: 720px)").matches
+          ? { insights: false }
+          : {}),
+      }));
     requestAnimationFrame(() => editor.current?.focusBlock(id));
   }
   async function listWorkspace() {
@@ -393,23 +570,20 @@ export default function App() {
         format === "beatPdf"
           ? (await import("./core/export")).beatSheetDocument(snap.screenplay)
           : snap.screenplay;
-      const result = await publishPdf(outputDoc, {
-        pageSize: preferences.pageSize,
-        boldSceneHeadings: preferences.boldSceneHeadings,
-        sceneNumbers: preferences.sceneNumbers,
-        sceneNumberFormat: preferences.sceneNumberFormat,
-      });
+      const cached = pdfResult.current;
+      const result =
+        format === "pdf" &&
+        cached?.id === snap.id &&
+        cached.epoch === snap.epoch &&
+        cached.options === pdfOptionsKey
+          ? cached.result
+          : await publishPdf(outputDoc, pdfOptions);
       if (result.warnings.length) tell(result.warnings.join(" "));
       downloadFile(
         new Blob([result.bytes as BlobPart], { type: "application/pdf" }),
         `${stem}${format === "beatPdf" ? "-beats" : ""}.pdf`,
       );
-      if (format === "pdf")
-        setPdfPages({
-          epoch: snap.epoch,
-          id: snap.id,
-          pages: result.pageCount,
-        });
+      if (format === "pdf") acceptPdf(result, snap, pdfOptionsKey);
     } else {
       const exports = await import("./core/export");
       const text =
@@ -431,47 +605,50 @@ export default function App() {
     if (format !== "pdf" && format !== "beatPdf") tell("Export ready.");
   }
   useEffect(() => {
-    if (mode !== "pdf" || !snapshot) return;
+    if (!snapshot) return;
     const id = ++pdfGeneration.current;
     setPdfError("");
-    setBusy(true);
+    setPdfWorking(true);
     const timer = setTimeout(() => {
-      publishPdf(snapshot.screenplay, {
-        pageSize: preferences.pageSize,
-        boldSceneHeadings: preferences.boldSceneHeadings,
-        sceneNumbers: preferences.sceneNumbers,
-        sceneNumberFormat: preferences.sceneNumberFormat,
-      })
-        .then((result) => {
-          if (id !== pdfGeneration.current) return;
-          const url = URL.createObjectURL(
-            new Blob([result.bytes as BlobPart], { type: "application/pdf" }),
-          );
-          if (pdfObject.current) URL.revokeObjectURL(pdfObject.current);
-          pdfObject.current = url;
-          setPdfUrl(url);
-          setPdfWarnings(result.warnings);
-          setPdfPages({
-            epoch: snapshot.epoch,
-            id: snapshot.id,
-            pages: result.pageCount,
-          });
-        })
-        .catch((e) => {
-          if (id === pdfGeneration.current) setPdfError(errorMessage(e));
-        })
-        .finally(() => {
-          if (id === pdfGeneration.current) setBusy(false);
+      // Build after writing settles, in the publishing worker. At most one
+      // background build runs; queued superseded versions are discarded.
+      pdfBuildQueue.current = pdfBuildQueue.current
+        .catch(() => {})
+        .then(async () => {
+          const token = sessionRef.current?.token();
+          if (
+            id !== pdfGeneration.current ||
+            token?.id !== snapshot.id ||
+            token.epoch !== snapshot.epoch
+          )
+            return;
+          await publishPdf(snapshot.screenplay, pdfOptions)
+            .then((result) => {
+              if (id === pdfGeneration.current)
+                acceptPdf(result, snapshot, pdfOptionsKey);
+            })
+            .catch((e) => {
+              const current = sessionRef.current?.token();
+              if (
+                id === pdfGeneration.current &&
+                current?.id === snapshot.id &&
+                current.epoch === snapshot.epoch
+              )
+                setPdfError(errorMessage(e));
+            })
+            .finally(() => {
+              if (id === pdfGeneration.current) setPdfWorking(false);
+            });
         });
-    }, 150);
+    }, 500);
     return () => {
       clearTimeout(timer);
       pdfGeneration.current++;
-      setBusy(false);
     };
   }, [
-    mode,
-    snapshot,
+    snapshot?.id,
+    snapshot?.epoch,
+    pdfRetry,
     preferences.pageSize,
     preferences.boldSceneHeadings,
     preferences.sceneNumbers,
@@ -523,14 +700,17 @@ export default function App() {
     );
   const doc = snapshot.screenplay;
   const exact =
-    pdfPages?.epoch === snapshot.epoch && pdfPages.id === snapshot.id;
-  const pages = exact ? pdfPages.pages : insights.estimatedPages;
+    pdfPages?.epoch === session.token().epoch &&
+    pdfPages.id === snapshot.id &&
+    pdfPages.options === pdfOptionsKey;
+  const pages = exact ? pdfPages.pages : "…";
   const title =
     doc.titlePage.title || snapshot.name.replace(/\.fountain$/i, "");
   const switchMode = (next: typeof mode) => {
     session.capture();
     setSnapshot({ ...session.current });
     setMode(next);
+    if (next !== "screenplay") setAssigningBeat(null);
   };
   const openIntegration = (
     provider: Provider,
@@ -958,6 +1138,7 @@ export default function App() {
             </button>
             <button
               className="insights-toggle"
+              aria-label="Insights"
               aria-pressed={preferences.insights}
               onClick={() =>
                 setPreferences({
@@ -1016,6 +1197,20 @@ export default function App() {
               Tab to change element · Enter to continue
             </span>
             <div className="spacer" />
+            <button
+              className="assign-beat-button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => startBeatAssignment()}
+            >
+              Assign beat
+            </button>
+            <button
+              aria-pressed={beatGuide}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => setBeatGuide(!beatGuide)}
+            >
+              Beat guide
+            </button>
             <button
               className="icon-button"
               aria-label="Find and replace"
@@ -1118,6 +1313,73 @@ export default function App() {
               </div>
             </div>
           )}
+          {mode === "screenplay" && assigningBeat !== null && (
+            <div
+              className="beat-assignment-bar"
+              role="region"
+              aria-label="Assign screenplay lines to a beat"
+            >
+              <div className="beat-assignment-instructions">
+                <strong>Assign screenplay lines</strong>
+                <span>
+                  Select text on the page, then assign its lines. A cursor
+                  assigns the current line.
+                </span>
+              </div>
+              <label>
+                <span>Beat</span>
+                <select
+                  aria-label="Beat to assign"
+                  value={assigningBeat}
+                  onChange={(event) => setAssigningBeat(event.target.value)}
+                >
+                  <option value="">New beat</option>
+                  {doc.metadata.beats.map((beat, index) => (
+                    <option key={beat.id} value={beat.id}>
+                      {index + 1}. {beat.title || "Untitled beat"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {!assigningBeat && (
+                <label>
+                  <span>Title</span>
+                  <input
+                    aria-label="New beat title"
+                    value={newBeatTitle}
+                    onChange={(event) => setNewBeatTitle(event.target.value)}
+                    placeholder="What changes here?"
+                  />
+                </label>
+              )}
+              <button
+                className="primary"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={assignSelectedLines}
+              >
+                Assign selected lines
+              </button>
+              <button
+                onClick={() => {
+                  setAssigningBeat(null);
+                  editor.current?.focus();
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+          {mode === "screenplay" && beatGuide && (
+            <BeatGuide
+              key={snapshot.id}
+              doc={doc}
+              editor={editor.current}
+              onAssign={assignBeatRange}
+              onRange={showBeatRange}
+              onEdit={() => switchMode("beats")}
+              onClose={() => setBeatGuide(false)}
+            />
+          )}
           <div
             className={`writing-scroll background-${preferences.background}`}
             hidden={mode !== "screenplay"}
@@ -1157,7 +1419,8 @@ export default function App() {
               <BeatBoard
                 doc={doc}
                 onChange={changeDoc}
-                onScene={scene}
+                onAssign={startBeatAssignment}
+                onRange={showBeatRange}
                 onExport={() => void run(() => exportFile("beatPdf"))}
                 onExportCsv={() => void run(() => exportFile("beats"))}
               />
@@ -1167,7 +1430,7 @@ export default function App() {
             <div className="pdf-view">
               <div className="pdf-toolbar">
                 <span>
-                  {busy
+                  {pdfWorking || !exact
                     ? "Preparing your pages…"
                     : pdfPages
                       ? `${pdfPages.pages} published pages`
@@ -1189,11 +1452,11 @@ export default function App() {
               {pdfError ? (
                 <div className="error-box" role="alert">
                   {pdfError}
-                  <button onClick={() => setSnapshot({ ...session.capture() })}>
+                  <button onClick={() => setPdfRetry((value) => value + 1)}>
                     Try again
                   </button>
                 </div>
-              ) : pdfUrl ? (
+              ) : pdfUrl && exact ? (
                 <iframe src={pdfUrl} title="Published screenplay PDF" />
               ) : (
                 <div className="pdf-loading">
@@ -1231,9 +1494,20 @@ export default function App() {
                 </button>
               </div>
               <div className="metrics">
-                <div>
+                <div
+                  aria-label="PDF page count"
+                  aria-busy={!exact && !pdfError}
+                  title={
+                    pdfError ||
+                    (exact
+                      ? "Pages in the generated PDF, including its title page"
+                      : "Generating the PDF to count its pages")
+                  }
+                >
                   <strong>{pages}</strong>
-                  <span>{exact ? "PDF pages" : "est. pages"}</span>
+                  <span>
+                    {pdfError && !exact ? "PDF unavailable" : "PDF pages"}
+                  </span>
                 </div>
                 <div>
                   <strong>{insights.sceneCount}</strong>
@@ -1416,6 +1690,7 @@ export default function App() {
           doc={doc}
           onChange={changeDoc}
           onScene={scene}
+          onDialogue={showBeatRange}
           onAnalytics={() => {
             setCharacter(null);
             setDialog("characters");

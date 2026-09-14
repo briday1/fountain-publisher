@@ -18,6 +18,8 @@ import {
 import { keymap } from "prosemirror-keymap";
 import type {
   BlockKind,
+  Beat,
+  BeatRange,
   Screenplay,
   ScriptBlock,
   TextMark,
@@ -40,6 +42,16 @@ import {
   selectText,
   setBlockKind,
 } from "./commands";
+import {
+  anchorPosition,
+  BeatAnchorStep,
+  beatAnchorKey,
+  beatAnchorPlugin,
+  mapBeatAnchors,
+  rangesFromAnchors,
+  textAnchor,
+  updateBeatAnchors,
+} from "./beatAnchors";
 import "./editor.css";
 
 export interface EditorCallbacks {
@@ -231,6 +243,7 @@ export class EditorController {
       schema: screenplaySchema,
       doc: blocksToDoc(screenplay.blocks),
       plugins: [
+        beatAnchorPlugin(screenplay),
         history({ depth: 500, newGroupDelay: 500 }),
         keymap({
           Enter: screenplayEnter,
@@ -290,6 +303,16 @@ export class EditorController {
       !isHistoryTransaction(transaction)
     )
       closeHistory(transaction);
+    if (
+      transaction.docChanged &&
+      !isHistoryTransaction(transaction) &&
+      !transaction.getMeta("beatAssignments")
+    ) {
+      const anchors = beatAnchorKey.getState(this.view.state)!;
+      const mapped = mapBeatAnchors(anchors, transaction.mapping);
+      if (mapped !== anchors)
+        transaction.step(new BeatAnchorStep(anchors, mapped));
+    }
     const result = this.view.state.applyTransaction(transaction);
     this.view.updateState(result.state);
     if (result.transactions.some((tr) => tr.docChanged))
@@ -317,7 +340,76 @@ export class EditorController {
     return docToBlocks(this.view.state.doc);
   }
   getDocument(base: Screenplay): Screenplay {
-    return { ...base, blocks: this.getBlocks() };
+    return {
+      ...base,
+      blocks: this.getBlocks(),
+      metadata: {
+        ...base.metadata,
+        beats: rangesFromAnchors(
+          this.view.state.doc,
+          base.metadata.beats,
+          beatAnchorKey.getState(this.view.state)!,
+        ),
+      },
+    };
+  }
+
+  updateBeatRanges(screenplay: Screenplay, previous: Beat[]): void {
+    const { state } = this.view;
+    const current = beatAnchorKey.getState(state)!;
+    const anchors = updateBeatAnchors(state.doc, screenplay, previous, current);
+    if (anchors === current) return;
+    this.view.dispatch(
+      closeHistory(state.tr)
+        .step(new BeatAnchorStep(current, anchors))
+        .setMeta("beatAssignments", true),
+    );
+    // A line assignment is one undo event, separate from the next keystroke.
+    this.view.dispatch(closeHistory(this.view.state.tr));
+  }
+
+  /** Expand a native selection to authored lines; soft wrapping never renumbers them. */
+  selectedLines(): BeatRange | undefined {
+    const { doc, selection } = this.view.state;
+    const first = doc.resolve(Math.max(1, selection.from));
+    let last = doc.resolve(Math.min(doc.content.size - 1, selection.to));
+    if (!first.depth || !last.depth) return;
+    // A selection ending at the next paragraph's start excludes that paragraph.
+    if (
+      !selection.empty &&
+      last.parentOffset === 0 &&
+      last.before() > first.before()
+    ) {
+      const previous = doc.resolve(last.before());
+      if (previous.nodeBefore?.isTextblock)
+        last = doc.resolve(last.before() - 1);
+    }
+    const startText = first.parent.textContent;
+    const endText = last.parent.textContent;
+    const startOffset =
+      first.parentOffset === 0
+        ? 0
+        : startText.lastIndexOf("\n", first.parentOffset - 1) + 1;
+    let lastOffset = last.parentOffset;
+    if (!selection.empty && lastOffset > 0 && endText[lastOffset - 1] === "\n")
+      lastOffset--;
+    const endBreak = endText.indexOf("\n", lastOffset);
+    const start = textAnchor(doc, first.start() + startOffset);
+    const end = textAnchor(
+      doc,
+      last.start() + (endBreak < 0 ? endText.length : endBreak),
+    );
+    return start && end ? { start, end } : undefined;
+  }
+
+  focusRange(range: BeatRange): boolean {
+    const { state } = this.view;
+    const from = anchorPosition(state.doc, range.start);
+    const to = anchorPosition(state.doc, range.end);
+    if (from === undefined || to === undefined || from > to) return false;
+    this.focus();
+    this.view.dispatch(selectText(state, from, to));
+    return true;
   }
 
   /** Replaces state and history. Call only when switching/opening a document. */
@@ -351,8 +443,8 @@ export class EditorController {
       if (node.attrs.id === id) found = position + 1;
     });
     if (found < 0) return false;
-    this.view.dispatch(selectText(this.view.state, found, found));
     this.focus();
+    this.view.dispatch(selectText(this.view.state, found, found));
     return true;
   }
 

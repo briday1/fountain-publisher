@@ -1,4 +1,4 @@
-import type { Screenplay } from "./model";
+import type { Beat, Screenplay } from "./model";
 import { newId } from "./model";
 import { workspace } from "../storage/workspace";
 import type { WorkspaceDocument } from "../storage/workspace";
@@ -6,6 +6,7 @@ import type { RemoteLocation } from "../storage/cloud";
 export interface SessionEditor {
   getDocument(base: Screenplay): Screenplay;
   setDocument(doc: Screenplay): void;
+  updateBeatRanges?(doc: Screenplay, previous: Beat[]): void;
 }
 export interface SessionSnapshot {
   id: string;
@@ -70,6 +71,10 @@ export class DocumentSession {
       this.maximum = setTimeout(() => void this.flush().catch(() => {}), 1500);
   }
   updateMetadata(screenplay: Screenplay) {
+    this.editor?.updateBeatRanges?.(
+      screenplay,
+      this.current.screenplay.metadata.beats,
+    );
     this.current = {
       ...this.current,
       screenplay: {

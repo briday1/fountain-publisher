@@ -1,8 +1,19 @@
 import type { PDFFont, PDFPage } from "pdf-lib";
 import { newId } from "./model";
-import type { Screenplay, ScriptBlock, TextMark, TextSpan } from "./model";
+import type {
+  Beat,
+  Screenplay,
+  ScriptBlock,
+  TextMark,
+  TextSpan,
+} from "./model";
 import { blockSpans } from "./fountain";
 import { hasTitlePage, titlePageExtra } from "./titlePage";
+import {
+  resolveBeatRange,
+  sceneBeatRange,
+  screenplayLines,
+} from "./beatRanges";
 import { analyzeScreenplay, publishedKinds } from "./insights";
 import regularFontUrl from "@fontsource/courier-prime/files/courier-prime-latin-400-normal.woff?url";
 import boldFontUrl from "@fontsource/courier-prime/files/courier-prime-latin-700-normal.woff?url";
@@ -681,10 +692,31 @@ export function exportHtml(document: Screenplay): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${xml(title.title || "Untitled screenplay")}</title><style>body{margin:0;background:#eee;color:#111;font:12pt/1 "Courier Prime",Courier,monospace}.script,.title-page{box-sizing:border-box;max-width:8.5in;margin:24px auto;padding:1in 1in 1in 1.5in;background:white}p{white-space:pre-wrap;overflow-wrap:break-word;margin:0 0 12pt}.scene{break-after:avoid}.character{margin-left:2in;margin-bottom:0;break-after:avoid}.dialogue,.lyrics{margin-left:1in;margin-right:1.5in;margin-bottom:0}.parenthetical{margin-left:1.5in;margin-right:1.5in;margin-bottom:0;break-after:avoid}.lyrics{font-style:italic}.transition{text-align:right}.centered{text-align:center}.page-break{break-before:page}.dual{display:grid;grid-template-columns:1fr 1fr;gap:24pt;margin-bottom:12pt}.dual p{margin-left:0;margin-right:0}.dual .character{margin-left:24pt}.title-page{min-height:11in;text-align:center;padding-top:3in;position:relative;break-after:page}.title-page h1{font-size:12pt}.title-page p{margin-top:24pt}.title-page address{font-style:normal;white-space:pre-wrap;text-align:left;margin-top:2in}@media print{body{background:white}.script,.title-page{margin:0;max-width:none;padding:0;box-shadow:none}.title-page{min-height:8in;padding-top:2in}@page{size:letter;margin:1in 1in 1in 1.5in}}@media(max-width:640px){.script,.title-page{padding:32px 20px}.character{margin-left:35%}.dialogue,.lyrics{margin-left:15%;margin-right:15%}.parenthetical{margin-left:20%;margin-right:20%}}</style></head><body>${titleHtml}<main class="script">${html.join("\n")}</main></body></html>`;
 }
 
+function beatExportAssignments(document: Screenplay) {
+  const lines = screenplayLines(document);
+  const scenes = analyzeScreenplay(document).scenes;
+  const sceneForBlock = new Map<string, (typeof scenes)[number]>();
+  let sceneIndex = -1;
+  document.blocks.forEach((block, index) => {
+    if (scenes[sceneIndex + 1]?.blockIndex === index) sceneIndex++;
+    if (sceneIndex >= 0) sceneForBlock.set(block.id, scenes[sceneIndex]);
+  });
+  return (beat: Beat) => {
+    const range =
+      beat.range === undefined && beat.sceneId
+        ? sceneBeatRange(document, beat.sceneId)
+        : beat.range;
+    const resolved = range
+      ? resolveBeatRange(document, range, lines)
+      : undefined;
+    return resolved && range
+      ? { ...resolved, scene: sceneForBlock.get(range.start.blockId) }
+      : undefined;
+  };
+}
+
 export function exportBeatSheetCsv(document: Screenplay): string {
-  const scenes = new Map(
-    analyzeScreenplay(document).scenes.map((scene) => [scene.id, scene]),
-  );
+  const assignmentFor = beatExportAssignments(document);
   const cell = (value: unknown) => {
     let text = String(value ?? "");
     // Spreadsheet applications otherwise interpret a beat title beginning '=' as a formula.
@@ -692,23 +724,35 @@ export function exportBeatSheetCsv(document: Screenplay): string {
     return `"${text.replace(/"/g, '""')}"`;
   };
   const rows: unknown[][] = [
-    ["Beat", "Act", "Description", "Scene", "Scene heading", "Color"],
+    [
+      "Beat",
+      "Act",
+      "Description",
+      "Scene",
+      "Scene heading",
+      "Color",
+      "Lines",
+      "Words before first line",
+    ],
   ];
   for (const beat of document.metadata.beats) {
-    const scene = beat.sceneId ? scenes.get(beat.sceneId) : undefined;
+    const assignment = assignmentFor(beat);
     rows.push([
       beat.title,
       beat.act,
       beat.description,
-      scene?.number ?? "",
-      scene?.heading ?? "",
+      assignment?.scene?.number ?? "",
+      assignment?.sceneHeading ?? "",
       beat.color,
+      assignment ? `${assignment.startLine}–${assignment.endLine}` : "",
+      assignment?.words ?? "",
     ]);
   }
   return `\uFEFF${rows.map((row) => row.map(cell).join(",")).join("\r\n")}\r\n`;
 }
 
 export function beatSheetDocument(document: Screenplay): Screenplay {
+  const assignmentFor = beatExportAssignments(document);
   const blocks: ScriptBlock[] = [];
   const add = (text: string, bold = false) =>
     blocks.push({
@@ -722,8 +766,15 @@ export function beatSheetDocument(document: Screenplay): Screenplay {
   document.metadata.beats.forEach((beat, index) => {
     add(`${index + 1}. ${beat.title || "Untitled beat"} · ${beat.act}`, true);
     if (beat.description) add(beat.description);
-    const scene = document.blocks.find((block) => block.id === beat.sceneId);
-    if (scene) add(`Scene: ${scene.text}`);
+    const assignment = assignmentFor(beat);
+    if (assignment) {
+      add(
+        `Lines ${assignment.startLine}–${assignment.endLine} · ${assignment.words.toLocaleString()} words before first assigned line`,
+      );
+      if (assignment.sceneHeading) add(`Scene: ${assignment.sceneHeading}`);
+    } else if (beat.range !== undefined || beat.sceneId) {
+      add("Assigned lines are no longer available.");
+    }
   });
   return {
     ...document,
@@ -735,6 +786,7 @@ export function beatSheetDocument(document: Screenplay): Screenplay {
       source: "",
       contact: "",
       draftDate: "",
+      extra: {},
     },
     blocks,
   };

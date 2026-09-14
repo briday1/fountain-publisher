@@ -1,11 +1,13 @@
 import { Modal } from "./Modal";
 import { analyzeScreenplay, characterName } from "../core/insights";
-import type { Screenplay, ScriptBlock } from "../core/model";
+import type { BeatRange, Screenplay, ScriptBlock } from "../core/model";
+import "./CharacterDialog.css";
 export function CharacterDialog({
   name,
   doc,
   onChange,
   onScene,
+  onDialogue,
   onAnalytics,
   onClose,
 }: {
@@ -13,6 +15,7 @@ export function CharacterDialog({
   doc: Screenplay;
   onChange: (doc: Screenplay) => void;
   onScene: (id: string) => void;
+  onDialogue: (range: BeatRange) => void;
   onAnalytics?: () => void;
   onClose: () => void;
 }) {
@@ -29,7 +32,7 @@ export function CharacterDialog({
       if (current) speeches.push(current);
     } else if (["dialogue", "parenthetical", "lyrics"].includes(block.kind)) {
       current?.lines.push(block);
-    } else if (block.kind !== "note") current = undefined;
+    } else if (!["note", "boneyard"].includes(block.kind)) current = undefined;
   }
   const notes = (
     doc.metadata.characterNotes &&
@@ -96,20 +99,35 @@ export function CharacterDialog({
       <h3 className="detail-label">Dialogue</h3>
       <div className="speech-list">
         {speeches.map((speech, i) => (
-          <button
-            key={speech.cue.id}
-            onClick={() => {
-              onClose();
-              onScene(speech.cue.id);
-            }}
-          >
+          <div className="character-speech" key={speech.cue.id}>
             <small>
               {i + 1} · {speech.cue.text}
             </small>
-            {speech.lines.map((line) => (
-              <p key={line.id}>{line.text}</p>
-            ))}
-          </button>
+            {speech.lines.flatMap((block) => {
+              let offset = 0;
+              return block.text.split("\n").map((text) => {
+                const start = offset;
+                offset += text.length + 1;
+                const range = {
+                  start: { blockId: block.id, offset: start },
+                  end: { blockId: block.id, offset: start + text.length },
+                };
+                return (
+                  <button
+                    className="character-dialogue-line"
+                    key={`${block.id}-${start}`}
+                    aria-label={`Go to dialogue: ${text || "Blank line"}`}
+                    onClick={() => {
+                      onClose();
+                      onDialogue(range);
+                    }}
+                  >
+                    {text || "\u00a0"}
+                  </button>
+                );
+              });
+            })}
+          </div>
         ))}
       </div>
     </Modal>

@@ -35,11 +35,22 @@ export interface TitlePage {
   contact: string;
   extra?: Record<string, string>;
 }
+export interface TextAnchor {
+  blockId: string;
+  /** UTF-16 offset in the rendered block text. */
+  offset: number;
+}
+export interface BeatRange {
+  start: TextAnchor;
+  /** Exclusive endpoint, like a text selection. */
+  end: TextAnchor;
+}
 export interface Beat {
   id: string;
   title: string;
   description: string;
   sceneId?: string;
+  range?: BeatRange;
   color: string;
   act: string;
 }

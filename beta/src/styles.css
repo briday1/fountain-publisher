@@ -283,6 +283,7 @@ hr {
   box-shadow: 0 10px 32px #0003;
   max-height: 85dvh;
   overflow: auto;
+  overscroll-behavior: contain;
   z-index: 40;
 }
 .menu-popup button {
@@ -524,6 +525,13 @@ hr {
   height: 38px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+.format-toolbar > button {
+  flex-shrink: 0;
 }
 .format-toolbar select {
   background: transparent;
@@ -1872,6 +1880,39 @@ hr {
 .board-export {
   display: flex;
   gap: 5px;
+}
+.beat-assignment-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.beat-assignment-instructions {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.beat-assignment-instructions span {
+  color: var(--muted);
+}
+.beat-assignment-bar label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.beat-assignment-bar select,
+.beat-assignment-bar input {
+  max-width: min(270px, 70vw);
+  min-height: 32px;
+}
+.beat-assignment-bar button {
+  min-height: 32px;
 }
 .pacing-chart {
   padding: 20px;

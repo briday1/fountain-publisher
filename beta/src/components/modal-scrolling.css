@@ -1,0 +1,12 @@
+.modal,
+.character-analytics {
+  overscroll-behavior: contain;
+}
+.modal {
+  overflow: auto;
+}
+.modal .speech-list,
+.modal textarea,
+.character-analytics-viewport {
+  overscroll-behavior: contain;
+}

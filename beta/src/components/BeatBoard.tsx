@@ -8,11 +8,114 @@ import {
   Download,
   ArrowUpRight,
   ChartNoAxesCombined,
+  Link2,
 } from "lucide-react";
 import { newId } from "../core/model";
-import type { Beat, Screenplay } from "../core/model";
+import type { Beat, BeatRange, Screenplay } from "../core/model";
+import {
+  beatRangeFromLines,
+  resolveBeatRange,
+  sceneBeatRange,
+  screenplayLines,
+} from "../core/beatRanges";
 import { BeatPacing } from "./BeatPacing";
 import "./beat-presentation.css";
+
+function RangeFields({
+  doc,
+  beat,
+  index,
+  range,
+  onApply,
+  onClear,
+}: {
+  doc: Screenplay;
+  beat: Beat;
+  index: number;
+  range?: BeatRange;
+  onApply: (range: BeatRange) => void;
+  onClear: () => void;
+}) {
+  const resolved = range ? resolveBeatRange(doc, range) : undefined;
+  const [start, setStart] = useState(String(resolved?.startLine ?? ""));
+  const [end, setEnd] = useState(String(resolved?.endLine ?? ""));
+  const [error, setError] = useState("");
+  const lastLine = screenplayLines(doc).at(-1)?.number ?? 1;
+  useEffect(() => {
+    setStart(String(resolved?.startLine ?? ""));
+    setEnd(String(resolved?.endLine ?? ""));
+    setError("");
+  }, [resolved?.startLine, resolved?.endLine]);
+  return (
+    <form
+      className="beat-range-fields"
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault();
+        const next =
+          /^\d+$/.test(start) && /^\d+$/.test(end)
+            ? beatRangeFromLines(doc, Number(start), Number(end))
+            : undefined;
+        if (!next) {
+          setError(
+            `Choose a range containing screenplay text, from line 1 through ${lastLine}, with the start no later than the end.`,
+          );
+          return;
+        }
+        onApply(next);
+        setError("");
+      }}
+    >
+      <div>
+        <label>
+          Start line
+          <input
+            type="number"
+            min={1}
+            max={lastLine}
+            step={1}
+            aria-label={`Beat ${index + 1} start line`}
+            aria-invalid={!!error}
+            aria-describedby={error ? `beat-range-error-${beat.id}` : undefined}
+            value={start}
+            onChange={(event) => setStart(event.target.value)}
+          />
+        </label>
+        <label>
+          End line
+          <input
+            type="number"
+            min={1}
+            max={lastLine}
+            step={1}
+            aria-label={`Beat ${index + 1} end line`}
+            aria-invalid={!!error}
+            aria-describedby={error ? `beat-range-error-${beat.id}` : undefined}
+            value={end}
+            onChange={(event) => setEnd(event.target.value)}
+          />
+        </label>
+        <button type="submit" aria-label={`Apply beat ${index + 1} line range`}>
+          Apply range
+        </button>
+        {(beat.range !== undefined || beat.sceneId) && (
+          <button
+            type="button"
+            onClick={onClear}
+            aria-label={`Clear beat ${index + 1} range`}
+          >
+            Clear range
+          </button>
+        )}
+      </div>
+      {error && (
+        <p role="alert" id={`beat-range-error-${beat.id}`}>
+          {error}
+        </p>
+      )}
+    </form>
+  );
+}
 const guide = [
   ["Opening image", "The world before everything changes.", "Act I"],
   ["Theme stated", "The question your story asks.", "Act I"],
@@ -37,13 +140,15 @@ const guide = [
 export function BeatBoard({
   doc,
   onChange,
-  onScene,
+  onAssign,
+  onRange,
   onExport,
   onExportCsv,
 }: {
   doc: Screenplay;
   onChange: (doc: Screenplay) => void;
-  onScene: (id: string) => void;
+  onAssign: (beatId: string) => void;
+  onRange: (range: BeatRange) => void;
   onExport: () => void;
   onExportCsv: () => void;
 }) {
@@ -56,9 +161,20 @@ export function BeatBoard({
   const pendingFocus = useRef<string | null>(null);
   const beats = doc.metadata.beats;
   const scenes = doc.blocks.filter((block) => block.kind === "scene");
-  const sceneIds = new Set(scenes.map((scene) => scene.id));
-  const linked = beats.filter(
-    (beat) => beat.sceneId && sceneIds.has(beat.sceneId),
+  const assignments = new Map(
+    beats.map((beat) => {
+      const range =
+        beat.range === undefined && beat.sceneId
+          ? sceneBeatRange(doc, beat.sceneId)
+          : beat.range;
+      return [
+        beat.id,
+        { range, resolved: range ? resolveBeatRange(doc, range) : undefined },
+      ];
+    }),
+  );
+  const linked = [...assignments.values()].filter(
+    (entry) => entry.resolved,
   ).length;
   useEffect(() => {
     if (pendingFocus.current) {
@@ -115,8 +231,8 @@ export function BeatBoard({
         <div className="beat-start-note">
           <strong>Map the story before—or while—you write.</strong>
           <p>
-            Start with the premise, then add each story beat below. Connect
-            beats to scenes as your screenplay takes shape.
+            Start with the premise, then add each story beat below. Assign
+            each beat to the passage where it happens.
           </p>
         </div>
       )}
@@ -159,7 +275,7 @@ export function BeatBoard({
       </div>
       <div className="beat-flow-summary">
         <span>
-          {beats.length} beats · {linked} linked to scenes
+          {beats.length} beats · {linked} assigned
         </span>
         <button
           onClick={() => setShowGuide(!showGuide)}
@@ -200,7 +316,8 @@ export function BeatBoard({
       )}
       <ol className="beat-flow-list">
         {beats.map((beat, index) => {
-          const isLinked = !!beat.sceneId && sceneIds.has(beat.sceneId);
+          const assignment = assignments.get(beat.id)!;
+          const isLinked = !!assignment.resolved;
           const open = expanded.has(beat.id);
           return (
             <li
@@ -303,36 +420,37 @@ export function BeatBoard({
                     }}
                   />
                   <div className="beat-flow-assignment">
-                    <select
-                      aria-label={`Beat ${index + 1} scene`}
-                      value={beat.sceneId ?? ""}
-                      onChange={(event) =>
-                        edit(beat.id, {
-                          sceneId: event.target.value || undefined,
-                        })
-                      }
-                    >
-                      <option value="">Unassigned</option>
-                      {beat.sceneId && !isLinked && (
-                        <option value={beat.sceneId}>
-                          Scene no longer available
-                        </option>
-                      )}
-                      {scenes.map((scene, sceneIndex) => (
-                        <option key={scene.id} value={scene.id}>
-                          {sceneIndex + 1}. {scene.text}
-                        </option>
-                      ))}
-                    </select>
-                    {isLinked && (
+                    {assignment.resolved && assignment.range ? (
                       <button
-                        className="icon-button"
-                        aria-label={`Go to beat ${index + 1} linked scene`}
-                        onClick={() => onScene(beat.sceneId!)}
+                        className="beat-assigned-lines"
+                        aria-label={`Show beat ${index + 1} lines ${assignment.resolved.startLine}–${assignment.resolved.endLine}`}
+                        onClick={() => onRange(assignment.range!)}
                       >
-                        <ArrowUpRight size={14} />
+                        Lines {assignment.resolved.startLine}–
+                        {assignment.resolved.endLine}
+                        <ArrowUpRight size={12} />
                       </button>
-                    )}
+                    ) : beat.range !== undefined || beat.sceneId ? (
+                      <span className="beat-range-unavailable">
+                        Range unavailable
+                      </span>
+                    ) : null}
+                    <button
+                      className={
+                        isLinked || beat.range !== undefined || beat.sceneId
+                          ? "icon-button"
+                          : "beat-assign-range"
+                      }
+                      aria-label={`Assign beat ${index + 1} to screenplay`}
+                      title="Select this beat's passage in the screenplay"
+                      onClick={() => onAssign(beat.id)}
+                    >
+                      <Link2 size={14} />
+                      {!isLinked &&
+                        beat.range === undefined &&
+                        !beat.sceneId &&
+                        "Assign range"}
+                    </button>
                   </div>
                   <button
                     className="icon-button beat-flow-disclosure"
@@ -359,6 +477,38 @@ export function BeatBoard({
                     className="beat-flow-details"
                     id={`beat-details-${beat.id}`}
                   >
+                    <RangeFields
+                      doc={doc}
+                      beat={beat}
+                      index={index}
+                      range={assignment.range}
+                      onApply={(range) =>
+                        edit(beat.id, { range, sceneId: undefined })
+                      }
+                      onClear={() =>
+                        edit(beat.id, { range: undefined, sceneId: undefined })
+                      }
+                    />
+                    <label className="beat-whole-scene">
+                      Assign a whole scene
+                      <select
+                        aria-label={`Beat ${index + 1} scene`}
+                        value=""
+                        onChange={(event) => {
+                          if (!event.target.value) return;
+                          const range = sceneBeatRange(doc, event.target.value);
+                          if (range)
+                            edit(beat.id, { range, sceneId: undefined });
+                        }}
+                      >
+                        <option value="">Choose a scene…</option>
+                        {scenes.map((scene, sceneIndex) => (
+                          <option key={scene.id} value={scene.id}>
+                            {sceneIndex + 1}. {scene.text}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <textarea
                       aria-label={`Beat ${index + 1} description`}
                       value={beat.description}
@@ -430,7 +580,7 @@ export function BeatBoard({
         <BeatPacing
           doc={doc}
           onClose={() => setShowPacing(false)}
-          onScene={onScene}
+          onRange={onRange}
         />
       )}
     </section>

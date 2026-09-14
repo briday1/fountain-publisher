@@ -1,24 +1,24 @@
 import { countWords } from "../core/insights";
-import type { Beat, Screenplay } from "../core/model";
+import { resolveBeatRange, sceneBeatRange } from "../core/beatRanges";
+import type { Beat, BeatRange, Screenplay } from "../core/model";
 
 export interface BeatPosition {
   beat: Beat;
   words: number;
   assigned: boolean;
   sceneHeading?: string;
+  startLine?: number;
+  endLine?: number;
+  range?: BeatRange;
 }
 
-/** Position beats at the start of their linked scene; fill gaps between known positions. */
+/** Measure words before each assigned range's first line; interpolate unassigned beats. */
 export function beatPacing(doc: Screenplay): {
   total: number;
   positions: BeatPosition[];
 } {
-  const scenes = new Map<string, { words: number; heading: string }>();
   let total = 0;
   for (const block of doc.blocks) {
-    if (block.kind === "scene") {
-      scenes.set(block.id, { words: total, heading: block.text });
-    }
     if (
       ["action", "dialogue", "lyrics", "centered", "transition"].includes(
         block.kind,
@@ -28,12 +28,19 @@ export function beatPacing(doc: Screenplay): {
     }
   }
   const positions = doc.metadata.beats.map((beat) => {
-    const scene = beat.sceneId ? scenes.get(beat.sceneId) : undefined;
+    const range =
+      beat.range === undefined && beat.sceneId
+        ? sceneBeatRange(doc, beat.sceneId)
+        : beat.range;
+    const resolved = range ? resolveBeatRange(doc, range) : undefined;
     return {
       beat,
-      words: scene?.words ?? 0,
-      assigned: !!scene,
-      sceneHeading: scene?.heading,
+      words: resolved?.words ?? 0,
+      assigned: !!resolved,
+      sceneHeading: resolved?.sceneHeading,
+      startLine: resolved?.startLine,
+      endLine: resolved?.endLine,
+      range: resolved ? range : undefined,
     };
   });
   // Walk each run of unassigned beats once, including the start/end boundaries.

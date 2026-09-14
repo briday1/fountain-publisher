@@ -5,6 +5,7 @@ import { EditorController } from "../src/editor/EditorController";
 import { screenplayEnter, cycleBlockKind } from "../src/editor/commands";
 import { emptyScreenplay } from "../src/core/model";
 import type { BlockKind, Screenplay } from "../src/core/model";
+import { resolveBeatRange } from "../src/core/beatRanges";
 
 const editors: EditorController[] = [];
 beforeAll(() => {
@@ -58,6 +59,161 @@ function enter(editor: EditorController): void {
 function textAndKinds(editor: EditorController): Array<[BlockKind, string]> {
   return editor.getBlocks().map((block) => [block.kind, block.text]);
 }
+
+describe("beat line assignments follow native editing history", () => {
+  function assign(editor: EditorController) {
+    const range = editor.selectedLines()!;
+    const base = editor.getDocument(emptyScreenplay());
+    base.metadata.beats = [
+      {
+        id: "beat",
+        title: "A turn",
+        description: "",
+        color: "#75a8ed",
+        act: "Act I",
+        range,
+      },
+    ];
+    editor.updateBeatRanges(base, []);
+    return base;
+  }
+  function assigned(editor: EditorController, base: Screenplay) {
+    const doc = editor.getDocument(base);
+    const range = doc.metadata.beats[0].range;
+    return { doc, range, position: range && resolveBeatRange(doc, range) };
+  }
+
+  it("selects hard lines inside a paragraph, excluding an untouched following line", () => {
+    const editor = create([
+      ["action", "First line.\nSecond line.\nThird line."],
+    ]);
+    select(editor, 15, 25);
+    expect(editor.selectedLines()).toEqual({
+      start: { blockId: "block-0", offset: 12 },
+      end: { blockId: "block-0", offset: 24 },
+    });
+    select(editor, 1);
+    expect(editor.selectedLines()?.start.offset).toBe(0);
+    expect(editor.selectedLines()?.end.offset).toBe(11);
+  });
+
+  it("excludes the next paragraph when a selection stops at its start", () => {
+    const editor = create([
+      ["action", "First."],
+      ["action", "Second."],
+    ]);
+    select(editor, 1, 9);
+    expect(editor.selectedLines()).toEqual({
+      start: { blockId: "block-0", offset: 0 },
+      end: { blockId: "block-0", offset: 6 },
+    });
+  });
+
+  it("moves line numbers and word positions after inserting earlier text, without snapshotting on input", () => {
+    const editor = create([["action", "One two.\nThree four.\nFive six."]]);
+    select(editor, 12);
+    const base = assign(editor);
+    const original = assigned(editor, base);
+    const snapshots = vi.spyOn(editor, "getBlocks");
+    select(editor, 1);
+    type(editor, "Earlier words here.\n");
+    expect(snapshots).not.toHaveBeenCalled();
+    const next = assigned(editor, base);
+    expect(next.position?.words).toBe(5);
+    expect(next.position?.startLine).toBe(original.position!.startLine + 1);
+    expect(next.range?.start.offset).toBe(29);
+    expect(editor.undo()).toBe(true);
+    expect(assigned(editor, base).range).toEqual(original.range);
+    expect(editor.redo()).toBe(true);
+    expect(assigned(editor, base).range).toEqual(next.range);
+  });
+
+  it("keeps a range across paragraph splits and restores the original anchors on undo", () => {
+    const editor = create([["action", "One two three four."]]);
+    select(editor, 2);
+    const base = assign(editor);
+    const original = assigned(editor, base).range;
+    select(editor, 9);
+    enter(editor);
+    const split = assigned(editor, base);
+    expect(split.range?.start.blockId).toBe("block-0");
+    expect(split.range?.end.blockId).toBe(split.doc.blocks[1].id);
+    expect(split.position?.endLine).toBeGreaterThan(split.position!.startLine);
+    editor.undo();
+    expect(assigned(editor, base).range).toEqual(original);
+    editor.redo();
+    expect(assigned(editor, base).range).toEqual(split.range);
+  });
+
+  it("unassigns a deleted range and restores it through undo, including after a metadata save", () => {
+    const editor = create([["action", "One two.\nThree four.\nFive six."]]);
+    select(editor, 12);
+    let base = assign(editor);
+    const original = assigned(editor, base).range;
+    editor.view.dispatch(closeHistory(editor.view.state.tr).delete(10, 21));
+    base = editor.getDocument(base);
+    expect(base.metadata.beats[0].range).toBeUndefined();
+    editor.undo();
+    expect(assigned(editor, base).range).toEqual(original);
+    editor.redo();
+    expect(assigned(editor, base).range).toBeUndefined();
+  });
+
+  it("preserves the assignment on line replacement and makes reassignment separately undoable", () => {
+    const editor = create([["action", "Old line.\nNext line."]]);
+    select(editor, 2);
+    let base = assign(editor);
+    select(editor, 1, 10);
+    type(editor, "Replacement words.");
+    base = editor.getDocument(base);
+    expect(base.metadata.beats[0].range?.end.offset).toBe(18);
+    select(editor, 22);
+    const next = {
+      ...base,
+      metadata: {
+        ...base.metadata,
+        beats: base.metadata.beats.map((beat) => ({
+          ...beat,
+          range: editor.selectedLines(),
+        })),
+      },
+    };
+    editor.updateBeatRanges(next, base.metadata.beats);
+    expect(assigned(editor, next).range?.start.offset).toBe(19);
+    editor.undo();
+    expect(assigned(editor, next).range).toEqual(base.metadata.beats[0].range);
+    editor.undo();
+    expect(assigned(editor, next).range?.end.offset).toBe(9);
+  });
+  it("treats imported beat IDs as data, including object property names", () => {
+    const editor = create([["action", "A quiet room."]]);
+    select(editor, 2);
+    const base = editor.getDocument(emptyScreenplay());
+    base.metadata.beats = ["constructor", "__proto__"].map((id) => ({
+      id,
+      title: id,
+      description: "",
+      color: "#75a8ed",
+      act: "Act I",
+      range: editor.selectedLines(),
+    }));
+    expect(() => editor.getDocument(base)).not.toThrow();
+    editor.updateBeatRanges(base, []);
+    select(editor, 1);
+    type(editor, "Earlier.\n");
+    expect(
+      editor
+        .getDocument(base)
+        .metadata.beats.map((beat) => beat.range?.start.offset),
+    ).toEqual([9, 9]);
+    editor.undo();
+    expect(
+      editor
+        .getDocument(base)
+        .metadata.beats.map((beat) => beat.range?.start.offset),
+    ).toEqual([0, 0]);
+  });
+});
 
 describe("screenplay editing", () => {
   it("types in one persistent editing surface and emits dirty signals without snapshots", () => {
@@ -365,10 +521,26 @@ describe("large-script responsiveness", () => {
         `Paragraph ${index}. The station waits.`,
       ]),
     );
+    const base = editor.getDocument(emptyScreenplay());
+    base.metadata.beats = Array.from({ length: 15 }, (_, index) => {
+      const block = base.blocks[(index + 1) * 150];
+      return {
+        id: `beat-${index}`,
+        title: `Beat ${index}`,
+        description: "",
+        color: "#75a8ed",
+        act: "Act I",
+        range: {
+          start: { blockId: block.id, offset: 0 },
+          end: { blockId: block.id, offset: block.text.length },
+        },
+      };
+    });
+    editor.updateBeatRanges(base, []);
     const firstParagraph = editor.view.dom.firstElementChild;
     const lastParagraph = editor.view.dom.lastElementChild;
     const snapshots = vi.spyOn(editor, "getBlocks");
-    select(editor, editor.view.state.doc.content.size - 1);
+    select(editor, 1);
     const started = performance.now();
     for (let index = 0; index < 100; index++) type(editor, "x");
     const elapsed = performance.now() - started;

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useId } from "react";
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
+import { useModalScrollLock } from "./useModalScrollLock";
 export function Modal({
   title,
   eyebrow,
@@ -16,6 +17,7 @@ export function Modal({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const id = useId();
+  useModalScrollLock(ref);
   useEffect(() => {
     const el = ref.current!;
     el.showModal();

@@ -1,0 +1,114 @@
+.writing-beat-guide {
+  position: relative;
+  z-index: 9;
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  color: var(--ink);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 2px 8px #0000000a;
+}
+.writing-beat-guide-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.writing-beat-prompt {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 7px;
+}
+.writing-beat-prompt > small {
+  flex-shrink: 0;
+  color: var(--muted);
+  font:
+    700 10px ui-monospace,
+    monospace;
+}
+.writing-beat-prompt > strong {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.writing-beat-prompt > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.writing-beat-guide .writing-beat-lines {
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 4px;
+  font-size: 9px;
+}
+.writing-beat-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  align-items: center;
+}
+.writing-beat-guide button {
+  min-height: 29px;
+  min-width: 29px;
+  padding: 4px 7px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.writing-beat-actions .writing-beat-assign {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  font-weight: 650;
+}
+.writing-beat-guide .writing-beat-close {
+  padding: 3px;
+  width: 27px;
+  min-width: 27px;
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+.writing-beat-notice {
+  font-size: 10px;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+@media (max-width: 820px) {
+  .writing-beat-guide {
+    padding: 6px 8px;
+  }
+  .writing-beat-guide-row {
+    flex-wrap: wrap;
+  }
+  .writing-beat-prompt {
+    flex-basis: calc(100% - 38px);
+    order: 0;
+  }
+  .writing-beat-prompt > span {
+    font-size: 12px;
+  }
+  .writing-beat-guide .writing-beat-close {
+    order: 1;
+  }
+  .writing-beat-actions {
+    order: 2;
+    justify-content: flex-end;
+    width: 100%;
+  }
+  .writing-beat-guide button {
+    min-height: 34px;
+  }
+  .writing-beat-guide .writing-beat-lines {
+    font-size: 9px;
+  }
+}

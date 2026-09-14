@@ -253,6 +253,41 @@ describe("shared Cloudflare infrastructure boundary", () => {
       f.network.mock.calls.every(([url]) => !String(url).includes("/upload/")),
     ).toBe(true);
   });
+  it.each(["/", "/index.html", "/sw.js", "/manifest.webmanifest"])(
+    "never serves a CDN-cached mutable shell at %s",
+    async (path) => {
+      const network = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response("current release", {
+          headers: {
+            "content-type": "application/javascript",
+            "cache-control": "max-age=14400",
+            age: "320",
+            expires: "tomorrow",
+          },
+        }),
+      );
+      const f = fixture(undefined, network);
+      f.env.BETA_ASSET_ORIGIN = `${main}/previews/beta`;
+      const response = await f.worker.fetch(
+        new Request(`${beta}${path}`),
+        f.env,
+      );
+      const upstreamUrl = new URL(String(network.mock.calls[0][0]));
+      expect(upstreamUrl.searchParams.get("_fp_refresh")).toMatch(
+        /^[a-f0-9-]+$/,
+      );
+      expect(network.mock.calls[0][1]).toMatchObject({
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(response.headers.get("cloudflare-cdn-cache-control")).toBe(
+        "no-store",
+      );
+      expect(response.headers.has("age")).toBe(false);
+      expect(response.headers.has("expires")).toBe(false);
+    },
+  );
   it("keeps beta assets isolated under the preserved Pages preview path", async () => {
     const network = vi.fn<typeof fetch>().mockResolvedValue(
       new Response("beta-script", {

@@ -5,6 +5,7 @@ import { buildCharacterAnalytics } from "../core/characterAnalytics";
 import type { CharacterGroup } from "../core/characterAnalytics";
 import type { Screenplay } from "../core/model";
 import "./CharacterAnalytics.css";
+import { useModalScrollLock } from "./useModalScrollLock";
 
 const lightColors = [
   "#0072b2",
@@ -126,6 +127,7 @@ export function CharacterAnalytics({
   const [saving, setSaving] = useState(false);
   const [viewportWidth, setViewportWidth] = useState(910);
   const dialog = useRef<HTMLDialogElement>(null);
+  useModalScrollLock(dialog);
   const viewport = useRef<HTMLDivElement>(null);
   const chart = useRef<SVGSVGElement>(null);
   const titleId = useId();

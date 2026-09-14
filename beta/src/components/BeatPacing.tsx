@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from "react";
 import { ArrowUpRight, Download } from "lucide-react";
-import type { Screenplay } from "../core/model";
+import type { BeatRange, Screenplay } from "../core/model";
 import { downloadFile } from "../storage/files";
 import { Modal } from "./Modal";
 import { beatPacing } from "./beat-pacing";
@@ -17,11 +17,11 @@ const chart = {
 export function BeatPacing({
   doc,
   onClose,
-  onScene,
+  onRange,
 }: {
   doc: Screenplay;
   onClose: () => void;
-  onScene: (id: string) => void;
+  onRange: (range: BeatRange) => void;
 }) {
   const { total, positions } = useMemo(() => beatPacing(doc), [doc]);
   const [selected, setSelected] = useState<number | null>(null);
@@ -115,7 +115,7 @@ export function BeatPacing({
       ctx.fillStyle = palette.muted;
       ctx.textAlign = "left";
       ctx.fillText(
-        "Filled dots: linked scenes     Open dots: estimates     Dashed line: evenly spaced beats",
+        "Filled dots: assigned ranges     Open dots: estimates     Dashed line: evenly spaced beats",
         28,
         chart.height + 111,
       );
@@ -146,7 +146,7 @@ export function BeatPacing({
       <div className="beat-pacing">
         <p>
           Cumulative screenplay words at each beat. Grey circles estimate the
-          position of beats not yet linked to a scene.
+          position of beats not yet assigned to the screenplay.
         </p>
         {positions.length ? (
           <>
@@ -161,7 +161,7 @@ export function BeatPacing({
                 </span>
                 <div className="beat-pacing-legend">
                   <span>
-                    <i className="assigned" /> Linked
+                    <i className="assigned" /> Assigned
                   </span>
                   <span>
                     <i /> Estimate
@@ -222,7 +222,7 @@ export function BeatPacing({
                       <g
                         role="button"
                         tabIndex={0}
-                        aria-label={`Beat ${i + 1}: ${point.beat.title || "Untitled"}, ${point.words.toLocaleString()} words, ${point.assigned ? "linked scene" : "estimated"}`}
+                        aria-label={`Beat ${i + 1}: ${point.beat.title || "Untitled"}, ${point.words.toLocaleString()} words, ${point.assigned ? `lines ${point.startLine}–${point.endLine}` : "estimated"}`}
                         aria-pressed={selected === i}
                         className={`pacing-point ${point.assigned ? "assigned" : "estimated"} ${selected === i ? "selected" : ""}`}
                         onFocus={() => setSelected(i)}
@@ -292,7 +292,7 @@ export function BeatPacing({
                     <span>
                       {active.words.toLocaleString()} words ·{" "}
                       {active.assigned
-                        ? active.sceneHeading
+                        ? `Lines ${active.startLine}–${active.endLine}`
                         : "Estimated position"}
                     </span>
                   </div>
@@ -300,10 +300,10 @@ export function BeatPacing({
                     <button
                       onClick={() => {
                         onClose();
-                        onScene(active.beat.sceneId!);
+                        onRange(active.range!);
                       }}
                     >
-                      <ArrowUpRight size={14} /> Go to scene
+                      <ArrowUpRight size={14} /> Show assigned lines
                     </button>
                   )}
                 </>
@@ -334,7 +334,9 @@ export function BeatPacing({
                         </th>
                         <td>{point.words.toLocaleString()}</td>
                         <td>
-                          {point.assigned ? point.sceneHeading : "Estimate"}
+                          {point.assigned
+                            ? `Lines ${point.startLine}–${point.endLine}`
+                            : "Estimate"}
                         </td>
                       </tr>
                     ))}

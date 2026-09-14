@@ -1,0 +1,30 @@
+.speech-list .character-speech {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  margin-bottom: 8px;
+  background: var(--panel);
+}
+.character-speech > small {
+  display: block;
+  margin: 0 5px 5px;
+  color: var(--muted);
+}
+.speech-list .character-dialogue-line {
+  font:
+    14px/1.5 var(--script-font, "Courier Prime"),
+    monospace;
+  display: block;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 3px 5px;
+  margin: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  width: 100%;
+}
+.speech-list .character-dialogue-line:hover {
+  background: var(--raised);
+  border-color: var(--border);
+}

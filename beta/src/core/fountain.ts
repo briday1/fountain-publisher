@@ -1,4 +1,5 @@
 import { emptyTitlePage, newId } from "./model";
+import { isBeatRange, resolveBeatRange } from "./beatRanges";
 import type {
   BlockKind,
   Screenplay,
@@ -247,7 +248,14 @@ function normalizeMetadata(raw: Record<string, unknown>): ScriptMetadata {
               typeof beat.description === "string" ? beat.description : "",
             color: typeof beat.color === "string" ? beat.color : "#a3a880",
             act: typeof beat.act === "string" ? beat.act : "",
-          })) as ScriptMetadata["beats"])
+          }))
+          .map((beat) => {
+            if ("range" in beat && !isBeatRange(beat.range)) {
+              const { range: _range, sceneId: _sceneId, ...unassigned } = beat;
+              return unassigned;
+            }
+            return beat;
+          }) as ScriptMetadata["beats"])
       : [],
     notes: typeof raw.notes === "string" ? raw.notes : "",
   };
@@ -304,6 +312,7 @@ function readTitle(lines: string[]): { titlePage: TitlePage; end: number } {
 
 export function parseFountain(input: string): Screenplay {
   let source = input.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+  const originalLineCount = source.split("\n").length;
   let envelope: Envelope | undefined;
   const legacy: { type: string; raw: string; payload: string; line: number }[] =
     [];
@@ -466,8 +475,8 @@ export function parseFountain(input: string): Screenplay {
           : {}),
       });
     }
-    if (valid && restored.length)
-      return {
+    if (valid && restored.length) {
+      const result = {
         titlePage:
           envelope.titlePage && isObject(envelope.titlePage)
             ? { ...title.titlePage, ...envelope.titlePage }
@@ -475,13 +484,24 @@ export function parseFountain(input: string): Screenplay {
         blocks: restored,
         metadata,
       };
+      validateBeatAnchors(result);
+      return result;
+    }
   }
 
   const blocks: ScriptBlock[] = [];
+  const sourceRecords: {
+    block: ScriptBlock;
+    line: number;
+    start: number;
+    end: number;
+  }[] = [];
   const add = (
     kind: BlockKind,
     raw: string,
     attributes: Partial<ScriptBlock> = {},
+    sourceStart = i,
+    lineOrigins?: number[],
   ) => {
     const spans = kind === "boneyard" ? [{ text: raw }] : parseInline(raw);
     const text = spans.map((span) => span.text).join("");
@@ -493,6 +513,16 @@ export function parseFountain(input: string): Screenplay {
       ...attributes,
     };
     blocks.push(block);
+    let offset = 0;
+    for (const [index, line] of text.split("\n").entries()) {
+      sourceRecords.push({
+        block,
+        line: lineOrigins?.[index] ?? sourceStart + index,
+        start: offset,
+        end: offset + line.length,
+      });
+      offset += line.length + 1;
+    }
     return block;
   };
   let dialogue = false;
@@ -510,11 +540,12 @@ export function parseFountain(input: string): Screenplay {
       const close = rest.indexOf("*/", rest.indexOf("/*") + 2);
       if (close !== -1) {
         const consumed = rest.slice(0, close + 2);
+        const content = consumed.slice(consumed.indexOf("/*") + 2, -2);
         add(
           "boneyard",
-          consumed
-            .slice(consumed.indexOf("/*") + 2, -2)
-            .replace(/^\n|\n$/g, ""),
+          content.replace(/^\n|\n$/g, ""),
+          {},
+          i + (content.startsWith("\n") ? 1 : 0),
         );
         const remainder = rest.slice(close + 2).split("\n")[0];
         i += consumed.split("\n").length - 1;
@@ -627,6 +658,7 @@ export function parseFountain(input: string): Screenplay {
         ? "dialogue"
         : "action";
     if (kind === "action") dialogue = false;
+    const paragraphStart = i;
     let paragraph =
       kind === "action"
         ? raw.replace(/^(\s*)!/, "$1").replace(/\t/g, "    ")
@@ -645,19 +677,54 @@ export function parseFountain(input: string): Screenplay {
       i++;
     }
     // Keep inline annotations as visible, editable note/omitted blocks, never source tokens in prose.
-    const annotations: { kind: "note" | "boneyard"; text: string }[] = [];
+    const annotations: {
+      kind: "note" | "boneyard";
+      text: string;
+      line: number;
+    }[] = [];
+    const originalParagraph = paragraph;
+    const removed: { start: number; end: number }[] = [];
     paragraph = paragraph.replace(
       /(?<!\\)\[\[([^]*?)\]\]|\/\*([^]*?)\*\//g,
-      (_match, note: string | undefined, omitted: string | undefined) => {
+      (
+        match,
+        note: string | undefined,
+        omitted: string | undefined,
+        offset: number,
+      ) => {
         annotations.push({
           kind: note !== undefined ? "note" : "boneyard",
           text: note ?? omitted ?? "",
+          line:
+            paragraphStart +
+            originalParagraph.slice(0, offset).split("\n").length -
+            1,
         });
+        removed.push({ start: offset, end: offset + match.length });
         return "";
       },
     );
-    if (paragraph || !annotations.length) add(kind, paragraph);
-    for (const annotation of annotations) add(annotation.kind, annotation.text);
+    const origins = [paragraphStart];
+    let removedIndex = 0;
+    let physicalLine = paragraphStart;
+    for (let offset = 0; offset < originalParagraph.length; offset++) {
+      while (
+        removedIndex < removed.length &&
+        removed[removedIndex].end <= offset
+      )
+        removedIndex++;
+      if (originalParagraph[offset] === "\n") {
+        physicalLine++;
+        if (!(
+          removedIndex < removed.length && removed[removedIndex].start <= offset
+        ))
+          origins.push(physicalLine);
+      }
+    }
+    if (paragraph || !annotations.length)
+      add(kind, paragraph, {}, paragraphStart, origins);
+    for (const annotation of annotations)
+      add(annotation.kind, annotation.text, {}, annotation.line);
   }
   if (!blocks.length) add("action", "");
   // Unchanged blocks retain identity after edits made in another Fountain editor. New text wins.
@@ -678,20 +745,60 @@ export function parseFountain(input: string): Screenplay {
     }
   }
   for (const beat of metadata.beats) {
-    const range = (beat as unknown as { legacyRange?: { startLine?: number } })
-      .legacyRange;
-    if (range && Number.isInteger(range.startLine)) {
-      const before = lines
-        .slice(0, range.startLine! + 1)
-        .filter((line) =>
-          /^(?:\.?INT|\.?EXT|\.?EST|\.I\/E)[. ]/i.test(line.trim()),
-        ).length;
-      beat.sceneId = blocks.filter((block) => block.kind === "scene")[
-        Math.max(0, before - 1)
-      ]?.id;
+    if (beat.range) continue;
+    const range = (
+      beat as unknown as {
+        legacyRange?: { startLine?: number; endLine?: number };
+      }
+    ).legacyRange;
+    if (!range) continue;
+    delete (beat as unknown as { legacyRange?: unknown }).legacyRange;
+    delete beat.sceneId;
+    if (
+      !Number.isSafeInteger(range.startLine) ||
+      !Number.isSafeInteger(range.endLine) ||
+      range.startLine! < 0 ||
+      range.endLine! < range.startLine! ||
+      range.endLine! >= originalLineCount
+    )
+      continue;
+    const selected = sourceRecords.filter(
+      (record) =>
+        record.line >= range.startLine! &&
+        record.line <= range.endLine! &&
+        record.end > record.start,
+    );
+    if (!selected.length) continue;
+    selected.sort(
+      (left, right) =>
+        blocks.indexOf(left.block) - blocks.indexOf(right.block) ||
+        left.start - right.start,
+    );
+    const first = selected[0];
+    const last = selected.at(-1)!;
+    beat.range = {
+      start: { blockId: first.block.id, offset: first.start },
+      end: { blockId: last.block.id, offset: last.end },
+    };
+    for (let index = blocks.indexOf(first.block); index >= 0; index--) {
+      if (blocks[index].kind === "scene") {
+        beat.sceneId = blocks[index].id;
+        break;
+      }
     }
   }
-  return { titlePage: title.titlePage, blocks, metadata };
+  const result = { titlePage: title.titlePage, blocks, metadata };
+  validateBeatAnchors(result);
+  return result;
+}
+
+function validateBeatAnchors(doc: Screenplay) {
+  for (const beat of doc.metadata.beats) {
+    if (beat.range && !resolveBeatRange(doc, beat.range)) {
+      delete beat.range;
+      delete beat.sceneId;
+    }
+  }
 }
 
 export function serializeFountain(document: Screenplay): string {
