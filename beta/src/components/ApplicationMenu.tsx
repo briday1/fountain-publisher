@@ -10,6 +10,8 @@ import type { ReactElement, ReactNode } from "react";
 import { flushSync } from "react-dom";
 import {
   FileText,
+  Github,
+  Cloud,
   PenLine,
   PanelsTopLeft,
   Upload,
@@ -68,6 +70,7 @@ export function ApplicationMenu({
     View: [],
     Share: [],
   };
+  const storageShortcuts: ReactNode[] = [];
   const action = (node: Command, key: string) =>
     cloneElement(node, {
       key,
@@ -102,6 +105,26 @@ export function ApplicationMenu({
         return;
       }
       if (command.type === "hr") return;
+      const provider =
+        command.props.children === "Open from GitHub…"
+          ? { name: "GitHub", Icon: Github, detail: "Connect or browse" }
+          : command.props.children === "Open from Google Drive…"
+            ? { name: "Google Drive", Icon: Cloud, detail: "Connect or browse" }
+            : undefined;
+      if (provider) {
+        storageShortcuts.push(
+          action(
+            <button aria-label={provider.name} onClick={command.props.onClick}>
+              <provider.Icon size={22} aria-hidden="true" />
+              <span>
+                {provider.name}
+                <small>{provider.detail}</small>
+              </span>
+            </button>,
+            `storage-${provider.name}`,
+          ),
+        );
+      }
       if (String(command.props.children).includes("Zen mode")) return;
       // Settings has a standalone shortcut below the menus.
       if (command.props.children === "Settings…") return;
@@ -170,6 +193,15 @@ export function ApplicationMenu({
             className="mobile-command-content"
             aria-label={`${section} commands`}
           >
+            {section === "File" && (
+              <div
+                className="mobile-storage-shortcuts"
+                role="group"
+                aria-label="Connected storage"
+              >
+                {storageShortcuts}
+              </div>
+            )}
             {section === "Write" && mobileControls}
             <div className="mobile-command-grid">{groups[section]}</div>
           </section>
