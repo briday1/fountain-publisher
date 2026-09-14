@@ -24,7 +24,7 @@ describe("mobile settings access", () => {
       /@media \(max-width: 720px\)[\s\S]*?\.menus > \.menu-trigger\s*{\s*display:\s*none;/,
     );
     expect(mobileSettings).toMatch(
-      /@media \(max-width: 720px\)[\s\S]*?\.menus > \.menu-trigger:first-of-type\s*{[\s\S]*?display:\s*inline-flex;/,
+      /@media \(max-width: 950px\)[\s\S]*?\.menus > \.menu-trigger:first-of-type\s*{[\s\S]*?display:\s*inline-flex;/,
     );
   });
 
@@ -32,7 +32,7 @@ describe("mobile settings access", () => {
     expect(app).toMatch(/className="paper-wrap"/);
     expect(app).toMatch(/className={`screenplay-paper/);
     expect(mobileSettings).toMatch(
-      /@media \(max-width: 720px\)[\s\S]*?\.writing-scroll\.background-dots,[\s\S]*?\.writing-scroll\.background-grid\s*{\s*background-image:\s*none;/,
+      /\.writing-scroll\s*{\s*background-color:\s*var\(--paper\);\s*background-image:\s*none;/,
     );
     expect(mobileSettings).toMatch(
       /\.paper-wrap\s*{[\s\S]*?width:\s*100%;[\s\S]*?max-width:\s*none;[\s\S]*?margin:\s*0;/,
