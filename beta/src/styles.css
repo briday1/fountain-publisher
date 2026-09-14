@@ -1029,11 +1029,46 @@ hr {
 .pdf-toolbar button {
   font-size: 11px;
 }
-.pdf-view iframe {
+.pdf-pages {
+  display: flex;
+  flex-direction: column;
   flex: 1;
+  min-height: 0;
   width: 100%;
-  border: 0;
+}
+.pdf-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.pdf-page-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+.pdf-page-controls button {
+  min-height: 44px;
+}
+.pdf-page-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  text-align: center;
+  padding: 12px 0;
   background: #333;
+  color: white;
+}
+.pdf-page-viewport canvas {
+  display: block;
+  margin: 0 auto;
+  background: white;
 }
 .pdf-loading {
   display: grid;

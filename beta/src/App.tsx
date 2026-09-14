@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { CSSProperties } from "react";
 import { flushSync } from "react-dom";
+import { PdfPages } from "./components/PdfPages";
 import {
   ArrowDown,
   ArrowUp,
@@ -1797,13 +1798,23 @@ export default function App() {
                     ? `${pdfPages.pages} published pages`
                     : "PDF preview"}
               </span>
-              <button
-                disabled={busy}
-                onClick={() => void run(() => exportFile("pdf"))}
-              >
-                <Download size={15} />
-                Download PDF
-              </button>
+              {pdfUrl && exact ? (
+                <a
+                  className="pdf-download"
+                  href={pdfUrl}
+                  download={`${snapshot?.name.replace(/\.[^.]+$/, "") || "Screenplay"}.pdf`}
+                  target="_blank"
+                  rel="noopener"
+                >
+                  <Download size={15} />
+                  Download PDF
+                </a>
+              ) : (
+                <button disabled>
+                  <Download size={15} />
+                  Preparing PDF…
+                </button>
+              )}
             </div>
             {pdfWarnings.length > 0 && (
               <div className="error-box" role="status">
@@ -1818,7 +1829,7 @@ export default function App() {
                 </button>
               </div>
             ) : pdfUrl && exact ? (
-              <iframe src={pdfUrl} title="Published screenplay PDF" />
+              <PdfPages key={pdfUrl} bytes={pdfResult.current!.result.bytes} />
             ) : (
               <div className="pdf-loading">
                 <FileText size={32} />

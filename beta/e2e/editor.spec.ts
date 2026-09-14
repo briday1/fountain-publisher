@@ -111,9 +111,7 @@ test("deployed app reopens a saved draft and builds its PDF while offline", asyn
   );
   await page.getByRole("button", { name: "View", exact: true }).click();
   await page.getByRole("button", { name: "PDF pages", exact: true }).click();
-  await expect(
-    page.locator('iframe[title="Published screenplay PDF"]'),
-  ).toBeVisible({
+  await expect(page.getByRole("img", { name: /^PDF page 1 of/ })).toBeVisible({
     timeout: 30000,
   });
   await page
@@ -226,9 +224,9 @@ test("PDF builds independently and save does not reset the editor undo history",
   await page.keyboard.insertText(" Added at the end.");
   await page.getByRole("button", { name: "View", exact: true }).click();
   await page.getByRole("button", { name: "PDF pages", exact: true }).click();
-  await expect(
-    page.locator('iframe[title="Published screenplay PDF"]'),
-  ).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole("img", { name: /^PDF page 1 of/ })).toBeVisible({
+    timeout: 30000,
+  });
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Close dialog", exact: true })

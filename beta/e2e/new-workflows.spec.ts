@@ -141,7 +141,7 @@ test("highlighted PDF chooser exports selected names and preserves the ordinary 
   await toolbar
     .getByRole("button", { name: "PDF preview", exact: true })
     .click();
-  await expect(page.getByTitle("Published screenplay PDF")).toBeVisible({
+  await expect(page.getByRole("img", { name: /^PDF page 1 of/ })).toBeVisible({
     timeout: 30000,
   });
   await page

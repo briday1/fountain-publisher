@@ -103,7 +103,11 @@ export function downloadFile(
   const a = document.createElement("a");
   a.href = url;
   a.download = name;
-  document.body.append(a);
+  // A modal makes the rest of the document inert, including body-level links.
+  (
+    document.querySelector("dialog[open]:last-of-type .modal-content") ??
+    document.body
+  ).append(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
