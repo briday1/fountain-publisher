@@ -31,6 +31,8 @@ test("beat flow retains editing and shows cumulative pacing with a PNG export", 
       .getByRole("textbox", { name: "Screenplay editor" })
       .locator('[data-kind="scene"]'),
   ).toHaveCount(3);
+  if ((page.viewportSize()?.width ?? 1440) <= 950)
+    await mobileSection(page, "View");
   await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: "Beat sheet", exact: true });
   await expect(sheet).toBeVisible();
