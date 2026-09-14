@@ -51,17 +51,15 @@ interface GoogleSdk {
     };
   };
 }
-const sdk = window as unknown as GoogleSdk;
-let loading: Promise<void> | undefined;
-function loadPicker(): Promise<void> {
-  if (sdk.google?.picker) return Promise.resolve();
-  return (loading ??= new Promise<void>((resolve, reject) => {
+function loadPicker(target: Document): Promise<GoogleSdk> {
+  const sdk = target.defaultView as unknown as GoogleSdk;
+  if (sdk.google?.picker) return Promise.resolve(sdk);
+  return new Promise<GoogleSdk>((resolve, reject) => {
     let timeout: ReturnType<typeof setTimeout>;
-    const script = document.createElement("script");
+    const script = target.createElement("script");
     const fail = () => {
       clearTimeout(timeout);
       script.remove();
-      loading = undefined;
       reject(
         new Error(
           "Google Drive’s browser could not load. Check your connection and try again.",
@@ -76,7 +74,7 @@ function loadPicker(): Promise<void> {
         ? sdk.gapi.load("picker", {
             callback: () => {
               clearTimeout(timeout);
-              resolve();
+              resolve(sdk);
             },
             onerror: fail,
             timeout: 15000,
@@ -84,8 +82,8 @@ function loadPicker(): Promise<void> {
           })
         : fail();
     timeout = setTimeout(fail, 20000);
-    document.head.append(script);
-  }));
+    target.head.append(script);
+  });
 }
 
 /** Keep Google's iframe and focus handling inside our own closable modal. */
@@ -171,8 +169,8 @@ export function pickDriveItem(options: {
           finish();
         }
       });
-      void Promise.all([cloud.drivePicker(), loadPicker()])
-        .then(([config]) => {
+      void Promise.all([cloud.drivePicker(), loadPicker(target)])
+        .then(([config, sdk]) => {
           if (finished) return;
           if (!config.accessToken || !config.appId)
             throw new Error(

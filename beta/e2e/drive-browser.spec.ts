@@ -55,7 +55,7 @@ test("Drive picker opens files and destination folders, restores its dialog on c
     await route.fulfill({ json: body });
   });
   await page.addInitScript(() => {
-    const scope = window as unknown as {
+    const scope = window.top as unknown as {
       google: unknown;
       pickerOptions: Record<string, unknown>;
       pickerFault?: boolean;
@@ -192,7 +192,7 @@ test("Drive picker opens files and destination folders, restores its dialog on c
         };
       }
     }
-    scope.google = {
+    (window as unknown as { google: unknown }).google = {
       picker: {
         DocsView,
         PickerBuilder,
