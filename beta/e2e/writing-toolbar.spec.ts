@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { mobileSection } from "./mobile-menu-helper";
 
 const modifier = process.platform === "darwin" ? "Meta" : "Control";
 
@@ -87,19 +88,21 @@ test("writing controls stay in one compact row, respond to panel width, and rema
   );
   expect((await toolbar.boundingBox())!.height).toBeLessThanOrEqual(46);
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(toolbar).toHaveCount(0);
+  await mobileSection(page, "Write");
   await expect(
     toolbar.getByRole("button", { name: "Beat sheet", exact: true }),
   ).toBeVisible();
   await expect(
     toolbar.getByRole("button", { name: "Beat guide", exact: true }),
   ).toBeVisible();
-  await expect(toolbar.locator(".writing-element")).toHaveCSS("width", "88px");
+
   expect(
     await toolbar.evaluate(
-      (element) => element.scrollWidth > element.clientWidth,
+      (element) => element.scrollWidth <= element.clientWidth,
     ),
   ).toBe(true);
-  const controls = toolbar.locator("button, select");
+  const controls = toolbar.locator("button:visible, select:visible");
   for (const control of await controls.all()) {
     await control.scrollIntoViewIfNeeded();
     const bounds = await control.boundingBox();
@@ -140,7 +143,7 @@ test("writing controls stay in one compact row, respond to panel width, and rema
     toolbar.getByRole("button", { name: "Appearance settings" }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "View", exact: true }).click();
-  await page.getByRole("button", { name: "Settings…", exact: true }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(
     page.getByRole("dialog", { name: "Make yourself at home", exact: true }),
   ).toBeVisible();
