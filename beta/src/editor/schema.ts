@@ -53,6 +53,9 @@ export const screenplaySchema = new Schema({
             "data-kind": node.attrs.kind,
             "data-id": node.attrs.id,
             "data-level": node.attrs.level,
+            // Character cues are proper names, not dictionary prose. Other
+            // blocks inherit the writer's spellcheck setting from the editor.
+            ...(node.attrs.kind === "character" ? { spellcheck: "false" } : {}),
             ...(node.attrs.sceneNumber
               ? { "data-scene-number": node.attrs.sceneNumber }
               : {}),

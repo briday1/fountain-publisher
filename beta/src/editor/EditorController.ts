@@ -178,6 +178,7 @@ export class EditorController {
         "aria-label": "Screenplay editor",
         "aria-multiline": "true",
         spellcheck: "true",
+        autocorrect: "on",
         autocapitalize: "sentences",
       },
       dispatchTransaction: (transaction) => this.dispatch(transaction),
