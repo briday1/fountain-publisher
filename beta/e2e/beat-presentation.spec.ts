@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { mobileSection } from "./mobile-menu-helper";
 import { readFile } from "node:fs/promises";
 
 test("beat flow retains editing and shows cumulative pacing with a PNG export", async ({
