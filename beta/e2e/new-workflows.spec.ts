@@ -2,7 +2,6 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { PDFDocument } from "pdf-lib";
 import { parseFountain, serializeFountain } from "../src/core/fountain";
-import { sceneBeatRange, resolveBeatRange } from "../src/core/beatRanges";
 const mod = process.platform === "darwin" ? "Meta" : "Control";
 async function setup(page: Page) {
   await page.addInitScript(() => {
@@ -30,6 +29,56 @@ async function open(page: Page, source: string, name = "Two Voices.fountain") {
 }
 const source =
   "Title: Two Voices\nAuthor: A Writer\n\nINT. ROOM - DAY\n\nMARA\nHello.\n\nELI\nHi.\n\n!The room goes quiet.";
+
+test("next beat highlights its passage without selecting or replacing the writing", async ({
+  page,
+}) => {
+  await setup(page);
+  const doc = parseFountain(
+    "INT. ROOM - DAY\n\n!The first moment.\n\n!The next moment stays intact.",
+  );
+  doc.metadata.beats = doc.blocks.slice(1).map((block, index) => ({
+    id: `beat-${index}`,
+    title: `Moment ${index + 1}`,
+    description: "",
+    color: "#458c74",
+    act: "I",
+    range: {
+      start: { blockId: block.id, offset: 0 },
+      end: { blockId: block.id, offset: block.text.length },
+    },
+  }));
+  await open(page, serializeFountain(doc));
+  const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await expect(editor).toContainText("The next moment stays intact.");
+  const guideToggle = page
+    .getByRole("toolbar", { name: "Writing controls" })
+    .getByRole("button", { name: /Beat guide/i });
+  if ((await guideToggle.getAttribute("aria-pressed")) !== "true")
+    await guideToggle.click();
+  await page.getByRole("button", { name: "Next guide beat" }).click();
+  await expect(editor.locator(".navigation-highlight")).toHaveText(
+    "The next moment stays intact.",
+  );
+  expect(await page.evaluate(() => window.getSelection()?.isCollapsed)).toBe(
+    true,
+  );
+  await page.keyboard.insertText("Still here: ");
+  await expect(editor.locator("p").last()).toHaveText(
+    "Still here: The next moment stays intact.",
+  );
+  await expect(editor.locator(".navigation-highlight")).toHaveCount(0);
+  await page.keyboard.press(`${mod}+z`);
+  await expect(editor.locator("p").last()).toHaveText(
+    "The next moment stays intact.",
+  );
+  await page.getByRole("button", { name: "Previous guide beat" }).click();
+  await page.getByRole("button", { name: "Next guide beat" }).click();
+  await page.keyboard.press("Delete");
+  await expect(editor.locator("p").last()).toHaveText(
+    "he next moment stays intact.",
+  );
+});
 
 test("highlighted PDF chooser exports selected names and preserves the ordinary preview and editor", async ({
   page,
@@ -180,68 +229,6 @@ test("FDX imports into an editable Fountain document and malformed input leaves 
     page.getByRole("status").filter({ hasText: "not a valid Final Draft" }),
   ).toContainText("not a valid Final Draft");
   await expect(editor).toContainText("Bonjour & bienvenue.");
-});
-
-test("old scene-wide beat imports can restore original precise ranges without changing writing", async ({
-  page,
-}) => {
-  const body =
-    "INT. ROOM - NIGHT\n\nFirst moment.\n\nMARA\nHello.\n\nSecond moment.\n\nMARA\nGoodbye.";
-  const raw = [
-    { text: "Arrival", range: { startLine: 2, endLine: 5 } },
-    { text: "Departure", range: { startLine: 7, endLine: 10 } },
-  ];
-  const original =
-    body +
-    "\n\n[[FP-BEATS:" +
-    encodeURIComponent(JSON.stringify({ beats: raw })) +
-    "]]";
-  const draft = parseFountain(original);
-  draft.metadata.beats = draft.metadata.beats.map((beat, i) => ({
-    ...beat,
-    legacyRange: raw[i].range,
-    range: sceneBeatRange(draft, draft.blocks[0].id),
-  }));
-  await setup(page);
-  await open(page, serializeFountain(draft));
-  await expect(
-    page.getByRole("textbox", { name: "Screenplay editor" }),
-  ).toContainText("Goodbye.");
-  await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Beat sheet", exact: true });
-  const file = page.waitForEvent("filechooser");
-  await dialog
-    .getByRole("button", { name: "Restore original beat ranges…" })
-    .click();
-  await (
-    await file
-  ).setFiles({
-    name: "Original.fountain",
-    mimeType: "text/plain",
-    buffer: Buffer.from(original),
-  });
-  await expect(
-    dialog.getByRole("button", { name: "Restore original beat ranges…" }),
-  ).toHaveCount(0);
-  const expected = parseFountain(original);
-  for (const [i, beat] of expected.metadata.beats.entries()) {
-    const range = resolveBeatRange(expected, beat.range!)!;
-    await dialog
-      .getByRole("button", { name: `Beat ${i + 1} details`, exact: true })
-      .click();
-    await expect(
-      dialog.getByRole("spinbutton", {
-        name: `Beat ${i + 1} start line`,
-        exact: true,
-      }),
-    ).toHaveValue(String(range.startLine));
-    await expect(
-      dialog.getByRole("spinbutton", {
-        name: `Beat ${i + 1} end line`,
-        exact: true,
-      }),
-    ).toHaveValue(String(range.endLine));
-  }
 });
 
 test("popup scrolling and character-aware typing stay responsive with a long screenplay", async ({

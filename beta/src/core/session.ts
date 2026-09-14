@@ -6,7 +6,12 @@ import type { RemoteLocation } from "../storage/cloud";
 export interface SessionEditor {
   getDocument(base: Screenplay): Screenplay;
   setDocument(doc: Screenplay): void;
-  updateBeatRanges?(doc: Screenplay, previous: Beat[]): void;
+  updateBeatRanges?(
+    doc: Screenplay,
+    previous: Beat[],
+    previousDocument?: Screenplay,
+  ): void;
+  detachCollaboration?(): Screenplay | undefined;
 }
 export interface SessionSnapshot {
   id: string;
@@ -29,6 +34,9 @@ export class DocumentSession {
   private timer?: ReturnType<typeof setTimeout>;
   private maximum?: ReturnType<typeof setTimeout>;
   private disposed = false;
+  onBeforeOpen?: () => Promise<void>;
+  onOpenAborted?: () => Promise<void>;
+  onOpenComplete?: () => void;
   onSnapshot: (snapshot: SessionSnapshot) => void = () => {};
   onStatus: (status: "saving" | "saved" | "error", message?: string) => void =
     () => {};
@@ -70,10 +78,14 @@ export class DocumentSession {
     if (!this.maximum)
       this.maximum = setTimeout(() => void this.flush().catch(() => {}), 1500);
   }
-  updateMetadata(screenplay: Screenplay) {
+  updateMetadata(
+    screenplay: Screenplay,
+    previousDocument = this.current.screenplay,
+  ) {
     this.editor?.updateBeatRanges?.(
       screenplay,
-      this.current.screenplay.metadata.beats,
+      previousDocument.metadata.beats,
+      previousDocument,
     );
     this.current = {
       ...this.current,
@@ -150,23 +162,34 @@ export class DocumentSession {
     saved?: WorkspaceDocument,
   ): Promise<void> {
     const token = this.token();
-    await this.flush();
-    this.assertCurrent(token);
-    this.epoch++;
-    this.persistedEpoch = saved ? this.epoch : -1;
-    this.current = {
-      id: saved?.id ?? newId(),
-      name,
-      screenplay,
-      remote: remote ?? saved?.remote,
-      epoch: this.epoch,
-    };
-    this.revisions.set(this.current.id, saved?.revision ?? null);
-    this.repository.setActiveId(this.current.id);
-    this.editor?.setDocument(screenplay);
-    this.onSnapshot(this.current);
-    if (saved) this.onStatus("saved");
-    else await this.flush();
+    let prepared = false;
+    let switched = false;
+    try {
+      await this.onBeforeOpen?.();
+      prepared = true;
+      await this.flush();
+      this.assertCurrent(token);
+      this.epoch++;
+      this.persistedEpoch = saved ? this.epoch : -1;
+      this.current = {
+        id: saved?.id ?? newId(),
+        name,
+        screenplay,
+        remote: remote ?? saved?.remote,
+        epoch: this.epoch,
+      };
+      switched = true;
+      this.revisions.set(this.current.id, saved?.revision ?? null);
+      this.repository.setActiveId(this.current.id);
+      this.editor?.setDocument(screenplay);
+      this.onOpenComplete?.();
+      this.onSnapshot(this.current);
+      if (saved) this.onStatus("saved");
+      else await this.flush();
+    } catch (error) {
+      if (prepared && !switched) await this.onOpenAborted?.();
+      throw error;
+    }
   }
   token() {
     return { id: this.current.id, epoch: this.epoch };
@@ -185,22 +208,35 @@ export class DocumentSession {
   }
   async fork(): Promise<void> {
     const token = this.token();
-    await this.tail.catch(() => {});
-    if (token.id !== this.current.id)
-      throw new Error("The active document changed. Try making a copy again.");
-    const snapshot = this.capture();
-    this.current = {
-      ...snapshot,
-      id: newId(),
-      name: snapshot.name.replace(/\.fountain$/i, "") + " copy.fountain",
-      remote: undefined,
-    };
-    this.revisions.set(this.current.id, null);
-    this.epoch++;
-    this.persistedEpoch = -1;
-    this.repository.setActiveId(this.current.id);
-    this.onSnapshot(this.capture());
-    await this.flush();
+    let prepared = false;
+    let switched = false;
+    try {
+      await this.onBeforeOpen?.();
+      prepared = true;
+      await this.tail.catch(() => {});
+      if (token.id !== this.current.id)
+        throw new Error(
+          "The active document changed. Try making a copy again.",
+        );
+      const snapshot = this.capture();
+      this.current = {
+        ...snapshot,
+        id: newId(),
+        name: snapshot.name.replace(/\.fountain$/i, "") + " copy.fountain",
+        remote: undefined,
+      };
+      switched = true;
+      this.revisions.set(this.current.id, null);
+      this.epoch++;
+      this.persistedEpoch = -1;
+      this.repository.setActiveId(this.current.id);
+      this.onOpenComplete?.();
+      this.onSnapshot(this.capture());
+      await this.flush();
+    } catch (error) {
+      if (prepared && !switched) await this.onOpenAborted?.();
+      throw error;
+    }
   }
   dispose() {
     this.disposed = true;

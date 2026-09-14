@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import type { CSSProperties } from "react";
+import { flushSync } from "react-dom";
 import {
   ArrowDown,
   ArrowUp,
@@ -19,6 +20,7 @@ import {
   FileText,
   FolderOpen,
   Github,
+  Link,
   Plus,
   Redo2,
   Search,
@@ -46,6 +48,12 @@ import { downloadFile, openLocalFile, saveLocalFile } from "./storage/files";
 import type { FileHandle } from "./storage/files";
 import { cloud } from "./storage/cloud";
 import type { CloudDocument, Provider } from "./storage/cloud";
+import { LiveClient } from "./collaboration/LiveClient";
+import type { LiveStatus } from "./collaboration/LiveClient";
+import {
+  readSharedDocument,
+  validateSharedDocument,
+} from "./collaboration/sharedDocument";
 import { EditorSurface } from "./components/EditorSurface";
 import { HighlightPdfDialog } from "./components/HighlightPdfDialog";
 import { highlightedPdfFilename } from "./core/characterHighlights";
@@ -54,10 +62,6 @@ import { CharacterAnalytics } from "./components/CharacterAnalytics";
 import { BeatSheetDialog } from "./components/BeatSheetDialog";
 import { WritingToolbar } from "./components/WritingToolbar";
 import { formatPageCount } from "./core/pageCount";
-import {
-  hasLegacyBeatRanges,
-  restoreImportedBeatRanges,
-} from "./core/repairBeats";
 import { BeatGuide } from "./components/BeatGuide";
 import { Settings, readPreferences } from "./components/Settings";
 import { TitleDialog } from "./components/TitleDialog";
@@ -76,6 +80,15 @@ export default function App() {
   const [session, setSession] = useState<DocumentSession>();
   const sessionRef = useRef<DocumentSession | undefined>(undefined);
   const [snapshot, setSnapshot] = useState<SessionSnapshot>();
+  const liveClient = useRef<LiveClient | undefined>(undefined);
+  const [liveStatus, setLiveStatus] = useState<LiveStatus>();
+  const switchingLive = useRef<LiveClient | undefined>(undefined);
+  const [pendingDrive, setPendingDrive] = useState(() =>
+    new URLSearchParams(location.search).get("drive"),
+  );
+  const cloudSaveToken = useRef<{ id: string; epoch: number } | undefined>(
+    undefined,
+  );
   const [preferences, setPreferences] = useState(readPreferences);
   const [kind, setKind] = useState<BlockKind>("action");
   const [guideTarget, setGuideTarget] = useState<string>();
@@ -228,6 +241,77 @@ export default function App() {
     if (error instanceof DOMException && error.name === "AbortError") return;
     tell(errorMessage(error));
   };
+  async function stopLive() {
+    const client = liveClient.current;
+    if (!client) return;
+    // Finish the durable local outbox before a document switch can discard its editor.
+    await client.stop();
+    if (liveClient.current !== client) {
+      client.destroy();
+      return;
+    }
+    sessionRef.current?.capture();
+    editor.current?.detachCollaboration();
+    liveClient.current = undefined;
+    client.destroy();
+    setLiveStatus(undefined);
+  }
+  async function prepareLiveSwitch() {
+    const client = liveClient.current;
+    if (!client) return;
+    switchingLive.current = client;
+    try {
+      await client.stop();
+    } catch (error) {
+      if (switchingLive.current === client) switchingLive.current = undefined;
+      throw error;
+    }
+  }
+  async function abortLiveSwitch() {
+    const client = switchingLive.current;
+    switchingLive.current = undefined;
+    if (client && liveClient.current === client) await client.resume();
+  }
+  function completeLiveSwitch() {
+    const client = switchingLive.current;
+    switchingLive.current = undefined;
+    if (!client) return;
+    if (liveClient.current === client) {
+      editor.current?.detachCollaboration();
+      liveClient.current = undefined;
+      setLiveStatus(undefined);
+    }
+    client.destroy();
+  }
+  function attachLive(client: LiveClient) {
+    client.onStatus = (value) => {
+      if (liveClient.current === client) setLiveStatus(value);
+    };
+    client.onPermission = (canEdit) => {
+      if (liveClient.current === client)
+        editor.current?.setCollaborationEditable(canEdit);
+    };
+    client.onSaved = (etag) => {
+      const current = sessionRef.current;
+      const remote = current?.current.remote;
+      if (
+        liveClient.current === client &&
+        current &&
+        remote?.provider === "google" &&
+        remote.id === client.fileId &&
+        remote.etag !== etag
+      )
+        current.setRemote({ ...remote, etag }, current.token());
+    };
+    client.isComposing = () => !!editor.current?.isComposing;
+    editor.current?.attachCollaboration({
+      doc: client.doc,
+      awareness: client.awareness,
+      canEdit: client.self.canEdit,
+    });
+    liveClient.current = client;
+    client.start();
+  }
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -248,8 +332,40 @@ export default function App() {
           screenplay: parseFountain(example),
           epoch: 0,
         };
-      if (!live) return;
+      let restoredLive: LiveClient | undefined;
+      if (
+        initial.remote?.provider === "google" &&
+        initial.remote.live &&
+        initial.remote.accountId
+      ) {
+        try {
+          restoredLive = await LiveClient.cached(
+            initial.remote.id,
+            initial.remote.accountId,
+          );
+          if (restoredLive) {
+            validateSharedDocument(restoredLive.doc);
+            initial = {
+              ...initial,
+              screenplay: readSharedDocument(restoredLive.doc),
+            };
+          } else
+            warning =
+              "This device's shared writing cache is unavailable. Your draft is kept; reopen the Drive file to join live writing.";
+        } catch (error) {
+          restoredLive?.destroy();
+          restoredLive = undefined;
+          warning = errorMessage(error);
+        }
+      }
+      if (!live) {
+        restoredLive?.destroy();
+        return;
+      }
       const s = new DocumentSession(initial);
+      s.onBeforeOpen = prepareLiveSwitch;
+      s.onOpenAborted = abortLiveSwitch;
+      s.onOpenComplete = completeLiveSwitch;
       s.onSnapshot = (value) => setSnapshot({ ...value });
       s.onStatus = (state, message) => {
         setStatus(
@@ -263,6 +379,7 @@ export default function App() {
         if (message) tell(message);
       };
       sessionRef.current = s;
+      if (restoredLive) attachLive(restoredLive);
       setSession(s);
       setSnapshot(s.current);
       workspace.setActiveId(initial.id);
@@ -274,13 +391,19 @@ export default function App() {
       const params = new URLSearchParams(location.search);
       if (params.has("connected")) {
         tell(`Connected to ${params.get("connected")}.`);
-        window.history.replaceState({}, "", location.pathname);
+        params.delete("connected");
+        window.history.replaceState(
+          {},
+          "",
+          `${location.pathname}${params.size ? `?${params}` : ""}`,
+        );
       }
       if (params.has("error")) tell(params.get("error")!);
     })();
     return () => {
       live = false;
       sessionRef.current?.dispose();
+      void stopLive().catch(() => {});
     };
   }, []);
   useEffect(() => {
@@ -336,7 +459,7 @@ export default function App() {
     window.addEventListener("beforeunload", before);
     document.addEventListener("visibilitychange", visibility);
     const unsubscribe = workspace.subscribe((id) => {
-      if (id === session.current.id)
+      if (id === session.current.id && !liveClient.current)
         tell(
           "This screenplay was saved in another tab. Open Workspace to load that version, or save your writing as a copy.",
         );
@@ -350,10 +473,18 @@ export default function App() {
   const onReady = useCallback((value: EditorController | null) => {
     editor.current = value;
     if (sessionRef.current) sessionRef.current.editor = value;
+    const client = liveClient.current;
+    if (value && client)
+      value.attachCollaboration({
+        doc: client.doc,
+        awareness: client.awareness,
+        canEdit: client.self.canEdit,
+      });
   }, []);
-  const onEditorChange = useCallback(() => {
+  const onEditorChange = useCallback((remote = false) => {
     sessionRef.current?.markChanged();
     if (
+      !remote &&
       latest.current.preferences.typewriter &&
       editor.current &&
       !editor.current.view.composing
@@ -424,6 +555,17 @@ export default function App() {
   }
   async function save() {
     if (!session) return;
+    const activeLive = liveClient.current;
+    if (activeLive) {
+      await session.flush();
+      if (liveClient.current !== activeLive)
+        throw new Error(
+          "The active screenplay changed before saving. Save the current screenplay again.",
+        );
+      await activeLive.checkpoint();
+      if (liveClient.current === activeLive) tell("Saved to Google Drive.");
+      return;
+    }
     if (!session.current.remote) {
       await saveLocal();
       return;
@@ -431,6 +573,10 @@ export default function App() {
     const snap = session.capture();
     const token = session.token();
     const remote = snap.remote!;
+    if (remote.provider === "google" && remote.live)
+      throw new Error(
+        "Reopen this Google Drive file to reconnect live writing before saving. Your writing is kept on this device; you can also download a copy.",
+      );
     const content = serializeFountain(snap.screenplay);
     const result =
       remote.provider === "github"
@@ -453,23 +599,32 @@ export default function App() {
     setDialog(null);
     editor.current?.focus();
   }
-  const changeDoc = (doc: Screenplay) => session?.updateMetadata(doc);
+  const changeDoc = (doc: Screenplay, previousDocument?: Screenplay) => {
+    if (liveClient.current && !liveClient.current.self.canEdit) {
+      tell("This Drive document is view only. Keep a copy to make edits.");
+      return;
+    }
+    session?.updateMetadata(doc, previousDocument);
+  };
   function showBeatRange(range: BeatRange) {
-    setDialog(null);
-    if (matchMedia("(max-width: 950px)").matches)
-      setPreferences((value) => ({
-        ...value,
-        outline: false,
-        ...(matchMedia("(max-width: 720px)").matches
-          ? { insights: false }
-          : {}),
-      }));
-    requestAnimationFrame(() => {
-      if (!editor.current?.focusRange(range))
-        tell(
-          "These lines are no longer in the screenplay. Select a new range for this beat.",
-        );
+    // Commit dismissal before focusing the editor. No deferred callback can
+    // move the caret after the writer has already pressed the next key.
+    flushSync(() => {
+      setDialog(null);
+      setCharacter(null);
+      if (matchMedia("(max-width: 950px)").matches)
+        setPreferences((value) => ({
+          ...value,
+          outline: false,
+          ...(matchMedia("(max-width: 720px)").matches
+            ? { insights: false }
+            : {}),
+        }));
     });
+    if (!editor.current?.revealRange(range))
+      tell(
+        "These lines are no longer in the screenplay. Select a new range for this beat.",
+      );
   }
   function startBeatAssignment(id: string) {
     setGuideTarget(id);
@@ -478,6 +633,10 @@ export default function App() {
   }
   function assignBeatRange(beatId: string, range: BeatRange): boolean {
     if (!session) return false;
+    if (liveClient.current && !liveClient.current.self.canEdit) {
+      tell("This Drive document is view only.");
+      return false;
+    }
     const current = session.capture().screenplay;
     const resolved = resolveBeatRange(current, range);
     if (
@@ -534,6 +693,14 @@ export default function App() {
   async function openCloudDocument(doc: CloudDocument) {
     if (!session) return;
     const imported = importScreenplay(doc.content, doc.name);
+    if (
+      !imported.converted &&
+      doc.remote.provider === "google" &&
+      cloud.collaborationSupported
+    ) {
+      await openSharedDrive(doc.remote.id);
+      return;
+    }
     await session.open(
       imported.screenplay,
       imported.name,
@@ -541,6 +708,120 @@ export default function App() {
     );
     file.current = undefined;
     setDialog(null);
+  }
+  async function openSharedDrive(
+    fileId: string,
+    token = sessionRef.current?.token(),
+  ) {
+    const current = sessionRef.current;
+    if (!current || !token) return;
+    if (!cloud.collaborationSupported)
+      throw new Error(
+        "Live collaboration is available on beta.fountain-publisher.com. This local server supports ordinary Google Drive open and save.",
+      );
+    const bootstrap = await cloud.liveBootstrap(fileId);
+    const client = await LiveClient.prepare(bootstrap);
+    try {
+      current.assertCurrent(token);
+      await current.open(readSharedDocument(client.doc), bootstrap.name, {
+        ...bootstrap.remote,
+        accountId: bootstrap.self.id,
+      });
+      attachLive(client);
+      file.current = undefined;
+      setDialog(null);
+      setPendingDrive(null);
+      const params = new URLSearchParams(location.search);
+      params.delete("drive");
+      window.history.replaceState(
+        {},
+        "",
+        `${location.pathname}${params.size ? `?${params}` : ""}`,
+      );
+    } catch (error) {
+      if (liveClient.current === client) {
+        liveClient.current = undefined;
+        editor.current?.detachCollaboration();
+        setLiveStatus(undefined);
+      }
+      await client.stop().catch(() => {});
+      client.destroy();
+      throw error;
+    }
+  }
+  async function openWorkspaceDocument(draft: WorkspaceDocument) {
+    const current = sessionRef.current;
+    if (!current) return;
+    const token = current.token();
+    let restored: LiveClient | undefined;
+    try {
+      if (
+        draft.remote?.provider === "google" &&
+        draft.remote.live &&
+        cloud.collaborationSupported
+      ) {
+        if (draft.remote.accountId)
+          restored = await LiveClient.cached(
+            draft.remote.id,
+            draft.remote.accountId,
+          );
+        if (!restored) {
+          await openSharedDrive(draft.remote.id, token);
+          return;
+        }
+        validateSharedDocument(restored.doc);
+      }
+      current.assertCurrent(token);
+      await current.open(
+        restored ? readSharedDocument(restored.doc) : draft.screenplay,
+        draft.name,
+        draft.remote,
+        draft,
+      );
+      if (restored) attachLive(restored);
+      file.current = undefined;
+      setDialog(null);
+    } catch (error) {
+      if (restored) {
+        if (liveClient.current === restored) {
+          liveClient.current = undefined;
+          editor.current?.detachCollaboration();
+          setLiveStatus(undefined);
+        }
+        await restored.stop().catch(() => {});
+        restored.destroy();
+      }
+      throw error;
+    }
+  }
+  const openingDrive = useRef(false);
+  useEffect(() => {
+    if (!session || !pendingDrive || openingDrive.current) return;
+    openingDrive.current = true;
+    const token = session.token();
+    void (async () => {
+      try {
+        const accounts = await cloud.status();
+        if (!accounts.google.connected) {
+          setCloudDialog({ provider: "google", mode: "open" });
+          return;
+        }
+        await openSharedDrive(pendingDrive, token);
+      } catch (error) {
+        report(error);
+        setCloudDialog({ provider: "google", mode: "open" });
+      } finally {
+        openingDrive.current = false;
+      }
+    })();
+  }, [session, pendingDrive]);
+  async function copyCollaborationLink() {
+    const remote = sessionRef.current?.current.remote;
+    if (remote?.provider !== "google") return;
+    const url = new URL(location.origin);
+    url.searchParams.set("drive", remote.id);
+    await navigator.clipboard.writeText(url.href);
+    tell("Collaboration link copied. Anyone with Drive access can join here.");
   }
   async function exportHighlightedPdf(names: string[]) {
     if (!session || !names.length) return;
@@ -959,6 +1240,29 @@ export default function App() {
           <span>Save</span>
         </button>
       </header>
+      {liveStatus && (liveStatus.phase === "paused" || !liveStatus.canEdit) && (
+        <div className="live-notice" role="status" aria-live="polite">
+          <span>
+            {liveStatus.message ||
+              "View only · You can follow this screenplay live."}
+          </span>
+          <button onClick={() => void run(() => session.fork())}>
+            Keep a copy
+          </button>
+          {liveStatus.phase === "paused" && (
+            <button
+              onClick={() =>
+                void run(async () => {
+                  const id = liveClient.current?.fileId;
+                  if (id) await openSharedDrive(id);
+                })
+              }
+            >
+              Reconnect
+            </button>
+          )}
+        </div>
+      )}
       <div className="workspace">
         {preferences.outline && !zen && (
           <>
@@ -1352,6 +1656,7 @@ export default function App() {
                 </div>
                 <textarea
                   aria-label="Story notes"
+                  readOnly={liveStatus?.canEdit === false}
                   placeholder="A thought to come back to…"
                   value={doc.metadata.notes}
                   rows={5}
@@ -1369,6 +1674,45 @@ export default function App() {
         )}
       </div>
       <footer className="statusbar">
+        {liveStatus && (
+          <div
+            className="live-status"
+            role="status"
+            aria-live="off"
+            aria-label="Live collaboration"
+            title={liveStatus.message}
+          >
+            <span className={`live-dot ${liveStatus.phase}`} />
+            <span>
+              {
+                {
+                  connecting: "Connecting…",
+                  live: "Live",
+                  syncing: "Syncing…",
+                  offline: "Offline · edits kept on this device",
+                  readonly: "View only · live",
+                  paused: "Live sync paused",
+                }[liveStatus.phase]
+              }
+            </span>
+            {liveStatus.members.map((member, index) => (
+              <span
+                className="live-member"
+                key={`${member.id}-${index}`}
+                style={{ "--member-color": member.color } as CSSProperties}
+              >
+                {member.name}
+              </span>
+            ))}
+            <button
+              aria-label="Copy collaboration link"
+              title="Copy collaboration link for people with Drive access"
+              onClick={() => void run(copyCollaborationLink)}
+            >
+              <Link size={13} />
+            </button>
+          </div>
+        )}
         <span className={storageFailed ? "save-status failed" : "save-status"}>
           {storageFailed ? <Cloud size={12} /> : <Check size={12} />}
           <span>{status}</span>
@@ -1410,7 +1754,6 @@ export default function App() {
           name={character}
           doc={doc}
           onChange={changeDoc}
-          onScene={scene}
           onDialogue={showBeatRange}
           onAnalytics={() => {
             setCharacter(null);
@@ -1427,26 +1770,6 @@ export default function App() {
           onRange={showBeatRange}
           onExport={() => void run(() => exportFile("beatPdf"))}
           onExportCsv={() => void run(() => exportFile("beats"))}
-          onRestore={
-            hasLegacyBeatRanges(doc)
-              ? () =>
-                  void run(async () => {
-                    const token = session.token();
-                    const original = await openLocalFile();
-                    if (!original) return;
-                    session.assertCurrent(token);
-                    changeDoc(
-                      restoreImportedBeatRanges(
-                        session.capture().screenplay,
-                        parseFountain(original.content),
-                      ),
-                    );
-                    tell(
-                      "Original beat line ranges restored. Your screenplay and notes have been kept.",
-                    );
-                  })
-              : undefined
-          }
           onClose={() => setDialog(null)}
         />
       )}
@@ -1528,7 +1851,10 @@ export default function App() {
       {dialog === "title" && (
         <TitleDialog
           value={doc.titlePage}
-          onSave={(titlePage) => changeDoc({ ...doc, titlePage })}
+          readOnly={liveStatus?.canEdit === false}
+          onSave={(titlePage, original) =>
+            changeDoc({ ...doc, titlePage }, { ...doc, titlePage: original })
+          }
           onClose={() => setDialog(null)}
         />
       )}
@@ -1638,9 +1964,7 @@ export default function App() {
                 key={d.id}
                 onClick={() =>
                   void run(async () => {
-                    await session.open(d.screenplay, d.name, d.remote, d);
-                    file.current = undefined;
-                    setDialog(null);
+                    await openWorkspaceDocument(d);
                   })
                 }
               >
@@ -1713,11 +2037,35 @@ export default function App() {
           {...cloudDialog}
           filename={snapshot.name}
           remote={snapshot.remote}
-          getContent={() => serializeFountain(session.capture().screenplay)}
+          getContent={() => {
+            cloudSaveToken.current = session.token();
+            return serializeFountain(session.capture().screenplay);
+          }}
           onOpen={openCloudDocument}
-          onSaved={(result) => {
-            session.setRemote(result.remote, session.token());
-            void session.flush().catch(report);
+          onSaveCurrent={save}
+          onConnected={async () => {
+            if (pendingDrive && cloudDialog.provider === "google") {
+              await openSharedDrive(pendingDrive);
+              setCloudDialog(null);
+            }
+          }}
+          onSaved={async (result) => {
+            const token = cloudSaveToken.current;
+            if (!token)
+              throw new Error(
+                "Your file was saved. Reopen it to continue writing.",
+              );
+            session.assertCurrent(token);
+            if (
+              result.remote.provider === "google" &&
+              cloud.collaborationSupported
+            )
+              await openSharedDrive(result.remote.id, token);
+            else {
+              await stopLive();
+              session.setRemote(result.remote, token);
+              await session.flush();
+            }
             tell(
               `Saved to ${result.remote.provider === "github" ? "GitHub" : "Google Drive"}.`,
             );

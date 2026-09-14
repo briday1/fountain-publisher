@@ -266,8 +266,11 @@ test("precise ranges distinguish two beats within one scene and reject invalid e
   await expect(editor).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect
-    .poll(() => page.evaluate(() => window.getSelection()?.toString()))
-    .toBe("eight nine ten");
+    .poll(() => page.evaluate(() => window.getSelection()?.isCollapsed))
+    .toBe(true);
+  await expect(editor.locator(".navigation-highlight")).toHaveText(
+    "eight nine ten",
+  );
   await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
   await page
     .getByRole("button", { name: "Beat 2 details", exact: true })

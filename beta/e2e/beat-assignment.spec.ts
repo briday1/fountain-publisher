@@ -68,8 +68,11 @@ test("native selected lines bind beats, follow earlier writing, undo, and reload
   ).toBeVisible();
   await page.getByRole("button", { name: "Show beat 1 lines 4–4" }).click();
   await expect
-    .poll(() => page.evaluate(() => window.getSelection()?.toString()))
-    .toBe("Three four.");
+    .poll(() => page.evaluate(() => window.getSelection()?.isCollapsed))
+    .toBe(true);
+  await expect(editor.locator(".navigation-highlight")).toHaveText(
+    "Three four.",
+  );
   await editor.locator('[data-kind="action"]').evaluate((node) => {
     (node.closest("[contenteditable]") as HTMLElement).focus();
     window.getSelection()!.collapse(node.firstChild!, 0);
@@ -83,8 +86,11 @@ test("native selected lines bind beats, follow earlier writing, undo, and reload
   ).toBeVisible();
   await page.getByRole("button", { name: "Show beat 1 lines 5–5" }).click();
   await expect
-    .poll(() => page.evaluate(() => window.getSelection()?.toString()))
-    .toBe("Three four.");
+    .poll(() => page.evaluate(() => window.getSelection()?.isCollapsed))
+    .toBe(true);
+  await expect(editor.locator(".navigation-highlight")).toHaveText(
+    "Three four.",
+  );
   await page.getByRole("button", { name: "Undo", exact: true }).first().click();
   await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
   await expect(
@@ -100,7 +106,10 @@ test("native selected lines bind beats, follow earlier writing, undo, and reload
   await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
   await page.getByRole("button", { name: "Show beat 1 lines 4–4" }).click();
   await expect
-    .poll(() => page.evaluate(() => window.getSelection()?.toString()))
-    .toBe("Three four.");
+    .poll(() => page.evaluate(() => window.getSelection()?.isCollapsed))
+    .toBe(true);
+  await expect(editor.locator(".navigation-highlight")).toHaveText(
+    "Three four.",
+  );
   await page.screenshot({ path: testInfo.outputPath("assigned-lines.png") });
 });

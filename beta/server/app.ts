@@ -142,6 +142,7 @@ export async function createApp(
     });
     res.json({
       csrfToken: current.csrf,
+      collaboration: false,
       github: status("github"),
       google: status("google"),
     });

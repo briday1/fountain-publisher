@@ -8,7 +8,14 @@ export type RemoteLocation =
       path: string;
       sha: string;
     }
-  | { provider: "google"; id: string; etag: string; webViewLink?: string };
+  | {
+      provider: "google";
+      id: string;
+      etag: string;
+      webViewLink?: string;
+      live?: boolean;
+      accountId?: string;
+    };
 export interface CloudDocument {
   name: string;
   content: string;
@@ -21,6 +28,7 @@ export interface ProviderStatus {
 }
 export interface CloudStatus {
   csrfToken: string;
+  collaboration?: boolean;
   github: ProviderStatus;
   google: ProviderStatus;
 }
@@ -108,9 +116,25 @@ const query = (values: Record<string, string | number | boolean | undefined>) =>
       .map(([k, v]) => [k, String(v)]),
   ).toString();
 export const cloud = {
+  collaborationSupported: true,
+  liveBootstrap: (fileId: string) =>
+    request<import("../collaboration/LiveClient").LiveBootstrap>(
+      `/collaboration/${encodeURIComponent(fileId)}/bootstrap`,
+      {},
+    ),
+  liveCheckpoint: (fileId: string, vector: string) =>
+    request<{ etag: string; revision: number; content?: string }>(
+      `/collaboration/${encodeURIComponent(fileId)}/checkpoint`,
+      { vector },
+    ),
+  liveRecovery: (fileId: string) =>
+    request<{ content: string; driveContent: string }>(
+      `/collaboration/${encodeURIComponent(fileId)}/recovery`,
+    ),
   async status() {
     const result = await request<CloudStatus>("/status");
     csrfToken = result.csrfToken;
+    cloud.collaborationSupported = result.collaboration !== false;
     return result;
   },
   disconnect: (provider: Provider) =>

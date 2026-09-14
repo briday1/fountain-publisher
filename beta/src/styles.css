@@ -1899,3 +1899,62 @@ hr {
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
 }
+
+.live-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  margin-right: 12px;
+}
+.live-status > span {
+  flex-shrink: 0;
+}
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #379371;
+}
+.live-dot.connecting,
+.live-dot.syncing {
+  background: #b28b36;
+}
+.live-dot.offline,
+.live-dot.paused {
+  background: #bd7355;
+}
+.live-member {
+  border-left: 2px solid var(--member-color);
+  padding-left: 5px;
+}
+.live-status button {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 4px;
+}
+.live-notice {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.live-notice button {
+  text-decoration: underline;
+}
+@media (max-width: 720px) {
+  .statusbar:has(.live-status) > .save-status,
+  .statusbar:has(.live-status) > .spacer ~ span {
+    display: none;
+  }
+  .live-status {
+    margin-right: 0;
+  }
+}

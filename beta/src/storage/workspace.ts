@@ -177,7 +177,22 @@ export class WorkspaceRepository {
       const documents = tx.objectStore("documents");
       const current = (await request(documents.get(input.id))) as
         WorkspaceDocument | undefined;
-      if ((current?.revision ?? null) !== expectedRevision) {
+      // Live updates are merged in the separate, atomic CRDT cache. These
+      // records are render snapshots; sibling tabs for that same account/room
+      // can refresh them without treating their stale snapshot as a conflict.
+      const sameLiveDocument =
+        current?.remote?.provider === "google" &&
+        input.remote?.provider === "google" &&
+        current.remote.live === true &&
+        input.remote.live === true &&
+        current.remote.id === input.remote.id &&
+        typeof current.remote.accountId === "string" &&
+        current.remote.accountId.trim().length > 0 &&
+        current.remote.accountId === input.remote.accountId;
+      if (
+        (current?.revision ?? null) !== expectedRevision &&
+        !sameLiveDocument
+      ) {
         tx.abort();
         throw new StorageError(
           "This screenplay changed in another tab. Your recovery draft is preserved; reload the saved version or save your draft as a copy.",

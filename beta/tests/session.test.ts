@@ -72,6 +72,64 @@ it("refuses a delayed document switch after the current document changes", async
   expect(session.current.name).toBe("Draft.fountain");
   session.dispose();
 });
+it("keeps edits made while an asynchronous before-open hook finishes", async () => {
+  const wait = deferred();
+  const repo = {
+    save: vi.fn(async (data) => ({
+      ...data,
+      revision: 1,
+      createdAt: 0,
+      updatedAt: 0,
+    })),
+    writeRecovery: vi.fn(),
+    setActiveId: vi.fn(),
+  };
+  const session = new DocumentSession(initial(), repo);
+  const current = emptyScreenplay();
+  const setDocument = vi.fn();
+  session.editor = { getDocument: () => current, setDocument };
+  session.onBeforeOpen = async () => {
+    await wait.promise;
+  };
+  const opening = session.open(emptyScreenplay(), "Other.fountain");
+  current.blocks[0].text = "The sentence written while the connection closes.";
+  session.markChanged();
+  wait.resolve(null);
+  await expect(opening).rejects.toThrow("changed");
+  expect(session.current.name).toBe("Draft.fountain");
+  expect(session.current.screenplay.blocks[0].text).toBe(
+    current.blocks[0].text,
+  );
+  expect(repo.save).toHaveBeenCalledWith(
+    expect.objectContaining({ screenplay: current }),
+    null,
+  );
+  expect(setDocument).not.toHaveBeenCalled();
+  session.dispose();
+});
+it("does not fork another document that replaced the original while its hook was pending", async () => {
+  const wait = deferred();
+  const repo = {
+    save: vi.fn(),
+    writeRecovery: vi.fn(),
+    setActiveId: vi.fn(),
+  };
+  const session = new DocumentSession(initial(), repo);
+  session.onBeforeOpen = async () => {
+    await wait.promise;
+  };
+  const forking = session.fork();
+  session.current = {
+    ...initial(),
+    id: "different-document",
+    name: "Other.fountain",
+  };
+  wait.resolve(null);
+  await expect(forking).rejects.toThrow("active document changed");
+  expect(session.current.id).toBe("different-document");
+  expect(repo.save).not.toHaveBeenCalled();
+  session.dispose();
+});
 it("keeps recovery on persistence failure and never claims success", async () => {
   const repo = {
     save: vi.fn().mockRejectedValue(new Error("Disk full")),

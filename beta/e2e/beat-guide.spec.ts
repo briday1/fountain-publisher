@@ -83,8 +83,11 @@ test("writing guide keeps the next beat visible and assigns without replacing th
     .click();
   await expect(guide).toContainText("Find the voice");
   await expect
-    .poll(() => page.evaluate(() => window.getSelection()?.toString()))
-    .toBe("A voice breaks through. A new sound.");
+    .poll(() => page.evaluate(() => window.getSelection()?.isCollapsed))
+    .toBe(true);
+  await expect(editor.locator(".navigation-highlight")).toHaveText(
+    "A voice breaks through. A new sound.",
+  );
   await guide
     .getByRole("button", { name: "Next guide beat", exact: true })
     .click();

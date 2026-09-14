@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Modal } from "./Modal";
 import type { TitlePage } from "../core/model";
 import { titlePageExtra, withTitlePageExtra } from "../core/titlePage";
@@ -6,18 +6,22 @@ export function TitleDialog({
   value,
   onSave,
   onClose,
+  readOnly = false,
 }: {
   value: TitlePage;
-  onSave: (v: TitlePage) => void;
+  onSave: (v: TitlePage, original: TitlePage) => void;
   onClose: () => void;
+  readOnly?: boolean;
 }) {
+  const original = useRef(value).current;
   const [draft, setDraft] = useState(value);
   return (
     <Modal title="Title page" eyebrow="YOUR SCREENPLAY" onClose={onClose}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          onSave(draft);
+          if (readOnly) return;
+          onSave(draft, original);
           onClose();
         }}
       >
@@ -34,6 +38,7 @@ export function TitleDialog({
             <label key={key}>
               {label}
               <textarea
+                readOnly={readOnly}
                 value={draft[key]}
                 onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
                 autoFocus={key === "title"}
@@ -44,6 +49,7 @@ export function TitleDialog({
           <label>
             Contact
             <textarea
+              readOnly={readOnly}
               rows={3}
               value={draft.contact}
               onChange={(e) => setDraft({ ...draft, contact: e.target.value })}
@@ -52,6 +58,7 @@ export function TitleDialog({
           <label>
             Copyright
             <input
+              readOnly={readOnly}
               value={titlePageExtra(draft, "Copyright")}
               onChange={(e) =>
                 setDraft(withTitlePageExtra(draft, "Copyright", e.target.value))
@@ -63,7 +70,7 @@ export function TitleDialog({
           <button type="button" onClick={onClose}>
             Cancel
           </button>
-          <button className="primary" type="submit">
+          <button className="primary" type="submit" disabled={readOnly}>
             Save title page
           </button>
         </footer>

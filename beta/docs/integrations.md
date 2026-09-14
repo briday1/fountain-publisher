@@ -21,8 +21,14 @@ The Express server listens at port 5174 behind Vite's `/api` proxy. It persists 
 
 The independent local Google OAuth flow uses broader Drive scope for browsing; hosted beta uses the existing narrow scope. Do not confuse a local test account with the production shared account service.
 
-## Current collaboration boundary
+## Live collaboration
 
-The beta supports opening shared Drive files, permission changes, revisions and conditional saves. Real-time multiwriter collaboration is not enabled. Editing a file from beta is an external edit from the original app's live-room perspective; do not concurrently edit that same document in a main-app collaboration room during beta acceptance. Use a copy when evaluating the new editor alongside the old one.
+The hosted beta automatically joins a shared room when opening a Google Drive Fountain file. Its beta sharing link is `https://beta.fountain-publisher.com/?drive=FILE_ID`. Each person connects their own Google account and must already have access to that file; copying the link does not change Drive permissions. The live banner lists other writers, and editor cursors show their current positions. Drive readers receive updates in a view-only editor and can save a separate copy.
 
-The new editor owns structured ProseMirror transactions. Reusing the original source-text Yjs room without a migration protocol would undermine selection and undo, so the beta does not pretend those formats are interchangeable.
+The room stores structured Yjs updates for the screenplay, title page, and beat metadata. Concurrent edits merge, and local Undo affects the current writer's changes. Presence and cursor labels are transient; they are excluded from Fountain and published exports. The Cloudflare room receives document updates, so this is not end-to-end encryption. Each browser still compiles its own PDF using its own export settings.
+
+Incremental document updates are saved in an account-specific IndexedDB cache. Disconnected writing remains on the device and is merged after the connection returns. Workspace entries are display snapshots of that shared state: two tabs using the same Drive file and Google account may refresh those snapshots without a revision conflict. Ordinary local and GitHub drafts retain their existing revision checks.
+
+Save checkpoints the room into the original Fountain file using a conditional Drive write. If another editor has changed the Drive file outside the room, live synchronization pauses before replacing that external version. Preserve the local Fountain draft and resolve the competing version explicitly. Permission changes can also stop editing; reconnecting never grants more access than Drive allows.
+
+The beta room is separate from the original app's source-text collaboration room. Use the beta link for everyone in a writing session. Editing the same file through the main app or another editor is an external file change, not another participant in the beta room. Use a copy when comparing both app generations. The independent Express development server does not provide Cloudflare's durable room service.

@@ -9,7 +9,7 @@ export const EditorSurface = memo(function EditorSurface({
 }: {
   initial: Screenplay;
   onReady: (editor: EditorController | null) => void;
-  onChange: () => void;
+  onChange: (remote?: boolean) => void;
   onSelection: (kind: BlockKind) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);

@@ -13,6 +13,9 @@ test("Drive picker opens files and destination folders, restores its dialog on c
     if (path === "/status")
       body = {
         csrfToken: "test-csrf",
+        // Exercise the independent local server's Picker/file flow. Shared-room
+        // joins, edits and saves are covered in live-collaboration.spec.ts.
+        collaboration: false,
         google: { configured: true, connected: true, account: "Writer" },
         github: { configured: false, connected: false },
       };

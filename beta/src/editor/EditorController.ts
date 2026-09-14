@@ -8,14 +8,32 @@ import {
 import type { Command, Transaction } from "prosemirror-state";
 import { Decoration, DecorationSet, EditorView } from "prosemirror-view";
 import { baseKeymap, toggleMark } from "prosemirror-commands";
-import {
-  closeHistory,
-  history,
-  isHistoryTransaction,
-  redo,
-  undo,
-} from "prosemirror-history";
+import { history, isHistoryTransaction } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
+import * as Y from "yjs";
+import type { Awareness } from "y-protocols/awareness";
+import {
+  ySyncPlugin,
+  ySyncPluginKey,
+  yUndoPlugin,
+  yCursorPlugin,
+  initProseMirrorDoc,
+  defaultDeleteFilter,
+} from "y-prosemirror";
+import { closeHistory, undo, redo } from "./history";
+import {
+  readSharedDocument,
+  readSharedDetails,
+  updateSharedDetails,
+  sharedDetails,
+  sharedBeats,
+  sharedMetadataOrigin,
+  refreshSharedRangeAliases,
+  resolveSharedRange,
+  sharedRangeAt,
+  validateSharedDocument,
+} from "../collaboration/sharedDocument";
+import type { SharedView } from "../collaboration/sharedDocument";
 import type {
   BlockKind,
   Beat,
@@ -57,7 +75,7 @@ import "./editor.css";
 
 export interface EditorCallbacks {
   /** A dirty signal, never a whole-document snapshot. Use getBlocks on idle/save. */
-  onChange?: () => void;
+  onChange?: (remote?: boolean) => void;
   onSelection?: (kind: BlockKind) => void;
 }
 export interface FindOptions {
@@ -74,6 +92,20 @@ interface Match {
 }
 const searchKey = new PluginKey<DecorationSet>("screenplaySearch");
 const normalizeKey = new PluginKey("screenplayNormalize");
+const navigationKey = new PluginKey<DecorationSet>("screenplayNavigation");
+export interface EditorCollaboration {
+  doc: Y.Doc;
+  awareness: Awareness;
+  canEdit: boolean;
+  onMetadata?: () => void;
+}
+interface LiveBinding extends EditorCollaboration {
+  undoManager: Y.UndoManager;
+  metadataObserver: (
+    events: Y.YEvent<Y.AbstractType<unknown>>[],
+    transaction: Y.Transaction,
+  ) => void;
+}
 
 /** Native selectionchange may arrive after the next keydown, especially after
  * a click or arrow movement. Commands must use the caret the writer can see. */
@@ -108,6 +140,23 @@ export class EditorController {
   private destroyed = false;
   private compositionTimer?: ReturnType<typeof setTimeout>;
   private selectedKind?: BlockKind;
+  private live?: LiveBinding;
+  private metadataNotification = false;
+  get isComposing(): boolean {
+    return this.view.composing;
+  }
+  get isCollaborating(): boolean {
+    return Boolean(this.live);
+  }
+  private get writable(): boolean {
+    return !this.live || this.live.canEdit;
+  }
+  private sharedView(): SharedView {
+    return {
+      doc: this.view.state.doc,
+      mapping: ySyncPluginKey.getState(this.view.state).binding.mapping,
+    };
+  }
 
   constructor(
     host: HTMLElement,
@@ -117,6 +166,7 @@ export class EditorController {
     this.callbacks = callbacks;
     this.view = new EditorView(host, {
       state: this.createState(screenplay),
+      editable: () => this.writable,
       attributes: {
         class: "screenplay-editor",
         role: "textbox",
@@ -135,7 +185,12 @@ export class EditorController {
         },
         beforeinput: (view, event) => {
           const input = event as InputEvent;
-          if (input.isComposing || view.composing || !input.cancelable)
+          if (
+            !this.writable ||
+            input.isComposing ||
+            view.composing ||
+            !input.cancelable
+          )
             return false;
           const command = (
             {
@@ -224,6 +279,10 @@ export class EditorController {
       appendTransaction: (transactions, _previous, state) => {
         if (
           this.view?.composing ||
+          !this.writable ||
+          transactions.some(
+            (tr) => tr.getMeta(ySyncPluginKey)?.isChangeOrigin,
+          ) ||
           !transactions.some((tr) => tr.docChanged || tr.getMeta(normalizeKey))
         )
           return null;
@@ -273,13 +332,46 @@ export class EditorController {
         });
       },
     });
+    const shared = this.live
+      ? initProseMirrorDoc(
+          this.live.doc.getXmlFragment("script"),
+          screenplaySchema,
+        )
+      : undefined;
     return EditorState.create({
       schema: screenplaySchema,
-      doc: blocksToDoc(screenplay.blocks),
+      doc: shared?.doc ?? blocksToDoc(screenplay.blocks),
       plugins: [
+        ...(this.live && shared
+          ? [
+              ySyncPlugin(this.live.doc.getXmlFragment("script"), {
+                mapping: shared.mapping,
+              }),
+              yCursorPlugin(this.live.awareness, {
+                cursorBuilder: (user) => {
+                  const cursor = document.createElement("span");
+                  cursor.className = "collaboration-cursor";
+                  cursor.setAttribute("aria-hidden", "true");
+                  const color = /^#[0-9a-f]{6}$/i.test(user.color ?? "")
+                    ? user.color
+                    : "#7762bd";
+                  cursor.style.borderColor = color;
+                  const label = document.createElement("span");
+                  label.textContent = String(user.name || "Writer").slice(
+                    0,
+                    100,
+                  );
+                  label.style.backgroundColor = color;
+                  cursor.append(label);
+                  return cursor;
+                },
+              }),
+              yUndoPlugin({ undoManager: this.live.undoManager }),
+            ]
+          : []),
         characterCompletion(),
         beatAnchorPlugin(screenplay),
-        history({ depth: 500, newGroupDelay: 500 }),
+        ...(!this.live ? [history({ depth: 500, newGroupDelay: 500 })] : []),
         keymap({
           Enter: screenplayEnter,
           "Shift-Enter": insertLineBreak,
@@ -306,6 +398,19 @@ export class EditorController {
         keymap(baseKeymap),
         normalize,
         new Plugin<DecorationSet>({
+          key: navigationKey,
+          state: {
+            init: () => DecorationSet.empty,
+            apply: (tr, value) =>
+              tr.getMeta(navigationKey) ??
+              ((tr.docChanged && !tr.getMeta(ySyncPluginKey)?.isChangeOrigin) ||
+              (tr.selectionSet && !tr.getMeta(ySyncPluginKey)?.isChangeOrigin)
+                ? DecorationSet.empty
+                : value.map(tr.mapping, tr.doc)),
+          },
+          props: { decorations: (state) => navigationKey.getState(state) },
+        }),
+        new Plugin<DecorationSet>({
           key: searchKey,
           state: {
             init: () => DecorationSet.empty,
@@ -323,6 +428,9 @@ export class EditorController {
 
   private dispatch(transaction: Transaction): void {
     if (this.destroyed) return;
+    const sharedOrigin =
+      transaction.getMeta(ySyncPluginKey)?.isChangeOrigin === true;
+    if (transaction.docChanged && !this.writable && !sharedOrigin) return;
     let replacesText = false;
     for (const step of transaction.steps)
       step.getMap().forEach((from, to, newFrom, newTo) => {
@@ -335,10 +443,12 @@ export class EditorController {
       !this.view.composing &&
       transaction.getMeta("composition") == null &&
       (!this.view.state.selection.empty || replacesText) &&
-      !isHistoryTransaction(transaction)
+      !isHistoryTransaction(transaction) &&
+      !sharedOrigin
     )
       closeHistory(transaction);
     if (
+      !this.live &&
       transaction.docChanged &&
       !isHistoryTransaction(transaction) &&
       !transaction.getMeta("beatAssignments")
@@ -348,10 +458,55 @@ export class EditorController {
       if (mapped !== anchors)
         transaction.step(new BeatAnchorStep(anchors, mapped));
     }
+    const live = this.live;
+    if (live && !sharedOrigin && transaction.getMeta("closeWritingHistory"))
+      live.undoManager.stopCapturing();
+    // Positional mapping is local only. Yjs remote transactions replace the PM fragment,
+    // while their shared relative anchors already name the resulting passage.
+    const before =
+      live && !sharedOrigin && transaction.docChanged
+        ? Object.fromEntries(
+            [...sharedBeats(live.doc)].map(([id, beat]) => [
+              id,
+              resolveSharedRange(
+                live.doc,
+                beat.get("range"),
+                this.sharedView(),
+              ) ?? null,
+            ]),
+          )
+        : undefined;
     const result = this.view.state.applyTransaction(transaction);
-    this.view.updateState(result.state);
+    const commit = () => {
+      this.view.updateState(result.state);
+      if (live && before) {
+        let mapped = before;
+        for (const tr of result.transactions)
+          mapped = mapBeatAnchors(mapped, tr.mapping) as typeof before;
+        const view = this.sharedView();
+        for (const [id, expected] of Object.entries(mapped)) {
+          if (!before[id]) continue;
+          const target = sharedBeats(live.doc).get(id);
+          if (!target) continue;
+          const actual = resolveSharedRange(
+            live.doc,
+            target.get("range"),
+            view,
+          );
+          if (!expected) target.set("range", null);
+          else if (expected.from !== actual?.from || expected.to !== actual?.to)
+            target.set("range", sharedRangeAt(live.doc, view, expected));
+        }
+      }
+    };
+    if (live && !sharedOrigin && transaction.docChanged)
+      live.doc.transact(commit, ySyncPluginKey);
+    else commit();
     if (result.transactions.some((tr) => tr.docChanged))
-      this.callbacks.onChange?.();
+      this.callbacks.onChange?.(
+        sharedOrigin &&
+          !transaction.getMeta(ySyncPluginKey)?.isUndoRedoOperation,
+      );
     this.notifySelection();
   }
 
@@ -365,16 +520,141 @@ export class EditorController {
   }
 
   private run(command: Command): boolean {
-    if (this.destroyed || this.view.composing) return false;
+    if (this.destroyed || this.view.composing || !this.writable) return false;
     const result = command(this.view.state, this.view.dispatch, this.view);
     this.view.focus();
     return result;
+  }
+
+  attachCollaboration(options: EditorCollaboration): void {
+    if (this.destroyed) return;
+    if (this.view.composing)
+      throw new Error(
+        "Finish the current text composition before joining live writing.",
+      );
+    validateSharedDocument(options.doc);
+    this.detachCollaboration();
+    const old = this.view.state;
+    const anchor = textAnchor(old.doc, old.selection.anchor);
+    const head = textAnchor(old.doc, old.selection.head);
+    const undoManager = new Y.UndoManager(
+      [options.doc.getXmlFragment("script"), sharedDetails(options.doc)],
+      {
+        trackedOrigins: new Set([ySyncPluginKey, sharedMetadataOrigin]),
+        captureTimeout: 500,
+        captureTransaction: (transaction) =>
+          transaction.meta.get("addToHistory") !== false,
+        deleteFilter: (item) => {
+          // If undo preserves a new paragraph because a peer wrote into it, preserve
+          // its initial attributes as well; otherwise it becomes an invalid anonymous block.
+          if (
+            item.parent instanceof Y.XmlElement &&
+            item.parent.nodeName === "screenplayBlock" &&
+            item.parentSub &&
+            !item.left &&
+            item.parent.length > 0
+          )
+            return false;
+          return defaultDeleteFilter(item, new Set(["screenplayBlock"]));
+        },
+      },
+    );
+    const metadataObserver: LiveBinding["metadataObserver"] = (
+      _events,
+      transaction,
+    ) => {
+      if (
+        !(transaction.changedParentTypes as Map<unknown, unknown>).has(
+          options.doc.getXmlFragment("script"),
+        )
+      )
+        this.callbacks.onChange?.(!transaction.local);
+      if (this.metadataNotification) return;
+      this.metadataNotification = true;
+      queueMicrotask(() => {
+        this.metadataNotification = false;
+        if (!this.destroyed && this.live?.doc === options.doc)
+          options.onMetadata?.();
+      });
+    };
+    this.live = { ...options, undoManager, metadataObserver };
+    const next = this.createState(readSharedDocument(options.doc));
+    const from = anchor && anchorPosition(next.doc, anchor);
+    const to = head && anchorPosition(next.doc, head);
+    this.view.updateState(
+      from !== undefined && to !== undefined
+        ? next.apply(
+            next.tr.setSelection(TextSelection.create(next.doc, from, to)),
+          )
+        : next,
+    );
+    // Undo recreates deleted Yjs items. Its local redone links are not transmitted,
+    // so publish fresh relative IDs for restored anchors before peers resolve them.
+    undoManager.on("stack-item-popped", () => {
+      if (this.live?.doc !== options.doc) return;
+      const view = this.sharedView();
+      refreshSharedRangeAliases(options.doc, view);
+    });
+    sharedDetails(options.doc).observeDeep(metadataObserver);
+    this.notifySelection();
+  }
+
+  setCollaborationEditable(canEdit: boolean): void {
+    if (!this.live || this.live.canEdit === canEdit) return;
+    this.live.canEdit = canEdit;
+    this.view.setProps({ editable: () => this.writable });
+  }
+
+  /** Only opening/leaving a document resets its history; peer updates never call this. */
+  detachCollaboration(): Screenplay | undefined {
+    const live = this.live;
+    if (!live) return;
+    const snapshot = readSharedDocument(live.doc, this.sharedView());
+    const selection = this.view.state.selection.toJSON();
+    sharedDetails(live.doc).unobserveDeep(live.metadataObserver);
+    this.live = undefined;
+    const state = this.createState(snapshot);
+    this.view.updateState(
+      state.apply(
+        state.tr.setSelection(TextSelection.fromJSON(state.doc, selection)),
+      ),
+    );
+    this.notifySelection();
+    return snapshot;
+  }
+
+  /** Navigation highlights a passage without selecting text that typing could replace. */
+  revealRange(range: BeatRange): boolean {
+    if (this.destroyed || this.view.composing) return false;
+    const { state } = this.view;
+    const from = anchorPosition(state.doc, range.start);
+    const to = anchorPosition(state.doc, range.end);
+    if (from === undefined || to === undefined || from > to) return false;
+    const decorations =
+      from === to
+        ? [
+            Decoration.node(
+              state.doc.resolve(from).before(),
+              state.doc.resolve(from).after(),
+              { class: "navigation-highlight" },
+            ),
+          ]
+        : [Decoration.inline(from, to, { class: "navigation-highlight" })];
+    this.focus();
+    this.view.dispatch(
+      selectText(state, from, from).setMeta(
+        navigationKey,
+        DecorationSet.create(state.doc, decorations),
+      ),
+    );
+    return true;
   }
 
   getBlocks(): ScriptBlock[] {
     return docToBlocks(this.view.state.doc);
   }
   getDocument(base: Screenplay): Screenplay {
+    if (this.live) return readSharedDocument(this.live.doc, this.sharedView());
     return {
       ...base,
       blocks: this.getBlocks(),
@@ -389,7 +669,27 @@ export class EditorController {
     };
   }
 
-  updateBeatRanges(screenplay: Screenplay, previous: Beat[]): void {
+  updateBeatRanges(
+    screenplay: Screenplay,
+    previous: Beat[],
+    previousDocument?: Screenplay,
+  ): void {
+    if (this.live) {
+      if (!this.writable) return;
+      const view = this.sharedView();
+      const before = previousDocument ?? {
+        ...screenplay,
+        ...readSharedDetails(this.live.doc, view),
+        metadata: {
+          ...readSharedDetails(this.live.doc, view).metadata,
+          beats: previous,
+        },
+      };
+      this.live.undoManager.stopCapturing();
+      updateSharedDetails(this.live.doc, screenplay, before, view);
+      this.live.undoManager.stopCapturing();
+      return;
+    }
     const { state } = this.view;
     const current = beatAnchorKey.getState(state)!;
     const anchors = updateBeatAnchors(state.doc, screenplay, previous, current);
@@ -450,6 +750,7 @@ export class EditorController {
   /** Replaces state and history. Call only when switching/opening a document. */
   setDocument(screenplay: Screenplay): void {
     if (this.destroyed) return;
+    this.detachCollaboration();
     clearTimeout(this.compositionTimer);
     this.view.updateState(this.createState(screenplay));
     this.selectedKind = undefined;
@@ -485,7 +786,7 @@ export class EditorController {
 
   insertBlock(kind: BlockKind, text = ""): string {
     const id = newId();
-    if (this.view.composing) return "";
+    if (this.view.composing || !this.writable) return "";
     const { state } = this.view;
     const position = state.selection.$to.depth
       ? state.selection.$to.after(1)
@@ -555,7 +856,7 @@ export class EditorController {
     replacement: string,
     options: FindOptions = {},
   ): boolean {
-    if (!query || this.view.composing) return false;
+    if (!query || this.view.composing || !this.writable) return false;
     const { from, to } = this.view.state.selection;
     const selected = this.matches(query, options).some(
       (match) => match.from === from && match.to === to,
@@ -578,7 +879,7 @@ export class EditorController {
     replacement: string,
     options: FindOptions = {},
   ): number {
-    if (this.view.composing) return 0;
+    if (this.view.composing || !this.writable) return 0;
     const matches = this.matches(query, options);
     if (!matches.length) return 0;
     const tr = closeHistory(this.view.state.tr);
@@ -591,6 +892,7 @@ export class EditorController {
 
   destroy(): void {
     if (this.destroyed) return;
+    this.detachCollaboration();
     this.destroyed = true;
     clearTimeout(this.compositionTimer);
     this.view.destroy();

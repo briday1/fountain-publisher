@@ -1,6 +1,6 @@
 import type { Command, EditorState, Transaction } from "prosemirror-state";
 import { TextSelection } from "prosemirror-state";
-import { closeHistory } from "prosemirror-history";
+import { closeHistory } from "./history";
 import type { BlockKind } from "../core/model";
 import { newId } from "../core/model";
 

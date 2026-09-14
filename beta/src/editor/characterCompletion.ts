@@ -2,7 +2,7 @@ import type { Node as PMNode } from "prosemirror-model";
 import { Plugin, PluginKey, TextSelection } from "prosemirror-state";
 import type { EditorState } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
-import { closeHistory } from "prosemirror-history";
+import { closeHistory } from "./history";
 import { characterName } from "../core/insights";
 import { newId } from "../core/model";
 

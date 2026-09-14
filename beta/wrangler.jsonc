@@ -34,5 +34,14 @@
     "API_ORIGIN": "https://api.fountain-publisher.com",
     "BETA_ASSET_ORIGIN": "https://fountain-publisher.com/previews/beta",
   },
+  "durable_objects": {
+    "bindings": [{ "name": "LIVE_ROOMS", "class_name": "LiveScreenplayRoom" }],
+  },
+  "migrations": [
+    {
+      "tag": "live-structured-v1",
+      "new_sqlite_classes": ["LiveScreenplayRoom"],
+    },
+  ],
   "observability": { "enabled": true },
 }

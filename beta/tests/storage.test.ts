@@ -15,6 +15,13 @@ const draft = (id = crypto.randomUUID(), text = "A train arrives.") => {
   screenplay.blocks[0].text = text;
   return { id, name: "test.fountain", screenplay };
 };
+const liveRemote = {
+  provider: "google" as const,
+  id: "shared-screenplay",
+  etag: "version-one",
+  live: true,
+  accountId: "writer-one",
+};
 afterEach(async () => {
   for (const repo of repositories.splice(0)) await repo.close();
   vi.restoreAllMocks();
@@ -51,6 +58,90 @@ describe("durable device storage", () => {
     expect(failure.reason.code).toBe("CONFLICT");
     expect((await a.load(doc.id))?.revision).toBe(2);
   });
+  it("lets tabs for the same live account and file refresh render snapshots", async () => {
+    const database = crypto.randomUUID();
+    const a = repository(database),
+      b = repository(database);
+    const input = { ...draft(), remote: liveRemote };
+    const first = await a.save(input, null);
+    const results = await Promise.all([
+      a.save({ ...input, name: "alpha.fountain" }, first.revision),
+      b.save({ ...input, name: "beta.fountain" }, first.revision),
+    ]);
+    expect(results.map((result) => result.revision).sort()).toEqual([2, 3]);
+    expect(
+      results.every((result) => result.createdAt === first.createdAt),
+    ).toBe(true);
+    expect((await a.load(input.id))?.revision).toBe(3);
+    expect((await a.load(input.id))?.remote).toEqual(liveRemote);
+    await expect(a.remove(input.id, first.revision)).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+  });
+  it.each([
+    {
+      name: "different Drive files",
+      stored: liveRemote,
+      incoming: { ...liveRemote, id: "another-file" },
+    },
+    {
+      name: "different Google accounts",
+      stored: liveRemote,
+      incoming: { ...liveRemote, accountId: "another-writer" },
+    },
+    {
+      name: "a missing incoming account",
+      stored: liveRemote,
+      incoming: { ...liveRemote, accountId: undefined },
+    },
+    {
+      name: "a missing stored account",
+      stored: { ...liveRemote, accountId: undefined },
+      incoming: liveRemote,
+    },
+    {
+      name: "empty accounts",
+      stored: { ...liveRemote, accountId: "" },
+      incoming: { ...liveRemote, accountId: "" },
+    },
+    {
+      name: "blank accounts",
+      stored: { ...liveRemote, accountId: " " },
+      incoming: { ...liveRemote, accountId: " " },
+    },
+    {
+      name: "an ordinary stored Drive document",
+      stored: { ...liveRemote, live: false },
+      incoming: liveRemote,
+    },
+    {
+      name: "an ordinary incoming Drive document",
+      stored: liveRemote,
+      incoming: { ...liveRemote, live: false },
+    },
+    {
+      name: "an unset stored live flag",
+      stored: { ...liveRemote, live: undefined },
+      incoming: liveRemote,
+    },
+    {
+      name: "an unset incoming live flag",
+      stored: liveRemote,
+      incoming: { ...liveRemote, live: undefined },
+    },
+  ])(
+    "keeps stale snapshot protection for $name",
+    async ({ stored, incoming }) => {
+      const repo = repository();
+      const input = { ...draft(), remote: stored };
+      await repo.save(input, null);
+      await repo.save({ ...input, name: "newer.fountain" }, 1);
+      await expect(
+        repo.save({ ...input, remote: incoming }, 1),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+      expect((await repo.load(input.id))?.name).toBe("newer.fountain");
+    },
+  );
   it("preserves independent recovery drafts when another tab saves", async () => {
     const name = crypto.randomUUID();
     const a = repository(name),

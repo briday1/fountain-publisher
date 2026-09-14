@@ -1,6 +1,9 @@
 import { test, expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
+const finalSceneHeading =
+  "INT. TRANSMITTER ROOM WITH WINDOWS OVERLOOKING THE ENTIRE SLEEPING CITY - NIGHT";
+
 async function fixture(page: Page) {
   await page.addInitScript(() =>
     Object.defineProperty(window, "showOpenFilePicker", {
@@ -16,10 +19,16 @@ async function fixture(page: Page) {
   const picker = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: /^Open screenplay/ }).click();
   const source =
+    "@MARA\nBefore the first scene begins.\n\n" +
     "INT. STATION - DAY\n\n" +
     Array.from(
       { length: 45 },
       (_, i) =>
+        (i === 15
+          ? "EXT. WATERFRONT - NIGHT\n\n@ELI\nOnly Eli speaks here.\n\nINT. STATION - DAY\n\n"
+          : i === 30
+            ? `${finalSceneHeading}\n\n`
+            : "") +
         `!A waiting room stretches into the distance. It is a quiet moment ${i + 1}.\n\nMARA\nFirst sentence of speech ${i + 1}.\nExact dialogue line ${i + 1}.\n\n`,
     ).join("");
   await (
@@ -51,6 +60,49 @@ for (const mobile of [false, true]) {
     await fixture(page);
     const dialog = page.getByRole("dialog", { name: "MARA", exact: true });
     const speechList = dialog.locator(".speech-list");
+    await expect(
+      dialog.getByRole("heading", { name: "Presence across the story" }),
+    ).toHaveCount(0);
+    await expect(dialog.locator(".presence-chart")).toHaveCount(0);
+    const sections = speechList.getByRole("region");
+    await expect(sections).toHaveCount(4);
+    expect(
+      await sections.evaluateAll((elements) =>
+        elements.map((element) => element.getAttribute("aria-label")),
+      ),
+    ).toEqual([
+      "Before the first scene",
+      "Scene 1: INT. STATION - DAY",
+      "Scene 3: INT. STATION - DAY",
+      `Scene 4: ${finalSceneHeading}`,
+    ]);
+    await expect(sections.nth(0).getByRole("heading")).toHaveText(
+      "Before the first scene",
+    );
+    await expect(sections.nth(1).getByRole("heading")).toHaveText(
+      "Scene 1 INT. STATION - DAY",
+    );
+    await expect(sections.nth(2).getByRole("heading")).toHaveText(
+      "Scene 3 INT. STATION - DAY",
+    );
+    await expect(sections.nth(1).locator(".character-speech")).toHaveCount(15);
+    await expect(sections.nth(2).locator(".character-speech")).toHaveCount(15);
+    expect(
+      await speechList.locator(".character-dialogue-line").allTextContents(),
+    ).toEqual([
+      "Before the first scene begins.",
+      ...Array.from({ length: 45 }, (_, i) => [
+        `First sentence of speech ${i + 1}.`,
+        `Exact dialogue line ${i + 1}.`,
+      ]).flat(),
+    ]);
+    await expect(dialog.locator(".character-metrics")).toContainText(
+      "46speeches",
+    );
+    await expect(dialog.locator(".character-metrics")).toContainText("3scenes");
+    await dialog
+      .getByRole("textbox", { name: "Character notes" })
+      .fill("Mara needs to hear the entire message.");
     const snapshot = () =>
       page.evaluate(() => ({
         writing: document.querySelector(".writing-scroll")!.scrollTop,
@@ -65,6 +117,11 @@ for (const mobile of [false, true]) {
     await speechList.evaluate((element) => {
       element.scrollTop = element.scrollHeight;
     });
+    expect(
+      await speechList.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    ).toBe(true);
     const bounds = await speechList.boundingBox();
     expect(bounds).not.toBeNull();
     await page.mouse.move(
@@ -98,11 +155,15 @@ for (const mobile of [false, true]) {
     const editor = page.getByRole("textbox", { name: "Screenplay editor" });
     await expect(editor).toBeFocused();
     await expect
-      .poll(() => page.evaluate(() => window.getSelection()?.toString()))
-      .toBe("Exact dialogue line 30.");
+      .poll(() => page.evaluate(() => window.getSelection()?.isCollapsed))
+      .toBe(true);
+    await expect(editor.locator(".navigation-highlight")).toHaveText(
+      "Exact dialogue line 30.",
+    );
     const selected = await page.evaluate(() => {
-      const selection = window.getSelection()!;
-      const range = selection.getRangeAt(0).getBoundingClientRect();
+      const range = document
+        .querySelector(".navigation-highlight")!
+        .getBoundingClientRect();
       const scroll = document
         .querySelector(".writing-scroll")!
         .getBoundingClientRect();
@@ -129,5 +190,16 @@ for (const mobile of [false, true]) {
     expect(selected.bottom).toBeLessThanOrEqual(selected.viewportBottom);
     expect(selected.overflow).toBe("");
     expect(selected.exposed).toBe(true);
+    await page.keyboard.insertText("Before it: ");
+    await expect(editor).toContainText("Before it: Exact dialogue line 30.");
+    const insights = page.getByRole("complementary", {
+      name: "Screenplay insights",
+    });
+    if (!(await insights.isVisible()))
+      await page.getByRole("button", { name: "Insights", exact: true }).click();
+    await insights.getByRole("button", { name: /^MARA / }).click();
+    await expect(
+      dialog.getByRole("textbox", { name: "Character notes" }),
+    ).toHaveValue("Mara needs to hear the entire message.");
   });
 }

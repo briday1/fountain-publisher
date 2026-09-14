@@ -31,6 +31,8 @@ export function CloudDialog({
   getContent,
   onOpen,
   onSaved,
+  onSaveCurrent,
+  onConnected,
   onBeforeConnect,
   onClose,
 }: {
@@ -40,7 +42,9 @@ export function CloudDialog({
   remote?: RemoteLocation;
   getContent: () => string;
   onOpen: (doc: CloudDocument) => Promise<void>;
-  onSaved: (doc: CloudDocument) => void;
+  onSaved: (doc: CloudDocument) => Promise<void> | void;
+  onSaveCurrent?: () => Promise<void>;
+  onConnected?: () => Promise<void>;
   onBeforeConnect: () => Promise<void>;
   onClose: () => void;
 }) {
@@ -244,6 +248,17 @@ export function CloudDialog({
   const save = () => {
     const content = getContent();
     void run(async () => {
+      if (
+        provider === "google" &&
+        remote?.provider === "google" &&
+        remote.live &&
+        !saveCopy &&
+        onSaveCurrent
+      ) {
+        await onSaveCurrent();
+        if (alive.current) onClose();
+        return;
+      }
       let result: CloudDocument;
       if (provider === "github") {
         const [owner, r] = repo.split("/");
@@ -276,7 +291,7 @@ export function CloudDialog({
             : await cloud.driveCreate({ name, content, parent });
       }
       if (alive.current) {
-        onSaved(result);
+        await onSaved(result);
         onClose();
       }
     });
@@ -367,6 +382,7 @@ export function CloudDialog({
                   void run(async () => {
                     await connectAccount(provider, onBeforeConnect);
                     if (alive.current) setStatus(await cloud.status());
+                    if (alive.current) await onConnected?.();
                   })
                 }
               >
@@ -597,10 +613,29 @@ export function CloudDialog({
                   <option value="writer">Can edit</option>
                 </select>
               </label>
-              <p className="muted">
-                Shared files use version checks when saving. Editing together in
-                real time is not enabled.
-              </p>
+              {status?.collaboration !== false && (
+                <>
+                  <p className="muted">
+                    Everyone with access can open this link to write together.
+                    Viewers can follow the screenplay live.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void run(async () => {
+                        const url = new URL(location.origin);
+                        url.searchParams.set("drive", remote.id);
+                        await navigator.clipboard.writeText(url.href);
+                        setSuccess(
+                          "Collaboration link copied. Drive permissions still apply.",
+                        );
+                      })
+                    }
+                  >
+                    Copy collaboration link
+                  </button>
+                </>
+              )}
               <button className="primary" disabled={busy}>
                 Grant access
               </button>

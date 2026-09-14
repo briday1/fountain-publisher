@@ -71,13 +71,3 @@
     padding: 8px 10px 8px 20px;
   }
 }
-
-.beat-import-repair {
-  padding: 14px 24px;
-  background: var(--accent-soft);
-  color: var(--ink);
-  font-size: 12px;
-}
-.beat-import-repair p {
-  margin: 0 0 8px;
-}

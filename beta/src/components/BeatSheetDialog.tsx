@@ -12,7 +12,6 @@ export function BeatSheetDialog({
   onRange,
   onExport,
   onExportCsv,
-  onRestore,
   onClose,
 }: {
   doc: Screenplay;
@@ -21,7 +20,6 @@ export function BeatSheetDialog({
   onRange: (range: BeatRange) => void;
   onExport: () => void;
   onExportCsv: () => void;
-  onRestore?: () => void;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -59,15 +57,6 @@ export function BeatSheetDialog({
           </button>
         </header>
         <div className="beat-sheet-dialog-scroll">
-          {onRestore && (
-            <div className="beat-import-repair">
-              <p>
-                This draft was imported with scene-wide beat locations. Restore
-                the original line assignments from its Fountain file.
-              </p>
-              <button onClick={onRestore}>Restore original beat ranges…</button>
-            </div>
-          )}
           <BeatBoard
             doc={doc}
             onChange={onChange}

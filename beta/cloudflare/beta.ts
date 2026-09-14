@@ -1,8 +1,10 @@
 import { z } from "zod";
+export { LiveScreenplayRoom } from "./liveRoom";
 interface Fetcher {
   fetch(input: Request | string, init?: RequestInit): Promise<Response>;
 }
 export interface BetaEnvironment {
+  LIVE_ROOMS?: { idFromName(name: string): unknown; get(id: unknown): Fetcher };
   ASSETS: Fetcher;
   SHARED_API: Fetcher;
   BETA_ORIGIN: string;
@@ -215,7 +217,7 @@ export function createBetaWorker(network: typeof fetch = fetch) {
         );
         headers.set(
           "Content-Security-Policy",
-          `default-src 'self'; script-src 'self' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://www.gstatic.com https://ssl.gstatic.com; font-src 'self'; connect-src https://apis.google.com https://www.googleapis.com 'self' ${env.API_ORIGIN}; worker-src 'self' blob:; frame-src blob: https://docs.google.com https://drive.google.com https://accounts.google.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`,
+          `default-src 'self'; script-src 'self' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://www.gstatic.com https://ssl.gstatic.com; font-src 'self'; connect-src wss://api.fountain-publisher.com https://apis.google.com https://www.googleapis.com 'self' ${env.API_ORIGIN}; worker-src 'self' blob:; frame-src blob: https://docs.google.com https://drive.google.com https://accounts.google.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`,
         );
         return new Response(response.body, {
           status: response.status,
@@ -246,6 +248,14 @@ export function createBetaWorker(network: typeof fetch = fetch) {
       try {
         const route = url.pathname.slice("/beta/api".length);
         const query = Object.fromEntries(url.searchParams);
+        const liveRoute = route.match(
+          /^\/collaboration\/([A-Za-z0-9_-]{10,200})\/(bootstrap|connect|checkpoint|recovery)$/,
+        );
+        if (liveRoute && liveRoute[2] === "connect" && !allowed)
+          throw new HttpError(
+            403,
+            "Open shared writing from Fountain Publisher beta.",
+          );
         if (
           !["GET", "HEAD"].includes(request.method) &&
           (!allowed ||
@@ -265,6 +275,55 @@ export function createBetaWorker(network: typeof fetch = fetch) {
         };
         const upstreamJson = async (route: string, init?: RequestInit) =>
           await (await checked(await shared(route, init))).json();
+        if (liveRoute) {
+          if (!env.LIVE_ROOMS)
+            throw new HttpError(
+              503,
+              "Live collaboration is being configured. Your draft is kept.",
+            );
+          const [, fileId, action] = liveRoute;
+          if (
+            action === "connect" &&
+            (request.method !== "GET" ||
+              request.headers.get("upgrade")?.toLowerCase() !== "websocket")
+          )
+            throw new HttpError(426, "A live connection is required.");
+          if (
+            (action === "bootstrap" || action === "checkpoint") &&
+            request.method !== "POST"
+          )
+            throw new HttpError(405, "Method not allowed.");
+          if (action === "recovery" && (!allowed || request.method !== "GET"))
+            throw new HttpError(
+              403,
+              "Open recovery from Fountain Publisher beta.",
+            );
+          const room = env.LIVE_ROOMS.get(
+            env.LIVE_ROOMS.idFromName(`structured-v1:${fileId}`),
+          );
+          const headers = new Headers({
+            cookie: request.headers.get("cookie") ?? "",
+            origin: env.BETA_ORIGIN,
+          });
+          if (action === "connect") headers.set("Upgrade", "websocket");
+          const target = new URL(`https://room.internal/${action}`);
+          target.searchParams.set("fileId", fileId);
+          if (url.searchParams.has("clientId"))
+            target.searchParams.set(
+              "clientId",
+              url.searchParams.get("clientId")!,
+            );
+          const response = await room.fetch(
+            new Request(target, {
+              method: request.method,
+              headers,
+              ...(request.method === "POST"
+                ? { body: JSON.stringify(await body()) }
+                : {}),
+            }),
+          );
+          return response.status === 101 ? response : cors(response);
+        }
         if (route === "/status" && request.method === "GET") {
           const [gh, google] = await Promise.all([
             shared("/api/session"),
@@ -293,6 +352,7 @@ export function createBetaWorker(network: typeof fetch = fetch) {
             cookie(request, "fp_beta_csrf") || crypto.randomUUID();
           const response = json({
             csrfToken,
+            collaboration: true,
             github: await info(gh, "github"),
             google: await info(google, "google"),
             sharedInfrastructure: true,
@@ -604,6 +664,29 @@ export function createBetaWorker(network: typeof fetch = fetch) {
                 ),
             })
             .parse(await body());
+          if (env.LIVE_ROOMS) {
+            const room = env.LIVE_ROOMS.get(
+              env.LIVE_ROOMS.idFromName(`structured-v1:${q.id}`),
+            );
+            return cors(
+              await room.fetch(
+                new Request(
+                  `https://room.internal/plain-save?fileId=${encodeURIComponent(q.id)}`,
+                  {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Cookie: request.headers.get("cookie") ?? "",
+                    },
+                    body: JSON.stringify({
+                      expectedContent: q.content,
+                      etag: q.etag,
+                    }),
+                  },
+                ),
+              ),
+            );
+          }
           const before = await metadata(q.id);
           if (!before.capabilities?.canEdit)
             throw new HttpError(
