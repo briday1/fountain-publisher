@@ -452,10 +452,16 @@ export default function App() {
     });
   }
   function startBeatAssignment(id = "") {
+    const enteringScreenplay = mode !== "screenplay";
     setAssigningBeat(id);
     setNewBeatTitle("");
     setMode("screenplay");
-    requestAnimationFrame(() => editor.current?.focus());
+    if (enteringScreenplay)
+      requestAnimationFrame(() => {
+        // The departing beat sheet loses focus. Never steal it if the writer
+        // has already moved into the assignment fields on the newly shown page.
+        if (document.activeElement === document.body) editor.current?.focus();
+      });
   }
   function assignBeatRange(beatId: string, range: BeatRange): boolean {
     if (!session) return false;

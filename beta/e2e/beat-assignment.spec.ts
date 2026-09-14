@@ -36,8 +36,34 @@ test("native selected lines bind beats, follow earlier writing, undo, and reload
   await expect
     .poll(() => page.evaluate(() => window.getSelection()?.toString()))
     .toBe("ree fou");
+  await page.evaluate(() => {
+    const original = window.requestAnimationFrame;
+    const callbacks: (() => void)[] = [];
+    window.requestAnimationFrame = (callback) =>
+      original((time) => callbacks.push(() => callback(time)));
+    (
+      window as unknown as { finishAssignmentFrames: () => Promise<void> }
+    ).finishAssignmentFrames = () =>
+      new Promise((resolve) =>
+        original(() => {
+          window.requestAnimationFrame = original;
+          callbacks.splice(0).forEach((callback) => callback());
+          resolve();
+        }),
+      );
+  });
   await page.getByRole("button", { name: "Assign beat", exact: true }).click();
-  await page.getByRole("textbox", { name: "New beat title" }).fill("The turn");
+  const beatTitle = page.getByRole("textbox", { name: "New beat title" });
+  await beatTitle.focus();
+  // Even a delayed canvas focus callback must not pull typing out of this field.
+  await page.evaluate(() =>
+    (
+      window as unknown as { finishAssignmentFrames: () => Promise<void> }
+    ).finishAssignmentFrames(),
+  );
+  await expect(beatTitle).toBeFocused();
+  await beatTitle.fill("The turn");
+  await expect(editor).toContainText("Three four.");
   await page
     .getByRole("button", { name: "Assign selected lines", exact: true })
     .click();
