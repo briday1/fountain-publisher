@@ -350,14 +350,6 @@ export function CharacterAnalytics({
             />
             {selected ? (
               <>
-                <rect
-                  x={0.5}
-                  y={0.5}
-                  width={width - 1}
-                  height={headerHeight - 1}
-                  fill="none"
-                  stroke={colors.border}
-                />
                 <text x={12} y={20} fontSize={12}>
                   {fit(selected.heading, 130, 12)}
                 </text>
@@ -565,9 +557,9 @@ export function CharacterAnalytics({
             })}
             <rect
               x={0.5}
-              y={0.5}
+              y={selected ? headerHeight + 0.5 : 0.5}
               width={width - 1}
-              height={height - 1}
+              height={height - (selected ? headerHeight : 0) - 1}
               fill="none"
               stroke={colors.grid}
               pointerEvents="none"
