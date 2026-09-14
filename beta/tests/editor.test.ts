@@ -53,6 +53,31 @@ function select(editor: EditorController, from: number, to = from): void {
 function type(editor: EditorController, text: string): void {
   editor.view.dispatch(editor.view.state.tr.insertText(text));
 }
+it("excludes character cues from spellcheck while retaining typing corrections and prose settings", () => {
+  const editor = create([
+    ["character", "ZYLARA"],
+    ["dialogue", "An ordinary sentence."],
+  ]);
+  const root = editor.view.dom;
+  expect(root.getAttribute("autocorrect")).toBe("on");
+  expect(root.getAttribute("spellcheck")).toBe("true");
+  expect(
+    root.querySelector('[data-kind="character"]')?.getAttribute("spellcheck"),
+  ).toBe("false");
+  expect(
+    root.querySelector('[data-kind="dialogue"]')?.hasAttribute("spellcheck"),
+  ).toBe(false);
+  select(editor, 1);
+  editor.setKind("action");
+  expect(
+    root.querySelector('[data-kind="action"]')?.hasAttribute("spellcheck"),
+  ).toBe(false);
+  editor.setKind("character");
+  expect(
+    root.querySelector('[data-kind="character"]')?.getAttribute("spellcheck"),
+  ).toBe("false");
+  expect(root.getAttribute("autocorrect")).toBe("on");
+});
 function enter(editor: EditorController): void {
   screenplayEnter(editor.view.state, editor.view.dispatch, editor.view);
 }
