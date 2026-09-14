@@ -1,0 +1,105 @@
+@import "prosemirror-view/style/prosemirror.css";
+
+.screenplay-editor {
+  position: relative;
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  font-family: "Courier Prime", "Courier New", monospace;
+  font-size: 16px;
+  line-height: 1.45;
+  tab-size: 4;
+  min-height: 800px;
+  caret-color: currentColor;
+}
+.screenplay-editor p {
+  margin: 0 0 1.35em;
+  min-height: 1.45em;
+}
+.screenplay-editor p[data-kind="scene"] {
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-top: 1.9em;
+}
+.screenplay-editor p[data-kind="scene"]:first-child {
+  margin-top: 0;
+}
+.screenplay-editor p[data-kind="character"] {
+  text-transform: uppercase;
+  margin-left: 37%;
+  margin-right: 7%;
+  margin-bottom: 0;
+}
+.screenplay-editor p[data-kind="dialogue"] {
+  margin-left: 20%;
+  margin-right: 19%;
+}
+.screenplay-editor p[data-kind="parenthetical"] {
+  margin-left: 29%;
+  margin-right: 25%;
+  margin-bottom: 0;
+}
+.screenplay-editor p[data-kind="dialogue"]:has(+ p[data-kind="parenthetical"]) {
+  margin-bottom: 0;
+}
+.screenplay-editor p[data-kind="transition"] {
+  text-align: right;
+  text-transform: uppercase;
+}
+.screenplay-editor p[data-kind="centered"] {
+  text-align: center;
+}
+.screenplay-editor p[data-kind="section"] {
+  font-family: var(--font-ui, system-ui, sans-serif);
+  font-size: 1.05em;
+  font-weight: 700;
+  color: var(--accent, #a77b3e);
+  margin-top: 2em;
+}
+.screenplay-editor p[data-kind="synopsis"],
+.screenplay-editor p[data-kind="note"] {
+  color: var(--muted, #807c73);
+  font-style: italic;
+  border-left: 2px solid var(--accent, #a77b3e);
+  padding-left: 1em;
+}
+.screenplay-editor p[data-kind="boneyard"] {
+  color: var(--muted, #807c73);
+  background: color-mix(in srgb, currentColor 5%, transparent);
+  border-left: 2px dashed currentColor;
+  padding-left: 1em;
+}
+.screenplay-editor p[data-kind="lyrics"] {
+  font-style: italic;
+}
+.screenplay-editor p[data-kind="pageBreak"] {
+  border-bottom: 1px dashed var(--muted, #aaa);
+  height: 1.45em;
+  color: transparent;
+}
+.screenplay-editor .search-match {
+  background: #d9a84840;
+  border-bottom: 1px solid #c58b26;
+}
+.screenplay-editor .ProseMirror-selectednode {
+  outline: 2px solid var(--accent, #a77b3e);
+}
+.screenplay-editor ::selection {
+  background: #bc8c4940;
+}
+@media (max-width: 640px) {
+  .screenplay-editor {
+    font-size: 14px;
+  }
+  .screenplay-editor p[data-kind="character"] {
+    margin-left: 28%;
+  }
+  .screenplay-editor p[data-kind="dialogue"] {
+    margin-left: 10%;
+    margin-right: 10%;
+  }
+  .screenplay-editor p[data-kind="parenthetical"] {
+    margin-left: 19%;
+    margin-right: 16%;
+  }
+}

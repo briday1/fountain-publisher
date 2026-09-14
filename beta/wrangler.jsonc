@@ -1,0 +1,38 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fountain-publisher-beta",
+  "main": "cloudflare/beta.ts",
+  "account_id": "7d2c102e83d54e0c10abed8a3253dc20",
+  "compatibility_date": "2026-09-14",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "beta.fountain-publisher.com", "custom_domain": true },
+    {
+      "pattern": "api.fountain-publisher.com/beta/*",
+      "zone_name": "fountain-publisher.com",
+    },
+    {
+      "pattern": "api.fountain-publisher.com/auth/github/callback",
+      "zone_name": "fountain-publisher.com",
+    },
+    {
+      "pattern": "api.fountain-publisher.com/auth/google/callback",
+      "zone_name": "fountain-publisher.com",
+    },
+  ],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true,
+  },
+  "services": [{ "binding": "SHARED_API", "service": "fountain-publisher" }],
+  "vars": {
+    "BETA_ORIGIN": "https://beta.fountain-publisher.com",
+    "SHARED_ORIGIN": "https://fountain-publisher.com",
+    "API_ORIGIN": "https://api.fountain-publisher.com",
+    "BETA_ASSET_ORIGIN": "https://fountain-publisher.com/previews/beta",
+  },
+  "observability": { "enabled": true },
+}
