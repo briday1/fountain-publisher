@@ -2,6 +2,7 @@ import {
   Children,
   cloneElement,
   isValidElement,
+  useEffect,
   useRef,
   useState,
 } from "react";
@@ -47,6 +48,9 @@ export function ApplicationMenu({
   const [open, setOpen] = useState(false);
   const [section, setSection] = useState<Section>("File");
   const trigger = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!mobile) setOpen(false);
+  }, [mobile]);
   const close = () => {
     setOpen(false);
     trigger.current?.focus();
@@ -73,7 +77,7 @@ export function ApplicationMenu({
         node.props.onClick?.();
       },
     });
-  Children.forEach(children, (child, index) => {
+  Children.forEach(open ? children : null, (child, index) => {
     if (!isValidElement(child)) return;
     const menu = child as Command;
     if (menu.type !== Menu) {
