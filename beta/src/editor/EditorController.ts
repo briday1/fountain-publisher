@@ -183,9 +183,32 @@ export class EditorController {
       dispatchTransaction: (transaction) => this.dispatch(transaction),
       handleDOMEvents: {
         keydown: (view, event) => {
-          if ((event as KeyboardEvent).isComposing || view.composing)
-            return true;
+          const key = event as KeyboardEvent;
+          if (key.isComposing || view.composing) return true;
           syncNativeSelection(view);
+          if (
+            !key.shiftKey &&
+            !key.altKey &&
+            !key.ctrlKey &&
+            !key.metaKey &&
+            (key.key === "ArrowLeft" || key.key === "ArrowRight") &&
+            !view.state.selection.empty
+          ) {
+            // Collapse in the same key event. Leaving this to the browser opens
+            // a window where a presence redraw can restore the old selection
+            // before its delayed selectionchange event reaches ProseMirror.
+            const forward = key.key === "ArrowRight";
+            const boundary = forward
+              ? view.state.selection.to
+              : view.state.selection.from;
+            const next = Selection.near(
+              view.state.doc.resolve(boundary),
+              forward ? -1 : 1,
+            );
+            key.preventDefault();
+            view.dispatch(view.state.tr.setSelection(next).scrollIntoView());
+            return true;
+          }
           return false;
         },
         beforeinput: (view, event) => {

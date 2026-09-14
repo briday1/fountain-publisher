@@ -113,6 +113,41 @@ function at(editor: EditorController, id: string, offset: number) {
 }
 
 describe("live screenplay editing", () => {
+  it.each(["ArrowLeft", "ArrowRight"])(
+    "collapses select-all synchronously on %s before a presence redraw",
+    (key) => {
+      const { a } = pair();
+      a.editor.focus();
+      a.editor.view.dispatch(
+        a.editor.view.state.tr.setSelection(
+          new AllSelection(a.editor.view.state.doc),
+        ),
+      );
+      const event = new KeyboardEvent("keydown", {
+        key,
+        bubbles: true,
+        cancelable: true,
+      });
+      a.editor.view.dom.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+      expect(a.editor.view.state.selection.empty).toBe(true);
+      expect(window.getSelection()!.isCollapsed).toBe(true);
+      const position =
+        key === "ArrowLeft" ? 1 : a.editor.view.state.doc.content.size - 1;
+      expect(a.editor.view.state.selection.from).toBe(position);
+      a.editor.view.dispatch(
+        a.editor.view.state.tr.setMeta(yCursorPluginKey, {
+          awarenessUpdated: true,
+        }),
+      );
+      type(a.editor, "Added ");
+      expect(a.current().blocks).toHaveLength(3);
+      expect(a.current().blocks[key === "ArrowLeft" ? 0 : 2].text).toContain(
+        "Added ",
+      );
+    },
+  );
+
   it("synchronizes native insertText input without keydown and preserves select-all through detach", () => {
     const { a } = pair();
     a.editor.focus();
