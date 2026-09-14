@@ -24,7 +24,7 @@
     box-shadow: none;
   }
 
-  .workspace-background-setting {
+  .settings-form > .workspace-background-setting {
     display: none;
   }
 }
