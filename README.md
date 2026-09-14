@@ -57,3 +57,5 @@ Pushes to `main` run the new application's unit/integration tests, browser suite
 The existing Cloudflare account service continues to own Google/GitHub OAuth and encrypted sessions. The `fountain-publisher-beta` Worker name and `/beta/api` URLs remain stable infrastructure identifiers for both app origins, preserving the existing live collaboration rooms. Worker changes are deployed separately from static builds; primary DNS and provider callback registrations stay in place.
 
 See [deployment and rollback](beta/docs/beta-deployment.md) before changing those bindings, routes or room namespaces.
+
+[Writing app notices](https://fountain-publisher.com/THIRD_PARTY_NOTICES.txt) are included in each build. [Third-party notices](src/fountain_publisher/web/THIRD_PARTY_NOTICES.md) cover the retained application and Python tools.

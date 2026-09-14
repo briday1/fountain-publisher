@@ -726,7 +726,7 @@ export default function App() {
     if (!current || !token) return;
     if (!cloud.collaborationSupported)
       throw new Error(
-        "Live collaboration is available on beta.fountain-publisher.com. This local server supports ordinary Google Drive open and save.",
+        "Live collaboration is available on fountain-publisher.com. This local server supports ordinary Google Drive open and save.",
       );
     const bootstrap = await cloud.liveBootstrap(fileId);
     const client = await LiveClient.prepare(bootstrap);

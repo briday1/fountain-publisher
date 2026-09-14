@@ -1,8 +1,9 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { offlineShell } from "./build-tools/offline";
+import { dependencyNotices } from "./build-tools/notices";
 export default defineConfig({
-  plugins: [react(), offlineShell()],
+  plugins: [react(), dependencyNotices(), offlineShell()],
   worker: { format: "es" },
   server: {
     port: 5173,

@@ -191,7 +191,13 @@ test("Zen mode leaves only work and compact view controls", async () => {
 
 test("production deployment cannot be displaced by PR cleanup", async () => {
   const workflow = await readFile(new URL("../../.github/workflows/pages-preview.yml", import.meta.url), "utf8");
-  assert.match(workflow, /concurrency:[\s\S]*group:\s*pages-\$\{\{ github\.event_name \}\}[\s\S]*cancel-in-progress:\s*false/);
+  const production = workflow.slice(workflow.indexOf("  deploy_production:"));
+  const beta = await readFile(new URL("../../.github/workflows/beta.yml", import.meta.url), "utf8");
+  assert.match(production, /if:.*github\.event_name != 'pull_request'.*github\.ref == 'refs\/heads\/main'/);
+  assert.match(production, /concurrency:[\s\S]*group:\s*pages-push\s*[\s\S]*cancel-in-progress:\s*false/);
+  assert.match(beta, /concurrency:[\s\S]*group:\s*pages-push\s*[\s\S]*cancel-in-progress:\s*false/);
+  assert.doesNotMatch(workflow, /cleanup_preview|deploy_preview|types:.*closed/);
+  assert.match(production, /ref:\s*gh-pages[\s\S]*rsync -a[\s\S]*--exclude='previews\/'[\s\S]*out\/ published\//);
 });
 
 test("desktop panel headers share a height and preview controls follow its title", async () => {
