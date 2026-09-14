@@ -38,6 +38,8 @@ export interface PdfExport {
   bytes: Uint8Array;
   pageCount: number;
   scriptPageCount: number;
+  /** Completed physical pages plus occupied eighths of the final script page. */
+  pageEquivalent: number;
   warnings: string[];
 }
 type Fonts = Record<"regular" | "bold" | "italic" | "boldItalic", PDFFont>;
@@ -234,7 +236,17 @@ export async function exportPdf(
   let y = top;
   let scriptPageCount = 0;
   let titlePageCount = 0;
+  let lastPageUsedRows = 0;
   const drawLine = (line: Line, atY: number, target: PDFPage = page) => {
+    // Measure the actual ink-bearing body rows. Cover text, running page numbers,
+    // and the compositor's trailing paragraph gaps do not advance this metric.
+    if (
+      scriptPageCount > 0 &&
+      target === page &&
+      atY <= top &&
+      line.glyphs.some((glyph) => /\S/.test(glyph.text))
+    )
+      lastPageUsedRows = Math.max(lastPageUsedRows, (top - atY) / leading + 1);
     let x =
       line.x +
       (line.align === "right"
@@ -289,6 +301,7 @@ export async function exportPdf(
   const newPage = () => {
     page = pdf.addPage([pageWidth, pageHeight]);
     y = top;
+    lastPageUsedRows = 0;
     scriptPageCount++;
     drawLine(
       textLines(`${scriptPageCount}.`, left, fullWidth, "right")[0],
@@ -553,6 +566,10 @@ export async function exportPdf(
     bytes,
     pageCount: pdf.getPageCount(),
     scriptPageCount: pdf.getPageCount() - titlePageCount,
+    pageEquivalent:
+      titlePageCount +
+      Math.max(0, scriptPageCount - 1) +
+      Math.min(1, Math.ceil((lastPageUsedRows / 55) * 8) / 8),
     warnings: [...warnings],
   };
 }

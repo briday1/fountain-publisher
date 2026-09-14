@@ -27,6 +27,21 @@ test("native selected lines bind beats, follow earlier writing, undo, and reload
   await expect(editor.locator('[data-kind="action"]')).toHaveText(
     "One two.\nThree four.\nFive six.",
   );
+  await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Beat sheet", exact: true });
+  await sheet.getByRole("button", { name: "Add beat", exact: true }).click();
+  await sheet
+    .getByRole("textbox", { name: "Beat 1 title", exact: true })
+    .fill("The turn");
+  await sheet
+    .getByRole("button", { name: "Assign beat 1 to screenplay", exact: true })
+    .click();
+  await expect(sheet).not.toBeVisible();
+  const guide = page.getByRole("region", {
+    name: "Writing beat guide",
+    exact: true,
+  });
+  await expect(guide).toContainText("The turn");
   await editor.locator('[data-kind="action"]').evaluate((node) => {
     const text = node.firstChild!;
     const selection = window.getSelection()!;
@@ -36,41 +51,18 @@ test("native selected lines bind beats, follow earlier writing, undo, and reload
   await expect
     .poll(() => page.evaluate(() => window.getSelection()?.toString()))
     .toBe("ree fou");
-  await page.evaluate(() => {
-    const original = window.requestAnimationFrame;
-    const callbacks: (() => void)[] = [];
-    window.requestAnimationFrame = (callback) =>
-      original((time) => callbacks.push(() => callback(time)));
-    (
-      window as unknown as { finishAssignmentFrames: () => Promise<void> }
-    ).finishAssignmentFrames = () =>
-      new Promise((resolve) =>
-        original(() => {
-          window.requestAnimationFrame = original;
-          callbacks.splice(0).forEach((callback) => callback());
-          resolve();
-        }),
-      );
-  });
-  await page.getByRole("button", { name: "Assign beat", exact: true }).click();
-  const beatTitle = page.getByRole("textbox", { name: "New beat title" });
-  await beatTitle.focus();
-  // Even a delayed canvas focus callback must not pull typing out of this field.
-  await page.evaluate(() =>
-    (
-      window as unknown as { finishAssignmentFrames: () => Promise<void> }
-    ).finishAssignmentFrames(),
-  );
-  await expect(beatTitle).toBeFocused();
-  await beatTitle.fill("The turn");
-  await expect(editor).toContainText("Three four.");
-  await page
-    .getByRole("button", { name: "Assign selected lines", exact: true })
+  // Opening and closing the sheet preserves the native editor selection.
+  await guide
+    .getByRole("button", { name: "Edit beat sheet", exact: true })
     .click();
-  await expect(
-    page.getByRole("region", { name: "Assign screenplay lines to a beat" }),
-  ).toHaveCount(0);
-  await page.getByRole("tab", { name: "Beat Sheet" }).click();
+  await sheet
+    .getByRole("button", { name: "Close dialog", exact: true })
+    .click();
+  await guide
+    .getByRole("button", { name: "Assign + Next", exact: true })
+    .click();
+  await expect(editor).toContainText("Three four.");
+  await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Show beat 1 lines 4–4" }),
   ).toBeVisible();
@@ -85,7 +77,7 @@ test("native selected lines bind beats, follow earlier writing, undo, and reload
   await page.keyboard.insertText("Earlier words. ");
   // Insert a new authored line before the assigned passage; its content remains bound.
   await page.keyboard.press("Shift+Enter");
-  await page.getByRole("tab", { name: "Beat Sheet" }).click();
+  await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Show beat 1 lines 5–5" }),
   ).toBeVisible();
@@ -94,15 +86,18 @@ test("native selected lines bind beats, follow earlier writing, undo, and reload
     .poll(() => page.evaluate(() => window.getSelection()?.toString()))
     .toBe("Three four.");
   await page.getByRole("button", { name: "Undo", exact: true }).first().click();
-  await page.getByRole("tab", { name: "Beat Sheet" }).click();
+  await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Show beat 1 lines 4–4" }),
   ).toBeVisible();
+  await sheet
+    .getByRole("button", { name: "Close dialog", exact: true })
+    .click();
   await expect(
     page.getByText("Saved on this device", { exact: true }),
   ).toBeVisible();
   await page.reload();
-  await page.getByRole("tab", { name: "Beat Sheet" }).click();
+  await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
   await page.getByRole("button", { name: "Show beat 1 lines 4–4" }).click();
   await expect
     .poll(() => page.evaluate(() => window.getSelection()?.toString()))

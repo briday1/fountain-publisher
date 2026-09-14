@@ -23,7 +23,7 @@ export function Help({ onClose }: { onClose: () => void }) {
             [`${mod} B / I / U`, "Bold / italic / underline"],
             [`${mod} F`, "Find and replace"],
             ["Tab / Shift Tab", "Next / previous element"],
-            ["Escape", "Close a dialog or leave focus mode"],
+            ["Escape", "Close a dialog or exit Zen mode"],
           ].map(([key, label]) => (
             <tr key={key}>
               <td>{label}</td>
@@ -40,9 +40,15 @@ export function Help({ onClose }: { onClose: () => void }) {
         embedded as standard Fountain comments.
       </p>
       <p>
-        PDF shows the exact exported pages. Return to Screenplay to continue
-        writing. Page and runtime estimates in Insights are labeled until an
-        export is compiled.
+        Open the beat sheet over your page, or turn on the beat guide to assign
+        screenplay lines as you write. Insights measures page usage from the
+        generated PDF, rounded up to an eighth of a page. View → PDF pages shows
+        the full export.
+      </p>
+      <p>
+        Full screen fills your display. Zen mode keeps just the page and any
+        active beat guide. Choose Exit Zen or press Escape to bring back your
+        tools; your writing stays where you left it.
       </p>
       <footer className="dialog-actions">
         <button className="primary" onClick={onClose}>

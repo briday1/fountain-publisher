@@ -69,13 +69,17 @@ test("deployed app reopens a saved draft and builds its PDF while offline", asyn
   await expect(editor).toHaveText(
     "The draft remains mine when the connection goes away.",
   );
-  await page.getByRole("tab", { name: "PDF", exact: true }).click();
+  await page.getByRole("button", { name: "View", exact: true }).click();
+  await page.getByRole("button", { name: "PDF pages", exact: true }).click();
   await expect(
     page.locator('iframe[title="Published screenplay PDF"]'),
   ).toBeVisible({
     timeout: 30000,
   });
-  await page.getByRole("tab", { name: "Screenplay", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Close dialog", exact: true })
+    .click();
   await editor.click();
   await page.keyboard.press(`${mod}+End`);
   await page.keyboard.insertText(" I can keep writing offline.");
@@ -86,7 +90,7 @@ test("deployed app reopens a saved draft and builds its PDF while offline", asyn
   await expect(editor).toContainText("I can keep writing offline.");
 });
 
-test("writing, native selection, undo, save, reload and view switching preserve content", async ({
+test("writing, native selection, undo, save, reload and overlays preserve content", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -119,19 +123,28 @@ test("writing, native selection, undo, save, reload and view switching preserve 
   await expect(editor).toContainText("Good night.");
   await page.keyboard.press(`${mod}+z`);
   await expect(editor).toContainText("Good morning.");
-  await page.getByRole("tab", { name: "Beat Sheet" }).click();
+  await page
+    .getByRole("toolbar", { name: "Writing controls" })
+    .getByRole("button", { name: "Beat sheet", exact: true })
+    .click();
   await page.getByRole("button", { name: "Add beat", exact: true }).click();
   await page
     .getByRole("textbox", { name: "Beat 1 title" })
     .fill("A new beginning");
-  await page.getByRole("tab", { name: "Screenplay", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Close dialog", exact: true })
+    .click();
   await expect(editor).toContainText("Good morning.");
   await expect(
     page.getByText("Saved on this device", { exact: true }),
   ).toBeVisible();
   await page.reload();
   await expect(editor).toContainText("Good morning.");
-  await page.getByRole("tab", { name: "Beat Sheet" }).click();
+  await page
+    .getByRole("toolbar", { name: "Writing controls" })
+    .getByRole("button", { name: "Beat sheet", exact: true })
+    .click();
   await expect(page.getByRole("textbox", { name: "Beat 1 title" })).toHaveValue(
     "A new beginning",
   );
@@ -171,11 +184,15 @@ test("PDF builds independently and save does not reset the editor undo history",
   await editor.click();
   await page.keyboard.press(`${mod}+End`);
   await page.keyboard.insertText(" Added at the end.");
-  await page.getByRole("tab", { name: "PDF", exact: true }).click();
+  await page.getByRole("button", { name: "View", exact: true }).click();
+  await page.getByRole("button", { name: "PDF pages", exact: true }).click();
   await expect(
     page.locator('iframe[title="Published screenplay PDF"]'),
   ).toBeVisible({ timeout: 30000 });
-  await page.getByRole("tab", { name: "Screenplay", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Close dialog", exact: true })
+    .click();
   await page.getByRole("button", { name: "Undo", exact: true }).first().click();
   await expect(editor).not.toContainText("Added at the end.");
 });
@@ -228,7 +245,8 @@ test("title presentation and heading preferences retain the active editor and it
   await page.keyboard.press("Enter");
   await page.keyboard.type("A voice finds its way home.");
   const originalEditor = await editor.elementHandle();
-  await page.getByRole("button", { name: "Title page", exact: true }).click();
+  await page.getByRole("button", { name: "Insert", exact: true }).click();
+  await page.getByRole("button", { name: "Title page…", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Title page", exact: true });
   await dialog
     .getByRole("textbox", { name: "Title", exact: true })

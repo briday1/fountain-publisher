@@ -31,7 +31,10 @@ test("beat flow retains editing and shows cumulative pacing with a PNG export", 
       .getByRole("textbox", { name: "Screenplay editor" })
       .locator('[data-kind="scene"]'),
   ).toHaveCount(3);
-  await page.getByRole("tab", { name: "Beat Sheet" }).click();
+  await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Beat sheet", exact: true });
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toHaveCSS("width", "816px");
   await page
     .getByRole("textbox", { name: "Premise", exact: true })
     .fill("A writer follows a voice through three rooms.");
@@ -135,11 +138,15 @@ test("beat flow retains editing and shows cumulative pacing with a PNG export", 
   await expect(page.getByRole("combobox", { name: "Beat 1 act" })).toHaveValue(
     "Act II",
   );
+  await page
+    .getByRole("dialog", { name: "Beat sheet", exact: true })
+    .getByRole("button", { name: "Close dialog", exact: true })
+    .click();
   await expect(
     page.getByText("Saved on this device", { exact: true }),
   ).toBeVisible();
   await page.reload();
-  await page.getByRole("tab", { name: "Beat Sheet" }).click();
+  await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Beat 2 title" })).toHaveValue(
     "The voice",
   );
@@ -170,7 +177,7 @@ test("precise ranges distinguish two beats within one scene and reject invalid e
     ),
   });
   await expect(editor.locator('[data-kind="scene"]')).toHaveCount(1);
-  await page.getByRole("tab", { name: "Beat Sheet" }).click();
+  await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
   for (const [index, line] of [3, 5].entries()) {
     await page.getByRole("button", { name: "Add beat", exact: true }).click();
     await page
@@ -257,7 +264,11 @@ test("precise ranges distinguish two beats within one scene and reject invalid e
     .getByRole("button", { name: "Show assigned lines", exact: true })
     .click();
   await expect(editor).toBeVisible();
-  await page.getByRole("tab", { name: "Beat Sheet" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => window.getSelection()?.toString()))
+    .toBe("eight nine ten");
+  await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
   await page
     .getByRole("button", { name: "Beat 2 details", exact: true })
     .click();
@@ -267,11 +278,15 @@ test("precise ranges distinguish two beats within one scene and reject invalid e
   await expect(
     page.getByRole("button", { name: "Show beat 2 lines 5–5", exact: true }),
   ).not.toBeVisible();
+  await page
+    .getByRole("dialog", { name: "Beat sheet", exact: true })
+    .getByRole("button", { name: "Close dialog", exact: true })
+    .click();
   await expect(
     page.getByText("Saved on this device", { exact: true }),
   ).toBeVisible();
   await page.reload();
-  await page.getByRole("tab", { name: "Beat Sheet" }).click();
+  await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Show beat 1 lines 3–3", exact: true }),
   ).toBeVisible();
@@ -288,12 +303,19 @@ test("beat rows and graph controls remain usable on a narrow screen", async ({
   await expect(
     page.getByRole("textbox", { name: "Screenplay editor" }),
   ).toBeVisible();
-  await page.getByRole("tab", { name: "Beat Sheet" }).click();
-  await page.getByRole("button", { name: "Beat guide", exact: true }).click();
+  await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Beat sheet", exact: true });
+  await sheet.getByRole("button", { name: "Beat guide", exact: true }).click();
   await page
     .getByRole("button", { name: "Add story structure", exact: true })
     .click();
   await expect(page.locator(".beat-flow-row")).toHaveCount(15);
+  await expect(sheet).toHaveCSS("overflow", "hidden");
+  await expect(page.locator(".beat-sheet-dialog-scroll")).toHaveCSS(
+    "overscroll-behavior",
+    "contain",
+  );
+  await expect(page.locator("body")).toHaveCSS("overflow", "hidden");
   await page
     .getByRole("textbox", { name: "Beat 1 title", exact: true })
     .fill("A new opening");
@@ -323,7 +345,15 @@ test("beat rows and graph controls remain usable on a narrow screen", async ({
   });
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
+  await expect(sheet).toBeVisible();
+  await expect(page.locator("body")).toHaveCSS("overflow", "hidden");
   await expect(
     page.getByRole("textbox", { name: "Beat 1 title", exact: true }),
   ).toHaveValue("A new opening");
+  await page.keyboard.press("Escape");
+  await expect(sheet).not.toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Screenplay editor" }),
+  ).toBeVisible();
+  await expect(page.locator("body")).not.toHaveCSS("overflow", "hidden");
 });

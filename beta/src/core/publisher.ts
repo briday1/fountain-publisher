@@ -9,6 +9,7 @@ const jobs = new Map<
       bytes: Uint8Array;
       pageCount: number;
       scriptPageCount: number;
+      pageEquivalent: number;
       warnings: string[];
     }) => void;
     reject: (e: Error) => void;
@@ -22,6 +23,7 @@ export function publishPdf(
   bytes: Uint8Array;
   pageCount: number;
   scriptPageCount: number;
+  pageEquivalent: number;
   warnings: string[];
 }> {
   if (!worker) {

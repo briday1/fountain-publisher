@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { CSSProperties } from "react";
 import {
-  AlignLeft,
   ArrowDown,
   ArrowUp,
   BarChart3,
-  Bold,
   BookOpen,
   Check,
   ChevronLeft,
@@ -14,15 +19,9 @@ import {
   FileText,
   FolderOpen,
   Github,
-  Italic,
-  Maximize2,
-  Minimize2,
-  PanelLeft,
   Plus,
   Redo2,
   Search,
-  Settings2,
-  Underline,
   Undo2,
   X,
 } from "lucide-react";
@@ -49,7 +48,9 @@ import type { CloudDocument, Provider } from "./storage/cloud";
 import { EditorSurface } from "./components/EditorSurface";
 import { CharacterDialog } from "./components/CharacterDialog";
 import { CharacterAnalytics } from "./components/CharacterAnalytics";
-import { BeatBoard } from "./components/BeatBoard";
+import { BeatSheetDialog } from "./components/BeatSheetDialog";
+import { WritingToolbar } from "./components/WritingToolbar";
+import { formatPageCount } from "./core/pageCount";
 import { BeatGuide } from "./components/BeatGuide";
 import { Settings, readPreferences } from "./components/Settings";
 import { TitleDialog } from "./components/TitleDialog";
@@ -69,12 +70,8 @@ export default function App() {
   const sessionRef = useRef<DocumentSession | undefined>(undefined);
   const [snapshot, setSnapshot] = useState<SessionSnapshot>();
   const [preferences, setPreferences] = useState(readPreferences);
-  const [mode, setMode] = useState<"screenplay" | "beats" | "pdf">(
-    "screenplay",
-  );
   const [kind, setKind] = useState<BlockKind>("action");
-  const [assigningBeat, setAssigningBeat] = useState<string | null>(null);
-  const [newBeatTitle, setNewBeatTitle] = useState("");
+  const [guideTarget, setGuideTarget] = useState<string>();
   const [beatGuide, setBeatGuide] = useState(() => {
     try {
       return localStorage.getItem("fp2.beatGuide") === "true";
@@ -90,6 +87,8 @@ export default function App() {
     | "history"
     | "rename"
     | "characters"
+    | "beats"
+    | "pdf"
     | null
   >(null);
   const [cloudDialog, setCloudDialog] = useState<{
@@ -101,6 +100,12 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [character, setCharacter] = useState<string | null>(null);
   const [zen, setZen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(!!document.fullscreenElement);
+  useEffect(() => {
+    const update = () => setFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", update);
+    return () => document.removeEventListener("fullscreenchange", update);
+  }, []);
   const [busy, setBusy] = useState(false);
   const [pdfUrl, setPdfUrl] = useState("");
   const [pdfError, setPdfError] = useState("");
@@ -111,6 +116,7 @@ export default function App() {
     epoch: number;
     id: string;
     pages: number;
+    equivalent: number;
     options: string;
   }>();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -124,8 +130,14 @@ export default function App() {
   const [rename, setRename] = useState("");
   const editor = useRef<EditorController | null>(null);
   const file = useRef<FileHandle | undefined>(undefined);
-  const latest = useRef({ preferences, mode });
-  latest.current = { preferences, mode };
+  const latest = useRef({ preferences, zen });
+  latest.current = { preferences, zen };
+  useLayoutEffect(() => {
+    const view = editor.current?.view;
+    // Reflow can move the caret far down a long paragraph. Reveal the current
+    // selection after the room has resized, without taking focus from a control.
+    if (view?.hasFocus()) view.dispatch(view.state.tr.scrollIntoView());
+  }, [zen, fullscreen]);
   const pdfGeneration = useRef(0);
   const pdfBuildQueue = useRef<Promise<void>>(Promise.resolve());
   const pdfResult = useRef<{
@@ -183,6 +195,7 @@ export default function App() {
       epoch: published.epoch,
       options,
       pages: result.pageCount,
+      equivalent: result.pageEquivalent,
     });
     setPdfError("");
     setPdfWorking(false);
@@ -196,8 +209,7 @@ export default function App() {
     }
   }, [beatGuide]);
   useEffect(() => {
-    setAssigningBeat(null);
-    setNewBeatTitle("");
+    setGuideTarget(undefined);
   }, [snapshot?.id]);
   function tell(message: string) {
     setNotice(message);
@@ -387,7 +399,7 @@ export default function App() {
     const parsed = parseFountain(result.content);
     await session.open(parsed, result.name);
     file.current = result.handle;
-    setMode("screenplay");
+    setDialog(null);
   }
   async function saveLocal(as = false) {
     if (!session) return;
@@ -430,12 +442,12 @@ export default function App() {
     if (!session) return;
     await session.open(emptyScreenplay(), "Untitled.fountain");
     file.current = undefined;
-    setMode("screenplay");
+    setDialog(null);
     editor.current?.focus();
   }
   const changeDoc = (doc: Screenplay) => session?.updateMetadata(doc);
   function showBeatRange(range: BeatRange) {
-    setMode("screenplay");
+    setDialog(null);
     if (matchMedia("(max-width: 950px)").matches)
       setPreferences((value) => ({
         ...value,
@@ -451,17 +463,10 @@ export default function App() {
         );
     });
   }
-  function startBeatAssignment(id = "") {
-    const enteringScreenplay = mode !== "screenplay";
-    setAssigningBeat(id);
-    setNewBeatTitle("");
-    setMode("screenplay");
-    if (enteringScreenplay)
-      requestAnimationFrame(() => {
-        // The departing beat sheet loses focus. Never steal it if the writer
-        // has already moved into the assignment fields on the newly shown page.
-        if (document.activeElement === document.body) editor.current?.focus();
-      });
+  function startBeatAssignment(id: string) {
+    setGuideTarget(id);
+    setBeatGuide(true);
+    setDialog(null);
   }
   function assignBeatRange(beatId: string, range: BeatRange): boolean {
     if (!session) return false;
@@ -487,56 +492,15 @@ export default function App() {
     editor.current?.focusRange({ start: range.end, end: range.end });
     return true;
   }
-  function assignSelectedLines() {
-    if (!session || !editor.current) return;
-    const range = editor.current.selectedLines();
-    const current = session.capture().screenplay;
-    const resolved = range && resolveBeatRange(current, range);
-    if (!range || !resolved) {
-      tell("Select the screenplay lines you want to assign.");
-      return;
-    }
-    const existing = current.metadata.beats.find(
-      (beat) => beat.id === assigningBeat,
-    );
-    const beatTitle = existing?.title || newBeatTitle.trim();
-    if (!existing && !beatTitle) {
-      tell("Give the new beat a title, or choose an existing beat.");
-      return;
-    }
-    const beats = existing
-      ? current.metadata.beats.map((beat) =>
-          beat.id === existing.id
-            ? { ...beat, range, sceneId: undefined }
-            : beat,
-        )
-      : [
-          ...current.metadata.beats,
-          {
-            id: newId(),
-            title: beatTitle,
-            description: "",
-            act: "Act I",
-            color: "#75a8ed",
-            range,
-          },
-        ];
-    changeDoc({ ...current, metadata: { ...current.metadata, beats } });
-    setAssigningBeat(null);
-    tell(
-      `${beatTitle || "Beat"} assigned to ${resolved.startLine === resolved.endLine ? `line ${resolved.startLine}` : `lines ${resolved.startLine}–${resolved.endLine}`} · ${resolved.words.toLocaleString()} words before this beat.`,
-    );
-    editor.current.focusRange(range);
-  }
   function insert(k: BlockKind) {
-    setMode("screenplay");
+    setDialog(null);
     editor.current?.insertBlock(
       k,
       k === "scene" ? "INT. " : k === "parenthetical" ? "()" : "",
     );
   }
   function scene(id: string) {
-    setMode("screenplay");
+    setDialog(null);
     if (matchMedia("(max-width: 950px)").matches)
       setPreferences((value) => ({
         ...value,
@@ -563,7 +527,7 @@ export default function App() {
     if (!session) return;
     await session.open(parseFountain(doc.content), doc.name, doc.remote);
     file.current = undefined;
-    setMode("screenplay");
+    setDialog(null);
   }
   async function exportFile(
     format: "pdf" | "beatPdf" | "fdx" | "beats" | "html",
@@ -675,6 +639,14 @@ export default function App() {
     const key = (e: KeyboardEvent) => {
       if (e.isComposing) return;
       const cmd = e.metaKey || e.ctrlKey;
+      // Native dialogs own their in-progress fields. Global navigation must not
+      // dismiss them and discard a draft title or other unsaved form changes.
+      if (
+        cmd &&
+        ["o", "f"].includes(e.key.toLowerCase()) &&
+        document.querySelector("dialog[open]")
+      )
+        return;
       if (cmd && ["s", "o", "f"].includes(e.key.toLowerCase())) {
         e.preventDefault();
         if (e.key.toLowerCase() === "s")
@@ -685,13 +657,18 @@ export default function App() {
           );
         if (e.key.toLowerCase() === "o") void run(actions.current.openLocal);
         if (e.key.toLowerCase() === "f") {
-          setMode("screenplay");
+          setDialog(null);
           setSearchOpen(true);
         }
       }
       if (e.key === "Escape" && !document.querySelector("dialog[open]")) {
-        setSearchOpen(false);
-        setZen(false);
+        if (document.querySelector(".search-panel")) {
+          setSearchOpen(false);
+          editor.current?.focus();
+        } else if (latest.current.zen) {
+          setZen(false);
+          editor.current?.focus();
+        }
       }
     };
     window.addEventListener("keydown", key);
@@ -709,14 +686,23 @@ export default function App() {
     pdfPages?.epoch === session.token().epoch &&
     pdfPages.id === snapshot.id &&
     pdfPages.options === pdfOptionsKey;
-  const pages = exact ? pdfPages.pages : "…";
-  const title =
-    doc.titlePage.title || snapshot.name.replace(/\.fountain$/i, "");
-  const switchMode = (next: typeof mode) => {
+  const pages = exact ? formatPageCount(pdfPages.equivalent) : "…";
+  const openView = (next: "beats" | "pdf") => {
     session.capture();
     setSnapshot({ ...session.current });
-    setMode(next);
-    if (next !== "screenplay") setAssigningBeat(null);
+    if (next === "beats") setGuideTarget(undefined);
+    setDialog(next);
+  };
+  const toggleFullscreen = () => {
+    void (async () => {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    })().catch(report);
+  };
+  const toggleZen = () => {
+    setZen(!zen);
+    setSearchOpen(false);
+    editor.current?.focus();
   };
   const openIntegration = (
     provider: Provider,
@@ -739,7 +725,7 @@ export default function App() {
         href="#writing-area"
         onClick={(e) => {
           e.preventDefault();
-          setMode("screenplay");
+          setDialog(null);
           editor.current?.focus();
         }}
       >
@@ -822,7 +808,7 @@ export default function App() {
             <hr />
             <MenuItem
               onClick={() => {
-                setMode("screenplay");
+                setDialog(null);
                 setSearchOpen(true);
               }}
               shortcut={`${mod}F`}
@@ -862,23 +848,14 @@ export default function App() {
               {preferences.insights ? "Hide" : "Show"} insights
             </MenuItem>
             <hr />
-            <MenuItem onClick={() => switchMode("screenplay")}>
-              Screenplay
-            </MenuItem>
-            <MenuItem onClick={() => switchMode("beats")}>Beat sheet</MenuItem>
-            <MenuItem onClick={() => switchMode("pdf")}>PDF pages</MenuItem>
+            <MenuItem onClick={() => openView("beats")}>Beat sheet</MenuItem>
+            <MenuItem onClick={() => openView("pdf")}>PDF pages</MenuItem>
             <hr />
-            <MenuItem onClick={() => setZen(!zen)}>Focus mode</MenuItem>
-            <MenuItem
-              onClick={() =>
-                void run(async () => {
-                  if (document.fullscreenElement)
-                    await document.exitFullscreen();
-                  else await document.documentElement.requestFullscreen();
-                })
-              }
-            >
-              Toggle full screen
+            <MenuItem onClick={toggleZen}>
+              {zen ? "Exit Zen mode" : "Enter Zen mode"}
+            </MenuItem>
+            <MenuItem onClick={toggleFullscreen}>
+              {fullscreen ? "Exit full screen" : "Full screen"}
             </MenuItem>
           </Menu>
           <Menu label="Insert">
@@ -1046,193 +1023,36 @@ export default function App() {
           </>
         )}
         <main className="main-panel" id="writing-area">
-          <div className="workspace-toolbar">
-            <div
-              className="view-tabs"
-              role="tablist"
-              aria-label="Workspace view"
-            >
-              {(["screenplay", "beats", "pdf"] as const).map((m) => (
-                <button
-                  key={m}
-                  role="tab"
-                  aria-selected={mode === m}
-                  onClick={() => switchMode(m)}
-                >
-                  {m === "screenplay"
-                    ? "Screenplay"
-                    : m === "beats"
-                      ? "Beat Sheet"
-                      : "PDF"}
-                </button>
-              ))}
-            </div>
-            <div className="spacer" />
-            <div className="zoom-controls">
+          {zen && (
+            <div className="zen-controls">
               <button
-                aria-label="Zoom out"
-                onClick={() =>
-                  setPreferences({
-                    ...preferences,
-                    zoom: Math.max(60, preferences.zoom - 10),
-                  })
-                }
+                className="zen-exit"
+                aria-label="Exit Zen"
+                onClick={toggleZen}
               >
-                −
-              </button>
-              <select
-                aria-label="Page zoom"
-                value={preferences.zoom}
-                onChange={(e) =>
-                  setPreferences({
-                    ...preferences,
-                    zoom: Number(e.target.value),
-                  })
-                }
-              >
-                {Array.from(
-                  new Set([
-                    60,
-                    70,
-                    80,
-                    90,
-                    100,
-                    110,
-                    120,
-                    125,
-                    130,
-                    140,
-                    150,
-                    175,
-                    200,
-                    preferences.zoom,
-                  ]),
-                )
-                  .sort((a, b) => a - b)
-                  .map((z) => (
-                    <option key={z} value={z}>
-                      {z}%
-                    </option>
-                  ))}
-              </select>
-              <button
-                aria-label="Zoom in"
-                onClick={() =>
-                  setPreferences({
-                    ...preferences,
-                    zoom: Math.min(200, preferences.zoom + 10),
-                  })
-                }
-              >
-                +
+                <ChevronLeft size={14} aria-hidden="true" />
+                Exit Zen <kbd>Esc</kbd>
               </button>
             </div>
-            <button
-              className="icon-button"
-              title="Toggle outline"
-              aria-label="Toggle outline"
-              aria-pressed={preferences.outline}
-              onClick={() =>
-                setPreferences({
-                  ...preferences,
-                  outline: !preferences.outline,
-                  ...(innerWidth <= 950 ? { insights: false } : {}),
-                })
-              }
-            >
-              <PanelLeft size={17} />
-            </button>
-            <button
-              className="insights-toggle"
-              aria-label="Insights"
-              aria-pressed={preferences.insights}
-              onClick={() =>
-                setPreferences({
-                  ...preferences,
-                  insights: !preferences.insights,
-                  ...(innerWidth <= 950 ? { outline: false } : {}),
-                })
-              }
-            >
-              <BarChart3 size={16} />
-              <span>Insights</span>
-            </button>
-            <button
-              className="icon-button"
-              aria-label={zen ? "Leave focus mode" : "Enter focus mode"}
-              onClick={() => setZen(!zen)}
-            >
-              {zen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-            </button>
-          </div>
-          <div
-            className={`format-toolbar ${mode !== "screenplay" ? "invisible-toolbar" : ""}`}
-          >
-            <select
-              aria-label="Screenplay element"
-              value={kind}
-              onChange={(e) =>
-                editor.current?.setKind(e.target.value as BlockKind)
-              }
-            >
-              {Object.entries(blockLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-            <span className="toolbar-divider" />
-            {(
-              [
-                ["bold", Bold],
-                ["italic", Italic],
-                ["underline", Underline],
-              ] as const
-            ).map(([mark, Icon]) => (
-              <button
-                className="icon-button"
-                key={mark}
-                aria-label={mark[0].toUpperCase() + mark.slice(1)}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => editor.current?.toggleMark(mark)}
-              >
-                <Icon size={15} />
-              </button>
-            ))}
-            <span className="toolbar-hint">
-              Tab to change element · Enter to continue
-            </span>
-            <div className="spacer" />
-            <button
-              className="assign-beat-button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => startBeatAssignment()}
-            >
-              Assign beat
-            </button>
-            <button
-              aria-pressed={beatGuide}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => setBeatGuide(!beatGuide)}
-            >
-              Beat guide
-            </button>
-            <button
-              className="icon-button"
-              aria-label="Find and replace"
-              onClick={() => setSearchOpen(!searchOpen)}
-            >
-              <Search size={16} />
-            </button>
-            <button
-              className="icon-button"
-              aria-label="Appearance settings"
-              onClick={() => setDialog("settings")}
-            >
-              <Settings2 size={16} />
-            </button>
-          </div>
-          {searchOpen && mode === "screenplay" && (
+          )}
+          <WritingToolbar
+            kind={kind}
+            onKind={(value) => editor.current?.setKind(value)}
+            onMark={(mark) => editor.current?.toggleMark(mark)}
+            preferences={preferences}
+            onPreferences={setPreferences}
+            beatGuide={beatGuide}
+            onBeatGuide={() => setBeatGuide(!beatGuide)}
+            onBeatSheet={() => openView("beats")}
+            searchOpen={searchOpen}
+            onSearch={() => setSearchOpen(!searchOpen)}
+            onSettings={() => setDialog("settings")}
+            zen={zen}
+            onZen={toggleZen}
+            fullscreen={fullscreen}
+            onFullscreen={toggleFullscreen}
+          />
+          {searchOpen && (
             <div className="search-panel">
               <form
                 onSubmit={(e) => {
@@ -1319,85 +1139,25 @@ export default function App() {
               </div>
             </div>
           )}
-          {mode === "screenplay" && assigningBeat !== null && (
-            <div
-              className="beat-assignment-bar"
-              role="region"
-              aria-label="Assign screenplay lines to a beat"
-            >
-              <div className="beat-assignment-instructions">
-                <strong>Assign screenplay lines</strong>
-                <span>
-                  Select text on the page, then assign its lines. A cursor
-                  assigns the current line.
-                </span>
-              </div>
-              <label>
-                <span>Beat</span>
-                <select
-                  aria-label="Beat to assign"
-                  value={assigningBeat}
-                  onChange={(event) => setAssigningBeat(event.target.value)}
-                >
-                  <option value="">New beat</option>
-                  {doc.metadata.beats.map((beat, index) => (
-                    <option key={beat.id} value={beat.id}>
-                      {index + 1}. {beat.title || "Untitled beat"}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {!assigningBeat && (
-                <label>
-                  <span>Title</span>
-                  <input
-                    aria-label="New beat title"
-                    value={newBeatTitle}
-                    onChange={(event) => setNewBeatTitle(event.target.value)}
-                    placeholder="What changes here?"
-                  />
-                </label>
-              )}
-              <button
-                className="primary"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={assignSelectedLines}
-              >
-                Assign selected lines
-              </button>
-              <button
-                onClick={() => {
-                  setAssigningBeat(null);
-                  editor.current?.focus();
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          )}
-          {mode === "screenplay" && beatGuide && (
+          {beatGuide && (
             <BeatGuide
               key={snapshot.id}
               doc={doc}
               editor={editor.current}
+              targetBeatId={guideTarget}
               onAssign={assignBeatRange}
               onRange={showBeatRange}
-              onEdit={() => switchMode("beats")}
+              onEdit={() => openView("beats")}
               onClose={() => setBeatGuide(false)}
             />
           )}
           <div
             className={`writing-scroll background-${preferences.background}`}
-            hidden={mode !== "screenplay"}
           >
             <div
               className="paper-wrap"
               style={{ zoom: preferences.zoom / 100 }}
             >
-              <div className="paper-heading">
-                <span>{title}</span>
-                <button onClick={() => setDialog("title")}>Title page</button>
-              </div>
               <article
                 className={`screenplay-paper ${preferences.colors ? "element-colors" : ""} ${preferences.boldSceneHeadings ? "bold-scenes" : ""} numbers-${preferences.sceneNumbers}`}
                 data-number-format={preferences.sceneNumberFormat}
@@ -1414,64 +1174,8 @@ export default function App() {
                   onSelection={setKind}
                 />
               </article>
-              <div className="paper-footer">
-                {insights.wordCount.toLocaleString()} words
-                <span>Every good story starts here.</span>
-              </div>
             </div>
           </div>
-          {mode === "beats" && (
-            <div className="board-scroll">
-              <BeatBoard
-                doc={doc}
-                onChange={changeDoc}
-                onAssign={startBeatAssignment}
-                onRange={showBeatRange}
-                onExport={() => void run(() => exportFile("beatPdf"))}
-                onExportCsv={() => void run(() => exportFile("beats"))}
-              />
-            </div>
-          )}
-          {mode === "pdf" && (
-            <div className="pdf-view">
-              <div className="pdf-toolbar">
-                <span>
-                  {pdfWorking || !exact
-                    ? "Preparing your pages…"
-                    : pdfPages
-                      ? `${pdfPages.pages} published pages`
-                      : "PDF preview"}
-                </span>
-                <button
-                  disabled={busy}
-                  onClick={() => void run(() => exportFile("pdf"))}
-                >
-                  <Download size={15} />
-                  Download PDF
-                </button>
-              </div>
-              {pdfWarnings.length > 0 && (
-                <div className="error-box" role="status">
-                  {pdfWarnings.join(" ")}
-                </div>
-              )}
-              {pdfError ? (
-                <div className="error-box" role="alert">
-                  {pdfError}
-                  <button onClick={() => setPdfRetry((value) => value + 1)}>
-                    Try again
-                  </button>
-                </div>
-              ) : pdfUrl && exact ? (
-                <iframe src={pdfUrl} title="Published screenplay PDF" />
-              ) : (
-                <div className="pdf-loading">
-                  <FileText size={32} />
-                  <p>Setting your story on the page…</p>
-                </div>
-              )}
-            </div>
-          )}
         </main>
         {preferences.insights && !zen && (
           <>
@@ -1506,7 +1210,7 @@ export default function App() {
                   title={
                     pdfError ||
                     (exact
-                      ? "Pages in the generated PDF, including its title page"
+                      ? "Filled PDF pages, rounded up to an eighth; includes the title page"
                       : "Generating the PDF to count its pages")
                   }
                 >
@@ -1642,13 +1346,6 @@ export default function App() {
                 />
                 <small>Saved with your screenplay</small>
               </section>
-              <button
-                className="pacing-link"
-                onClick={() => switchMode("beats")}
-              >
-                <AlignLeft size={15} />
-                Open beat sheet<span>→</span>
-              </button>
             </aside>
           </>
         )}
@@ -1703,6 +1400,63 @@ export default function App() {
           }}
           onClose={() => setCharacter(null)}
         />
+      )}
+      {dialog === "beats" && (
+        <BeatSheetDialog
+          doc={doc}
+          onChange={changeDoc}
+          onAssign={startBeatAssignment}
+          onRange={showBeatRange}
+          onExport={() => void run(() => exportFile("beatPdf"))}
+          onExportCsv={() => void run(() => exportFile("beats"))}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === "pdf" && (
+        <Modal
+          title="PDF pages"
+          className="pdf-preview-dialog"
+          onClose={() => setDialog(null)}
+        >
+          <div className="pdf-view">
+            <div className="pdf-toolbar">
+              <span>
+                {pdfWorking || !exact
+                  ? "Preparing your pages…"
+                  : pdfPages
+                    ? `${pdfPages.pages} published pages`
+                    : "PDF preview"}
+              </span>
+              <button
+                disabled={busy}
+                onClick={() => void run(() => exportFile("pdf"))}
+              >
+                <Download size={15} />
+                Download PDF
+              </button>
+            </div>
+            {pdfWarnings.length > 0 && (
+              <div className="error-box" role="status">
+                {pdfWarnings.join(" ")}
+              </div>
+            )}
+            {pdfError ? (
+              <div className="error-box" role="alert">
+                {pdfError}
+                <button onClick={() => setPdfRetry((value) => value + 1)}>
+                  Try again
+                </button>
+              </div>
+            ) : pdfUrl && exact ? (
+              <iframe src={pdfUrl} title="Published screenplay PDF" />
+            ) : (
+              <div className="pdf-loading">
+                <FileText size={32} />
+                <p>Setting your story on the page…</p>
+              </div>
+            )}
+          </div>
+        </Modal>
       )}
       {dialog === "characters" && (
         <CharacterAnalytics
@@ -1813,7 +1567,6 @@ export default function App() {
                         setRecoveries(await workspace.recoveries());
                         file.current = undefined;
                         setDialog(null);
-                        setMode("screenplay");
                       })
                     }
                   >
@@ -1842,7 +1595,6 @@ export default function App() {
                     await session.open(d.screenplay, d.name, d.remote, d);
                     file.current = undefined;
                     setDialog(null);
-                    setMode("screenplay");
                   })
                 }
               >
@@ -1895,7 +1647,6 @@ export default function App() {
                       );
                       file.current = undefined;
                       setDialog(null);
-                      setMode("screenplay");
                     })
                   }
                 >

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ArrowLeft, ArrowRight, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowLeft, ArrowRight, Pencil, X } from "lucide-react";
 import type { Beat, BeatRange, Screenplay } from "../core/model";
 import type { EditorController } from "../editor/EditorController";
 import { resolveBeatRange, sceneBeatRange } from "../core/beatRanges";
@@ -21,6 +21,7 @@ export function BeatGuide({
   onRange,
   onEdit,
   onClose,
+  targetBeatId,
 }: {
   doc: Screenplay;
   editor: EditorController | null;
@@ -28,6 +29,7 @@ export function BeatGuide({
   onRange: (range: BeatRange) => void;
   onEdit: () => void;
   onClose: () => void;
+  targetBeatId?: string;
 }) {
   const beats = doc.metadata.beats;
   const [activeId, setActiveId] = useState(
@@ -35,13 +37,17 @@ export function BeatGuide({
   );
   const [finished, setFinished] = useState(false);
   const [notice, setNotice] = useState("");
+  useEffect(() => {
+    if (!targetBeatId) return;
+    setActiveId(targetBeatId);
+    setFinished(false);
+    setNotice("");
+  }, [targetBeatId]);
   const index = Math.max(
     0,
     beats.findIndex((beat) => beat.id === activeId),
   );
   const beat = beats[index];
-  const range = beat && assignedRange(doc, beat);
-  const resolved = range && resolveBeatRange(doc, range);
 
   const move = (offset: number) => {
     const next = beats[index + offset];
@@ -89,7 +95,7 @@ export function BeatGuide({
               <small>
                 {index + 1}/{beats.length}
               </small>
-              <strong>{finished ? "Final beat:" : "Next Beat:"}</strong>
+              <strong>{finished ? "Final:" : "Next:"}</strong>
               <span
                 title={
                   beat.description
@@ -97,18 +103,8 @@ export function BeatGuide({
                     : beat.title
                 }
               >
-                {beat.title || "Untitled beat"}
+                {notice && !finished ? notice : beat.title || "Untitled beat"}
               </span>
-              {resolved && (
-                <button
-                  className="writing-beat-lines"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => onRange(range!)}
-                  aria-label={`Show guide beat lines ${resolved.startLine}–${resolved.endLine}`}
-                >
-                  Lines {resolved.startLine}–{resolved.endLine}
-                </button>
-              )}
             </div>
             <div className="writing-beat-actions">
               <button
@@ -120,7 +116,13 @@ export function BeatGuide({
               >
                 <ArrowLeft size={14} />
               </button>
-              <button onClick={onEdit}>Edit</button>
+              <button
+                onClick={onEdit}
+                aria-label="Edit beat sheet"
+                title="Edit beat sheet"
+              >
+                <Pencil size={13} />
+              </button>
               <button
                 className="writing-beat-assign"
                 onMouseDown={(event) => event.preventDefault()}

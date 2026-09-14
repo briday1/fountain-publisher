@@ -23,19 +23,19 @@ async function verifyDownloadedCount(
   testInfo: TestInfo,
   filename: string,
   expected: number,
+  expectedProgress: string,
 ) {
   const metric = page.getByLabel("PDF page count", { exact: true });
   await expect(metric).toHaveAttribute("aria-busy", "false", {
     timeout: 30000,
   });
-  await expect(metric.locator("strong")).toHaveText(String(expected));
+  await expect(metric.locator("strong")).toHaveText(expectedProgress);
   await expect(metric).toContainText("PDF pages");
   await expect(page.getByText(/est\.\s*pages/i)).toHaveCount(0);
-  // Insights must have the real count before the PDF tab or download is opened.
+  // Insights must have generated progress before preview or download is opened.
   await expect(
-    page.getByRole("tab", { name: "PDF", exact: true }),
-  ).toHaveAttribute("aria-selected", "false");
-  const displayed = Number(await metric.locator("strong").textContent());
+    page.getByRole("dialog", { name: "PDF pages", exact: true }),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "File", exact: true }).click();
   const downloading = page.waitForEvent("download");
   await page.getByRole("button", { name: /^Export PDF/ }).click();
@@ -43,11 +43,11 @@ async function verifyDownloadedCount(
   const path = testInfo.outputPath(`${filename}.pdf`);
   await download.saveAs(path);
   const pdf = await PDFDocument.load(await readFile(path));
-  expect(pdf.getPageCount()).toBe(displayed);
+  expect(pdf.getPageCount()).toBe(expected);
   return pdf;
 }
 
-test("Insights counts actual PDF pages before preview, including title pages, explicit breaks, dialogue continuation and A4", async ({
+test("Insights shows generated fractional PDF progress before preview, including title pages, explicit breaks, dialogue continuation and A4", async ({
   page,
 }, testInfo) => {
   test.setTimeout(60000);
@@ -66,9 +66,10 @@ test("Insights counts actual PDF pages before preview, including title pages, ex
     "INT. STUDIO - DAY\n\nA short opening scene.",
     "A short opening scene.",
   );
-  await verifyDownloadedCount(page, testInfo, "without-title", 1);
+  await verifyDownloadedCount(page, testInfo, "without-title", 1, "⅛");
 
-  await page.getByRole("button", { name: "Title page", exact: true }).click();
+  await page.getByRole("button", { name: "Insert", exact: true }).click();
+  await page.getByRole("button", { name: "Title page…", exact: true }).click();
   const title = page.getByRole("dialog", { name: "Title page", exact: true });
   await title
     .getByRole("textbox", { name: "Title", exact: true })
@@ -80,7 +81,7 @@ test("Insights counts actual PDF pages before preview, including title pages, ex
   await expect(
     page.getByRole("region", { name: "Title page preview" }),
   ).toContainText("Counted Pages");
-  await verifyDownloadedCount(page, testInfo, "with-title", 2);
+  await verifyDownloadedCount(page, testInfo, "with-title", 2, "1⅛");
 
   const dialogue = Array.from(
     { length: 70 },
@@ -96,6 +97,7 @@ test("Insights counts actual PDF pages before preview, including title pages, ex
     testInfo,
     "dialogue-and-page-break",
     4,
+    "3⅜",
   );
   expect(letter.getPage(0).getSize()).toEqual({ width: 612, height: 792 });
 
@@ -112,7 +114,7 @@ test("Insights counts actual PDF pages before preview, including title pages, ex
   await settings
     .getByRole("button", { name: "Close dialog", exact: true })
     .click();
-  const a4 = await verifyDownloadedCount(page, testInfo, "a4-pages", 4);
+  const a4 = await verifyDownloadedCount(page, testInfo, "a4-pages", 4, "3⅜");
   expect(a4.getPage(0).getWidth()).toBeCloseTo(595.28);
   expect(a4.getPage(0).getHeight()).toBeCloseTo(841.89);
 });

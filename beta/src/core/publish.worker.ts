@@ -9,12 +9,10 @@ self.onmessage = async (
 ) => {
   const { id, doc, options } = event.data;
   try {
-    const { bytes, pageCount, scriptPageCount, warnings } = await exportPdf(
-      doc,
-      options,
-    );
+    const { bytes, pageCount, scriptPageCount, pageEquivalent, warnings } =
+      await exportPdf(doc, options);
     self.postMessage(
-      { id, bytes, pageCount, scriptPageCount, warnings },
+      { id, bytes, pageCount, scriptPageCount, pageEquivalent, warnings },
       { transfer: [bytes.buffer as ArrayBuffer] },
     );
   } catch (error) {

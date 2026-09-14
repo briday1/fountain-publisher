@@ -464,106 +464,13 @@ hr {
   flex-direction: column;
   position: relative;
 }
-.workspace-toolbar {
-  height: 52px;
-  min-height: 52px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 0 16px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
-}
-.view-tabs {
-  display: flex;
-  gap: 3px;
-  background: var(--bg);
-  padding: 3px;
-  border-radius: 6px;
-}
-.view-tabs button {
-  border: 0;
-  background: transparent;
-  padding: 6px 11px;
-  font-size: 11px;
-  color: var(--muted);
-}
-.view-tabs [aria-selected="true"] {
-  background: var(--surface);
-  box-shadow: 0 1px 3px #0001;
-  color: var(--ink);
-}
-.zoom-controls {
-  display: flex;
-  align-items: center;
-}
-.zoom-controls button {
-  background: transparent;
-  border: 0;
-  padding: 4px 7px;
-  font-size: 17px;
-}
-.zoom-controls select {
-  border: 0;
-  background: transparent;
-  font-size: 10px;
-  width: 66px;
-  padding: 3px;
-}
-.insights-toggle {
-  border: 0;
-  background: transparent;
-  font-size: 11px;
-  padding: 6px;
-}
-.format-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 20px;
-  min-height: 38px;
-  height: 38px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: thin;
-}
-.format-toolbar > button {
-  flex-shrink: 0;
-}
-.format-toolbar select {
-  background: transparent;
-  border: 0;
-  font-size: 11px;
-  width: 140px;
-  padding: 5px 0;
-}
-.toolbar-divider {
-  height: 15px;
-  width: 1px;
-  background: var(--border);
-  margin: 0 9px;
-}
-.toolbar-hint {
-  color: var(--muted);
-  font-size: 10px;
-  margin-left: 16px;
-}
-.invisible-toolbar {
-  display: none;
-}
-.writing-scroll,
-.board-scroll {
+.writing-scroll {
   flex: 1;
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
 }
-.writing-scroll[hidden] {
-  display: none;
-}
+
 .background-dots {
   background-image: radial-gradient(var(--line) 0.7px, transparent 0.7px);
   background-size: 14px 14px;
@@ -578,28 +485,6 @@ hr {
   width: 816px;
   max-width: calc(100% - 64px);
   margin: 26px auto 55px;
-}
-.paper-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 2px 13px;
-  font-size: 10px;
-  color: var(--muted);
-}
-.paper-heading > span {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 70%;
-  letter-spacing: 0.5px;
-}
-.paper-heading button {
-  border: 0;
-  background: transparent;
-  padding: 2px;
-  font-size: 10px;
-  color: var(--muted);
 }
 .screenplay-paper {
   padding: 96px 96px 100px 144px;
@@ -652,13 +537,7 @@ hr {
 .element-colors p[data-kind="transition"] {
   color: #b58b58;
 }
-.paper-footer {
-  display: flex;
-  justify-content: space-between;
-  padding: 14px 2px;
-  font-size: 10px;
-  color: var(--muted);
-}
+
 .title-preview {
   position: relative;
   margin: 72px -18px 32px;
@@ -988,11 +867,9 @@ hr {
   top: 8px;
 }
 .zen .app-header,
-.zen .statusbar {
+.zen .statusbar,
+.zen .writing-toolbar-shell {
   display: none;
-}
-.zen .workspace-toolbar {
-  background: var(--panel);
 }
 .zen .paper-wrap {
   max-width: calc(100% - 60px);
@@ -1567,16 +1444,6 @@ hr {
   .metrics strong {
     font-size: 19px;
   }
-  .workspace-toolbar {
-    padding: 0 10px;
-    gap: 4px;
-  }
-  .view-tabs button {
-    padding: 6px 8px;
-  }
-  .zoom-controls {
-    display: none;
-  }
 }
 @media (max-width: 950px) {
   .outline-panel {
@@ -1648,17 +1515,6 @@ hr {
   .panel-resizer {
     display: none;
   }
-  .workspace-toolbar {
-    min-height: 47px;
-    height: 47px;
-    padding: 0 8px;
-  }
-  .format-toolbar {
-    padding: 0 14px;
-  }
-  .insights-toggle span {
-    display: none;
-  }
   .screenplay-paper {
     padding: 45px 27px 65px 40px;
     min-height: 850px;
@@ -1666,9 +1522,6 @@ hr {
   .paper-wrap {
     max-width: calc(100% - 24px);
     margin-top: 18px;
-  }
-  .paper-footer > span {
-    display: none;
   }
   .screenplay-editor {
     min-height: 700px;
@@ -1681,9 +1534,6 @@ hr {
     padding-left: 8px;
     padding-right: 8px;
     font-size: 14px;
-  }
-  .paper-heading {
-    font-size: 9px;
   }
   .statusbar {
     padding: 0 9px;
@@ -1761,12 +1611,11 @@ hr {
   .app-header,
   .outline-panel,
   .insights-panel,
-  .workspace-toolbar,
-  .format-toolbar,
+  .writing-toolbar-shell,
+  .writing-beat-guide,
+  .zen-controls,
   .panel-resizer,
-  .statusbar,
-  .paper-heading,
-  .paper-footer {
+  .statusbar {
     display: none !important;
   }
   .app,
@@ -1946,4 +1795,49 @@ hr {
   font-size: 10px;
   color: var(--muted);
   margin: 12px 0 0;
+}
+
+/* Minimal, persistent escape hatch for the writing room. */
+.zen-controls {
+  flex: 0 0 42px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 5px 14px;
+  background: var(--panel);
+}
+.zen-exit {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 20px;
+  padding: 5px 10px;
+  font-size: 11px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 4px #0001;
+}
+.zen-exit kbd {
+  margin-left: 4px;
+  font-family: inherit;
+  font-size: 9px;
+  color: var(--muted);
+}
+.pdf-preview-dialog {
+  width: min(1100px, calc(100vw - 24px));
+  height: min(900px, calc(100dvh - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+}
+.pdf-preview-dialog .modal-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px;
+}
+.pdf-preview-dialog .modal-header {
+  margin-bottom: 8px;
+}
+.pdf-preview-dialog .modal-header h2 {
+  font-size: 16px;
 }

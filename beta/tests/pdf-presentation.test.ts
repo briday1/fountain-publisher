@@ -4,6 +4,7 @@ import { PDFPage } from "pdf-lib";
 import { exportPdf, type PdfOptions } from "../src/core/export";
 import { emptyScreenplay, newId } from "../src/core/model";
 import { parseFountain } from "../src/core/fountain";
+import { formatPageCount } from "../src/core/pageCount";
 
 let fontBytes: NonNullable<PdfOptions["fontBytes"]>;
 beforeAll(async () => {
@@ -254,5 +255,138 @@ describe("established PDF presentation", () => {
     expect(result.pageCount).toBeGreaterThan(result.scriptPageCount + 1);
     await mkdir("tmp/pdfs", { recursive: true });
     await writeFile("tmp/pdfs/presentation-overflow.pdf", result.bytes);
+  });
+});
+
+describe("page progress from the generated PDF layout", () => {
+  it.each([
+    [1, 0.125],
+    [7, 0.25],
+    [14, 0.375],
+    [21, 0.5],
+    [28, 0.625],
+    [35, 0.75],
+    [42, 0.875],
+    [49, 1],
+    [55, 1],
+    [56, 1.125],
+  ])("rounds %i actual body rows up to %s pages", async (rows, expected) => {
+    const doc = emptyScreenplay();
+    doc.blocks[0].text = Array.from(
+      { length: rows },
+      (_, index) => `Row ${index + 1}.`,
+    ).join("\n");
+    const result = await exportPdf(doc, { fontBytes });
+    expect(result.pageEquivalent).toBe(expected);
+    expect(result.pageCount).toBe(rows > 55 ? 2 : 1);
+  });
+
+  it("does not count a page number, empty body, or trailing empty rows as writing", async () => {
+    const doc = emptyScreenplay();
+    expect(await exportPdf(doc, { fontBytes })).toMatchObject({
+      pageCount: 1,
+      pageEquivalent: 0,
+    });
+    doc.titlePage.title = "A cover page";
+    expect(await exportPdf(doc, { fontBytes })).toMatchObject({
+      pageCount: 2,
+      pageEquivalent: 1,
+    });
+    doc.blocks[0].text = `Only one written row.${"\n".repeat(20)}`;
+    expect(await exportPdf(doc, { fontBytes })).toMatchObject({
+      pageCount: 2,
+      pageEquivalent: 1.125,
+    });
+  });
+
+  it("counts pages completed by explicit breaks as whole pages, even when the last page is empty", async () => {
+    const doc = emptyScreenplay();
+    doc.blocks = [
+      { id: newId(), kind: "action", text: "First page." },
+      { id: newId(), kind: "pageBreak", text: "" },
+    ];
+    expect(await exportPdf(doc, { fontBytes })).toMatchObject({
+      pageCount: 2,
+      pageEquivalent: 1,
+    });
+    doc.blocks.push({ id: newId(), kind: "action", text: "Second page." });
+    expect(await exportPdf(doc, { fontBytes })).toMatchObject({
+      pageCount: 2,
+      pageEquivalent: 1.125,
+    });
+  });
+
+  it.each([false, true])(
+    "measures the final continued dialogue page once, including dual=%s",
+    async (dual) => {
+      const doc = emptyScreenplay();
+      doc.titlePage.title = "A cover";
+      doc.blocks = [
+        { id: newId(), kind: "character", text: "MARA" },
+        {
+          id: newId(),
+          kind: "dialogue",
+          text: Array.from({ length: 70 }, (_, index) => `Word ${index}.`).join(
+            "\n",
+          ),
+        },
+        ...(dual
+          ? [
+              {
+                id: newId(),
+                kind: "character" as const,
+                text: "ELI",
+                dual: true,
+              },
+              {
+                id: newId(),
+                kind: "dialogue" as const,
+                text: Array.from(
+                  { length: 20 },
+                  (_, index) => `Reply ${index}.`,
+                ).join("\n"),
+              },
+            ]
+          : []),
+      ];
+      const drawing = observeDrawing();
+      const result = await exportPdf(doc, { fontBytes });
+      expect(result).toMatchObject({
+        pageCount: 3,
+        scriptPageCount: 2,
+        pageEquivalent: 2.375,
+      });
+      expect(drawing().some(({ text }) => text === "MARA (CONT'D)")).toBe(true);
+    },
+  );
+
+  it("uses the same generated 55-line frame on A4 paper", async () => {
+    const doc = emptyScreenplay();
+    doc.blocks[0].text = Array.from(
+      { length: 21 },
+      (_, index) => `Row ${index}.`,
+    ).join("\n");
+    expect(await exportPdf(doc, { fontBytes, pageSize: "a4" })).toMatchObject({
+      pageCount: 1,
+      pageEquivalent: 0.5,
+    });
+  });
+
+  it.each([
+    [0, "0"],
+    [0.125, "⅛"],
+    [0.25, "¼"],
+    [0.375, "⅜"],
+    [0.5, "½"],
+    [0.625, "⅝"],
+    [0.75, "¾"],
+    [0.875, "⅞"],
+    [1, "1"],
+    [1.125, "1⅛"],
+    [12.5, "12½"],
+    [NaN, "0"],
+    [-1, "0"],
+  ])("formats %s pages as %s", (value, expected) => {
+    expect(formatPageCount(value as number)).toBe(expected);
   });
 });
