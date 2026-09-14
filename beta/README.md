@@ -49,6 +49,8 @@ npm run test:browser
 
 For the browser suite, install Chromium with `npx playwright install chromium`, or set `PLAYWRIGHT_CHROME_PATH` to an installed Chrome binary. CI uses its installed Chrome when available. The suite launches an isolated temporary profile, never your personal browser profile.
 
+Set `TEST_BASE_URL=https://beta.fountain-publisher.com` to run against the deployed app, including offline recovery and the existing Google/GitHub authorization redirects. These checks do not sign into an account or save any cloud files.
+
 Tests exercise real editor transactions, native browser typing/selection/undo, PDF compilation, Fountain round trips, storage failures, concurrent saves, stale requests, OAuth boundaries, and provider conflict handling. Run `npm run check` for unit/integration tests plus a production build.
 
 This is a beta, not a claim that automated tests establish all-device production readiness. Real Google/GitHub acceptance with signed-in accounts, native Japanese/Chinese/Korean IMEs, Safari/iPad input, and sustained production usage remain release checks. See [release checks](docs/release-checks.md).

@@ -71,7 +71,10 @@ describe("shared Cloudflare infrastructure boundary", () => {
   });
   it("rejects hostile origins and missing CSRF before any cloud side effect", async () => {
     const f = fixture();
-    const invalidHeaders:Record<string,string>[]=[{Origin:"https://other.example"},{"X-CSRF-Token":""}];
+    const invalidHeaders: Record<string, string>[] = [
+      { Origin: "https://other.example" },
+      { "X-CSRF-Token": "" },
+    ];
     for (const headers of invalidHeaders) {
       expect(
         (
@@ -146,6 +149,13 @@ describe("shared Cloudflare infrastructure boundary", () => {
     expect(response.status).toBe(302);
     expect((f.shared.mock.calls[0][0] as Request).url).toBe(
       `${api}/auth/github/start`,
+    );
+    expect((f.shared.mock.calls[0][0] as Request).redirect).toBe("manual");
+    expect(response.headers.get("location")).toBe(
+      "https://github.com/login/oauth/authorize?redirect_uri=original",
+    );
+    expect(response.headers.get("set-cookie")).toContain(
+      "fp_github_oauth=nonce",
     );
     expect(response.headers.get("set-cookie")).toContain(
       "fp_beta_return=github",

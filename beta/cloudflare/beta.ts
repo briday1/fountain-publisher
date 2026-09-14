@@ -137,7 +137,11 @@ export function createBetaWorker(network: typeof fetch = fetch) {
         const ip = request.headers.get("cf-connecting-ip");
         if (ip) headers.set("cf-connecting-ip", ip);
         return env.SHARED_API.fetch(
-          new Request(`${env.API_ORIGIN}${route}`, { ...init, headers }),
+          new Request(`${env.API_ORIGIN}${route}`, {
+            ...init,
+            headers,
+            redirect: "manual",
+          }),
         );
       };
       // Keep the registered OAuth callback addresses. The primary app's callbacks pass through.

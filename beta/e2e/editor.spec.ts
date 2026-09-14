@@ -1,5 +1,90 @@
 import { test, expect } from "@playwright/test";
 const mod = process.platform === "darwin" ? "Meta" : "Control";
+test("deployed beta starts both account sign-ins using the existing callbacks", async ({
+  request,
+}) => {
+  test.skip(
+    process.env.TEST_BASE_URL !== "https://beta.fountain-publisher.com",
+    "Requires the deployed beta account adapter.",
+  );
+  const api = "https://api.fountain-publisher.com";
+  for (const provider of ["github", "google"]) {
+    const response = await request.get(
+      `${api}/beta/api/auth/${provider}/start`,
+      {
+        maxRedirects: 0,
+      },
+    );
+    expect(response.status()).toBe(302);
+    const destination = new URL(response.headers().location);
+    expect(destination.hostname).toBe(
+      provider === "github" ? "github.com" : "accounts.google.com",
+    );
+    expect(destination.searchParams.get("redirect_uri")).toBe(
+      `${api}/auth/${provider}/callback`,
+    );
+    const cookies = response
+      .headersArray()
+      .filter((header) => header.name.toLowerCase() === "set-cookie");
+    expect(
+      cookies.some((header) =>
+        header.value.startsWith(`fp_${provider}_oauth=`),
+      ),
+    ).toBe(true);
+    expect(
+      cookies.some((header) =>
+        header.value.startsWith(`fp_beta_return=${provider};`),
+      ),
+    ).toBe(true);
+  }
+});
+
+test("deployed app reopens a saved draft and builds its PDF while offline", async ({
+  page,
+  context,
+}) => {
+  test.skip(
+    !process.env.TEST_BASE_URL,
+    "Requires a built app with its service worker.",
+  );
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await expect(editor).toBeVisible();
+  await editor.click();
+  await page.keyboard.press(`${mod}+a`);
+  await page.keyboard.insertText(
+    "The draft remains mine when the connection goes away.",
+  );
+  await expect(
+    page.getByText("Saved on this device", { exact: true }),
+  ).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => !!navigator.serviceWorker.controller), {
+      timeout: 30000,
+    })
+    .toBe(true);
+  await context.setOffline(true);
+  await page.reload();
+  await expect(editor).toHaveText(
+    "The draft remains mine when the connection goes away.",
+  );
+  await page.getByRole("tab", { name: "PDF", exact: true }).click();
+  await expect(
+    page.locator('iframe[title="Published screenplay PDF"]'),
+  ).toBeVisible({
+    timeout: 30000,
+  });
+  await page.getByRole("tab", { name: "Screenplay", exact: true }).click();
+  await editor.click();
+  await page.keyboard.press(`${mod}+End`);
+  await page.keyboard.insertText(" I can keep writing offline.");
+  await expect(
+    page.getByText("Saved on this device", { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(editor).toContainText("I can keep writing offline.");
+});
+
 test("writing, native selection, undo, save, reload and view switching preserve content", async ({
   page,
 }) => {

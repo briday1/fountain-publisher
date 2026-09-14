@@ -2,6 +2,21 @@
 
 Automated checks are evidence for the tested contracts, not a guarantee of an absence of defects.
 
+Validated on 2026-09-14:
+
+- All 66 contract tests and the production build passed. GitHub Actions also passed the five native Chrome editor/layout regressions before publishing the beta.
+- All seven deployment/browser checks passed against `https://beta.fountain-publisher.com`, including both provider authorization redirects, offline reload of saved writing, further offline edits, and PDF compilation without a connection. These checks use temporary browser profiles and do not sign into user accounts.
+- A 1,920-paragraph screenplay with Insights enabled measured 16.3 ms at the 95th percentile from native keydown to the next animation frame across 192 inputs on this development machine. This is a local measurement, not an all-device latency guarantee.
+- The primary site and API health endpoint remained available. The beta and primary authorization flows use the existing registered callback addresses.
+
+Repeat the deployed checks with:
+
+```sh
+TEST_BASE_URL=https://beta.fountain-publisher.com npm run test:browser
+```
+
+Set `PLAYWRIGHT_CHROME_PATH` if using an installed Chrome instead of Playwright's Chromium. Local development runs skip the two deployment-only checks.
+
 Covered by executable tests:
 
 - Single editor DOM ownership, automatic formatting, multiblock editing, marks, clipboard identity, undo/redo, and composition deferral.
