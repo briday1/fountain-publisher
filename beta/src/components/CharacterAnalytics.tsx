@@ -140,12 +140,14 @@ export function CharacterAnalytics({
     ? `${selected.kind === "scene" ? `Scene ${selected.sceneNumber}` : selected.heading} Character Gantt`
     : "Character Analytics";
   const surface = getComputedStyle(document.documentElement);
+  const dark = surface.colorScheme.includes("dark");
   const colors = {
     paper: surface.getPropertyValue("--raised").trim() || "#fff",
     stripe: surface.getPropertyValue("--surface").trim() || "#f2f2f2",
     ink: surface.getPropertyValue("--ink").trim() || "#202124",
     muted: surface.getPropertyValue("--muted").trim() || "#6b7280",
     border: surface.getPropertyValue("--border").trim() || "#d7d9dd",
+    grid: dark ? "#52606d" : "#c5cdd5",
   };
   const palette = surface.colorScheme.includes("dark")
     ? darkColors
@@ -211,7 +213,17 @@ export function CharacterAnalytics({
   const characters = present
     ? data.characters.filter((name) => present.has(name))
     : data.characters;
-  const plotWidth = Math.max(760, viewportWidth - labelWidth);
+  // Include endpoint labels in the SVG bounds, including the exported PNG.
+  if (measuringContext) measuringContext.font = `400 9px ${chartFont}`;
+  const padding = Math.max(
+    24,
+    Math.ceil(
+      (measuringContext?.measureText(
+        (selected?.totalWords ?? 0).toLocaleString(),
+      ).width ?? 40) / 2,
+    ) + 12,
+  );
+  const plotWidth = Math.max(760, viewportWidth - labelWidth - padding * 2);
   const width = selected
     ? labelWidth + plotWidth
     : labelWidth + data.groups.length * sceneWidth;
@@ -292,9 +304,9 @@ export function CharacterAnalytics({
           <svg
             ref={chart}
             xmlns="http://www.w3.org/2000/svg"
-            width={width}
-            height={height}
-            viewBox={`0 0 ${width} ${height}`}
+            width={width + padding * 2}
+            height={height + padding * 2}
+            viewBox={`${-padding} ${-padding} ${width + padding * 2} ${height + padding * 2}`}
             fontFamily={chartFont}
             fontSize={11}
             fontWeight={600}
@@ -308,7 +320,29 @@ export function CharacterAnalytics({
                 : `Character dialogue timeline with ${characters.length} characters across ${data.groups.length} ${data.groups[0]?.kind === "scene" ? "scenes" : "groups"}; usage ranges from ${data.minLines} to ${data.maxLines} dialogue lines`
             }
           >
-            <rect width={width} height={height} fill={colors.paper} />
+            <rect
+              x={-padding}
+              y={-padding}
+              width={width + padding * 2}
+              height={height + padding * 2}
+              fill={colors.paper}
+            />
+            {/* Paint bands first so they never obscure the grid. */}
+            {characters.map(
+              (name, row) =>
+                row % 2 === 1 && (
+                  <rect
+                    key={name}
+                    data-chart-row-band="true"
+                    x={0}
+                    y={headerHeight + row * rowHeight}
+                    width={width}
+                    height={rowHeight}
+                    fill={colors.ink}
+                    fillOpacity={dark ? 0.045 : 0.035}
+                  />
+                ),
+            )}
             <rect
               width={selected ? width : labelWidth}
               height={headerHeight}
@@ -316,14 +350,6 @@ export function CharacterAnalytics({
             />
             {selected ? (
               <>
-                <rect
-                  x={0.5}
-                  y={0.5}
-                  width={width - 1}
-                  height={headerHeight - 1}
-                  fill="none"
-                  stroke={colors.border}
-                />
                 <text x={12} y={20} fontSize={12}>
                   {fit(selected.heading, 130, 12)}
                 </text>
@@ -343,14 +369,14 @@ export function CharacterAnalytics({
                       x2={labelWidth + plotWidth * ratio}
                       y1={headerHeight}
                       y2={height}
-                      stroke={colors.border}
+                      stroke={colors.grid}
+                      data-chart-grid="true"
                     />
                     <text
                       x={labelWidth + plotWidth * ratio}
                       y={42}
-                      textAnchor={
-                        ratio === 0 ? "start" : ratio === 1 ? "end" : "middle"
-                      }
+                      textAnchor="middle"
+                      data-chart-tick="true"
                       fontSize={9}
                       fontWeight={400}
                       fill={colors.muted}
@@ -423,19 +449,22 @@ export function CharacterAnalytics({
                 ))}
               </>
             )}
+            {!selected &&
+              Array.from({ length: data.groups.length + 1 }, (_, index) => (
+                <line
+                  key={index}
+                  data-chart-grid="true"
+                  x1={labelWidth + index * sceneWidth}
+                  x2={labelWidth + index * sceneWidth}
+                  y1={headerHeight}
+                  y2={height}
+                  stroke={colors.grid}
+                />
+              ))}
             {characters.map((name, row) => {
               const y = headerHeight + row * rowHeight;
               return (
                 <g key={name}>
-                  {row % 2 === 1 && (
-                    <rect
-                      x={0}
-                      y={y}
-                      width={width}
-                      height={rowHeight}
-                      fill={colors.stripe}
-                    />
-                  )}
                   <ChartButton
                     label={`View all ${name} dialogue`}
                     onClick={() => openCharacter(name)}
@@ -526,6 +555,15 @@ export function CharacterAnalytics({
                 </g>
               );
             })}
+            <rect
+              x={0.5}
+              y={selected ? headerHeight + 0.5 : 0.5}
+              width={width - 1}
+              height={height - (selected ? headerHeight : 0) - 1}
+              fill="none"
+              stroke={colors.grid}
+              pointerEvents="none"
+            />
             {!characters.length && (
               <text
                 x={width / 2}

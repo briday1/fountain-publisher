@@ -130,7 +130,7 @@ test("character analytics restores cast overview, scene and act Gantts, PNG expo
   const png = await readFile(path!);
   expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
   expect(png.readUInt32BE(16)).toBeGreaterThanOrEqual(1820);
-  expect(png.readUInt32BE(20)).toBe(268);
+  expect(png.readUInt32BE(20)).toBe(364);
   await scene.getByRole("button", { name: "Overview", exact: true }).click();
   await overview
     .getByRole("button", { name: "View Act I character Gantt", exact: true })
