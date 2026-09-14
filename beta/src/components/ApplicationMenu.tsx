@@ -113,6 +113,7 @@ export function ApplicationMenu({
     fn();
   };
   const mobileControls = cloneElement(controls, {
+    showZen: false,
     onPreferences: (preferences) => {
       if (
         preferences.outline !== controls.props.preferences.outline ||
