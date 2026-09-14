@@ -30,9 +30,8 @@ import { emptyScreenplay, blockLabels, newId } from "./core/model";
 import type { BeatRange, BlockKind, Screenplay } from "./core/model";
 import { resolveBeatRange } from "./core/beatRanges";
 import { importScreenplay } from "./core/fdx";
-import { parseFountain, serializeFountain } from "./core/fountain";
+import { serializeFountain } from "./core/fountain";
 import { analyzeScreenplay } from "./core/insights";
-import { example } from "./core/example";
 import { DocumentSession } from "./core/session";
 import type { SessionSnapshot } from "./core/session";
 import { publishPdf } from "./core/publisher";
@@ -337,8 +336,8 @@ export default function App() {
       if (!initial)
         initial = {
           id: newId(),
-          name: "The Quiet Hour.fountain",
-          screenplay: parseFountain(example),
+          name: "Untitled.fountain",
+          screenplay: emptyScreenplay(),
           epoch: 0,
         };
       let restoredLive: LiveClient | undefined;
