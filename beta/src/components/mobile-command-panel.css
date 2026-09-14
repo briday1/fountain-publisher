@@ -58,6 +58,36 @@
 .mobile-command-content {
   min-height: 180px;
 }
+.mobile-storage-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.mobile-storage-shortcuts button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 72px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--ink);
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+}
+.mobile-storage-shortcuts svg {
+  flex-shrink: 0;
+}
+.mobile-storage-shortcuts small {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+}
 .mobile-command-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
