@@ -8,7 +8,6 @@ import {
 } from "react";
 import type { CSSProperties } from "react";
 import { flushSync } from "react-dom";
-import { PdfPages } from "./components/PdfPages";
 import {
   ArrowDown,
   ArrowUp,
@@ -1789,15 +1788,17 @@ export default function App() {
           className="pdf-preview-dialog"
           onClose={() => setDialog(null)}
         >
-          <div className="pdf-view">
+          <div className={`pdf-view${mobile ? " pdf-mobile-view" : ""}`}>
             <div className="pdf-toolbar">
-              <span>
-                {pdfWorking || !exact
-                  ? "Preparing your pages…"
-                  : pdfPages
-                    ? `${pdfPages.pages} published pages`
-                    : "PDF preview"}
-              </span>
+              {!mobile && (
+                <span>
+                  {pdfWorking || !exact
+                    ? "Preparing your pages…"
+                    : pdfPages
+                      ? `${pdfPages.pages} published pages`
+                      : "PDF preview"}
+                </span>
+              )}
               {pdfUrl && exact ? (
                 <a
                   className="pdf-download"
@@ -1806,12 +1807,12 @@ export default function App() {
                   target="_blank"
                   rel="noopener"
                 >
-                  <Download size={15} />
+                  <Download size={18} />
                   Download PDF
                 </a>
               ) : (
                 <button disabled>
-                  <Download size={15} />
+                  <Download size={18} />
                   Preparing PDF…
                 </button>
               )}
@@ -1828,8 +1829,8 @@ export default function App() {
                   Try again
                 </button>
               </div>
-            ) : pdfUrl && exact ? (
-              <PdfPages key={pdfUrl} bytes={pdfResult.current!.result.bytes} />
+            ) : mobile ? null : pdfUrl && exact ? (
+              <iframe src={pdfUrl} title="Published screenplay PDF" />
             ) : (
               <div className="pdf-loading">
                 <FileText size={32} />

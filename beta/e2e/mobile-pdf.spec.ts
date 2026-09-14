@@ -4,7 +4,9 @@ import { PDFDocument } from "pdf-lib";
 import { mobileSection } from "./mobile-menu-helper";
 
 for (const width of [390, 820]) {
-  test(`PDF pages render and download at ${width}px`, async ({ page }) => {
+  test(`mobile PDF offers a centered download without a preview at ${width}px`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width, height: 844 });
     await page.addInitScript(() => {
       Object.defineProperty(window, "showOpenFilePicker", { value: undefined });
@@ -28,33 +30,22 @@ for (const width of [390, 820]) {
     await mobileSection(page, "View");
     await page.getByRole("button", { name: "PDF pages", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "PDF pages", exact: true });
-    const first = dialog.getByRole("img", {
-      name: "PDF page 1 of 2",
+    const button = dialog.getByRole("link", {
+      name: "Download PDF",
       exact: true,
     });
-    await expect(first).toBeVisible({ timeout: 30000 });
-    // Assert actual painted ink, not merely the existence of an empty canvas.
+    await expect(button).toBeVisible({ timeout: 30000 });
+    await expect(dialog.locator("iframe, canvas, object, embed")).toHaveCount(
+      0,
+    );
+    const area = await dialog.locator(".pdf-view").boundingBox();
+    const bounds = await button.boundingBox();
     expect(
-      await first.evaluate((element) => {
-        const canvas = element as HTMLCanvasElement;
-        const data = canvas
-          .getContext("2d")!
-          .getImageData(0, 0, canvas.width, canvas.height).data;
-        let ink = 0;
-        for (let i = 0; i < data.length; i += 4)
-          if (data[i] < 150 && data[i + 3] > 0) ink++;
-        return ink;
-      }),
-    ).toBeGreaterThan(100);
-    await dialog
-      .getByRole("button", { name: "Next page", exact: true })
-      .click();
-    await expect(
-      dialog.getByRole("img", { name: "PDF page 2 of 2" }),
-    ).toBeVisible();
-    await expect(
-      dialog.getByRole("button", { name: "Next page", exact: true }),
-    ).toBeDisabled();
+      Math.abs(bounds!.x + bounds!.width / 2 - area!.x - area!.width / 2),
+    ).toBeLessThan(2);
+    expect(
+      Math.abs(bounds!.y + bounds!.height / 2 - area!.y - area!.height / 2),
+    ).toBeLessThan(2);
     const downloading = page.waitForEvent("download");
     await dialog
       .getByRole("link", { name: "Download PDF", exact: true })
