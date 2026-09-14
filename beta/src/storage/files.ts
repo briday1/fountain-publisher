@@ -16,6 +16,10 @@ const fileTypes = [
     description: "Fountain screenplay",
     accept: { "text/plain": [".fountain", ".txt"] },
   },
+  {
+    description: "Final Draft screenplay",
+    accept: { "application/xml": [".fdx"] },
+  },
 ];
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 export function supportsFileAccess() {
@@ -29,9 +33,25 @@ export async function readLocalFile(
 ): Promise<{ name: string; content: string }> {
   if (file.size > MAX_FILE_BYTES)
     throw new Error("This file exceeds the 10 MB screenplay limit.");
-  const content = await file.text();
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const encoding =
+    bytes[0] === 0xff && bytes[1] === 0xfe
+      ? "utf-16le"
+      : bytes[0] === 0xfe && bytes[1] === 0xff
+        ? "utf-16be"
+        : "utf-8";
+  let content: string;
+  try {
+    content = new TextDecoder(encoding, { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error(
+      "Choose a Fountain text file or Final Draft (.fdx) screenplay.",
+    );
+  }
   if (content.includes("\0"))
-    throw new Error("Choose a plain text Fountain screenplay.");
+    throw new Error(
+      "Choose a Fountain text file or Final Draft (.fdx) screenplay.",
+    );
   return { name: file.name, content };
 }
 export async function openLocalFile(): Promise<{
@@ -55,7 +75,7 @@ export async function openLocalFile(): Promise<{
   return new Promise((resolve, reject) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".fountain,.txt,text/plain";
+    input.accept = ".fountain,.txt,.fdx,text/plain,application/xml";
     input.style.display = "none";
     document.body.append(input);
     const finish = () => input.remove();

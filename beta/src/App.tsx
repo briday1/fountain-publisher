@@ -28,6 +28,7 @@ import {
 import { emptyScreenplay, blockLabels, newId } from "./core/model";
 import type { BeatRange, BlockKind, Screenplay } from "./core/model";
 import { resolveBeatRange } from "./core/beatRanges";
+import { importScreenplay } from "./core/fdx";
 import { parseFountain, serializeFountain } from "./core/fountain";
 import { analyzeScreenplay } from "./core/insights";
 import { example } from "./core/example";
@@ -46,11 +47,17 @@ import type { FileHandle } from "./storage/files";
 import { cloud } from "./storage/cloud";
 import type { CloudDocument, Provider } from "./storage/cloud";
 import { EditorSurface } from "./components/EditorSurface";
+import { HighlightPdfDialog } from "./components/HighlightPdfDialog";
+import { highlightedPdfFilename } from "./core/characterHighlights";
 import { CharacterDialog } from "./components/CharacterDialog";
 import { CharacterAnalytics } from "./components/CharacterAnalytics";
 import { BeatSheetDialog } from "./components/BeatSheetDialog";
 import { WritingToolbar } from "./components/WritingToolbar";
 import { formatPageCount } from "./core/pageCount";
+import {
+  hasLegacyBeatRanges,
+  restoreImportedBeatRanges,
+} from "./core/repairBeats";
 import { BeatGuide } from "./components/BeatGuide";
 import { Settings, readPreferences } from "./components/Settings";
 import { TitleDialog } from "./components/TitleDialog";
@@ -89,6 +96,7 @@ export default function App() {
     | "characters"
     | "beats"
     | "pdf"
+    | "highlight"
     | null
   >(null);
   const [cloudDialog, setCloudDialog] = useState<{
@@ -396,9 +404,9 @@ export default function App() {
     const result = await openLocalFile();
     if (!result) return;
     session.assertCurrent(token);
-    const parsed = parseFountain(result.content);
-    await session.open(parsed, result.name);
-    file.current = result.handle;
+    const imported = importScreenplay(result.content, result.name);
+    await session.open(imported.screenplay, imported.name);
+    file.current = imported.converted ? undefined : result.handle;
     setDialog(null);
   }
   async function saveLocal(as = false) {
@@ -525,9 +533,28 @@ export default function App() {
   }
   async function openCloudDocument(doc: CloudDocument) {
     if (!session) return;
-    await session.open(parseFountain(doc.content), doc.name, doc.remote);
+    const imported = importScreenplay(doc.content, doc.name);
+    await session.open(
+      imported.screenplay,
+      imported.name,
+      imported.converted ? undefined : doc.remote,
+    );
     file.current = undefined;
     setDialog(null);
+  }
+  async function exportHighlightedPdf(names: string[]) {
+    if (!session || !names.length) return;
+    const snap = session.capture();
+    const result = await publishPdf(snap.screenplay, {
+      ...pdfOptions,
+      highlightCharacters: [...names],
+    });
+    downloadFile(
+      new Blob([result.bytes as BlobPart], { type: "application/pdf" }),
+      highlightedPdfFilename(snap.name, names),
+    );
+    if (result.warnings.length) tell(result.warnings.join(" "));
+    setDialog((current) => (current === "highlight" ? null : current));
   }
   async function exportFile(
     format: "pdf" | "beatPdf" | "fdx" | "beats" | "html",
@@ -628,10 +655,8 @@ export default function App() {
     const result = editor.current?.find(query, { caseSensitive, backwards });
     if (result) setMatch(result);
   }
-  useEffect(() => {
-    if (searchOpen) {
-      setTimeout(() => searchInput.current?.focus(), 0);
-    }
+  useLayoutEffect(() => {
+    if (searchOpen) searchInput.current?.focus();
   }, [searchOpen]);
   const actions = useRef({ save, saveLocal, openLocal, newDocument });
   actions.current = { save, saveLocal, openLocal, newDocument };
@@ -743,7 +768,7 @@ export default function App() {
               New screenplay
             </MenuItem>
             <MenuItem onClick={() => void run(openLocal)} shortcut={`${mod}O`}>
-              Open Fountain…
+              Open screenplay…
             </MenuItem>
             <MenuItem onClick={() => void run(save)} shortcut={`${mod}S`}>
               Save
@@ -785,11 +810,17 @@ export default function App() {
             <MenuItem onClick={() => void run(() => exportFile("pdf"))}>
               Export PDF…
             </MenuItem>
+            <MenuItem
+              onClick={() => {
+                session.capture();
+                setSnapshot({ ...session.current });
+                setDialog("highlight");
+              }}
+            >
+              Export highlighted PDF…
+            </MenuItem>
             <MenuItem onClick={() => void run(() => exportFile("fdx"))}>
               Export Final Draft…
-            </MenuItem>
-            <MenuItem onClick={() => void run(() => exportFile("html"))}>
-              Export formatted HTML…
             </MenuItem>
           </Menu>
           <Menu label="Edit">
@@ -857,6 +888,7 @@ export default function App() {
             <MenuItem onClick={toggleFullscreen}>
               {fullscreen ? "Exit full screen" : "Full screen"}
             </MenuItem>
+            <MenuItem onClick={() => setDialog("settings")}>Settings…</MenuItem>
           </Menu>
           <Menu label="Insert">
             <MenuItem onClick={() => setDialog("title")}>Title page…</MenuItem>
@@ -939,11 +971,12 @@ export default function App() {
                 <button
                   className="icon-button"
                   aria-label="Close outline"
+                  title="Close outline"
                   onClick={() =>
                     setPreferences({ ...preferences, outline: false })
                   }
                 >
-                  <ChevronLeft size={17} />
+                  <X size={17} />
                 </button>
               </div>
               <button
@@ -1046,7 +1079,7 @@ export default function App() {
             onBeatSheet={() => openView("beats")}
             searchOpen={searchOpen}
             onSearch={() => setSearchOpen(!searchOpen)}
-            onSettings={() => setDialog("settings")}
+            onPdf={() => openView("pdf")}
             zen={zen}
             onZen={toggleZen}
             fullscreen={fullscreen}
@@ -1196,6 +1229,7 @@ export default function App() {
                 <button
                   className="icon-button"
                   aria-label="Close insights"
+                  title="Close insights"
                   onClick={() =>
                     setPreferences({ ...preferences, insights: false })
                   }
@@ -1311,22 +1345,6 @@ export default function App() {
                   Character analytics<span aria-hidden="true">→</span>
                 </button>
               </section>
-              <section className="insight-section">
-                <div className="section-label">
-                  <h3>Locations</h3>
-                  <span>{insights.locationCount}</span>
-                </div>
-                {insights.locations.map((l) => (
-                  <button
-                    className="location-row"
-                    key={l.name}
-                    onClick={() => scene(l.sceneIds[0])}
-                  >
-                    <span>{l.name}</span>
-                    <b>{l.sceneCount}</b>
-                  </button>
-                ))}
-              </section>
               <section className="insight-section notes-section">
                 <div className="section-label">
                   <h3>Story notes</h3>
@@ -1409,6 +1427,34 @@ export default function App() {
           onRange={showBeatRange}
           onExport={() => void run(() => exportFile("beatPdf"))}
           onExportCsv={() => void run(() => exportFile("beats"))}
+          onRestore={
+            hasLegacyBeatRanges(doc)
+              ? () =>
+                  void run(async () => {
+                    const token = session.token();
+                    const original = await openLocalFile();
+                    if (!original) return;
+                    session.assertCurrent(token);
+                    changeDoc(
+                      restoreImportedBeatRanges(
+                        session.capture().screenplay,
+                        parseFountain(original.content),
+                      ),
+                    );
+                    tell(
+                      "Original beat line ranges restored. Your screenplay and notes have been kept.",
+                    );
+                  })
+              : undefined
+          }
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === "highlight" && (
+        <HighlightPdfDialog
+          names={insights.characters.map((person) => person.name)}
+          busy={busy}
+          onExport={(names) => void run(() => exportHighlightedPdf(names))}
           onClose={() => setDialog(null)}
         />
       )}

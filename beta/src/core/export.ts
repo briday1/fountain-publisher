@@ -14,13 +14,16 @@ import {
   sceneBeatRange,
   screenplayLines,
 } from "./beatRanges";
-import { analyzeScreenplay, publishedKinds } from "./insights";
+import { analyzeScreenplay, characterName, publishedKinds } from "./insights";
 import regularFontUrl from "@fontsource/courier-prime/files/courier-prime-latin-400-normal.woff?url";
 import boldFontUrl from "@fontsource/courier-prime/files/courier-prime-latin-700-normal.woff?url";
 import italicFontUrl from "@fontsource/courier-prime/files/courier-prime-latin-400-italic.woff?url";
 import boldItalicFontUrl from "@fontsource/courier-prime/files/courier-prime-latin-700-italic.woff?url";
 
+import { characterHighlights } from "./characterHighlights";
+
 export interface PdfOptions {
+  highlightCharacters?: string[];
   includeTitlePage?: boolean;
   pageSize?: "letter" | "a4";
   sceneNumbers?: "margin" | "inline" | "off";
@@ -50,6 +53,7 @@ interface Glyph {
   font: PDFFont;
 }
 interface Line {
+  highlight?: [number, number, number];
   glyphs: Glyph[];
   width: number;
   x: number;
@@ -178,6 +182,11 @@ export async function exportPdf(
 ): Promise<PdfExport> {
   const [{ PDFDocument, StandardFonts, rgb }, { default: fontkit }] =
     await Promise.all([import("pdf-lib"), import("@pdf-lib/fontkit")]);
+  const highlights = new Map(
+    characterHighlights(options.highlightCharacters ?? []).map(
+      ({ name, rgb }) => [name, rgb],
+    ),
+  );
   const pdf = await PDFDocument.create();
   pdf.setTitle(document.titlePage.title || "Untitled screenplay");
   pdf.setAuthor(document.titlePage.author);
@@ -254,6 +263,15 @@ export async function exportPdf(
         : line.align === "center"
           ? (line.boxWidth - line.width) / 2
           : 0);
+    if (line.highlight && line.width > 0)
+      target.drawRectangle({
+        x: x - 2,
+        y: atY - 2.5,
+        width: line.width + 4,
+        height: 13,
+        color: rgb(...line.highlight),
+        borderWidth: 0,
+      });
     let start = 0;
     while (start < line.glyphs.length) {
       const first = line.glyphs[start];
@@ -452,7 +470,13 @@ export async function exportPdf(
         },
         ...spans,
       ];
-    return wrap(spans, fonts, x, width, warnings, align);
+    const lines = wrap(spans, fonts, x, width, warnings, align);
+    const highlight =
+      block.kind === "character"
+        ? highlights.get(characterName(block.text))
+        : undefined;
+    if (highlight) for (const line of lines) line.highlight = highlight;
+    return lines;
   };
   const drawDialogue = (groups: ScriptBlock[][]) => {
     const columns = groups.map((group, column) =>

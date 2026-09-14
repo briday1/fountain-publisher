@@ -118,18 +118,33 @@ describe("file durability", () => {
     const handle = {
       name: "test.fountain",
       getFile: vi.fn(),
-      createWritable: vi
-        .fn()
-        .mockResolvedValue({
-          write: vi.fn().mockRejectedValue(new Error("disk full")),
-          close: vi.fn(),
-          abort,
-        }),
+      createWritable: vi.fn().mockResolvedValue({
+        write: vi.fn().mockRejectedValue(new Error("disk full")),
+        close: vi.fn(),
+        abort,
+      }),
     };
     await expect(
       saveLocalFile("hello", "test.fountain", handle),
     ).rejects.toThrow("disk full");
     expect(abort).toHaveBeenCalledOnce();
+  });
+  it("reads UTF-16 Final Draft files with a byte-order mark", async () => {
+    const xml =
+      '<?xml version="1.0" encoding="UTF-16"?><FinalDraft><Content><Paragraph><Text>Renée</Text></Paragraph></Content></FinalDraft>';
+    const bytes = new Uint8Array(2 + xml.length * 2);
+    bytes.set([255, 254]);
+    for (let i = 0; i < xml.length; i++) {
+      bytes[2 + i * 2] = xml.charCodeAt(i) & 255;
+      bytes[3 + i * 2] = xml.charCodeAt(i) >> 8;
+    }
+    expect(
+      await readLocalFile({
+        name: "Draft.fdx",
+        size: bytes.length,
+        arrayBuffer: async () => bytes.buffer,
+      } as File),
+    ).toEqual({ name: "Draft.fdx", content: xml });
   });
   it("rejects binary files and oversized files before reading", async () => {
     await expect(
@@ -139,8 +154,8 @@ describe("file durability", () => {
       readLocalFile({
         name: "bad.fountain",
         size: 3,
-        text: async () => "a\0b",
+        arrayBuffer: async () => new TextEncoder().encode("a\0b").buffer,
       } as File),
-    ).rejects.toThrow("plain text");
+    ).rejects.toThrow("Fountain");
   });
 });

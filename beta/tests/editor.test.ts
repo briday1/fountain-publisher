@@ -561,3 +561,84 @@ it("separates native text replacement from earlier typing before selectionchange
   editor.undo();
   expect(editor.getBlocks()[0].text).toBe("Good morning.");
 });
+
+describe("character-name completion", () => {
+  const press = (
+    editor: EditorController,
+    key: string,
+    options: KeyboardEventInit = {},
+  ) => {
+    const event = new KeyboardEvent("keydown", {
+      key,
+      bubbles: true,
+      cancelable: true,
+      ...options,
+    });
+    editor.view.dom.dispatchEvent(event);
+  };
+  it("completes existing Unicode names with Tab, separates undo, and enters dialogue naturally", () => {
+    const editor = create([
+      ["character", "RENÉE (V.O.)"],
+      ["dialogue", "Hello."],
+      ["action", ""],
+    ]);
+    editor.focusBlock("block-2");
+    type(editor, "REN");
+    expect(document.querySelector('[role="option"]')?.textContent).toContain(
+      "RENÉE",
+    );
+    press(editor, "Tab");
+    expect(textAndKinds(editor).at(-1)).toEqual(["character", "RENÉE"]);
+    editor.undo();
+    expect(textAndKinds(editor).at(-1)).toEqual(["action", "REN"]);
+    editor.redo();
+    enter(editor);
+    expect(textAndKinds(editor).at(-1)).toEqual(["dialogue", ""]);
+  });
+  it("cycles matching names, dismisses without blurring, and retains ordinary Tab for unmatched cues", () => {
+    const editor = create([
+      ["character", "MARA"],
+      ["dialogue", "One."],
+      ["character", "MARTIN"],
+      ["dialogue", "Two."],
+      ["action", ""],
+    ]);
+    editor.focusBlock("block-4");
+    type(editor, "MAR");
+    press(editor, "ArrowDown");
+    press(editor, "Tab");
+    expect(textAndKinds(editor).at(-1)).toEqual(["character", "MARTIN"]);
+    editor.undo();
+    press(editor, "Escape");
+    expect(editor.view.hasFocus()).toBe(true);
+    expect(
+      (document.querySelector(".character-completions") as HTMLElement).hidden,
+    ).toBe(true);
+    editor.view.dispatch(editor.view.state.tr.insertText("X"));
+    press(editor, "Tab");
+    expect(textAndKinds(editor).at(-1)).toEqual(["character", "MARX"]);
+  });
+  it("updates the cue index after rename, deletion, undo, document switches, and skips IME input", () => {
+    const editor = create([
+      ["character", "MARA"],
+      ["dialogue", "Hello."],
+      ["action", ""],
+    ]);
+    select(editor, 1, 5);
+    type(editor, "MAYA");
+    editor.focusBlock("block-2");
+    type(editor, "MA");
+    expect(document.querySelector('[role="option"]')?.textContent).toContain(
+      "MAYA",
+    );
+    press(editor, "Tab", { isComposing: true });
+    expect(textAndKinds(editor).at(-1)).toEqual(["action", "MA"]);
+    press(editor, "Tab");
+    expect(textAndKinds(editor).at(-1)).toEqual(["character", "MAYA"]);
+    editor.setDocument(emptyScreenplay());
+    editor.focus();
+    type(editor, "MA");
+    press(editor, "Tab");
+    expect(textAndKinds(editor)).toEqual([["character", "MA"]]);
+  });
+});

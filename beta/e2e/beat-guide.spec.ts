@@ -16,7 +16,7 @@ test("writing guide keeps the next beat visible and assigns without replacing th
   await expect(editor).toBeVisible();
   await page.getByRole("button", { name: "File", exact: true }).click();
   const chooser = page.waitForEvent("filechooser");
-  await page.getByRole("button", { name: /^Open Fountain/ }).click();
+  await page.getByRole("button", { name: /^Open screenplay/ }).click();
   await (
     await chooser
   ).setFiles({

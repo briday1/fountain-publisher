@@ -5,7 +5,7 @@ import { PDFDocument } from "pdf-lib";
 async function openFountain(page: Page, source: string, marker: string) {
   await page.getByRole("button", { name: "File", exact: true }).click();
   const chooser = page.waitForEvent("filechooser");
-  await page.getByRole("button", { name: /^Open Fountain/ }).click();
+  await page.getByRole("button", { name: /^Open screenplay/ }).click();
   await (
     await chooser
   ).setFiles({
@@ -101,9 +101,7 @@ test("Insights shows generated fractional PDF progress before preview, including
   );
   expect(letter.getPage(0).getSize()).toEqual({ width: 612, height: 792 });
 
-  await page
-    .getByRole("button", { name: "Appearance settings", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   const settings = page.getByRole("dialog", { name: "Make yourself at home" });
   await settings
     .getByRole("combobox", { name: "Paper size", exact: true })

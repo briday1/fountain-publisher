@@ -215,7 +215,7 @@ export function createBetaWorker(network: typeof fetch = fetch) {
         );
         headers.set(
           "Content-Security-Policy",
-          `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' ${env.API_ORIGIN}; worker-src 'self' blob:; frame-src blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`,
+          `default-src 'self'; script-src 'self' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://www.gstatic.com https://ssl.gstatic.com; font-src 'self'; connect-src https://apis.google.com https://www.googleapis.com 'self' ${env.API_ORIGIN}; worker-src 'self' blob:; frame-src blob: https://docs.google.com https://drive.google.com https://accounts.google.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`,
         );
         return new Response(response.body, {
           status: response.status,
@@ -374,13 +374,20 @@ export function createBetaWorker(network: typeof fetch = fetch) {
           return cors(
             json({
               items: data.filter(
-                (e) => e.type === "dir" || /\.(fountain|txt)$/i.test(e.name),
+                (e) =>
+                  e.type === "dir" || /\.(fountain|txt|fdx)$/i.test(e.name),
               ),
             }),
           );
         }
         if (route === "/github/open" && request.method === "GET") {
-          const q = githubLocation.parse(query);
+          const q = githubLocation
+            .extend({
+              path: path.refine((value) =>
+                /\.(fountain|txt|fdx)$/i.test(value),
+              ),
+            })
+            .parse(query);
           const data = (await upstreamJson(`/api/contents?${params(q)}`)) as {
             name: string;
             content: string;
@@ -448,6 +455,25 @@ export function createBetaWorker(network: typeof fetch = fetch) {
             }),
           );
         }
+        if (route === "/google/picker" && request.method === "GET") {
+          if (!allowed)
+            throw new HttpError(
+              403,
+              "Open the picker from Fountain Publisher beta.",
+            );
+          const config = (await upstreamJson("/api/google/picker/config")) as {
+            accessToken?: string;
+            apiKey?: string;
+            appId?: string;
+          };
+          return cors(
+            json({
+              accessToken: config.accessToken ?? "",
+              apiKey: config.apiKey ?? "",
+              appId: config.appId ?? "",
+            }),
+          );
+        }
         // A per-request token stays inside the Worker and uses the existing account's narrow Drive scope.
         let tokenPromise: Promise<string> | undefined;
         const drive = async (route: string, init: RequestInit = {}) => {
@@ -473,7 +499,7 @@ export function createBetaWorker(network: typeof fetch = fetch) {
             }),
           );
         };
-        const metadata = async (fileId: string) => {
+        const metadata = async (fileId: string, importing = false) => {
           const [modern, version] = await Promise.all([
             drive(
               `/drive/v3/files/${fileId}?fields=id,name,mimeType,webViewLink,capabilities(canEdit)&supportsAllDrives=true`,
@@ -495,7 +521,11 @@ export function createBetaWorker(network: typeof fetch = fetch) {
             },
             { etag?: string },
           ];
-          if (!/\.(fountain|txt)$/i.test(file.name))
+          if (
+            !(importing ? /\.(fountain|txt|fdx)$/i : /\.(fountain|txt)$/i).test(
+              file.name,
+            )
+          )
             throw new HttpError(400, "Choose a Fountain or text screenplay.");
           if (!v.etag || v.etag === "*" || v.etag.startsWith("W/"))
             throw new HttpError(
@@ -509,17 +539,20 @@ export function createBetaWorker(network: typeof fetch = fetch) {
           const q = z
             .object({
               parent: id.default("root"),
+              all: z.enum(["true", "false"]).default("false"),
               pageToken: z.string().max(4096).optional(),
               shared: z.enum(["true", "false"]).default("false"),
             })
             .parse(query);
           const filter =
-            q.shared === "true" && q.parent === "root"
-              ? "sharedWithMe"
-              : `'${q.parent}' in parents`;
+            q.all === "true"
+              ? ""
+              : q.shared === "true" && q.parent === "root"
+                ? "sharedWithMe"
+                : `'${q.parent}' in parents`;
           const data = (await (
             await drive(
-              `/drive/v3/files?${params({ q: `trashed=false and ${filter} and (mimeType='application/vnd.google-apps.folder' or name contains '.fountain' or name contains '.txt')`, fields: "nextPageToken,files(id,name,mimeType,modifiedTime,webViewLink,capabilities(canEdit),shared)", orderBy: "folder,name", pageSize: 100, pageToken: q.pageToken, supportsAllDrives: true, includeItemsFromAllDrives: true })}`,
+              `/drive/v3/files?${params({ q: `trashed=false${filter ? ` and ${filter}` : ""} and (mimeType='application/vnd.google-apps.folder' or name contains '.fountain' or name contains '.txt' or name contains '.fdx')`, fields: "nextPageToken,files(id,name,mimeType,modifiedTime,webViewLink,capabilities(canEdit),shared)", orderBy: "folder,name", pageSize: 100, pageToken: q.pageToken, supportsAllDrives: true, includeItemsFromAllDrives: true })}`,
             )
           ).json()) as { files: unknown[]; nextPageToken?: string };
           return cors(
@@ -531,13 +564,13 @@ export function createBetaWorker(network: typeof fetch = fetch) {
         }
         if (route === "/google/open" && request.method === "GET") {
           const q = z.object({ id }).parse(query);
-          const before = await metadata(q.id);
+          const before = await metadata(q.id, true);
           const text = await boundedText(
             await drive(
               `/drive/v3/files/${q.id}?alt=media&supportsAllDrives=true`,
             ),
           );
-          const after = await metadata(q.id);
+          const after = await metadata(q.id, true);
           if (before.etag !== after.etag)
             throw new HttpError(
               409,

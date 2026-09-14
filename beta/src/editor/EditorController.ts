@@ -52,6 +52,7 @@ import {
   textAnchor,
   updateBeatAnchors,
 } from "./beatAnchors";
+import { characterCompletion } from "./characterCompletion";
 import "./editor.css";
 
 export interface EditorCallbacks {
@@ -74,7 +75,33 @@ interface Match {
 const searchKey = new PluginKey<DecorationSet>("screenplaySearch");
 const normalizeKey = new PluginKey("screenplayNormalize");
 
-/** All editing state belongs to ProseMirror. React should mount this once per open document. */
+/** Native selectionchange may arrive after the next keydown, especially after
+ * a click or arrow movement. Commands must use the caret the writer can see. */
+function syncNativeSelection(view: EditorView) {
+  const selection = view.dom.ownerDocument.getSelection();
+  if (
+    !view.hasFocus() ||
+    !selection?.anchorNode ||
+    !selection.focusNode ||
+    !view.dom.contains(selection.anchorNode) ||
+    !view.dom.contains(selection.focusNode)
+  )
+    return;
+  const anchor = view.posAtDOM(selection.anchorNode, selection.anchorOffset);
+  const head = view.posAtDOM(selection.focusNode, selection.focusOffset);
+  if (
+    anchor === view.state.selection.anchor &&
+    head === view.state.selection.head
+  )
+    return;
+  const next = TextSelection.between(
+    view.state.doc.resolve(anchor),
+    view.state.doc.resolve(head),
+  );
+  view.dispatch(view.state.tr.setSelection(next));
+}
+
+/** All editing state belongs to ProseMirror. React mounts one persistent surface. */
 export class EditorController {
   readonly view: EditorView;
   private callbacks: EditorCallbacks;
@@ -100,6 +127,12 @@ export class EditorController {
       },
       dispatchTransaction: (transaction) => this.dispatch(transaction),
       handleDOMEvents: {
+        keydown: (view, event) => {
+          if ((event as KeyboardEvent).isComposing || view.composing)
+            return true;
+          syncNativeSelection(view);
+          return false;
+        },
         beforeinput: (view, event) => {
           const input = event as InputEvent;
           if (input.isComposing || view.composing || !input.cancelable)
@@ -116,6 +149,7 @@ export class EditorController {
             } as Record<string, Command>
           )[input.inputType];
           if (!command) return false;
+          syncNativeSelection(view);
           // Mobile keyboards and accessibility input need not emit keydown.
           // Route their paragraph, format, and history actions through the same state.
           input.preventDefault();
@@ -243,6 +277,7 @@ export class EditorController {
       schema: screenplaySchema,
       doc: blocksToDoc(screenplay.blocks),
       plugins: [
+        characterCompletion(),
         beatAnchorPlugin(screenplay),
         history({ depth: 500, newGroupDelay: 500 }),
         keymap({
@@ -507,6 +542,7 @@ export class EditorController {
     }
     if (index < 0) index = options.backwards ? matches.length - 1 : 0;
     const match = matches[index];
+    this.focus();
     this.view.dispatch(
       selectText(state, match.from, match.to).setMeta(searchKey, decorations),
     );

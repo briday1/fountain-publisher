@@ -11,6 +11,8 @@ export class ApiError extends Error {
 export interface ProviderConfig {
   clientId: string;
   clientSecret: string;
+  apiKey?: string;
+  appId?: string;
 }
 export interface ServerConfig {
   origin: string;

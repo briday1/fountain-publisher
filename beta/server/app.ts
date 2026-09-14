@@ -90,7 +90,7 @@ export async function createApp(
     app.use((_req, res, next) => {
       res.setHeader(
         "Content-Security-Policy",
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; frame-src blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+        "default-src 'self'; script-src 'self' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://www.gstatic.com https://ssl.gstatic.com; font-src 'self'; connect-src https://apis.google.com https://www.googleapis.com 'self'; worker-src 'self' blob:; frame-src blob: https://docs.google.com https://drive.google.com https://accounts.google.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
       );
       next();
     });
@@ -315,7 +315,7 @@ export async function createApp(
         .filter(
           (e) =>
             e.type === "dir" ||
-            (e.type === "file" && /\.(fountain|txt)$/i.test(e.name)),
+            (e.type === "file" && /\.(fountain|txt|fdx)$/i.test(e.name)),
         )
         .map((e) => ({
           name: e.name,
@@ -328,7 +328,10 @@ export async function createApp(
   });
   app.get("/api/github/open", async (req, res) => {
     const q = githubLocation
-      .extend({ ref: branch.optional() })
+      .extend({
+        ref: branch.optional(),
+        path: path.refine((value) => /\.(fountain|txt|fdx)$/i.test(value)),
+      })
       .parse(req.query);
     res.json(
       await providers.githubOpen(
@@ -381,15 +384,35 @@ export async function createApp(
       },
     });
   });
+  app.get("/api/google/picker", async (req, res) => {
+    if (req.get("origin") && req.get("origin") !== origin)
+      throw new ApiError(
+        403,
+        "ORIGIN_REJECTED",
+        "Open the picker from Fountain Publisher.",
+      );
+    const current = session(res);
+    await providers.request(
+      current,
+      "google",
+      "/drive/v3/about?fields=user(displayName)",
+    );
+    res.set("Cache-Control", "no-store").json({
+      accessToken: current.credentials.google!.accessToken,
+      apiKey: config.google?.apiKey ?? "",
+      appId: config.google?.appId ?? "",
+    });
+  });
   app.get("/api/google/files", async (req, res) => {
     const q = z
       .object({
         parent: driveId.default("root"),
+        all: z.enum(["true", "false"]).default("false"),
         pageToken: z.string().max(4096).optional(),
         shared: z.enum(["true", "false"]).default("false"),
       })
       .parse(req.query);
-    const filter = `trashed = false and ${q.shared === "true" ? "sharedWithMe = true" : `'${q.parent}' in parents`} and (mimeType = 'application/vnd.google-apps.folder' or mimeType = 'text/plain' or name contains '.fountain' or name contains '.txt')`;
+    const filter = `trashed = false${q.all === "true" ? "" : ` and ${q.shared === "true" && q.parent === "root" ? "sharedWithMe = true" : `'${q.parent}' in parents`}`} and (mimeType = 'application/vnd.google-apps.folder' or mimeType = 'text/plain' or name contains '.fountain' or name contains '.txt' or name contains '.fdx')`;
     const response = await providers.request(
       session(res),
       "google",
@@ -567,40 +590,31 @@ export async function createApp(
         return;
       }
       if (error instanceof ZodError) {
-        res
-          .status(400)
-          .json({
-            code: "INVALID_INPUT",
-            error:
-              "The request contains an invalid file, folder, or save value.",
-          });
+        res.status(400).json({
+          code: "INVALID_INPUT",
+          error: "The request contains an invalid file, folder, or save value.",
+        });
         return;
       }
       if ((error as { type?: string })?.type === "entity.too.large") {
-        res
-          .status(413)
-          .json({
-            code: "TOO_LARGE",
-            error: "This screenplay exceeds the upload limit.",
-          });
+        res.status(413).json({
+          code: "TOO_LARGE",
+          error: "This screenplay exceeds the upload limit.",
+        });
         return;
       }
       if (error instanceof SyntaxError) {
-        res
-          .status(400)
-          .json({
-            code: "INVALID_JSON",
-            error: "The request body is not valid JSON.",
-          });
+        res.status(400).json({
+          code: "INVALID_JSON",
+          error: "The request body is not valid JSON.",
+        });
         return;
       }
-      res
-        .status(500)
-        .json({
-          code: "SERVER_ERROR",
-          error:
-            "The server could not complete this operation. Your device draft is unchanged.",
-        });
+      res.status(500).json({
+        code: "SERVER_ERROR",
+        error:
+          "The server could not complete this operation. Your device draft is unchanged.",
+      });
     },
   );
   return { app, vault, providers };

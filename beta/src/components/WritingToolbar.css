@@ -73,10 +73,6 @@
   padding: 0 8px;
   white-space: nowrap;
 }
-.writing-toolbar .writing-beat-sheet {
-  color: var(--ink);
-  font-weight: 600;
-}
 .writing-toolbar .writing-element {
   width: 132px;
   padding: 0 4px 0 7px;

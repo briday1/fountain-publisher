@@ -10,8 +10,9 @@ export function Help({ onClose }: { onClose: () => void }) {
       </p>
       <p>
         Choose an element in the toolbar whenever you want to be explicit. Tab
-        cycles screenplay elements. Native selection, clipboard, spellcheck, and
-        undo work across the whole document.
+        completes matching character names; use the arrow keys to choose a
+        match. Otherwise, Tab cycles screenplay elements. Native selection,
+        clipboard, spellcheck, and undo work across the whole document.
       </p>
       <table className="shortcut-table">
         <tbody>
@@ -22,7 +23,7 @@ export function Help({ onClose }: { onClose: () => void }) {
             [`${mod} Shift Z`, "Redo"],
             [`${mod} B / I / U`, "Bold / italic / underline"],
             [`${mod} F`, "Find and replace"],
-            ["Tab / Shift Tab", "Next / previous element"],
+            ["Tab / Shift Tab", "Complete character / cycle element"],
             ["Escape", "Close a dialog or exit Zen mode"],
           ].map(([key, label]) => (
             <tr key={key}>
@@ -44,6 +45,12 @@ export function Help({ onClose }: { onClose: () => void }) {
         screenplay lines as you write. Insights measures page usage from the
         generated PDF, rounded up to an eighth of a page. View → PDF pages shows
         the full export.
+      </p>
+      <p>
+        Open Fountain or Final Draft (.fdx) files from your device, Drive, or
+        GitHub. Imported Final Draft files save as Fountain. File → Export
+        highlighted PDF lets you select characters and color their names in the
+        published script. The eye button opens PDF pages over your writing.
       </p>
       <p>
         Full screen fills your display. Zen mode keeps just the page and any

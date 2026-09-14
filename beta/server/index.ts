@@ -18,10 +18,15 @@ const { app } = await createApp({
     process.env.GITHUB_CLIENT_ID,
     process.env.GITHUB_CLIENT_SECRET,
   ),
-  google: provider(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-  ),
+  google:
+    process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+      ? {
+          clientId: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          apiKey: process.env.GOOGLE_API_KEY,
+          appId: process.env.GOOGLE_APP_ID,
+        }
+      : undefined,
 });
 const server = app.listen(port, process.env.HOST ?? "127.0.0.1", () => {
   console.log(`Fountain Publisher server listening on port ${port}.`);

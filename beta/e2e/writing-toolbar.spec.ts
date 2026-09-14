@@ -136,9 +136,11 @@ test("writing controls stay in one compact row, respond to panel width, and rema
     path: testInfo.outputPath("writing-toolbar-mobile.png"),
     fullPage: true,
   });
-  await toolbar
-    .getByRole("button", { name: "Appearance settings", exact: true })
-    .click();
+  await expect(
+    toolbar.getByRole("button", { name: "Appearance settings" }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "View", exact: true }).click();
+  await page.getByRole("button", { name: "Settings…", exact: true }).click();
   await expect(
     page.getByRole("dialog", { name: "Make yourself at home", exact: true }),
   ).toBeVisible();

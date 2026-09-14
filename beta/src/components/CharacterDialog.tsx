@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Modal } from "./Modal";
 import { analyzeScreenplay, characterName } from "../core/insights";
 import type { BeatRange, Screenplay, ScriptBlock } from "../core/model";
@@ -19,21 +20,25 @@ export function CharacterDialog({
   onAnalytics?: () => void;
   onClose: () => void;
 }) {
-  const stats = analyzeScreenplay(doc);
+  const stats = useMemo(() => analyzeScreenplay(doc), [doc.blocks]);
   const person = stats.characters.find((c) => c.name === name);
-  const speeches: { cue: ScriptBlock; lines: ScriptBlock[] }[] = [];
-  let current: (typeof speeches)[number] | undefined;
-  for (const block of doc.blocks) {
-    if (block.kind === "character") {
-      current =
-        characterName(block.text) === name
-          ? { cue: block, lines: [] }
-          : undefined;
-      if (current) speeches.push(current);
-    } else if (["dialogue", "parenthetical", "lyrics"].includes(block.kind)) {
-      current?.lines.push(block);
-    } else if (!["note", "boneyard"].includes(block.kind)) current = undefined;
-  }
+  const speeches = useMemo(() => {
+    const speeches: { cue: ScriptBlock; lines: ScriptBlock[] }[] = [];
+    let current: (typeof speeches)[number] | undefined;
+    for (const block of doc.blocks) {
+      if (block.kind === "character") {
+        current =
+          characterName(block.text) === name
+            ? { cue: block, lines: [] }
+            : undefined;
+        if (current) speeches.push(current);
+      } else if (["dialogue", "parenthetical", "lyrics"].includes(block.kind)) {
+        current?.lines.push(block);
+      } else if (!["note", "boneyard"].includes(block.kind))
+        current = undefined;
+    }
+    return speeches;
+  }, [doc.blocks, name]);
   const notes = (
     doc.metadata.characterNotes &&
     typeof doc.metadata.characterNotes === "object"

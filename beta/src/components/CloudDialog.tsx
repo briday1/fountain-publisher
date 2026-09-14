@@ -8,6 +8,8 @@ import {
   RefreshCw,
   ExternalLink,
 } from "lucide-react";
+import { flushSync, createPortal } from "react-dom";
+import { pickDriveItem } from "../storage/drivePicker";
 import { Modal } from "./Modal";
 import { cloud, connectAccount } from "../storage/cloud";
 import type {
@@ -42,6 +44,9 @@ export function CloudDialog({
   onBeforeConnect: () => Promise<void>;
   onClose: () => void;
 }) {
+  const [saveCopy, setSaveCopy] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerAbort = useRef<AbortController | null>(null);
   const [status, setStatus] = useState<CloudStatus>();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -66,27 +71,34 @@ export function CloudDialog({
   const [role, setRole] = useState<"reader" | "writer">("reader");
   const [revisions, setRevisions] = useState<DriveRevision[]>([]);
   const [success, setSuccess] = useState("");
+  const pending = useRef(0);
   const alive = useRef(true);
   const request = useRef(0);
   useEffect(
     () => () => {
       alive.current = false;
+      pickerAbort.current?.abort();
       request.current++;
     },
     [],
   );
   async function run(fn: () => Promise<void>) {
     setError("");
+    pending.current++;
     setBusy(true);
     try {
       await fn();
     } catch (e) {
-      if (alive.current)
+      if (
+        alive.current &&
+        !(e instanceof DOMException && e.name === "AbortError")
+      )
         setError(
           e instanceof Error ? e.message : "The request could not complete.",
         );
     } finally {
-      if (alive.current) setBusy(false);
+      pending.current--;
+      if (alive.current) setBusy(pending.current > 0);
     }
   }
   useEffect(() => {
@@ -182,6 +194,11 @@ export function CloudDialog({
       }
       return;
     }
+    if (mode === "save") {
+      setName(entry.name.replace(/\.fdx$/i, ".fountain"));
+      if (provider === "google") setSaveCopy(true);
+      return;
+    }
     void run(async () => {
       const [owner, r] = repo.split("/");
       const doc =
@@ -194,6 +211,36 @@ export function CloudDialog({
       }
     });
   };
+  const browseDrive = (folder = false) =>
+    void run(async () => {
+      pickerAbort.current?.abort();
+      const controller = new AbortController();
+      pickerAbort.current = controller;
+      try {
+        const item = await pickDriveItem({
+          folder,
+          parent,
+          signal: controller.signal,
+          onReady: () => flushSync(() => setPickerOpen(true)),
+        });
+        if (!alive.current) return;
+        setPickerOpen(false);
+        if (!item) return;
+        if (folder) {
+          setSaveCopy(true);
+          setParents([{ id: "root", name: item.name }]);
+          setParent(item.id);
+          setShared(false);
+        } else {
+          const doc = await cloud.driveOpen(item.id);
+          if (!alive.current) return;
+          await onOpen(doc);
+          onClose();
+        }
+      } finally {
+        if (alive.current) setPickerOpen(false);
+      }
+    });
   const save = () => {
     const content = getContent();
     void run(async () => {
@@ -220,7 +267,7 @@ export function CloudDialog({
         });
       } else {
         result =
-          remote?.provider === "google"
+          remote?.provider === "google" && !saveCopy
             ? await cloud.driveSave({
                 id: remote.id,
                 etag: remote.etag,
@@ -237,351 +284,387 @@ export function CloudDialog({
   const connected = status?.[provider].connected;
   const configured = status?.[provider].configured;
   return (
-    <Modal
-      title={provider === "github" ? "GitHub" : "Google Drive"}
-      eyebrow={
-        mode === "save"
-          ? "SAVE YOUR SCREENPLAY"
-          : mode === "share"
-            ? "SHARING"
-            : mode === "history"
-              ? "VERSION HISTORY"
-              : "OPEN A SCREENPLAY"
-      }
-      onClose={onClose}
-      wide
-    >
-      <div className="cloud-account">
-        {provider === "github" ? <Github size={22} /> : <Cloud size={22} />}
-        <span>
-          {connected
-            ? status?.[provider].account
-            : "Your stories, wherever you work."}
-        </span>
-        <div className="spacer" />
-        {connected && (
+    <>
+      {pickerOpen &&
+        createPortal(
           <button
-            disabled={busy}
-            onClick={() =>
-              void run(async () => {
-                await cloud.disconnect(provider);
-                if (alive.current) setStatus(await cloud.status());
-              })
-            }
+            className="drive-picker-exit"
+            onClick={() => pickerAbort.current?.abort()}
+            title="Return to Fountain Publisher"
           >
-            Disconnect
-          </button>
+            Close Drive browser ×
+          </button>,
+          document.body,
         )}
-      </div>
-      {error && (
-        <div className="error-box" role="alert">
-          {error}
-          <p>
-            Your current draft has been kept. If the remote file changed,
-            download your copy before opening its latest version.
-          </p>
-          <button onClick={() => downloadFile(getContent(), filename)}>
-            Download my copy
-          </button>
-        </div>
-      )}
-      {success && <p role="status">{success}</p>}
-      {!status && !error && <p className="muted">Checking connection…</p>}
-      {status && !connected && (
-        <div className="connect-state">
-          <h3>
-            {configured
-              ? `Connect ${provider === "github" ? "GitHub" : "Google Drive"}`
-              : "Account connection needs setup"}
-          </h3>
-          <p>
-            {configured
-              ? "Sign in securely to browse and save your screenplays."
-              : `This installation needs ${provider === "github" ? "GitHub" : "Google"} OAuth credentials before it can connect your account. See the integration setup guide included with the project.`}
-          </p>
-          {configured && (
+      <Modal
+        title={provider === "github" ? "GitHub" : "Google Drive"}
+        eyebrow={
+          mode === "save"
+            ? "SAVE YOUR SCREENPLAY"
+            : mode === "share"
+              ? "SHARING"
+              : mode === "history"
+                ? "VERSION HISTORY"
+                : "OPEN A SCREENPLAY"
+        }
+        onClose={onClose}
+        suspended={pickerOpen}
+        wide
+      >
+        <div className="cloud-account">
+          {provider === "github" ? <Github size={22} /> : <Cloud size={22} />}
+          <span>
+            {connected
+              ? status?.[provider].account
+              : "Your stories, wherever you work."}
+          </span>
+          <div className="spacer" />
+          {connected && (
             <button
-              className="primary"
               disabled={busy}
               onClick={() =>
                 void run(async () => {
-                  await connectAccount(provider, onBeforeConnect);
+                  await cloud.disconnect(provider);
                   if (alive.current) setStatus(await cloud.status());
                 })
               }
             >
-              Connect account
-              <ExternalLink size={15} />
+              Disconnect
             </button>
           )}
         </div>
-      )}
-      {connected && (mode === "open" || mode === "save") && (
-        <>
-          <div className="cloud-controls">
-            {provider === "github" ? (
-              <>
-                <label>
-                  Repository
-                  <select
-                    value={repo}
-                    onChange={(e) => {
-                      setRepo(e.target.value);
-                      setPath("");
-                      setBranch(
-                        repos.find((r) => r.fullName === e.target.value)
-                          ?.defaultBranch ?? "",
-                      );
-                    }}
-                  >
-                    {repos.map((r) => (
-                      <option key={r.fullName} value={r.fullName}>
-                        {r.fullName}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {repoNext && (
-                  <button
-                    onClick={() =>
-                      void run(async () => {
-                        const r = await cloud.githubRepos(repoNext);
-                        setRepos((old) => [...old, ...r.items]);
-                        setRepoNext(r.nextPage);
-                      })
-                    }
-                  >
-                    More repositories
-                  </button>
-                )}
-                <label>
-                  Branch
-                  <select
-                    value={branch}
-                    onChange={(e) => {
-                      setBranch(e.target.value);
-                      setPath("");
-                    }}
-                  >
-                    {branches.map((b) => (
-                      <option key={b}>{b}</option>
-                    ))}
-                  </select>
-                </label>
-              </>
-            ) : (
-              <label className="check-label">
-                <input
-                  type="checkbox"
-                  checked={shared}
-                  onChange={(e) => {
-                    setShared(e.target.checked);
-                    setParent("root");
-                    setParents([]);
-                  }}
-                />
-                Shared with me
-              </label>
-            )}
-            <button
-              className="icon-button"
-              disabled={busy}
-              aria-label="Refresh files"
-              onClick={() => void list()}
-            >
-              <RefreshCw size={16} />
+        {error && (
+          <div className="error-box" role="alert">
+            {error}
+            <p>
+              Your current draft has been kept. If the remote file changed,
+              download your copy before opening its latest version.
+            </p>
+            <button onClick={() => downloadFile(getContent(), filename)}>
+              Download my copy
             </button>
           </div>
-          <div className="breadcrumb">
-            <button
-              disabled={provider === "github" ? !path : parents.length === 0}
-              aria-label="Parent folder"
-              onClick={() => {
-                if (provider === "github")
-                  setPath(path.split("/").slice(0, -1).join("/"));
-                else {
-                  setParent(parents.at(-1)!.id);
-                  setParents(parents.slice(0, -1));
+        )}
+        {success && <p role="status">{success}</p>}
+        {!status && !error && <p className="muted">Checking connection…</p>}
+        {status && !connected && (
+          <div className="connect-state">
+            <h3>
+              {configured
+                ? `Connect ${provider === "github" ? "GitHub" : "Google Drive"}`
+                : "Account connection needs setup"}
+            </h3>
+            <p>
+              {configured
+                ? "Sign in securely to browse and save your screenplays."
+                : `This installation needs ${provider === "github" ? "GitHub" : "Google"} OAuth credentials before it can connect your account. See the integration setup guide included with the project.`}
+            </p>
+            {configured && (
+              <button
+                className="primary"
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    await connectAccount(provider, onBeforeConnect);
+                    if (alive.current) setStatus(await cloud.status());
+                  })
                 }
-              }}
-            >
-              <ArrowLeft size={14} />
-            </button>
-            <span>
-              {provider === "github"
-                ? path || "Repository root"
-                : shared
-                  ? "Shared with me"
-                  : parents.length
-                    ? parents.map((p) => p.name).join(" / ")
-                    : "My Drive"}
-            </span>
-          </div>
-          <div className="cloud-files" aria-busy={busy}>
-            {entries.map((e) => {
-              const folder =
-                "type" in e
-                  ? e.type === "dir"
-                  : e.mimeType === "application/vnd.google-apps.folder";
-              return (
-                <button
-                  key={"path" in e ? e.path : e.id}
-                  disabled={busy}
-                  onClick={() => openEntry(e)}
-                >
-                  {folder ? <Folder size={17} /> : <FileText size={17} />}
-                  <span>{e.name}</span>
-                </button>
-              );
-            })}
-            {!entries.length && !busy && (
-              <p className="muted">No Fountain files in this folder.</p>
-            )}
-            {next && provider === "google" && (
-              <button disabled={busy} onClick={() => void list(true)}>
-                Load more files
+              >
+                Connect account
+                <ExternalLink size={15} />
               </button>
             )}
           </div>
-          {mode === "save" && (
-            <div className="save-cloud-form">
-              <label>
-                Filename
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  disabled={remote?.provider === "google"}
-                />
-              </label>
-              {provider === "github" && (
-                <label>
-                  Commit message
+        )}
+        {connected && (mode === "open" || mode === "save") && (
+          <>
+            {provider === "google" && (
+              <div className="drive-browse">
+                <button
+                  className="primary"
+                  disabled={busy}
+                  onClick={() => browseDrive(mode === "save")}
+                >
+                  <Folder size={17} />
+                  {mode === "save"
+                    ? "Choose destination folder…"
+                    : "Browse Google Drive…"}
+                </button>
+                <span>Folders, search, and shared drives</span>
+              </div>
+            )}
+            <div className="cloud-controls">
+              {provider === "github" ? (
+                <>
+                  <label>
+                    Repository
+                    <select
+                      value={repo}
+                      onChange={(e) => {
+                        setRepo(e.target.value);
+                        setPath("");
+                        setBranch(
+                          repos.find((r) => r.fullName === e.target.value)
+                            ?.defaultBranch ?? "",
+                        );
+                      }}
+                    >
+                      {repos.map((r) => (
+                        <option key={r.fullName} value={r.fullName}>
+                          {r.fullName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {repoNext && (
+                    <button
+                      onClick={() =>
+                        void run(async () => {
+                          const r = await cloud.githubRepos(repoNext);
+                          setRepos((old) => [...old, ...r.items]);
+                          setRepoNext(r.nextPage);
+                        })
+                      }
+                    >
+                      More repositories
+                    </button>
+                  )}
+                  <label>
+                    Branch
+                    <select
+                      value={branch}
+                      onChange={(e) => {
+                        setBranch(e.target.value);
+                        setPath("");
+                      }}
+                    >
+                      {branches.map((b) => (
+                        <option key={b}>{b}</option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              ) : (
+                <label className="check-label">
                   <input
-                    value={commit}
-                    onChange={(e) => setCommit(e.target.value)}
+                    type="checkbox"
+                    checked={shared}
+                    onChange={(e) => {
+                      setShared(e.target.checked);
+                      setParent("root");
+                      setParents([]);
+                    }}
                   />
+                  Shared with me
                 </label>
               )}
               <button
-                className="primary"
-                disabled={
-                  busy ||
-                  !name.trim() ||
-                  (provider === "github" &&
-                    (!repo || !branch || !commit.trim()))
-                }
-                onClick={save}
+                className="icon-button"
+                disabled={busy}
+                aria-label="Refresh files"
+                onClick={() => void list()}
               >
-                {busy
-                  ? "Saving…"
-                  : remote?.provider === "google"
-                    ? "Save current Drive file"
-                    : "Save here"}
+                <RefreshCw size={16} />
               </button>
             </div>
-          )}
-        </>
-      )}
-      {connected &&
-        mode === "share" &&
-        (remote?.provider === "google" ? (
-          <form
-            className="form-grid"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void run(async () => {
-                await cloud.driveShare({ id: remote.id, email, role });
-                setSuccess(`Access granted to ${email}.`);
-                setEmail("");
-              });
-            }}
-          >
-            <p>
-              Share <strong>{filename}</strong> through Google Drive.
-            </p>
-            <label>
-              Email address
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </label>
-            <label>
-              Access
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as typeof role)}
+            <div className="breadcrumb">
+              <button
+                disabled={provider === "github" ? !path : parents.length === 0}
+                aria-label="Parent folder"
+                onClick={() => {
+                  if (provider === "github")
+                    setPath(path.split("/").slice(0, -1).join("/"));
+                  else {
+                    setParent(parents.at(-1)!.id);
+                    setParents(parents.slice(0, -1));
+                  }
+                }}
               >
-                <option value="reader">Can view</option>
-                <option value="writer">Can edit</option>
-              </select>
-            </label>
-            <p className="muted">
-              Shared files use version checks when saving. Editing together in
-              real time is not enabled.
-            </p>
-            <button className="primary" disabled={busy}>
-              Grant access
-            </button>
-          </form>
-        ) : (
-          <p>Save this screenplay to Google Drive before sharing it.</p>
-        ))}
-      {connected &&
-        mode === "history" &&
-        (remote?.provider === "google" ? (
-          <div className="version-list">
-            {revisions.map((r) => (
-              <div key={r.id}>
-                <span>
-                  {r.modifiedTime
-                    ? new Date(r.modifiedTime).toLocaleString()
-                    : `Version ${r.id}`}
-                  <small>{r.lastModifyingUser?.displayName}</small>
-                </span>
+                <ArrowLeft size={14} />
+              </button>
+              <span>
+                {provider === "github"
+                  ? path || "Repository root"
+                  : parents.length
+                    ? parents.map((p) => p.name).join(" / ")
+                    : shared
+                      ? "Shared with me"
+                      : "Files opened with this app"}
+              </span>
+            </div>
+            <div className="cloud-files" aria-busy={busy}>
+              {entries.map((e) => {
+                const folder =
+                  "type" in e
+                    ? e.type === "dir"
+                    : e.mimeType === "application/vnd.google-apps.folder";
+                return (
+                  <button
+                    key={"path" in e ? e.path : e.id}
+                    disabled={busy}
+                    onClick={() => openEntry(e)}
+                  >
+                    {folder ? <Folder size={17} /> : <FileText size={17} />}
+                    <span>{e.name}</span>
+                  </button>
+                );
+              })}
+              {!entries.length && !busy && (
+                <p className="muted">
+                  {provider === "google"
+                    ? "No available screenplay files. Browse Google Drive to choose a file or folder."
+                    : "No screenplay files in this folder."}
+                </p>
+              )}
+              {next && provider === "google" && (
+                <button disabled={busy} onClick={() => void list(true)}>
+                  Load more files
+                </button>
+              )}
+            </div>
+            {mode === "save" && (
+              <div className="save-cloud-form">
+                <label>
+                  Filename
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    disabled={remote?.provider === "google" && !saveCopy}
+                  />
+                </label>
+                {provider === "github" && (
+                  <label>
+                    Commit message
+                    <input
+                      value={commit}
+                      onChange={(e) => setCommit(e.target.value)}
+                    />
+                  </label>
+                )}
+                <button
+                  className="primary"
+                  disabled={
+                    busy ||
+                    !name.trim() ||
+                    (provider === "github" &&
+                      (!repo || !branch || !commit.trim()))
+                  }
+                  onClick={save}
+                >
+                  {busy
+                    ? "Saving…"
+                    : remote?.provider === "google" && !saveCopy
+                      ? "Save current Drive file"
+                      : "Save here"}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+        {connected &&
+          mode === "share" &&
+          (remote?.provider === "google" ? (
+            <form
+              className="form-grid"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void run(async () => {
+                  await cloud.driveShare({ id: remote.id, email, role });
+                  setSuccess(`Access granted to ${email}.`);
+                  setEmail("");
+                });
+              }}
+            >
+              <p>
+                Share <strong>{filename}</strong> through Google Drive.
+              </p>
+              <label>
+                Email address
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </label>
+              <label>
+                Access
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as typeof role)}
+                >
+                  <option value="reader">Can view</option>
+                  <option value="writer">Can edit</option>
+                </select>
+              </label>
+              <p className="muted">
+                Shared files use version checks when saving. Editing together in
+                real time is not enabled.
+              </p>
+              <button className="primary" disabled={busy}>
+                Grant access
+              </button>
+            </form>
+          ) : (
+            <p>Save this screenplay to Google Drive before sharing it.</p>
+          ))}
+        {connected &&
+          mode === "history" &&
+          (remote?.provider === "google" ? (
+            <div className="version-list">
+              {revisions.map((r) => (
+                <div key={r.id}>
+                  <span>
+                    {r.modifiedTime
+                      ? new Date(r.modifiedTime).toLocaleString()
+                      : `Version ${r.id}`}
+                    <small>{r.lastModifyingUser?.displayName}</small>
+                  </span>
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async () => {
+                        const result = await cloud.driveRevision(
+                          remote.id,
+                          r.id,
+                        );
+                        if (alive.current)
+                          downloadFile(
+                            result.content,
+                            filename.replace(
+                              /\.fountain$/i,
+                              `-version-${r.id}.fountain`,
+                            ),
+                          );
+                      })
+                    }
+                  >
+                    Download
+                  </button>
+                </div>
+              ))}
+              {!revisions.length && !busy && (
+                <p>No earlier versions are available.</p>
+              )}
+              {next && (
                 <button
                   disabled={busy}
                   onClick={() =>
                     void run(async () => {
-                      const result = await cloud.driveRevision(remote.id, r.id);
-                      if (alive.current)
-                        downloadFile(
-                          result.content,
-                          filename.replace(
-                            /\.fountain$/i,
-                            `-version-${r.id}.fountain`,
-                          ),
-                        );
+                      const r = await cloud.driveRevisions(remote.id, next);
+                      setRevisions((old) => [...old, ...r.items]);
+                      setNext(r.nextPageToken);
                     })
                   }
                 >
-                  Download
+                  More versions
                 </button>
-              </div>
-            ))}
-            {!revisions.length && !busy && (
-              <p>No earlier versions are available.</p>
-            )}
-            {next && (
-              <button
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    const r = await cloud.driveRevisions(remote.id, next);
-                    setRevisions((old) => [...old, ...r.items]);
-                    setNext(r.nextPageToken);
-                  })
-                }
-              >
-                More versions
-              </button>
-            )}
-          </div>
-        ) : (
-          <p>Open a Google Drive screenplay to view its versions.</p>
-        ))}
-    </Modal>
+              )}
+            </div>
+          ) : (
+            <p>Open a Google Drive screenplay to view its versions.</p>
+          ))}
+      </Modal>
+    </>
   );
 }

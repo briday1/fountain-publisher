@@ -277,7 +277,7 @@ test("title presentation and heading preferences retain the active editor and it
     "font-weight",
     "700",
   );
-  await page.getByRole("button", { name: "Appearance settings" }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("switch", { name: "Bold scene headings" }).uncheck();
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(editor.locator('[data-kind="scene"]')).toHaveCSS(
@@ -349,7 +349,7 @@ test("long screenplay keeps native typing responsive with insights and assigned 
   const source = serializeFountain(draft);
   await page.getByRole("button", { name: "File", exact: true }).click();
   const chooser = page.waitForEvent("filechooser");
-  await page.getByRole("button", { name: /^Open Fountain/ }).click();
+  await page.getByRole("button", { name: /^Open screenplay/ }).click();
   await (
     await chooser
   ).setFiles({

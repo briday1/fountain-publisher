@@ -63,8 +63,8 @@ export const countWords = (text: string): number =>
   (text.match(/[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*/gu) ?? []).length;
 export const characterName = (text: string): string =>
   text
-    .replace(/\s*\([^)]*\)\s*$/g, "")
     .replace(/\s*\^$/, "")
+    .replace(/(?:\s*\([^)]*\))+\s*$/, "")
     .trim()
     .toLocaleUpperCase();
 export const publishedBlocks = (document: Screenplay): ScriptBlock[] =>

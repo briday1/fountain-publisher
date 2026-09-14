@@ -12,7 +12,6 @@
 }
 .character-analytics::backdrop {
   background: #0006;
-  backdrop-filter: blur(2px);
 }
 .character-analytics-shell {
   height: 100%;

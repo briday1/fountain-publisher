@@ -14,7 +14,7 @@ async function fixture(page: Page) {
   ).toBeVisible();
   await page.getByRole("button", { name: "File", exact: true }).click();
   const picker = page.waitForEvent("filechooser");
-  await page.getByRole("button", { name: /^Open Fountain/ }).click();
+  await page.getByRole("button", { name: /^Open screenplay/ }).click();
   const source =
     "INT. STATION - DAY\n\n" +
     Array.from(

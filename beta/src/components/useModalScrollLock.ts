@@ -28,14 +28,7 @@ export function useModalScrollLock(ref: RefObject<HTMLDialogElement | null>) {
         }
       };
     }
-    const containBackdrop = (event: WheelEvent | TouchEvent) => {
-      if (event.target === dialog && event.cancelable) event.preventDefault();
-    };
-    dialog.addEventListener("wheel", containBackdrop, { passive: false });
-    dialog.addEventListener("touchmove", containBackdrop, { passive: false });
     return () => {
-      dialog.removeEventListener("wheel", containBackdrop);
-      dialog.removeEventListener("touchmove", containBackdrop);
       if (--activeLocks === 0) {
         restorePage?.();
         restorePage = undefined;

@@ -89,12 +89,10 @@ async function request<T>(
       "OFFLINE",
     );
   }
-  const data = await response
-    .json()
-    .catch(() => ({
-      error: "The storage server returned an invalid response.",
-      code: "SERVER_ERROR",
-    }));
+  const data = await response.json().catch(() => ({
+    error: "The storage server returned an invalid response.",
+    code: "SERVER_ERROR",
+  }));
   if (!response.ok)
     throw new CloudError(
       data.error || "The request failed.",
@@ -148,9 +146,13 @@ export const cloud = {
     sha?: string;
     message: string;
   }) => request<CloudDocument>("/github/save", input),
+  drivePicker: () =>
+    request<{ accessToken: string; apiKey: string; appId: string }>(
+      "/google/picker",
+    ),
   driveFiles: (parent = "root", pageToken?: string, shared = false) =>
     request<{ items: DriveEntry[]; nextPageToken?: string }>(
-      `/google/files?${query({ parent, pageToken, shared })}`,
+      `/google/files?${query({ parent, pageToken, shared, all: parent === "root" && !shared })}`,
     ),
   driveOpen: (id: string) =>
     request<CloudDocument>(`/google/open?${query({ id })}`),

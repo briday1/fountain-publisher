@@ -390,3 +390,39 @@ describe("page progress from the generated PDF layout", () => {
     expect(formatPageCount(value as number)).toBe(expected);
   });
 });
+
+describe("character-highlighted PDFs", () => {
+  it("highlights only chosen cues, including dual dialogue and continued cues, without changing pagination", async () => {
+    const doc = parseFountain(
+      `Title: Two Voices\nAuthor: A Writer\n\nINT. STUDIO - NIGHT\n\nMARA\nHello, ELI.\n\nELI ^\nHello, MARA.\n\n!MARA and ELI cross the room.\n\nJUNE\nI am not highlighted.\n\nMARA (V.O.)\n${"This speech continues across the next page. ".repeat(170)}`,
+    );
+    const plain = await exportPdf(doc, { fontBytes });
+    const rectangle = vi.spyOn(PDFPage.prototype, "drawRectangle");
+    const drawing = observeDrawing();
+    const highlighted = await exportPdf(doc, {
+      fontBytes,
+      highlightCharacters: ["MARA", "ELI"],
+    });
+    expect(highlighted.pageCount).toBe(plain.pageCount);
+    expect(highlighted.pageEquivalent).toBe(plain.pageEquivalent);
+    const cues = drawing().filter(({ text }) =>
+      /^(MARA|ELI)(?: \(|$)/.test(text),
+    );
+    expect(cues.some(({ text }) => text.includes("CONT'D"))).toBe(true);
+    expect(rectangle.mock.calls).toHaveLength(cues.length);
+    expect(
+      new Set(
+        rectangle.mock.calls.map(([options]) => JSON.stringify(options!.color)),
+      ).size,
+    ).toBe(2);
+    for (const [index, cue] of cues.entries()) {
+      const box = rectangle.mock.calls[index][0]!;
+      expect(box.x).toBeCloseTo(cue.x - 2);
+      expect(box.y).toBeLessThan(cue.y);
+      expect(box.y! + box.height!).toBeGreaterThan(cue.y + 8);
+      expect(rectangle.mock.contexts[index]).toBe(cue.page);
+    }
+    await mkdir("tmp/pdf-qa", { recursive: true });
+    await writeFile("tmp/pdf-qa/highlighted.pdf", highlighted.bytes);
+  });
+});

@@ -2,6 +2,7 @@ import {
   BarChart3,
   Bold,
   Columns3,
+  Eye,
   Italic,
   Leaf,
   ListChecks,
@@ -11,7 +12,6 @@ import {
   PanelLeft,
   Plus,
   Search,
-  Settings2,
   Underline,
 } from "lucide-react";
 import type { KeyboardEvent } from "react";
@@ -31,7 +31,7 @@ export interface WritingToolbarProps {
   onBeatSheet: () => void;
   searchOpen: boolean;
   onSearch: () => void;
-  onSettings: () => void;
+  onPdf: () => void;
   zen: boolean;
   onZen: () => void;
   fullscreen: boolean;
@@ -50,7 +50,7 @@ export function WritingToolbar({
   onBeatSheet,
   searchOpen,
   onSearch,
-  onSettings,
+  onPdf,
   zen,
   onZen,
   fullscreen,
@@ -230,7 +230,7 @@ export function WritingToolbar({
             type="button"
             className="writing-tool"
             aria-label="Toggle outline"
-            title="Toggle outline"
+            title="Outline: navigate your screenplay scenes"
             aria-pressed={preferences.outline}
             onClick={() =>
               patch({
@@ -247,7 +247,7 @@ export function WritingToolbar({
             type="button"
             className="writing-tool writing-labeled-tool writing-insights-tool"
             aria-label="Insights"
-            title="Insights"
+            title="Insights: page count, pacing, and character analytics"
             aria-pressed={preferences.insights}
             onClick={() =>
               patch({
@@ -280,17 +280,21 @@ export function WritingToolbar({
           <button
             type="button"
             className="writing-tool"
-            aria-label="Appearance settings"
-            title="Appearance settings"
-            onClick={onSettings}
+            aria-label="PDF preview"
+            title="Preview the generated PDF pages without leaving your writing"
+            onClick={onPdf}
           >
-            <Settings2 size={15} aria-hidden="true" />
+            <Eye size={15} aria-hidden="true" />
           </button>
           <button
             type="button"
             className="writing-tool"
             aria-label={zen ? "Exit Zen mode" : "Enter Zen mode"}
-            title={zen ? "Exit Zen mode" : "Enter Zen mode"}
+            title={
+              zen
+                ? "Exit Zen mode and restore your tools"
+                : "Zen mode: hide tools and panels to write. Escape exits."
+            }
             aria-pressed={zen}
             onClick={onZen}
           >
@@ -300,7 +304,11 @@ export function WritingToolbar({
             type="button"
             className="writing-tool"
             aria-label={fullscreen ? "Exit full screen" : "Full screen"}
-            title={fullscreen ? "Exit full screen" : "Full screen"}
+            title={
+              fullscreen
+                ? "Exit full screen and return to your window"
+                : "Full screen: fill your display"
+            }
             aria-pressed={fullscreen}
             onMouseDown={(event) => event.preventDefault()}
             onClick={onFullscreen}

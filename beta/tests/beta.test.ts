@@ -309,3 +309,68 @@ describe("shared Cloudflare infrastructure boundary", () => {
     expect(await response.text()).toBe("beta-script");
   });
 });
+
+describe("native Drive browsing adapter", () => {
+  it("serves Picker configuration only to the beta origin and never caches it", async () => {
+    const f = fixture(
+      vi.fn().mockImplementation(
+        async () =>
+          new Response(
+            JSON.stringify({
+              accessToken: "scoped-picker-token",
+              apiKey: "browser-key",
+              appId: "project-number",
+            }),
+          ),
+      ),
+    );
+    const response = await f.request("/google/picker");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({
+      accessToken: "scoped-picker-token",
+      apiKey: "browser-key",
+      appId: "project-number",
+    });
+    expect(new URL((f.shared.mock.calls[0][0] as Request).url).pathname).toBe(
+      "/api/google/picker/config",
+    );
+    const hostile = await f.request("/google/picker", undefined, {
+      Origin: "https://hostile.example",
+    });
+    expect(hostile.status).toBe(403);
+  });
+  it("lists authorized files across Drive and scopes folder/shared navigation correctly", async () => {
+    const f = fixture(
+      vi
+        .fn()
+        .mockImplementation(
+          async () =>
+            new Response(JSON.stringify({ accessToken: "scoped-token" })),
+        ),
+      vi.fn().mockImplementation(
+        async () =>
+          new Response(
+            JSON.stringify({
+              files: [
+                {
+                  id: "folder",
+                  name: "Scripts",
+                  mimeType: "application/vnd.google-apps.folder",
+                },
+              ],
+              nextPageToken: "next",
+            }),
+          ),
+      ),
+    );
+    expect(
+      await (await f.request("/google/files?all=true")).json(),
+    ).toMatchObject({ items: [{ id: "folder" }], nextPageToken: "next" });
+    const first = new URL(String(f.network.mock.calls[0][0]));
+    expect(first.searchParams.get("q")).not.toContain("in parents");
+    await f.request("/google/files?parent=folder&shared=true&pageToken=next");
+    const second = new URL(String(f.network.mock.calls[1][0]));
+    expect(second.searchParams.get("q")).toContain("'folder' in parents");
+    expect(second.searchParams.get("pageToken")).toBe("next");
+  });
+});

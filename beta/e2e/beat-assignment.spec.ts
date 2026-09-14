@@ -12,7 +12,7 @@ test("native selected lines bind beats, follow earlier writing, undo, and reload
   await page.goto("/");
   await page.getByRole("button", { name: "File", exact: true }).click();
   const chooser = page.waitForEvent("filechooser");
-  await page.getByRole("button", { name: /^Open Fountain/ }).click();
+  await page.getByRole("button", { name: /^Open screenplay/ }).click();
   await (
     await chooser
   ).setFiles({

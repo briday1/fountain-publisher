@@ -18,7 +18,7 @@ test("beat flow retains editing and shows cumulative pacing with a PNG export", 
   const source = `INT. FIRST ROOM - DAY\n\n${sentence}\n\nINT. SECOND ROOM - DAY\n\n${sentence} ${sentence}\n\nEXT. FINAL ROOM - NIGHT\n\n${sentence} ${sentence} ${sentence}\n`;
   await page.getByRole("button", { name: "File", exact: true }).click();
   const chooser = page.waitForEvent("filechooser");
-  await page.getByRole("button", { name: /^Open Fountain/ }).click();
+  await page.getByRole("button", { name: /^Open screenplay/ }).click();
   await (
     await chooser
   ).setFiles({
@@ -166,7 +166,7 @@ test("precise ranges distinguish two beats within one scene and reject invalid e
   await expect(editor).toBeVisible();
   await page.getByRole("button", { name: "File", exact: true }).click();
   const chooser = page.waitForEvent("filechooser");
-  await page.getByRole("button", { name: /^Open Fountain/ }).click();
+  await page.getByRole("button", { name: /^Open screenplay/ }).click();
   await (
     await chooser
   ).setFiles({

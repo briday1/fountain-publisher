@@ -2,9 +2,9 @@
 
 The hosted beta reuses the existing `fountain-publisher` Cloudflare Worker through a service binding. It does not require new Google/GitHub OAuth apps, copy stored credentials, or read existing secrets. Browser requests use `https://api.fountain-publisher.com/beta/api` with the existing API host's HttpOnly session cookies.
 
-The new `fountain-publisher-beta` Worker adapts repository, branch, content, folder, sharing and version APIs. Google access tokens obtained from the shared service stay inside this Worker. GitHub writes use the opened content SHA. Drive reads verify the version both before and after downloading; writes use Drive v2 ETags and conditional media uploads. A missing version or concurrent update stops the write, preserving the local draft.
+The new `fountain-publisher-beta` Worker adapts repository, branch, content, folder, sharing and version APIs. Google access tokens used for file operations stay inside this Worker. The native Google Picker receives the short-lived scoped access token through an origin-checked, uncached endpoint; the browser keeps it only in memory and does not log it. GitHub writes use the opened content SHA. Drive reads verify the version both before and after downloading; writes use Drive v2 ETags and conditional media uploads. A missing version or concurrent update stops the write, preserving the local draft.
 
-Google authorization retains the existing `drive.file` scope. The browser lists files and folders already authorized for this app; it does not gain unrestricted access to an account's entire Drive. Files selected previously through the original app's Google picker remain accessible. Shared files are subject to the same provider permissions. Sharing grants access without sending a notification email.
+Google authorization retains the existing `drive.file` scope. The quick list contains files and folders already authorized for this app. Browse Google Drive opens Google's native picker for folder navigation, search, shared drives, and choosing files to authorize. Choose destination folder uses the same picker when saving a copy. Files selected previously through the original app's Google picker remain accessible. Shared files are subject to the same provider permissions. Sharing grants access without sending a notification email.
 
 Beta uses the already registered OAuth callback URLs. Only the two exact callback paths route through the beta adapter, which calls the original service. Ordinary main-app callbacks pass through unchanged. A beta-started login sets a short-lived HttpOnly return marker; its callback targets the beta popup opener. Session cookies and OAuth state still belong to the original service.
 
@@ -12,7 +12,7 @@ Disconnecting affects the shared API session, so it also disconnects that accoun
 
 ## Optional independent local server
 
-Copy `.env.example` to `.env` and configure your own development OAuth applications. Never put client secrets in `VITE_` variables. Register callback URLs:
+Copy `.env.example` to `.env` and configure your own development OAuth applications. For native Drive browsing, also set `GOOGLE_API_KEY` (Picker API enabled) and `GOOGLE_APP_ID` (the same Cloud project number as your OAuth app). Allow the app origin and `https://docs.google.com/*` in browser-key referrer restrictions. Never put client secrets in `VITE_` variables. Register callback URLs:
 
 - `http://127.0.0.1:5173/api/auth/github/callback`
 - `http://127.0.0.1:5173/api/auth/google/callback`
