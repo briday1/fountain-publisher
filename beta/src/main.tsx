@@ -6,6 +6,7 @@ import "@fontsource/courier-prime/700.css";
 import "@fontsource/courier-prime/700-italic.css";
 import App from "./App";
 import "./styles.css";
+import "./mobile-settings.css";
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { error: string }
