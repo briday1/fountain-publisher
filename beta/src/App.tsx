@@ -68,6 +68,8 @@ import { TitleDialog } from "./components/TitleDialog";
 import { TitlePreview } from "./components/TitlePreview";
 import { Modal } from "./components/Modal";
 import { Menu, MenuItem } from "./components/Menu";
+import { ApplicationMenu } from "./components/ApplicationMenu";
+import { useMobileLayout } from "./components/useMobileLayout";
 import { Resizable } from "./components/Resizable";
 import { Help } from "./components/Help";
 import { CloudDialog } from "./components/CloudDialog";
@@ -121,6 +123,10 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [character, setCharacter] = useState<string | null>(null);
   const [zen, setZen] = useState(false);
+  const mobile = useMobileLayout();
+  useEffect(() => {
+    if (mobile) setZen(false);
+  }, [mobile]);
   const [fullscreen, setFullscreen] = useState(!!document.fullscreenElement);
   useEffect(() => {
     const update = () => setFullscreen(!!document.fullscreenElement);
@@ -415,24 +421,9 @@ export default function App() {
     };
   }, []);
   useEffect(() => {
-    const narrow = matchMedia("(max-width: 950px)");
-    const mobile = matchMedia("(max-width: 720px)");
-    const collapse = () => {
-      if (narrow.matches)
-        setPreferences((p) => ({
-          ...p,
-          outline: false,
-          ...(mobile.matches ? { insights: false } : {}),
-        }));
-    };
-    collapse();
-    narrow.addEventListener("change", collapse);
-    mobile.addEventListener("change", collapse);
-    return () => {
-      narrow.removeEventListener("change", collapse);
-      mobile.removeEventListener("change", collapse);
-    };
-  }, []);
+    if (mobile)
+      setPreferences((p) => ({ ...p, outline: false, insights: false }));
+  }, [mobile]);
   useEffect(() => {
     const media = matchMedia("(prefers-color-scheme: dark)");
     const apply = () =>
@@ -1014,6 +1005,7 @@ export default function App() {
     })().catch(report);
   };
   const toggleZen = () => {
+    if (mobile) return;
     setZen(!zen);
     setSearchOpen(false);
     editor.current?.focus();
@@ -1024,6 +1016,25 @@ export default function App() {
   ) => {
     setCloudDialog({ provider, mode });
   };
+  const writingControls = (
+    <WritingToolbar
+      kind={kind}
+      onKind={(value) => editor.current?.setKind(value)}
+      onMark={(mark) => editor.current?.toggleMark(mark)}
+      preferences={preferences}
+      onPreferences={setPreferences}
+      beatGuide={beatGuide}
+      onBeatGuide={() => setBeatGuide(!beatGuide)}
+      onBeatSheet={() => openView("beats")}
+      searchOpen={searchOpen}
+      onSearch={() => setSearchOpen(!searchOpen)}
+      onPdf={() => openView("pdf")}
+      zen={zen}
+      onZen={toggleZen}
+      fullscreen={fullscreen}
+      onFullscreen={toggleFullscreen}
+    />
+  );
   return (
     <div
       className={`app ${zen ? "zen" : ""}`}
@@ -1050,7 +1061,11 @@ export default function App() {
           <span className="brand-mark">F</span>
           <span>Fountain Publisher</span>
         </button>
-        <nav className="menus" aria-label="Application menu">
+        <ApplicationMenu
+          mobile={mobile}
+          controls={writingControls}
+          filename={snapshot.name}
+        >
           <Menu label="File">
             <small>SCREENPLAY</small>
             <MenuItem onClick={() => void run(newDocument)}>
@@ -1211,7 +1226,7 @@ export default function App() {
           <button className="menu-trigger" onClick={() => setDialog("help")}>
             Help
           </button>
-        </nav>
+        </ApplicationMenu>
         <div className="header-history">
           <button
             className="icon-button"
@@ -1373,23 +1388,7 @@ export default function App() {
               <ZenExitButton onExit={toggleZen} />
             </div>
           )}
-          <WritingToolbar
-            kind={kind}
-            onKind={(value) => editor.current?.setKind(value)}
-            onMark={(mark) => editor.current?.toggleMark(mark)}
-            preferences={preferences}
-            onPreferences={setPreferences}
-            beatGuide={beatGuide}
-            onBeatGuide={() => setBeatGuide(!beatGuide)}
-            onBeatSheet={() => openView("beats")}
-            searchOpen={searchOpen}
-            onSearch={() => setSearchOpen(!searchOpen)}
-            onPdf={() => openView("pdf")}
-            zen={zen}
-            onZen={toggleZen}
-            fullscreen={fullscreen}
-            onFullscreen={toggleFullscreen}
-          />
+          {!mobile && writingControls}
           {searchOpen && (
             <div className="search-panel">
               <form

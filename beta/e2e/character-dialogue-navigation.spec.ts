@@ -1,3 +1,4 @@
+import { mobileSection } from "./mobile-menu-helper";
 import { test, expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
@@ -44,8 +45,11 @@ async function fixture(page: Page) {
   const insights = page.getByRole("complementary", {
     name: "Screenplay insights",
   });
-  if (!(await insights.isVisible()))
+  if (!(await insights.isVisible())) {
+    if ((page.viewportSize()?.width ?? 1440) <= 950)
+      await mobileSection(page, "Write");
     await page.getByRole("button", { name: "Insights", exact: true }).click();
+  }
   await insights.getByRole("button", { name: /^MARA / }).click();
   await expect(
     page.getByRole("dialog", { name: "MARA", exact: true }),
@@ -195,8 +199,10 @@ for (const mobile of [false, true]) {
     const insights = page.getByRole("complementary", {
       name: "Screenplay insights",
     });
-    if (!(await insights.isVisible()))
+    if (!(await insights.isVisible())) {
+      if (mobile) await mobileSection(page, "Write");
       await page.getByRole("button", { name: "Insights", exact: true }).click();
+    }
     await insights.getByRole("button", { name: /^MARA / }).click();
     await expect(
       dialog.getByRole("textbox", { name: "Character notes" }),

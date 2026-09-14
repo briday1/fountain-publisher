@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { mobileSection } from "./mobile-menu-helper";
 import { parseFountain, serializeFountain } from "../src/core/fountain";
 const mod = process.platform === "darwin" ? "Meta" : "Control";
 test("existing production writing migrates before startup and later edits survive reload", async ({
@@ -250,6 +251,7 @@ test("desktop and mobile layout expose a usable editor without horizontal app ov
   await expect(
     page.getByRole("button", { name: "Close insights", exact: true }),
   ).not.toBeVisible();
+  await mobileSection(page, "Write");
   await page
     .getByRole("button", { name: "Toggle outline", exact: true })
     .click();

@@ -78,7 +78,7 @@ test("writing guide keeps the next beat visible and assigns without replacing th
   await expect(guide).toBeVisible();
   await expect(guide).toContainText("Choose to follow");
   const exitZen = guide.getByRole("button", { name: "Exit Zen", exact: true });
-  for (const width of [1440, 390, 320]) {
+  for (const width of [1440, 1100]) {
     await page.setViewportSize({ width, height: 844 });
     await expect(exitZen).toBeInViewport();
     await expect(
@@ -165,7 +165,7 @@ test("writing guide keeps the next beat visible and assigns without replacing th
 test("hiding the guide in Zen retains an easy exit and the writing caret", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 320, height: 844 });
+  await page.setViewportSize({ width: 1100, height: 844 });
   await page.goto("/");
   const editor = page.getByRole("textbox", { name: "Screenplay editor" });
   await expect(editor).toBeVisible();

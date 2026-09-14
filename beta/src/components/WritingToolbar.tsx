@@ -34,6 +34,7 @@ export interface WritingToolbarProps {
   onPdf: () => void;
   zen: boolean;
   onZen: () => void;
+  showZen?: boolean;
   fullscreen: boolean;
   onFullscreen: () => void;
 }
@@ -53,6 +54,7 @@ export function WritingToolbar({
   onPdf,
   zen,
   onZen,
+  showZen = true,
   fullscreen,
   onFullscreen,
 }: WritingToolbarProps) {
@@ -286,20 +288,22 @@ export function WritingToolbar({
           >
             <Eye size={15} aria-hidden="true" />
           </button>
-          <button
-            type="button"
-            className="writing-tool"
-            aria-label={zen ? "Exit Zen mode" : "Enter Zen mode"}
-            title={
-              zen
-                ? "Exit Zen mode and restore your tools"
-                : "Zen mode: hide tools and panels to write. Escape exits."
-            }
-            aria-pressed={zen}
-            onClick={onZen}
-          >
-            <Leaf size={15} aria-hidden="true" />
-          </button>
+          {showZen && (
+            <button
+              type="button"
+              className="writing-tool"
+              aria-label={zen ? "Exit Zen mode" : "Enter Zen mode"}
+              title={
+                zen
+                  ? "Exit Zen mode and restore your tools"
+                  : "Zen mode: hide tools and panels to write. Escape exits."
+              }
+              aria-pressed={zen}
+              onClick={onZen}
+            >
+              <Leaf size={15} aria-hidden="true" />
+            </button>
+          )}
           <button
             type="button"
             className="writing-tool"

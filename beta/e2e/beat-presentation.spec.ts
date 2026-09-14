@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { mobileSection } from "./mobile-menu-helper";
 import { readFile } from "node:fs/promises";
 
 test("beat flow retains editing and shows cumulative pacing with a PNG export", async ({
@@ -31,6 +32,8 @@ test("beat flow retains editing and shows cumulative pacing with a PNG export", 
       .getByRole("textbox", { name: "Screenplay editor" })
       .locator('[data-kind="scene"]'),
   ).toHaveCount(3);
+  if ((page.viewportSize()?.width ?? 1440) <= 950)
+    await mobileSection(page, "View");
   await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: "Beat sheet", exact: true });
   await expect(sheet).toBeVisible();
@@ -306,6 +309,7 @@ test("beat rows and graph controls remain usable on a narrow screen", async ({
   await expect(
     page.getByRole("textbox", { name: "Screenplay editor" }),
   ).toBeVisible();
+  await mobileSection(page, "View");
   await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: "Beat sheet", exact: true });
   for (let index = 1; index <= 8; index++) {
