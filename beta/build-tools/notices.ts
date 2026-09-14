@@ -27,7 +27,8 @@ export function dependencyNotices(): Plugin {
           dependencies?: Record<string, string>;
         };
         if (directory !== root.replace(/\/$/, "")) {
-          const files = (await readdir(directory, { withFileTypes: true }))
+          const entries = await readdir(directory, { withFileTypes: true });
+          const files = entries
             .filter(
               (entry) =>
                 entry.isFile() &&
@@ -39,7 +40,13 @@ export function dependencyNotices(): Plugin {
             files.map((file) => readFile(join(directory, file), "utf8")),
           );
           if (!texts.length) {
-            const readme = await readFile(join(directory, "README.md"), "utf8");
+            const readmeFile = entries.find(
+              (entry) =>
+                entry.isFile() && /^readme(?:\.(?:md|txt))?$/i.test(entry.name),
+            );
+            const readme = readmeFile
+              ? await readFile(join(directory, readmeFile.name), "utf8")
+              : "";
             const notice = readme
               .match(/^#+\s+Licen[sc]e[^\n]*\n([\s\S]*)/im)?.[1]
               ?.split(/^#+\s/m)[0]
