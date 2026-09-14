@@ -1,6 +1,6 @@
 /* The compact mobile header hides standalone desktop menu buttons by default.
    Keep Settings available while leaving the adjacent Help shortcut hidden. */
-@media (max-width: 720px) {
+@media (max-width: 950px), (hover: none) and (pointer: coarse) {
   .menus > .menu-trigger:first-of-type {
     display: inline-flex;
     align-items: center;
@@ -8,12 +8,13 @@
 
   /* On phones the screenplay is the canvas, so there is no decorative
      workspace surrounding it and no background preference to configure. */
-  .writing-scroll.background-dots,
-  .writing-scroll.background-grid {
+  .writing-scroll {
+    background-color: var(--paper);
     background-image: none;
   }
 
-  .paper-wrap {
+  .paper-wrap,
+  .zen .paper-wrap {
     width: 100%;
     max-width: none;
     margin: 0;
