@@ -308,6 +308,7 @@ test("beat rows and graph controls remain usable on a narrow screen", async ({
   await expect(
     page.getByRole("textbox", { name: "Screenplay editor" }),
   ).toBeVisible();
+  await mobileSection(page, "View");
   await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: "Beat sheet", exact: true });
   for (let index = 1; index <= 8; index++) {
