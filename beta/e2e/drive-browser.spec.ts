@@ -58,6 +58,7 @@ test("Drive picker opens files and destination folders, restores its dialog on c
     const scope = window as unknown as {
       google: unknown;
       pickerOptions: Record<string, unknown>;
+      pickerFault?: boolean;
     };
     type Item = { id: string; name: string; mimeType: string };
     class DocsView {
@@ -97,6 +98,11 @@ test("Drive picker opens files and destination folders, restores its dialog on c
       callback!: (data: { action: string; docs?: Item[] }) => void;
       origin = "";
       title = "";
+      document = document;
+      setDocument(value: Document) {
+        this.document = value;
+        return this;
+      }
       addView(value: DocsView) {
         this.view = value;
         return this;
@@ -105,7 +111,9 @@ test("Drive picker opens files and destination folders, restores its dialog on c
         return this;
       }
       setDeveloperKey() {
-        return this;
+        throw new Error(
+          "OAuth Drive browsing must not depend on a developer key",
+        );
       }
       setOAuthToken() {
         return this;
@@ -126,6 +134,7 @@ test("Drive picker opens files and destination folders, restores its dialog on c
         return this;
       }
       build() {
+        const document = this.document;
         scope.pickerOptions = { ...this.view, origin: this.origin };
         const overlay = document.createElement("div");
         overlay.setAttribute("role", "region");
@@ -162,13 +171,23 @@ test("Drive picker opens files and destination folders, restores its dialog on c
         cancel.textContent = "Cancel Google Picker";
         cancel.onclick = () => this.callback({ action: "cancel" });
         overlay.append(choose, cancel);
+        const fault = scope.pickerFault;
+        if (fault) {
+          overlay.textContent =
+            "There was an error! The API developer key is invalid.";
+          overlay.style.inset = "0";
+          overlay.style.zIndex = "2147483647";
+          overlay.tabIndex = 0;
+        }
         return {
           setVisible() {
             document.body.append(overlay);
-            choose.focus();
+            if (fault) overlay.focus();
+            else choose.focus();
           },
           dispose() {
             overlay.remove();
+            if (fault) throw new Error("Google's error UI failed to dispose");
           },
         };
       }
@@ -192,8 +211,9 @@ test("Drive picker opens files and destination folders, restores its dialog on c
     exact: true,
   });
   await dialog.getByRole("button", { name: "Browse Google Drive…" }).click();
+  const picker = page.frameLocator('iframe[title="Google Drive files"]');
   await expect(
-    page.getByRole("region", { name: "Google Picker test UI" }),
+    picker.getByRole("region", { name: "Google Picker test UI" }),
   ).toBeVisible();
   expect(await page.locator("#root").evaluate((el) => el.inert)).toBe(true);
   await expect(dialog).not.toBeVisible();
@@ -207,11 +227,34 @@ test("Drive picker opens files and destination folders, restores its dialog on c
     drives: true,
     mode: "list",
   });
-  await page.getByRole("button", { name: "Cancel Google Picker" }).click();
+  await picker.getByRole("button", { name: "Cancel Google Picker" }).click();
   await expect(dialog).toBeVisible();
   expect(await page.locator("#root").evaluate((el) => el.inert)).toBe(false);
+  await page.evaluate(() => {
+    (window as unknown as { pickerFault: boolean }).pickerFault = true;
+  });
+  for (const exit of ["button", "backdrop", "escape"]) {
+    await dialog.getByRole("button", { name: "Browse Google Drive…" }).click();
+    await expect(
+      picker.getByText("There was an error! The API developer key is invalid."),
+    ).toBeVisible();
+    if (exit === "button")
+      await page
+        .getByRole("button", { name: "Close Drive browser", exact: true })
+        .click();
+    else if (exit === "backdrop") await page.mouse.click(2, 2);
+    else await page.keyboard.press("Escape");
+    await expect(
+      page.getByRole("dialog", { name: "Browse Google Drive", exact: true }),
+    ).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+    expect(await page.locator("#root").evaluate((el) => el.inert)).toBe(false);
+  }
+  await page.evaluate(() => {
+    (window as unknown as { pickerFault: boolean }).pickerFault = false;
+  });
   await dialog.getByRole("button", { name: "Browse Google Drive…" }).click();
-  await page
+  await picker
     .getByRole("button", { name: "Choose screenplay from nested folder" })
     .click();
   await expect(dialog).not.toBeVisible();
@@ -223,7 +266,7 @@ test("Drive picker opens files and destination folders, restores its dialog on c
   await dialog
     .getByRole("button", { name: "Choose destination folder…" })
     .click();
-  await page.getByRole("button", { name: "Choose Scripts folder" }).click();
+  await picker.getByRole("button", { name: "Choose Scripts folder" }).click();
   await expect(dialog).toBeVisible();
   await expect(
     dialog.getByRole("button", { name: "Drafts", exact: true }),

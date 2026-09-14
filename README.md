@@ -1,170 +1,59 @@
 # Fountain Publisher
 
-[Open the live app at fountain-publisher.com.](https://fountain-publisher.com)
+[Write at fountain-publisher.com.](https://fountain-publisher.com)
 
-A source-first Fountain screenplay studio with a Pugflow-style application shell: collapsible and resizable panels, persistent light/dark themes, native file handling, contextual completion, a directly editable published screenplay, exact PDF preview, and production statistics.
+Fountain Publisher is a screenplay editor built around a continuous, formatted writing surface. Scene headings, character cues, dialogue and transitions format naturally as you type. Screenplays save as portable `.fountain` files, including beat assignments, notes and title details in ignored Fountain comments.
 
-The browser and local Python apps use [Screenplain](https://github.com/vilcans/screenplain) 0.12.0 as the authoritative Fountain parser and PDF/Final Draft compiler. The browser runs it in Python/WebAssembly in a dedicated per-tab browser worker, separate from the UI thread. Both paths pin ReportLab 5.0.1, bundle Courier Prime, and apply the same PDF settings for consistent output.
+The current application lives in [`beta/`](beta/). That directory name is retained for repository continuity; `main` publishes it as the production application. The previous application and Python tools remain in the repository, while the production workflow builds the new editor.
 
-The live site is the complete browser application, including editing, live and PDF preview, file handling, insights, themes, documentation, and PDF/FDX export. Browser compilation always runs in the current tab, including when served by the optional local Python application. The standalone Python CLI uses the same Screenplain compiler.
+## Run locally
 
-Collaborators share document edits, not compiler jobs, page counts, PDF previews, or export settings. Each tab compiles its own snapshot with its own settings; stale results cannot replace a newer document's preview. PDF, FDX, and beat-sheet exports never fall back to server compilation. This is compile isolation, not end-to-end encryption: live collaboration still sends document edits to the Cloudflare room.
+Use Node.js 22 or 24.
 
-Scrolling does not reparse the screenplay. Decorative backgrounds have bounded draw work and resolution on large/high-DPI displays, and stop drawing when hidden. See [performance checks and remaining native-browser acceptance](docs/editor-performance.md).
-
-## GitHub integration
-
-Fountain Publisher can connect to a user's GitHub account, browse repositories selected during GitHub App installation, open `.fountain` files, and save changes as ordinary commits. The static editor never receives a GitHub client secret or access token. A small Cloudflare Worker at `api.fountain-publisher.com` owns the OAuth exchange, stores encrypted credentials behind opaque sessions in D1, and calls GitHub's API.
-
-### 1. Create the GitHub App
-
-In GitHub **Settings → Developer settings → GitHub Apps**, create an app with:
-
-- Homepage URL: `https://fountain-publisher.com`
-- Callback URL: `https://api.fountain-publisher.com/auth/github/callback`
-- Setup URL: `https://api.fountain-publisher.com/auth/github/installed`
-- Request user authorization during installation: disabled (Fountain Publisher starts OAuth separately)
-- Webhooks: disabled
-- Repository permissions: **Contents — Read and write** (Metadata read access is automatic)
-- Installation target: any account, with users choosing all or selected repositories
-
-Record the app's Client ID and Client secret and use its URL slug as `GITHUB_APP_SLUG`. No private key is required because the Worker uses GitHub App user access tokens rather than installation tokens.
-
-### 2. Create D1 and configure the Worker
-
-```bash
-cd github-worker
-npm install
-npx wrangler login
-npx wrangler d1 create fountain-publisher-github
-```
-
-Copy the returned database ID into `github-worker/wrangler.jsonc`, replacing `REPLACE_WITH_CLOUDFLARE_D1_DATABASE_ID`, then create the tables:
-
-```bash
-npm run db:remote
-```
-
-Add the production secrets interactively. They are stored by Cloudflare and must never be committed:
-
-```bash
-npx wrangler secret put GITHUB_CLIENT_ID
-npx wrangler secret put GITHUB_CLIENT_SECRET
-npx wrangler secret put GITHUB_APP_SLUG
-npx wrangler secret put TOKEN_ENCRYPTION_KEY
-```
-
-Generate the encryption value locally with `openssl rand -base64 32` and paste that output when Wrangler prompts for `TOKEN_ENCRYPTION_KEY`. Keep it with the other deployment secrets: changing or losing it invalidates existing GitHub sessions.
-
-For local Worker development, copy `.dev.vars.example` to `.dev.vars`, fill in test credentials, and run `npm run db:local` followed by `npm run dev`. `.dev.vars` and Wrangler's local state are ignored by Git.
-
-### 3. Deploy
-
-After the `fountain-publisher.com` zone is active in Cloudflare, deploy from `github-worker`:
-
-```bash
-npm run deploy
-```
-
-The `custom_domain` route in `wrangler.jsonc` creates `api.fountain-publisher.com` and its certificate. Do not manually create an `api` DNS record first. Confirm `https://api.fountain-publisher.com/health` returns `{"ok":true}`.
-
-The existing GitHub Pages workflow remains responsible for the static site. Cloudflare's optional Workers and Pages GitHub installation can later automate Worker deployments, but is not required.
-
-### Security and operating notes
-
-- Sessions are opaque, `HttpOnly`, `Secure`, and `SameSite=Lax`; GitHub tokens stay in D1 encrypted with AES-256-GCM.
-- OAuth state values are single-use, expire after ten minutes, and are bound to the browser that initiated authorization.
-- CORS permits credentialed API calls only from `https://fountain-publisher.com`.
-- OAuth and API endpoints have per-client fixed-window rate limits; only a hash of the client address is stored for throttling.
-- Repository access is the intersection of the signed-in user's access, the GitHub App's Contents permission, and the repositories selected during installation.
-- Saving uses GitHub's content SHA for conflict detection. A stale file fails instead of silently replacing a newer commit.
-- Expiring GitHub user tokens are refreshed server-side when GitHub supplies a refresh token.
-- A daily Worker schedule deletes expired sessions, OAuth state, and rate-limit records; requests also trigger occasional cleanup as a fallback.
-
-Migration `0002_security_hardening.sql` removes sessions created before encryption, so users reconnect once after it is deployed. Apply migrations before deploying the updated Worker.
-
-## Install and run
-
-For a source checkout, use Python 3.9 or newer and Node.js 22 or newer. Install
-the pinned browser runtime before opening the editor:
-
-```shell
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -e .
+```sh
+cd beta
 npm ci
-fountain-publisher
+npm run dev
 ```
 
-The application opens at <http://127.0.0.1:4173>. Other useful forms:
+Open http://127.0.0.1:5173. Local writing, recovery, analysis, import and export work without accounts. See [account integrations](beta/docs/integrations.md) for optional local OAuth setup.
 
-```shell
-fountain-publisher screenplay.fountain
-fountain-publisher --no-browser --port 8080
-python -m fountain_publisher
+## Write and publish
+
+- One editor and undo history, native selection and spellcheck, character-name Tab completion, automatic screenplay elements, and find/replace.
+- A scene outline, character dialogue grouped by scene, character analytics and Gantt charts, notes, and a beat sheet with precise line assignments and cumulative-word pacing.
+- A compact toolbar, optional beat guide, six themes, responsive panels, native full screen, and Zen mode with a visible exit. Beat and dialogue navigation move the caret without selecting passages for replacement.
+- A dashed title-page frame, Courier Prime typography, and PDF preview and export from the same pagination engine. Insights counts screenplay pages in eighths, excluding title pages.
+- Fountain and Final Draft FDX import/export, character-highlighted PDFs, and device-local drafts, history and offline reopening.
+- GitHub repository browsing and commits; Google Drive file and folder access, sharing and live collaboration through shared Fountain files.
+
+Opening a Drive Fountain file starts a shared writing session. Send its `https://fountain-publisher.com/?drive=FILE_ID` link to someone who already has Drive access. Concurrent writing merges; each writer's Undo preserves the other writer's changes. Drive readers can follow along without editing. Saving checkpoints the shared screenplay into the original Fountain file with conflict checks.
+
+More details: [writing tools and compatibility](beta/README.md), [integrations](beta/docs/integrations.md), and [release checks](beta/docs/release-checks.md).
+
+## Validation
+
+```sh
+cd beta
+npm test
+npm run build:beta
+npm run test:browser
 ```
 
-The existing `npm start` shortcut also starts the Python application when package dependencies are installed. The loopback server serves Pyodide from this checkout's `node_modules`; PDF preview, page counts, and PDF/FDX exports still compile in each browser, not in the Python server. Missing runtime assets produce a local error, never a server-compilation fallback.
+Install Chromium with `npx playwright install chromium`, or set `PLAYWRIGHT_CHROME_PATH` to an installed Chrome binary. The `build:beta` name currently selects the shared hosted API configuration for both production and beta.
 
-Before building a distributable Python wheel, prepare its bundled runtime:
+For deployed checks:
 
-```shell
-npm ci
-node scripts/prepare-browser-runtime.mjs
-python -m pip wheel . --no-deps --wheel-dir dist/python
+```sh
+TEST_BASE_URL=https://fountain-publisher.com npm run test:browser
 ```
 
-The prepared wheel includes `web/pyodide` and needs no Node.js installation on the recipient's computer. Building a wheel without this preparation leaves browser compilation unavailable; a plain Python-only source installation is sufficient only for the standalone compilation API/CLI below. The preparation step copies the pinned runtime locally and does not download or compile documents.
+Automated collaboration checks use real document synchronization over controlled provider boundaries. Real signed-in accounts, native IMEs and target devices still need acceptance testing; see the [release checks](beta/docs/release-checks.md) for the measured coverage.
 
-## Compile from the command line
+## Deployment
 
-Providing `--output` enables headless compilation:
+Pushes to `main` run the new application's unit/integration tests, browser suite and production build, then publish `beta/dist` to the existing GitHub Pages root. The workflow preserves preview directories, `CNAME`, `.nojekyll`, and older assets still needed by open writing sessions. Pull requests run the same checks and keep a downloadable build artifact. The live preview remains [beta.fountain-publisher.com](https://beta.fountain-publisher.com), published from `beta/writing-first`.
 
-```shell
-fountain-publisher screenplay.fountain --output screenplay.pdf
-fountain-publisher screenplay.fountain --format fdx --output screenplay.fdx
-fountain-publisher screenplay.fountain --page-size a4 --output screenplay.pdf
-```
+The existing Cloudflare account service continues to own Google/GitHub OAuth and encrypted sessions. The `fountain-publisher-beta` Worker name and `/beta/api` URLs remain stable infrastructure identifiers for both app origins, preserving the existing live collaboration rooms. Worker changes are deployed separately from static builds; primary DNS and provider callback registrations stay in place.
 
-## Editor workflow
-
-- **File** supports New, Open, Save, Save As, PDF, and Final Draft export.
-- Save overwrites the open file where the browser's File System Access API is available; other browsers download safely.
-- Source and Insights panels collapse, resize with mouse or keyboard, and remember their layout.
-- Theme follows the system until explicitly set to light or dark.
-- Use Ctrl/Command+Space for contextual title-page, character, scene, location, time-of-day, and transition completion.
-- Source word wrap is enabled by default; wrapped continuations remain part of the same numbered Fountain line.
-- Edit either the Fountain source or a line on the published screenplay page.
-- The live page is optimized for editing. Switch to **PDF** for exact output from the same compiler used by export.
-- Insights show scene count, compiled PDF pages, runtime at one minute per page, dialogue/action balance, locations, and per-character dialogue lines, words, scenes, and speaking duration.
-- On supported mobile browsers, PDF and Final Draft exports open the system share sheet; other browsers download the file.
-- A blank document shows a **Blank page** overlay with helper buttons — **Add title page** (opens a form to fill in Title, Credit, Author, Draft date, and Contact), **Add scene**, **Add dialogue**, and **Add direction** — that insert formatted Fountain snippets. You can also just start typing in Source and Fountain formats automatically.
-- The **Documentation** shortcuts table shows only the shortcuts for your operating system (macOS or Windows/Linux).
-- Scene numbers appear in the left margin by default. Use **Settings → Scene Numbers** to change the placement (Margin/Inline/Off) or format (Sequential 1 2 3 vs Act-prefixed A1S1 A1S2). Act prefixes are derived from top-level `# Act` section headings. Both the live preview and exported PDF respect these settings.
-
-## App-style installation
-
-The published site is an installable web app. On iPad, open it in Safari and choose **Share → Add to Home Screen** to launch Fountain Publisher in its own standalone window. Supporting desktop browsers expose **View → Install app**, and **View → Enter full screen** is available without installing. The installed app keeps the same private local workspace recovery behavior as the website.
-
-## Tests
-
-```shell
-node --test tests/js/*.test.mjs
-PYTHONPATH=src python -m unittest discover -s tests -v
-```
-
-## Architecture
-
-```text
-src/fountain_publisher/
-	cli.py          command-line entry point
-	compiler.py     Screenplain compilation and line-aware statistics
-	server.py       loopback HTTP server and compile/export API
-	web/            dependency-free browser application
-```
-
-The server binds to loopback by default, limits compile request size, serves no arbitrary filesystem paths, and sends restrictive browser security headers.
-
-## Licensing
-
-Fountain Publisher includes open-source dependencies. Their licenses and required attributions are collected in [Third-party notices](src/fountain_publisher/web/THIRD_PARTY_NOTICES.md).
+See [deployment and rollback](beta/docs/beta-deployment.md) before changing those bindings, routes or room namespaces.

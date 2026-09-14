@@ -308,11 +308,13 @@ test("beat rows and graph controls remain usable on a narrow screen", async ({
   ).toBeVisible();
   await page.getByRole("button", { name: "Beat sheet", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: "Beat sheet", exact: true });
-  await sheet.getByRole("button", { name: "Beat guide", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Add story structure", exact: true })
-    .click();
-  await expect(page.locator(".beat-flow-row")).toHaveCount(15);
+  for (let index = 1; index <= 8; index++) {
+    await sheet.getByRole("button", { name: "Add beat", exact: true }).click();
+    await sheet
+      .getByRole("textbox", { name: `Beat ${index} title`, exact: true })
+      .fill(`Story change ${index}`);
+  }
+  await expect(page.locator(".beat-flow-row")).toHaveCount(8);
   await expect(sheet).toHaveCSS("overflow", "hidden");
   await expect(page.locator(".beat-sheet-dialog-scroll")).toHaveCSS(
     "overscroll-behavior",

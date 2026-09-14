@@ -116,27 +116,6 @@ function RangeFields({
     </form>
   );
 }
-const guide = [
-  ["Opening image", "The world before everything changes.", "Act I"],
-  ["Theme stated", "The question your story asks.", "Act I"],
-  ["Set-up", "Meet the people and the lives at stake.", "Act I"],
-  ["Catalyst", "The event that breaks the routine.", "Act I"],
-  ["Debate", "A reason to hesitate. A reason to go.", "Act I"],
-  ["Break into two", "An irreversible choice.", "Act II"],
-  ["B story", "A relationship that tests the theme.", "Act II"],
-  [
-    "Promise of the premise",
-    "Explore the possibilities of this new world.",
-    "Act II",
-  ],
-  ["Midpoint", "A victory or defeat changes the stakes.", "Act II"],
-  ["Pressure builds", "Options narrow. The cost rises.", "Act II"],
-  ["All is lost", "The old approach fails.", "Act II"],
-  ["Dark night", "What must change within?", "Act II"],
-  ["Break into three", "A new understanding becomes action.", "Act III"],
-  ["Finale", "Put that change to the test.", "Act III"],
-  ["Final image", "Show how the world has changed.", "Act III"],
-];
 export function BeatBoard({
   doc,
   onChange,
@@ -153,7 +132,6 @@ export function BeatBoard({
   onExportCsv: () => void;
 }) {
   const [showPacing, setShowPacing] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [dragged, setDragged] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -231,8 +209,8 @@ export function BeatBoard({
         <div className="beat-start-note">
           <strong>Map the story before—or while—you write.</strong>
           <p>
-            Start with the premise, then add each story beat below. Assign
-            each beat to the passage where it happens.
+            Start with the premise, then add each story beat below. Assign each
+            beat to the passage where it happens.
           </p>
         </div>
       )}
@@ -277,43 +255,7 @@ export function BeatBoard({
         <span>
           {beats.length} beats · {linked} assigned
         </span>
-        <button
-          onClick={() => setShowGuide(!showGuide)}
-          aria-expanded={showGuide}
-        >
-          Beat guide
-        </button>
       </div>
-      {showGuide && (
-        <div className="beat-guide">
-          <p>
-            Use this familiar 15-beat structure as a starting point. Each beat
-            is yours to change.
-          </p>
-          <button
-            onClick={() => {
-              update([
-                ...beats,
-                ...guide.map(([title, description, act]) => ({
-                  id: newId(),
-                  title,
-                  description,
-                  act,
-                  color:
-                    act === "Act I"
-                      ? "#75a8ed"
-                      : act === "Act II"
-                        ? "#bc93ce"
-                        : "#73b999",
-                })),
-              ]);
-              setShowGuide(false);
-            }}
-          >
-            Add story structure
-          </button>
-        </div>
-      )}
       <ol className="beat-flow-list">
         {beats.map((beat, index) => {
           const assignment = assignments.get(beat.id)!;

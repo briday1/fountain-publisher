@@ -14,7 +14,6 @@ import {
   BarChart3,
   BookOpen,
   Check,
-  ChevronLeft,
   Cloud,
   Download,
   FileText,
@@ -39,6 +38,7 @@ import type { SessionSnapshot } from "./core/session";
 import { publishPdf } from "./core/publisher";
 import type { EditorController } from "./editor/EditorController";
 import { workspace } from "./storage/workspace";
+import { migrateLegacyWorkspace } from "./storage/legacyWorkspace";
 import type {
   Recovery,
   Snapshot,
@@ -63,6 +63,7 @@ import { BeatSheetDialog } from "./components/BeatSheetDialog";
 import { WritingToolbar } from "./components/WritingToolbar";
 import { formatPageCount } from "./core/pageCount";
 import { BeatGuide } from "./components/BeatGuide";
+import { ZenExitButton } from "./components/ZenExitButton";
 import { Settings, readPreferences } from "./components/Settings";
 import { TitleDialog } from "./components/TitleDialog";
 import { TitlePreview } from "./components/TitlePreview";
@@ -216,7 +217,8 @@ export default function App() {
       epoch: published.epoch,
       options,
       pages: result.pageCount,
-      equivalent: result.pageEquivalent,
+      equivalent:
+        result.pageEquivalent - (result.pageCount - result.scriptPageCount),
     });
     setPdfError("");
     setPdfWorking(false);
@@ -317,9 +319,16 @@ export default function App() {
     void (async () => {
       let initial: WorkspaceDocument | SessionSnapshot | undefined;
       let warning = "";
+      let migrated: WorkspaceDocument | undefined;
+      try {
+        migrated = await migrateLegacyWorkspace();
+      } catch (error) {
+        warning = errorMessage(error);
+      }
       try {
         const id = workspace.getActiveId();
         if (id) initial = await workspace.load(id);
+        if (!initial) initial = migrated;
         const drafts = await workspace.recoveries();
         if (live) setRecoveries(drafts);
       } catch (e) {
@@ -1360,16 +1369,9 @@ export default function App() {
           </>
         )}
         <main className="main-panel" id="writing-area">
-          {zen && (
+          {zen && !beatGuide && (
             <div className="zen-controls">
-              <button
-                className="zen-exit"
-                aria-label="Exit Zen"
-                onClick={toggleZen}
-              >
-                <ChevronLeft size={14} aria-hidden="true" />
-                Exit Zen <kbd>Esc</kbd>
-              </button>
+              <ZenExitButton onExit={toggleZen} />
             </div>
           )}
           <WritingToolbar
@@ -1486,6 +1488,7 @@ export default function App() {
               onRange={showBeatRange}
               onEdit={() => openView("beats")}
               onClose={() => setBeatGuide(false)}
+              onExitZen={zen ? toggleZen : undefined}
             />
           )}
           <div
@@ -1548,7 +1551,7 @@ export default function App() {
                   title={
                     pdfError ||
                     (exact
-                      ? "Filled PDF pages, rounded up to an eighth; includes the title page"
+                      ? "Screenplay pages from the generated PDF, rounded up to an eighth; excludes title pages"
                       : "Generating the PDF to count its pages")
                   }
                 >

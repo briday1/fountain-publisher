@@ -1,209 +1,100 @@
-name: Pages Preview + Production
+name: Writing app checks + production
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
-  pull-requests: write
-
-concurrency:
-  # Keep PR preview/cleanup runs serialized, but never let a PR-close run replace
-  # a pending production deployment after merge.
-  group: pages-${{ github.event_name }}
-  cancel-in-progress: false
+  contents: read
 
 jobs:
   build:
-    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
+    concurrency:
+      group: writing-app-checks-${{ github.ref }}
+      cancel-in-progress: true
+    defaults:
+      run:
+        working-directory: beta
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
-
-      - run: npm ci
-      - run: npm run build:web
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: site
-          path: dist/web
-
-  deploy_preview:
-    if: github.event_name == 'pull_request' && github.event.action != 'closed'
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages-preview
-      url: ${{ steps.deployment.outputs.page_url }}previews/pr-${{ github.event.number }}/
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: gh-pages
-          path: gh-pages
-        continue-on-error: true
-
-      - name: Initialize gh-pages if missing
+          cache-dependency-path: beta/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Test document, editor, persistence and cloud contracts
+        run: npm test
+      - name: Browser regression tests
         run: |
-          if [ ! -d gh-pages/.git ]; then
-            git clone "${{ github.server_url }}/${{ github.repository }}.git" gh-pages
-            cd gh-pages
-            git checkout --orphan gh-pages
-            git rm -rf . || true
-            touch .nojekyll
-            echo "fountain-publisher.com" > CNAME
-            git add .nojekyll CNAME
-            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Initialize gh-pages"
-            git push origin HEAD:gh-pages
-            cd ..
+          if command -v google-chrome > /dev/null; then
+            PLAYWRIGHT_CHROME_PATH="$(command -v google-chrome)" npm run test:browser
+          else
+            npx playwright install --with-deps chromium
+            npm run test:browser
           fi
-
-      - uses: actions/download-artifact@v4
+      - name: Build writing app
+        run: npm run build:beta
+      - name: Keep the tested build
+        uses: actions/upload-artifact@v4
         with:
-          name: site
-          path: out
-
-      - name: Deploy preview
-        run: |
-          mkdir -p gh-pages/previews/pr-${{ github.event.number }}
-          rm -rf gh-pages/previews/pr-${{ github.event.number }}/*
-          cp -R out/* gh-pages/previews/pr-${{ github.event.number }}/
-          touch gh-pages/.nojekyll
-          if [ ! -f gh-pages/CNAME ]; then
-            echo "fountain-publisher.com" > gh-pages/CNAME
-          fi
-          cd gh-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .
-          git diff --cached --quiet || git commit -m "Preview PR #${{ github.event.number }}"
-          git push origin HEAD:gh-pages
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: gh-pages
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-      - name: Comment preview URL
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const pr = context.payload.pull_request.number;
-            const url = `https://fountain-publisher.com/previews/pr-${pr}/`;
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: pr,
-              body: `🔍 Preview ready: ${url}`
-            });
-
-  cleanup_preview:
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages-preview
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: gh-pages
-          path: gh-pages
-
-      - name: Remove preview
-        run: |
-          rm -rf gh-pages/previews/pr-${{ github.event.number }}
-          cd gh-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .
-          git diff --cached --quiet || git commit -m "Remove preview PR #${{ github.event.number }}"
-          git push origin HEAD:gh-pages
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: gh-pages
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          name: writing-app
+          path: beta/dist
+          if-no-files-found: error
 
   deploy_production:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
+    # Share the lock with beta.yml from reading gh-pages through Pages deploy.
+    # Tests run before the lock, and PR checks never update the published site.
+    concurrency:
+      group: pages-push
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Read the current published site
+        uses: actions/checkout@v4
         with:
           ref: gh-pages
-          path: gh-pages
-        continue-on-error: true
-
-      - name: Initialize gh-pages if missing
-        run: |
-          if [ ! -d gh-pages/.git ]; then
-            git clone "${{ github.server_url }}/${{ github.repository }}.git" gh-pages
-            cd gh-pages
-            git checkout --orphan gh-pages
-            git rm -rf . || true
-            touch .nojekyll
-            echo "fountain-publisher.com" > CNAME
-            git add .nojekyll CNAME
-            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Initialize gh-pages"
-            git push origin HEAD:gh-pages
-            cd ..
-          fi
-
+          path: published
       - uses: actions/download-artifact@v4
         with:
-          name: site
+          name: writing-app
           path: out
-
-      - name: Deploy production (preserve previews, CNAME, .nojekyll)
+      - name: Publish production while preserving installed clients and previews
         run: |
-          find gh-pages -mindepth 1 -maxdepth 1 \
-            ! -name .git ! -name previews ! -name CNAME ! -name .nojekyll \
-            -exec rm -rf {} +
-          cp -R out/* gh-pages/
-          touch gh-pages/.nojekyll
-          echo "fountain-publisher.com" > gh-pages/CNAME
-          cd gh-pages
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='previews/' \
+            --exclude='CNAME' \
+            --exclude='.nojekyll' \
+            out/ published/
+          touch published/.nojekyll
+          if [ ! -s published/CNAME ]; then
+            printf '%s\n' 'fountain-publisher.com' > published/CNAME
+          fi
+          cd published
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git diff --cached --quiet || git commit -m "Deploy production from main"
+          git diff --cached --quiet || git commit -m "Publish writing app from $GITHUB_SHA"
           git push origin HEAD:gh-pages
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
         with:
-          path: gh-pages
-
-      - name: Deploy to GitHub Pages
+          path: published
+      - name: Publish Pages
         id: deployment
         uses: actions/deploy-pages@v4

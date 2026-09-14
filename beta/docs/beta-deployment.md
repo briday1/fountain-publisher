@@ -1,55 +1,47 @@
-# Beta deployment and rollback
+# Deployment and rollback
 
 ## Topology
 
-- Repository: `briday1/fountain-publisher`
-- Branch: `beta/writing-first`
-- App directory: `beta/`
-- User URL: `https://beta.fountain-publisher.com`
-- Static build storage: the existing Pages deployment's `previews/beta/` directory
-- Cloudflare Worker: `fountain-publisher-beta`
-- Shared account Worker: `fountain-publisher` (service binding)
-- Shared API adapter: `https://api.fountain-publisher.com/beta/api/*`
+- Production: `https://fountain-publisher.com`, published from `main` to the existing GitHub Pages root.
+- Preview: `https://beta.fountain-publisher.com`, published from `beta/writing-first` to `previews/beta/`.
+- Application source: `beta/` in `briday1/fountain-publisher`.
+- Account and collaboration adapter: `fountain-publisher-beta`, at `https://api.fountain-publisher.com/beta/api/*`.
+- Shared account service: the existing `fountain-publisher` Worker via its service binding.
 
-The original production workflow preserves the entire `previews/` directory, so subsequent main releases keep beta. The beta workflow uses the same `pages-push` concurrency group as production pushes, and changes only its own preview subtree. It never replaces the primary application's files or CNAME.
+The Worker name and compatibility API prefix remain stable infrastructure identifiers. Production and beta use the same `LIVE_ROOMS` binding and `structured-v1:<Drive file ID>` room identities. Do not rename or delete the Worker, class or binding without migrating its durable state. The primary account Worker retains OAuth, credentials, D1 and the previous application generation’s rooms.
 
-## Routine frontend deployment
+## Frontend releases
 
-Make changes under `beta/`, run checks, commit, and push `beta/writing-first`. `.github/workflows/beta.yml` runs contract tests, browser tests, and `npm run build:beta`, then publishes the preserved Pages tree. No additional Cloudflare CI token is required for frontend changes.
+The production workflow tests the new app, runs its browser suite, and builds `beta/dist`. Its publishing job shares the `pages-push` lock with beta, reads the latest Pages tree, and copies the tested app to the root. Preview directories, domain files and earlier assets remain available for existing writing sessions. Pull requests run checks and retain a build artifact; they do not publish a path-scoped editor or post comments.
 
-## Cloudflare adapter changes
+The beta workflow updates only `previews/beta/`. Both workflows keep `CNAME` and `.nojekyll`. The primary domain remains on GitHub Pages DNS; no new DNS record, account service or OAuth registration is needed.
 
-The infrastructure adapter is deployed separately from frontend builds. After testing changes:
+## Adapter releases
+
+Deploy compatible API changes before releasing a frontend that needs them:
 
 ```sh
 cd beta
-npm run check
+npm test
 npm run build:beta
 npx wrangler deploy --dry-run
 npx wrangler deploy
 ```
 
-Wrangler uses the existing authenticated Cloudflare account. `wrangler.jsonc` binds the existing account service and creates the beta custom domain/certificate. No secrets are stored in this file, and no main-worker code is imported or copied into the beta implementation.
+Wrangler uses the existing Cloudflare authentication. Its routes retain the beta custom domain, `/beta/*` API adapter and two exact existing OAuth callbacks. The adapter accepts only the exact production and beta origins, retains CSRF checks, and directs authorization messages to the trusted origin that opened the popup. Credentials remain in the existing account service.
 
-The Worker proxies public static assets from the preserved Pages beta subtree. Its bundled static assets remain useful for local dry runs; the configured Pages origin supplies hosted assets. Browser API requests bypass Pages entirely.
+The beta Worker proxies static files from `https://fountain-publisher.com/previews/beta`. Do not point the primary apex at this Worker while retaining that upstream URL: it would proxy back into itself. Production static files continue to be served by Pages.
 
-HTML, `sw.js`, and other mutable shell files bypass upstream CDN caching and return `no-store`. Hashed assets retain caching. Each service-worker release precaches its own versioned HTML with matching assets, so offline loading cannot mix deployments. Updates wait for existing clients to close; they do not reload an active writing session.
+## Existing drafts and installed applications
 
-## OAuth callback routing
+The old main-origin local draft is imported before editor startup into the new IndexedDB workspace. Imports use stable content identities and insert-only transactions, retain a differing previous saved draft as a snapshot, and never delete the original localStorage record. Later edits from a still-open old tab become a separate recoverable import.
 
-Two additional exact routes are registered on the existing API host:
+Beta local drafts and offline collaboration updates remain on the beta origin. Keep that origin available; its storage cannot be read directly by the production origin. Shared Drive rooms remain common to both origins.
 
-- `api.fountain-publisher.com/auth/github/callback`
-- `api.fountain-publisher.com/auth/google/callback`
-
-These preserve the existing provider callback registrations. Main-origin responses pass through unchanged; beta-origin responses redirect only the popup message destination. Regression tests cover both paths and session-cookie preservation.
+`sw.js` and the legacy `service-worker.js` URL serve the same versioned offline worker. Each release caches matching HTML and assets together. Updates wait for existing controlled clients to close; they do not reload an active writing session. Existing caches and earlier static assets are retained during promotion.
 
 ## Rollback
 
-Revert the beta branch commit and push to publish its previous static build. For an adapter failure, use `npx wrangler rollback` for `fountain-publisher-beta` to restore its previous deployment.
+Revert a production source commit on `main` and let its checks publish the previous app. Revert preview source on `beta/writing-first` to roll back beta independently. Keep the account adapter compatible with both app releases; `npx wrangler rollback` can restore its prior version if needed. Never delete durable rooms or account data as part of a static rollback.
 
-To remove beta entirely, remove its two exact callback routes and `/beta/*` route first, returning callbacks to the original API custom-domain Worker, then remove the beta custom domain/Worker. The shared Worker, its D1 data, and its credentials must remain intact. Local browser drafts are origin-specific: export important beta drafts before retiring the beta origin.
-
-## Eventual main migration
-
-Keep the beta directory isolated until acceptance is complete. Promote the tested editor as a deliberate application migration rather than replacing the current root app during beta testing. Carry the new Fountain metadata reader and a migration strategy for local drafts and collaboration rooms into that change.
+Use `TEST_BASE_URL=https://fountain-publisher.com npm run test:browser` after publication. The beta URL supports the same deployed suite. These checks use isolated profiles and simulated provider sessions; authenticated account acceptance remains separate.

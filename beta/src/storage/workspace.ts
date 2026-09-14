@@ -162,6 +162,47 @@ export class WorkspaceRepository {
       throw storageError(e);
     }
   }
+  /** Insert a recovered draft and optional earlier save atomically, without replacing existing writing. */
+  async importDraft(
+    input: DocumentInput,
+    previous?: Screenplay,
+  ): Promise<WorkspaceDocument> {
+    try {
+      const db = await this.db();
+      const tx = db.transaction(["documents", "snapshots"], "readwrite");
+      const completion = done(tx);
+      void completion.catch(() => {});
+      const documents = tx.objectStore("documents");
+      const current = (await request(documents.get(input.id))) as
+        WorkspaceDocument | undefined;
+      if (current) {
+        await completion;
+        return current;
+      }
+      const now = Date.now();
+      const next: WorkspaceDocument = {
+        ...input,
+        revision: 1,
+        createdAt: now,
+        updatedAt: now,
+      };
+      documents.add(next);
+      if (previous)
+        tx.objectStore("snapshots").add({
+          id: crypto.randomUUID(),
+          documentId: next.id,
+          name: next.name,
+          screenplay: previous,
+          createdAt: now,
+          revision: 0,
+        } satisfies Snapshot);
+      await completion;
+      this.channel?.postMessage(input.id);
+      return next;
+    } catch (error) {
+      throw storageError(error);
+    }
+  }
   async save(
     input: DocumentInput,
     expectedRevision: number | null,

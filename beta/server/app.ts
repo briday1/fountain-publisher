@@ -78,7 +78,7 @@ export async function createApp(
   app.disable("x-powered-by");
   app.use((_req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader(
       "Permissions-Policy",
@@ -90,7 +90,7 @@ export async function createApp(
     app.use((_req, res, next) => {
       res.setHeader(
         "Content-Security-Policy",
-        "default-src 'self'; script-src 'self' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://www.gstatic.com https://ssl.gstatic.com; font-src 'self'; connect-src https://apis.google.com https://www.googleapis.com 'self'; worker-src 'self' blob:; frame-src blob: https://docs.google.com https://drive.google.com https://accounts.google.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+        "default-src 'self'; script-src 'self' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://www.gstatic.com https://ssl.gstatic.com; font-src 'self'; connect-src https://apis.google.com https://www.googleapis.com 'self'; worker-src 'self' blob:; frame-src 'self' blob: https://docs.google.com https://drive.google.com https://accounts.google.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
       );
       next();
     });

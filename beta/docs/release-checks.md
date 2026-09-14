@@ -20,7 +20,7 @@ The deployed suite also checks both provider authorization redirects, offline re
 Repeat the deployed checks with:
 
 ```sh
-TEST_BASE_URL=https://beta.fountain-publisher.com npm run test:browser
+TEST_BASE_URL=https://fountain-publisher.com npm run test:browser
 ```
 
 Set `PLAYWRIGHT_CHROME_PATH` if using an installed Chrome instead of Playwright's Chromium. Local development runs skip the two deployment-only checks.
@@ -31,7 +31,7 @@ Covered by executable tests:
 - Native Chrome typing, selection replacement before `selectionchange`, Unicode deletion, find/replace, view changes, reload recovery, PDF generation, and mobile layout.
 - Exact beat line ranges, legacy Fountain range imports, cumulative-word interpolation, assignment deletion, keyboard reordering, writing-guide advancement, saved beat details, and PNG export. Character chart word positions and dialogue-line counts include speech around omitted text and lyrics.
 - A 3,000-block editor regression with 15 assigned beats verifies 100 keystrokes preserve unaffected paragraph DOM nodes and do not request document snapshots. Beat anchors follow splits, joins, earlier edits, and undo/redo without becoming part of the rendered document.
-- PDF page usage comes from actual occupied rows and rounds up to eighths. Fractional values are checked alongside downloaded physical page counts, including empty documents, title pages, explicit breaks, continued/dual dialogue, and Letter/A4 geometry.
+- PDF page usage comes from actual occupied rows and rounds up to eighths. Fractional values are checked alongside downloaded physical page counts, including empty documents, title-page exclusion in Insights, explicit breaks, continued/dual dialogue, and Letter/A4 geometry.
 - Full screen exercises the browser API. Zen retains the same editor, offers a visible exit, preserves active full screen when exited, and closes a dialog or search before Escape exits Zen. Long paragraphs retain the same selection and a visible caret after reflow; pointer full-screen entry and exit retain writing focus. Nested pacing/beat-sheet dialogs close one at a time and retain scroll containment.
 - Character dialogue is grouped in script order under scene headings, including repeated headings and dialogue before the first scene. Navigation highlights the exact line and leaves a collapsed caret; immediate typing does not replace the passage. Scrolling dialog content at its boundaries or scrolling the backdrop leaves the underlying page still.
 - Every Fountain element, styles, external edits, metadata, legacy notes/beats, inline annotations, PDF bytes/page count, FDX/XML escaping and CSV formula neutralization.
@@ -40,13 +40,13 @@ Covered by executable tests:
 - Opaque encrypted local sessions, OAuth state/PKCE, CSRF, GitHub SHA checks, conditional Drive saves, and beta callback pass-through.
 - Offline releases cache matching HTML and assets together. Mutable HTML/service-worker responses bypass stale CDN caches; failed installations cannot leave a partial cache advertised as complete.
 
-Before graduating beta to production:
+Manual acceptance checks:
 
 1. Use a nonproduction file to connect each real provider, open, save, reopen, change branches/folders, and deliberately create a concurrent remote version. Verify the saved text and conflict recovery, not only the status indicator.
 2. Check Google shared-reader/writer permissions and revision downloads with two accounts. The hosted authorization scope only includes files authorized for the existing app.
 3. Test Japanese, Chinese and Korean native IMEs; accent dead keys; autocorrection; emoji/combining-character deletion; drag/drop; touch selection; and platform editing menus in Safari, Chrome, Firefox and iPad.
 4. Test long scripts and offline reopening on target devices with realistic notes and beat sheets. Recovery must survive a failed remote save and a second tab editing the same local draft.
 5. Inspect dialogue continuation, dual dialogue, long title/contact fields and non-Latin font warnings in representative PDFs. Fountain and FDX preserve all text; Courier Prime's PDF glyph coverage is limited.
-6. Open one Drive Fountain file from two Google accounts using its beta link. Verify simultaneous edits, local undo, title/beat changes, writer presence, view-only permissions, disconnection/reconnection, and a second tab on the same account. Change the Drive file outside the beta room and confirm collaboration pauses without overwriting either version; save a local recovery copy before resolving the conflict.
+6. Open one Drive Fountain file from two Google accounts using its sharing link. Verify simultaneous edits, local undo, title/beat changes, writer presence, view-only permissions, disconnection/reconnection, and a second tab on the same account. Change the Drive file outside the shared room and confirm collaboration pauses without overwriting either version; save a local recovery copy before resolving the conflict.
 
-PDF import/reconstruction, regex search, and the old animated background effects are not included in this beta. Source and Vim modes were intentionally removed. Native browser spellcheck replaces the old custom spelling subsystem.
+PDF import/reconstruction, regex search, and the old animated background effects are not included in this application. Source and Vim modes were intentionally removed. Native browser spellcheck replaces the old custom spelling subsystem.

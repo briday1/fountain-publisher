@@ -99,13 +99,6 @@
   color: var(--muted);
   font-size: 10px;
 }
-.beat-flow-summary button {
-  padding: 3px 5px;
-  border: 0;
-  background: transparent;
-  color: var(--accent);
-  font-size: 10px;
-}
 .beat-flow-list {
   list-style: none;
   margin: 0;

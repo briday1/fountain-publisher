@@ -42,6 +42,28 @@ function fixture(response: Response = Response.json({ ok: true })) {
   return { room, name, shared, network, request, worker, env };
 }
 describe("beta live room routing", () => {
+  it("keeps production and beta writers in the same existing room", async () => {
+    const upgrade = { status: 101, webSocket: {} } as unknown as Response;
+    const f = fixture(upgrade);
+    for (const origin of ["https://fountain-publisher.com", beta]) {
+      const response = await f.request(
+        `/collaboration/${file}/connect?clientId=123`,
+        undefined,
+        {
+          Origin: origin,
+          Upgrade: "websocket",
+        },
+      );
+      expect(response).toBe(upgrade);
+      expect((f.room.mock.lastCall![0] as Request).headers.get("origin")).toBe(
+        origin,
+      );
+    }
+    expect(f.name.mock.calls).toEqual([
+      [`structured-v1:${file}`],
+      [`structured-v1:${file}`],
+    ]);
+  });
   it("rejects untrusted WebSocket origins before room access and preserves genuine101 responses", async () => {
     const upgrade = { status: 101, webSocket: {} } as unknown as Response;
     const f = fixture(upgrade);

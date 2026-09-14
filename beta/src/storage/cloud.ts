@@ -267,6 +267,6 @@ export async function connectAccount(
       () => finish(new Error("Sign-in expired. Try connecting again.")),
       600000,
     );
-    popup.location.href = `${apiBase}/auth/${provider}/start`;
+    popup.location.href = `${apiBase}/auth/${provider}/start?${query({ returnOrigin: location.origin })}`;
   });
 }

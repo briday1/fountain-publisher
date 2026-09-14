@@ -486,7 +486,7 @@ export class LiveScreenplayRoom {
         throw new LiveError(
           404,
           "LIVE_NOT_FOUND",
-          "This file does not have a beta live room yet.",
+          "This file does not have a live session yet.",
         );
       const snapshot = await this.drive.snapshot(auth);
       return json({

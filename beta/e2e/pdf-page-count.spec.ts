@@ -47,7 +47,7 @@ async function verifyDownloadedCount(
   return pdf;
 }
 
-test("Insights shows generated fractional PDF progress before preview, including title pages, explicit breaks, dialogue continuation and A4", async ({
+test("Insights counts generated screenplay pages without title pages, including explicit breaks, dialogue continuation and A4", async ({
   page,
 }, testInfo) => {
   test.setTimeout(60000);
@@ -81,7 +81,7 @@ test("Insights shows generated fractional PDF progress before preview, including
   await expect(
     page.getByRole("region", { name: "Title page preview" }),
   ).toContainText("Counted Pages");
-  await verifyDownloadedCount(page, testInfo, "with-title", 2, "1⅛");
+  await verifyDownloadedCount(page, testInfo, "with-title", 2, "⅛");
 
   const dialogue = Array.from(
     { length: 70 },
@@ -97,7 +97,7 @@ test("Insights shows generated fractional PDF progress before preview, including
     testInfo,
     "dialogue-and-page-break",
     4,
-    "3⅜",
+    "2⅜",
   );
   expect(letter.getPage(0).getSize()).toEqual({ width: 612, height: 792 });
 
@@ -112,7 +112,23 @@ test("Insights shows generated fractional PDF progress before preview, including
   await settings
     .getByRole("button", { name: "Close dialog", exact: true })
     .click();
-  const a4 = await verifyDownloadedCount(page, testInfo, "a4-pages", 4, "3⅜");
+  const a4 = await verifyDownloadedCount(page, testInfo, "a4-pages", 4, "2⅜");
   expect(a4.getPage(0).getWidth()).toBeCloseTo(595.28);
   expect(a4.getPage(0).getHeight()).toBeCloseTo(841.89);
+  await openFountain(
+    page,
+    "Title: Counted Pages\n\n!" +
+      Array.from(
+        { length: 9 * 55 + 28 },
+        (_, index) => `Written row ${index + 1}.`,
+      ).join("\n"),
+    "Written row 523.",
+  );
+  await verifyDownloadedCount(
+    page,
+    testInfo,
+    "nine-and-five-eighths-plus-title",
+    11,
+    "9⅝",
+  );
 });

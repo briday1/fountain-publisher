@@ -1117,20 +1117,6 @@ hr {
 .board-tools button {
   font-size: 11px;
 }
-.beat-guide {
-  padding: 16px;
-  background: var(--accent-soft);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  margin-bottom: 16px;
-}
-.beat-guide p {
-  font-size: 12px;
-  line-height: 1.6;
-}
-.beat-guide button {
-  font-size: 11px;
-}
 .board-empty {
   padding: 65px 0;
   text-align: center;
@@ -1889,15 +1875,64 @@ hr {
     monospace;
 }
 
-.drive-picker-exit {
-  position: fixed;
-  top: 4px;
-  right: 8px;
-  z-index: 2147483647;
+.drive-picker-host {
+  width: min(1100px, calc(100vw - 32px));
+  height: min(790px, calc(100dvh - 32px));
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
   background: var(--surface);
   color: var(--ink);
-  border: 1px solid var(--border);
   box-shadow: var(--shadow);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+.drive-picker-host[open] {
+  display: flex;
+  flex-direction: column;
+}
+.drive-picker-host::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+.drive-picker-host > header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 12px 8px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.drive-picker-host strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+.drive-picker-close {
+  flex: none;
+}
+.drive-picker-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.drive-picker-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 566px;
+  min-height: 350px;
+  border: 0;
+  background: white;
+}
+.drive-picker-loading {
+  position: absolute;
+  top: 55px;
+  left: 18px;
+  color: var(--muted);
 }
 
 .live-status {

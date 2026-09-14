@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, Pencil, X } from "lucide-react";
 import type { Beat, BeatRange, Screenplay } from "../core/model";
 import type { EditorController } from "../editor/EditorController";
 import { resolveBeatRange, sceneBeatRange } from "../core/beatRanges";
+import { ZenExitButton } from "./ZenExitButton";
 import "./beat-guide.css";
 
 function assignedRange(doc: Screenplay, beat: Beat): BeatRange | undefined {
@@ -21,6 +22,7 @@ export function BeatGuide({
   onRange,
   onEdit,
   onClose,
+  onExitZen,
   targetBeatId,
 }: {
   doc: Screenplay;
@@ -29,6 +31,7 @@ export function BeatGuide({
   onRange: (range: BeatRange) => void;
   onEdit: () => void;
   onClose: () => void;
+  onExitZen?: () => void;
   targetBeatId?: string;
 }) {
   const beats = doc.metadata.beats;
@@ -83,7 +86,10 @@ export function BeatGuide({
   };
 
   return (
-    <section className="writing-beat-guide" aria-label="Writing beat guide">
+    <section
+      className={`writing-beat-guide${onExitZen ? " writing-beat-guide-zen" : ""}`}
+      aria-label="Writing beat guide"
+    >
       <div className="writing-beat-guide-row">
         {beat ? (
           <>
@@ -125,11 +131,17 @@ export function BeatGuide({
               </button>
               <button
                 className="writing-beat-assign"
+                aria-label="Assign + Next"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={assignAndNext}
                 title="Assign the selected screenplay lines to this beat, then advance"
               >
-                Assign + Next
+                <span className="writing-beat-assign-full" aria-hidden="true">
+                  Assign + Next
+                </span>
+                <span className="writing-beat-assign-short" aria-hidden="true">
+                  Assign
+                </span>
               </button>
               <button
                 aria-label="Next guide beat"
@@ -154,6 +166,7 @@ export function BeatGuide({
         <button
           className="writing-beat-close"
           aria-label="Hide writing beat guide"
+          title="Hide writing beat guide"
           onClick={() => {
             onClose();
             editor?.focus();
@@ -161,6 +174,7 @@ export function BeatGuide({
         >
           <X size={16} />
         </button>
+        {onExitZen && <ZenExitButton onExit={onExitZen} />}
       </div>
       {notice && (
         <p className="writing-beat-notice" role="status">

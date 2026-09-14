@@ -77,7 +77,41 @@ test("writing guide keeps the next beat visible and assigns without replacing th
     .click();
   await expect(guide).toBeVisible();
   await expect(guide).toContainText("Choose to follow");
-  await page.getByRole("button", { name: "Exit Zen", exact: true }).click();
+  const exitZen = guide.getByRole("button", { name: "Exit Zen", exact: true });
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(exitZen).toBeInViewport();
+    await expect(
+      guide.getByRole("button", { name: "Assign + Next", exact: true }),
+    ).toBeInViewport();
+    await expect(page.locator(".zen-controls")).toHaveCount(0);
+    const bounds = (await guide.boundingBox())!;
+    const exitBounds = (await exitZen.boundingBox())!;
+    const writingBounds = (await page
+      .locator(".writing-scroll")
+      .boundingBox())!;
+    expect(bounds.height).toBeLessThanOrEqual(42);
+    expect(bounds.width).toBeLessThanOrEqual(width);
+    expect(exitBounds.y).toBeGreaterThanOrEqual(bounds.y);
+    expect(exitBounds.y + exitBounds.height).toBeLessThanOrEqual(
+      bounds.y + bounds.height,
+    );
+    expect(writingBounds.y).toBeCloseTo(bounds.y + bounds.height, 0);
+    expect(
+      await guide.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    ).toBe(true);
+    expect(
+      (await guide.locator(".writing-beat-prompt > span").boundingBox())!.width,
+    ).toBeGreaterThan(45);
+  }
+  await page.screenshot({
+    path: testInfo.outputPath("writing-beat-guide-zen-mobile.png"),
+    fullPage: true,
+  });
+  await exitZen.click();
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await guide
     .getByRole("button", { name: "Previous guide beat", exact: true })
     .click();
@@ -126,4 +160,53 @@ test("writing guide keeps the next beat visible and assigns without replacing th
     .click();
   await expect(guide).not.toBeVisible();
   await expect(editor).toBeVisible();
+});
+
+test("hiding the guide in Zen retains an easy exit and the writing caret", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await expect(editor).toBeVisible();
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page
+    .getByRole("button", { name: "New screenplay", exact: true })
+    .click();
+  await editor.click();
+  await page.keyboard.insertText("A quiet room.");
+  const original = (await editor.elementHandle())!;
+  await page.getByRole("button", { name: "Beat guide", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Enter Zen mode", exact: true })
+    .click();
+  const guide = page.getByRole("region", { name: "Writing beat guide" });
+  await expect(
+    guide.getByRole("button", { name: "Exit Zen", exact: true }),
+  ).toBeInViewport();
+  expect((await guide.boundingBox())!.height).toBeLessThanOrEqual(42);
+  expect(
+    await guide.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth,
+    ),
+  ).toBe(true);
+  await guide.getByRole("button", { name: "Hide writing beat guide" }).click();
+  await expect(guide).toBeHidden();
+  const exitZen = page.getByRole("button", { name: "Exit Zen", exact: true });
+  await expect(exitZen).toBeInViewport();
+  await expect(editor).toBeFocused();
+  await page.keyboard.insertText(" Still writing.");
+  await expect(editor).toHaveText("A quiet room. Still writing.");
+  await exitZen.click();
+  await expect(exitZen).toBeHidden();
+  await expect(editor).toBeFocused();
+  await page.keyboard.insertText(" Back here.");
+  await expect(editor).toHaveText("A quiet room. Still writing. Back here.");
+  expect(
+    await original.evaluate(
+      (element) =>
+        element.isConnected &&
+        element === document.querySelector(".screenplay-editor"),
+    ),
+  ).toBe(true);
 });

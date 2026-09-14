@@ -34,10 +34,7 @@ export function offlineShell(): Plugin {
           fileName: shell.slice(1),
           source: html.source,
         });
-        this.emitFile({
-          type: "asset",
-          fileName: "sw.js",
-          source: `const CACHE='fp2-shell-${version}';
+        const serviceWorker = `const CACHE='fp2-shell-${version}';
 const SHELL=${JSON.stringify(shell)};
 const FILES=${JSON.stringify(files)};
 self.addEventListener('install',event=>event.waitUntil((async()=>{
@@ -72,8 +69,11 @@ self.addEventListener('fetch',event=>{
       return response;
     })());
   }
-});`,
-        });
+});`;
+        // Existing production installations check the old URL for updates.
+        // Both names install the same release at the existing root scope.
+        for (const fileName of ["sw.js", "service-worker.js"])
+          this.emitFile({ type: "asset", fileName, source: serviceWorker });
       },
     },
   };

@@ -46,29 +46,34 @@ function fixture(
   return { env, worker, request, shared, network };
 }
 describe("shared Cloudflare infrastructure boundary", () => {
-  it("reports actual shared account state without returning any provider tokens", async () => {
-    const f = fixture(
-      vi
-        .fn()
-        .mockImplementation(async (input: Request) =>
-          new URL(input.url).pathname === "/api/session"
-            ? new Response(JSON.stringify({ connected: true, login: "writer" }))
-            : new Response("{}", { status: 401 }),
+  it.each([main, beta])(
+    "reports shared account state to %s without returning provider tokens",
+    async (origin) => {
+      const f = fixture(
+        vi
+          .fn()
+          .mockImplementation(async (input: Request) =>
+            new URL(input.url).pathname === "/api/session"
+              ? new Response(
+                  JSON.stringify({ connected: true, login: "writer" }),
+                )
+              : new Response("{}", { status: 401 }),
+          ),
+      );
+      const result = await f.request("/status", undefined, { Origin: origin });
+      expect(result.headers.get("access-control-allow-origin")).toBe(origin);
+      expect(await result.json()).toMatchObject({
+        github: { connected: true, account: "writer" },
+        google: { connected: false },
+        csrfToken: "nonce",
+      });
+      expect(
+        f.shared.mock.calls.every(
+          ([r]) => new Headers((r as Request).headers).get("origin") === main,
         ),
-    );
-    const result = await f.request("/status");
-    expect(result.headers.get("access-control-allow-origin")).toBe(beta);
-    expect(await result.json()).toMatchObject({
-      github: { connected: true, account: "writer" },
-      google: { connected: false },
-      csrfToken: "nonce",
-    });
-    expect(
-      f.shared.mock.calls.every(
-        ([r]) => new Headers((r as Request).headers).get("origin") === main,
-      ),
-    ).toBe(true);
-  });
+      ).toBe(true);
+    },
+  );
   it("rejects hostile origins and missing CSRF before any cloud side effect", async () => {
     const f = fixture();
     const invalidHeaders: Record<string, string>[] = [
@@ -160,6 +165,75 @@ describe("shared Cloudflare infrastructure boundary", () => {
     expect(response.headers.get("set-cookie")).toContain(
       "fp_beta_return=github",
     );
+  });
+  it.each([main, beta])(
+    "returns authorization to the initiating app at %s",
+    async (origin) => {
+      const html = `<script>window.opener.postMessage({type:'google-connected'},"${main}")</script>`;
+      const f = fixture(
+        vi
+          .fn()
+          .mockImplementation(async (input: Request) =>
+            new URL(input.url).pathname.endsWith("/start")
+              ? new Response(null, {
+                  status: 302,
+                  headers: {
+                    location: "https://accounts.google.com/authorize",
+                  },
+                })
+              : new Response(html, {
+                  headers: {
+                    "content-type": "text/html",
+                    "set-cookie": "fp_google_session=opaque; HttpOnly; Secure",
+                  },
+                }),
+          ),
+      );
+      const start = await f.request(
+        `/auth/google/start?returnOrigin=${encodeURIComponent(origin)}`,
+        undefined,
+        { Origin: "" },
+      );
+      expect(start.status).toBe(302);
+      const returnCookie = start.headers.get("set-cookie")!.split(";")[0];
+      expect(returnCookie).toBe(
+        `fp_beta_return=google|${encodeURIComponent(origin)}`,
+      );
+      const callback = await f.worker.fetch(
+        new Request(`${api}/auth/google/callback?state=valid`, {
+          headers: { Cookie: returnCookie },
+        }),
+        f.env,
+      );
+      expect(await callback.text()).toBe(
+        html.replace(JSON.stringify(main), JSON.stringify(origin)),
+      );
+      expect(callback.headers.get("set-cookie")).toContain(
+        "fp_google_session=opaque",
+      );
+    },
+  );
+  it("never sends authorization back to an untrusted return origin", async () => {
+    const f = fixture();
+    const response = await f.request(
+      "/auth/google/start?returnOrigin=https%3A%2F%2Fhostile.example",
+    );
+    expect(response.status).toBe(403);
+    expect(f.shared).not.toHaveBeenCalled();
+    const html = `<script>window.opener.postMessage({type:'google-connected'},"${main}")</script>`;
+    f.shared.mockImplementation(
+      async () =>
+        new Response(html, { headers: { "content-type": "text/html" } }),
+    );
+    const callback = await f.worker.fetch(
+      new Request(`${api}/auth/google/callback`, {
+        headers: {
+          Cookie: "fp_beta_return=google|https%3A%2F%2Fhostile.example",
+        },
+      }),
+      f.env,
+    );
+    expect(await callback.text()).toBe(html);
   });
   it("passes the opened GitHub SHA and returns cloud conflicts without overwriting", async () => {
     const f = fixture(
@@ -311,34 +385,40 @@ describe("shared Cloudflare infrastructure boundary", () => {
 });
 
 describe("native Drive browsing adapter", () => {
-  it("serves Picker configuration only to the beta origin and never caches it", async () => {
-    const f = fixture(
-      vi.fn().mockImplementation(
-        async () =>
-          new Response(
-            JSON.stringify({
-              accessToken: "scoped-picker-token",
-              apiKey: "browser-key",
-              appId: "project-number",
-            }),
-          ),
-      ),
-    );
-    const response = await f.request("/google/picker");
-    expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(await response.json()).toEqual({
-      accessToken: "scoped-picker-token",
-      apiKey: "browser-key",
-      appId: "project-number",
-    });
-    expect(new URL((f.shared.mock.calls[0][0] as Request).url).pathname).toBe(
-      "/api/google/picker/config",
-    );
-    const hostile = await f.request("/google/picker", undefined, {
-      Origin: "https://hostile.example",
-    });
-    expect(hostile.status).toBe(403);
-  });
+  it.each([main, beta])(
+    "serves uncached Picker configuration to the trusted app at %s",
+    async (origin) => {
+      const f = fixture(
+        vi.fn().mockImplementation(
+          async () =>
+            new Response(
+              JSON.stringify({
+                accessToken: "scoped-picker-token",
+                apiKey: "browser-key",
+                appId: "project-number",
+              }),
+            ),
+        ),
+      );
+      const response = await f.request("/google/picker", undefined, {
+        Origin: origin,
+      });
+      expect(response.headers.get("access-control-allow-origin")).toBe(origin);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(await response.json()).toEqual({
+        accessToken: "scoped-picker-token",
+        apiKey: "browser-key",
+        appId: "project-number",
+      });
+      expect(new URL((f.shared.mock.calls[0][0] as Request).url).pathname).toBe(
+        "/api/google/picker/config",
+      );
+      const hostile = await f.request("/google/picker", undefined, {
+        Origin: "https://hostile.example",
+      });
+      expect(hostile.status).toBe(403);
+    },
+  );
   it("lists authorized files across Drive and scopes folder/shared navigation correctly", async () => {
     const f = fixture(
       vi

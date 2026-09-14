@@ -8,7 +8,7 @@ import {
   RefreshCw,
   ExternalLink,
 } from "lucide-react";
-import { flushSync, createPortal } from "react-dom";
+import { flushSync } from "react-dom";
 import { pickDriveItem } from "../storage/drivePicker";
 import { Modal } from "./Modal";
 import { cloud, connectAccount } from "../storage/cloud";
@@ -300,17 +300,6 @@ export function CloudDialog({
   const configured = status?.[provider].configured;
   return (
     <>
-      {pickerOpen &&
-        createPortal(
-          <button
-            className="drive-picker-exit"
-            onClick={() => pickerAbort.current?.abort()}
-            title="Return to Fountain Publisher"
-          >
-            Close Drive browser ×
-          </button>,
-          document.body,
-        )}
       <Modal
         title={provider === "github" ? "GitHub" : "Google Drive"}
         eyebrow={

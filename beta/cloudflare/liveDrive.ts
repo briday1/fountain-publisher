@@ -351,7 +351,7 @@ export class LiveDrive {
         }
       ).webSocket;
       socket?.accept();
-      socket?.close(1000, "Verified beta import");
+      socket?.close(1000, "Verified import");
       response = await this.shared(`${route}/recovery?${query}`, auth.cookie);
     }
     const recovery = (await (await checked(response)).json()) as {
@@ -367,7 +367,7 @@ export class LiveDrive {
       throw new LiveError(
         409,
         "LIVE_LEGACY_CONFLICT",
-        "The original live room has changes that differ from Google Drive. Save or recover that version before starting beta collaboration.",
+        "The original live room has changes that differ from Google Drive. Save or recover that version before starting live collaboration.",
       );
   }
 }

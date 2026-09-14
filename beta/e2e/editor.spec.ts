@@ -1,17 +1,54 @@
 import { test, expect } from "@playwright/test";
 import { parseFountain, serializeFountain } from "../src/core/fountain";
 const mod = process.platform === "darwin" ? "Meta" : "Control";
-test("deployed beta starts both account sign-ins using the existing callbacks", async ({
+test("existing production writing migrates before startup and later edits survive reload", async ({
+  page,
+}) => {
+  const legacy = JSON.stringify({
+    version: 1,
+    filename: "Still writing.fountain",
+    source:
+      "Title: Still Writing\n\nINT. STATION - NIGHT\n\nThe train has not arrived yet.",
+    savedSource: "The earlier saved draft.",
+    updatedAt: 1,
+  });
+  await page.addInitScript((value) => {
+    if (!localStorage.getItem("fountain-publisher.workspace.v1"))
+      localStorage.setItem("fountain-publisher.workspace.v1", value);
+  }, legacy);
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await expect(editor).toContainText("The train has not arrived yet.");
+  await editor.click();
+  await page.keyboard.press(`${mod}+End`);
+  await page.keyboard.insertText(" The signal changes.");
+  await expect(
+    page.getByText("Saved on this device", { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(editor).toContainText(
+    "The train has not arrived yet. The signal changes.",
+  );
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem("fountain-publisher.workspace.v1"),
+    ),
+  ).toBe(legacy);
+});
+test("deployed app starts both account sign-ins using the existing callbacks", async ({
   request,
 }) => {
   test.skip(
-    process.env.TEST_BASE_URL !== "https://beta.fountain-publisher.com",
-    "Requires the deployed beta account adapter.",
+    ![
+      "https://beta.fountain-publisher.com",
+      "https://fountain-publisher.com",
+    ].includes(process.env.TEST_BASE_URL ?? ""),
+    "Requires the deployed account adapter.",
   );
   const api = "https://api.fountain-publisher.com";
   for (const provider of ["github", "google"]) {
     const response = await request.get(
-      `${api}/beta/api/auth/${provider}/start`,
+      `${api}/beta/api/auth/${provider}/start?returnOrigin=${encodeURIComponent(process.env.TEST_BASE_URL!)}`,
       {
         maxRedirects: 0,
       },
@@ -34,7 +71,9 @@ test("deployed beta starts both account sign-ins using the existing callbacks", 
     ).toBe(true);
     expect(
       cookies.some((header) =>
-        header.value.startsWith(`fp_beta_return=${provider};`),
+        header.value.startsWith(
+          `fp_beta_return=${provider}|${encodeURIComponent(process.env.TEST_BASE_URL!)};`,
+        ),
       ),
     ).toBe(true);
   }

@@ -59,6 +59,14 @@
   background: color-mix(in srgb, var(--accent) 6%, var(--surface));
   font-weight: 600;
 }
+.writing-beat-assign-short {
+  display: none;
+}
+.writing-beat-guide .zen-exit {
+  flex-shrink: 0;
+  margin-left: 4px;
+  padding-inline: 8px;
+}
 .writing-beat-guide .writing-beat-close {
   padding: 3px;
   width: 25px;
@@ -99,5 +107,17 @@
   }
   .writing-beat-actions {
     gap: 2px;
+  }
+  .writing-beat-guide-zen .writing-beat-assign-full,
+  .writing-beat-guide-zen .zen-exit > svg,
+  .writing-beat-guide-zen .zen-exit > kbd {
+    display: none;
+  }
+  .writing-beat-guide-zen .writing-beat-assign-short {
+    display: inline;
+  }
+  .writing-beat-guide .zen-exit {
+    margin-left: 2px;
+    padding-inline: 7px;
   }
 }

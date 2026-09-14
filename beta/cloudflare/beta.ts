@@ -126,12 +126,14 @@ async function boundedText(response: Response) {
   }
   return text + decoder.decode();
 }
-/** Beta owns presentation and API adaptation; the existing service owns OAuth and credentials. */
+/** Both app origins share the established account service and live room namespace. */
 export function createBetaWorker(network: typeof fetch = fetch) {
   return {
     async fetch(request: Request, env: BetaEnvironment): Promise<Response> {
       const url = new URL(request.url);
-      const allowed = request.headers.get("origin") === env.BETA_ORIGIN;
+      const appOrigins = new Set([env.BETA_ORIGIN, env.SHARED_ORIGIN]);
+      const requestOrigin = request.headers.get("origin") ?? "";
+      const allowed = appOrigins.has(requestOrigin);
       const shared = (route: string, init: RequestInit = {}) => {
         const headers = new Headers(init.headers);
         headers.set("origin", env.SHARED_ORIGIN);
@@ -153,7 +155,18 @@ export function createBetaWorker(network: typeof fetch = fetch) {
       ) {
         const provider = url.pathname.split("/")[2];
         const upstream = await env.SHARED_API.fetch(request);
-        if (cookie(request, "fp_beta_return") !== provider) return upstream;
+        const returnCookie = cookie(request, "fp_beta_return");
+        const [returnProvider, encodedOrigin] = returnCookie.split("|");
+        if (returnProvider !== provider) return upstream;
+        let returnOrigin = env.BETA_ORIGIN;
+        if (encodedOrigin) {
+          try {
+            returnOrigin = decodeURIComponent(encodedOrigin);
+          } catch {
+            return upstream;
+          }
+          if (!appOrigins.has(returnOrigin)) return upstream;
+        }
         const headers = new Headers(upstream.headers);
         headers.append(
           "Set-Cookie",
@@ -166,7 +179,7 @@ export function createBetaWorker(network: typeof fetch = fetch) {
           });
         const html = (await upstream.text()).replaceAll(
           JSON.stringify(env.SHARED_ORIGIN),
-          JSON.stringify(env.BETA_ORIGIN),
+          JSON.stringify(returnOrigin),
         );
         headers.delete("content-length");
         headers.set("cache-control", "no-store");
@@ -217,7 +230,7 @@ export function createBetaWorker(network: typeof fetch = fetch) {
         );
         headers.set(
           "Content-Security-Policy",
-          `default-src 'self'; script-src 'self' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://www.gstatic.com https://ssl.gstatic.com; font-src 'self'; connect-src wss://api.fountain-publisher.com https://apis.google.com https://www.googleapis.com 'self' ${env.API_ORIGIN}; worker-src 'self' blob:; frame-src blob: https://docs.google.com https://drive.google.com https://accounts.google.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`,
+          `default-src 'self'; script-src 'self' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://www.gstatic.com https://ssl.gstatic.com; font-src 'self'; connect-src wss://api.fountain-publisher.com https://apis.google.com https://www.googleapis.com 'self' ${env.API_ORIGIN}; worker-src 'self' blob:; frame-src 'self' blob: https://docs.google.com https://drive.google.com https://accounts.google.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`,
         );
         return new Response(response.body, {
           status: response.status,
@@ -230,7 +243,7 @@ export function createBetaWorker(network: typeof fetch = fetch) {
         headers.set("X-Content-Type-Options", "nosniff");
         headers.set("Vary", "Origin");
         if (allowed) {
-          headers.set("Access-Control-Allow-Origin", env.BETA_ORIGIN);
+          headers.set("Access-Control-Allow-Origin", requestOrigin);
           headers.set("Access-Control-Allow-Credentials", "true");
           headers.set(
             "Access-Control-Allow-Headers",
@@ -254,7 +267,7 @@ export function createBetaWorker(network: typeof fetch = fetch) {
         if (liveRoute && liveRoute[2] === "connect" && !allowed)
           throw new HttpError(
             403,
-            "Open shared writing from Fountain Publisher beta.",
+            "Open shared writing from Fountain Publisher.",
           );
         if (
           !["GET", "HEAD"].includes(request.method) &&
@@ -265,7 +278,7 @@ export function createBetaWorker(network: typeof fetch = fetch) {
         )
           throw new HttpError(
             403,
-            "Reload the beta before trying again.",
+            "Reload Fountain Publisher before trying again.",
             "CSRF_REJECTED",
           );
         const body = async () => {
@@ -294,16 +307,13 @@ export function createBetaWorker(network: typeof fetch = fetch) {
           )
             throw new HttpError(405, "Method not allowed.");
           if (action === "recovery" && (!allowed || request.method !== "GET"))
-            throw new HttpError(
-              403,
-              "Open recovery from Fountain Publisher beta.",
-            );
+            throw new HttpError(403, "Open recovery from Fountain Publisher.");
           const room = env.LIVE_ROOMS.get(
             env.LIVE_ROOMS.idFromName(`structured-v1:${fileId}`),
           );
           const headers = new Headers({
             cookie: request.headers.get("cookie") ?? "",
-            origin: env.BETA_ORIGIN,
+            origin: requestOrigin,
           });
           if (action === "connect") headers.set("Upgrade", "websocket");
           const target = new URL(`https://room.internal/${action}`);
@@ -365,11 +375,17 @@ export function createBetaWorker(network: typeof fetch = fetch) {
         }
         const start = route.match(/^\/auth\/(github|google)\/start$/);
         if (start && request.method === "GET") {
+          const returnOrigin =
+            url.searchParams.get("returnOrigin") ??
+            (allowed ? requestOrigin : env.BETA_ORIGIN);
+          if (!appOrigins.has(returnOrigin))
+            throw new HttpError(403, "Start sign-in from Fountain Publisher.");
           const response = await shared(`/auth/${start[1]}/start`);
           const headers = new Headers(response.headers);
+          headers.set("Cache-Control", "no-store");
           headers.append(
             "Set-Cookie",
-            `fp_beta_return=${start[1]}; Path=/auth/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
+            `fp_beta_return=${start[1]}|${encodeURIComponent(returnOrigin)}; Path=/auth/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
           );
           return new Response(response.body, {
             status: response.status,
@@ -519,7 +535,7 @@ export function createBetaWorker(network: typeof fetch = fetch) {
           if (!allowed)
             throw new HttpError(
               403,
-              "Open the picker from Fountain Publisher beta.",
+              "Open the picker from Fountain Publisher.",
             );
           const config = (await upstreamJson("/api/google/picker/config")) as {
             accessToken?: string;
