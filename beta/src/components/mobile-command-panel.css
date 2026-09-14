@@ -145,7 +145,6 @@
   }
 }
 @media (max-width: 950px), (hover: none) and (pointer: coarse) {
-  .app-header > .brand,
   .app-header > .header-history,
   .app-header > .save-button {
     display: none;
@@ -153,9 +152,36 @@
   .app-header {
     min-height: 56px;
     padding: 6px 12px;
+    gap: 8px;
+  }
+  .app-header > .brand {
+    display: flex;
+    order: 0;
+    flex-shrink: 0;
+    min-height: 44px;
+    min-width: 44px;
+    justify-content: center;
+  }
+  .app-header > .brand > span:last-child {
+    display: none;
+  }
+  .app-header > .spacer {
+    order: 2;
+  }
+  .app-header > .mobile-command-nav {
+    order: 3;
+    flex-shrink: 0;
+  }
+  .mobile-file-trigger {
+    width: 44px;
+    padding: 0;
+    justify-content: center;
   }
   .app-header > .document-name {
     display: block;
+    order: 1;
+    text-align: left;
+    min-width: 0;
     max-width: 55vw;
     font-size: 12px;
     overflow: hidden;
