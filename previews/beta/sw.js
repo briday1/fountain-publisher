@@ -1,36 +1,17 @@
-const CACHE='fp2-shell-495490e48357c144';
-const SHELL="/offline-shell-495490e48357c144.html";
-const FILES=["/offline-shell-495490e48357c144.html","/manifest.webmanifest","/favicon.svg","/assets/courier-prime-latin-ext-400-normal-B-EsvyE4.woff2","/assets/courier-prime-latin-400-normal-BbyBr73r.woff2","/assets/courier-prime-latin-ext-400-italic-BTeyNO-8.woff2","/assets/courier-prime-latin-400-italic-CaR7PCvg.woff2","/assets/courier-prime-latin-ext-700-normal-ByMJlNdM.woff2","/assets/courier-prime-latin-700-normal-D1YCjmaD.woff2","/assets/courier-prime-latin-ext-700-italic-BzK4HIs4.woff2","/assets/courier-prime-latin-700-italic-CZikIXQl.woff2","/assets/courier-prime-latin-ext-400-normal-CKOCNFvK.woff","/assets/courier-prime-latin-400-normal-BAlbUm6l.woff","/assets/courier-prime-latin-ext-400-italic-DU0XzPqs.woff","/assets/courier-prime-latin-400-italic-GR5bBv_9.woff","/assets/courier-prime-latin-700-normal-CVvp4Sof.woff","/assets/courier-prime-latin-ext-700-normal-BIFoAzHx.woff","/assets/courier-prime-latin-ext-700-italic-DHJjmZA7.woff","/assets/courier-prime-latin-700-italic-Cxv_jV69.woff","/assets/index-DftrrOzj.css","/assets/index-DteqLFzM.js","/assets/export-BT9wkm-t.js","/assets/index-M1zu7MUL.js","/assets/fontkit.es-D9bRXf3p.js","/assets/index-nH-5QmPg.js","/assets/index-DxEa_kac.js","/assets/fontkit.es-DnSO1DdL.js","/assets/index-Dc7YlXRz.js","/assets/publish.worker-CSvO8vvt.js","/THIRD_PARTY_NOTICES.txt"];
-self.addEventListener('install',event=>event.waitUntil((async()=>{
-  const alreadyInstalled=await caches.has(CACHE);
-  const cache=await caches.open(CACHE);
-  try{await cache.addAll(FILES.map(path=>new Request(path,{cache:'reload'})));}
-  catch(error){if(!alreadyInstalled)await caches.delete(CACHE);throw error;}
-})()));
-self.addEventListener('activate',event=>event.waitUntil((async()=>{
-  const keys=(await caches.keys()).filter(key=>key.startsWith('fp2-shell-')&&key!==CACHE);
-  for(const key of keys.slice(0,-2))await caches.delete(key);
-  await self.clients.claim();
-})()));
-self.addEventListener('fetch',event=>{
-  const request=event.request;
-  const url=new URL(request.url);
-  if(request.method!=='GET'||url.origin!==self.location.origin||url.pathname.startsWith('/api/')||url.pathname.startsWith('/beta/api/'))return;
-  if(request.mode==='navigate'){
-    event.respondWith((async()=>{
-      try{const response=await fetch(request);if(response.ok)return response;}catch{}
-      return (await (await caches.open(CACHE)).match(SHELL,{ignoreVary:true}))||Response.error();
-    })());
+// Retire the beta offline shell without deleting drafts or interrupting an open editor.
+self.addEventListener("install", (event) =>
+  event.waitUntil(self.skipWaiting()),
+);
+self.addEventListener("fetch", (event) => {
+  if (event.request.mode !== "navigate" || event.request.method !== "GET")
     return;
-  }
-  if(FILES.includes(url.pathname)||url.pathname.startsWith('/assets/')){
-    event.respondWith((async()=>{
-      const cache=await caches.open(CACHE);
-      const cached=await cache.match(request,{ignoreVary:true});
-      if(cached)return cached;
-      const response=await fetch(request);
-      if(response.ok)event.waitUntil(cache.put(request,response.clone()));
-      return response;
-    })());
-  }
+  const destination = new URL(event.request.url);
+  destination.protocol = "https:";
+  destination.host = "fountain-publisher.com";
+  destination.pathname = destination.pathname.replace(
+    /^\/previews\/beta(?:\/|$)/,
+    "/",
+  );
+  if (destination.pathname === "/index.html") destination.pathname = "/";
+  event.respondWith(Response.redirect(destination.href, 302));
 });
