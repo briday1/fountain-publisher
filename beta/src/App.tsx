@@ -421,24 +421,9 @@ export default function App() {
     };
   }, []);
   useEffect(() => {
-    const narrow = matchMedia("(max-width: 950px)");
-    const mobile = matchMedia("(max-width: 720px)");
-    const collapse = () => {
-      if (narrow.matches)
-        setPreferences((p) => ({
-          ...p,
-          outline: false,
-          ...(mobile.matches ? { insights: false } : {}),
-        }));
-    };
-    collapse();
-    narrow.addEventListener("change", collapse);
-    mobile.addEventListener("change", collapse);
-    return () => {
-      narrow.removeEventListener("change", collapse);
-      mobile.removeEventListener("change", collapse);
-    };
-  }, []);
+    if (mobile)
+      setPreferences((p) => ({ ...p, outline: false, insights: false }));
+  }, [mobile]);
   useEffect(() => {
     const media = matchMedia("(prefers-color-scheme: dark)");
     const apply = () =>
