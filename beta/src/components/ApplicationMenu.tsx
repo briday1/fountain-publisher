@@ -13,7 +13,7 @@ import {
   PenLine,
   PanelsTopLeft,
   Upload,
-  ChevronDown,
+  Menu as MenuIcon,
 } from "lucide-react";
 import { Menu } from "./Menu";
 import { Modal } from "./Modal";
@@ -133,6 +133,7 @@ export function ApplicationMenu({
       <button
         ref={trigger}
         className="mobile-file-trigger"
+        aria-label="File"
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => {
@@ -140,8 +141,7 @@ export function ApplicationMenu({
           setOpen(true);
         }}
       >
-        <FileText size={17} aria-hidden="true" /> File{" "}
-        <ChevronDown size={13} aria-hidden="true" />
+        <MenuIcon size={22} aria-hidden="true" />
       </button>
       {open && (
         <Modal
