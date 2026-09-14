@@ -34,11 +34,17 @@ test("mobile offers every desktop menu action except Zen through one File entry"
       .getByRole("group", { name: "Command categories" })
       .getByRole("button", { name, exact: true })
       .click();
-    found.push(...await page.locator(".mobile-command-grid button").evaluateAll(buttons => buttons.map(button => {
-      const clone = button.cloneNode(true) as HTMLElement;
-      clone.querySelectorAll("kbd").forEach(kbd => kbd.remove());
-      return clone.textContent?.trim() || "";
-    })));
+    found.push(
+      ...(await page
+        .locator(".mobile-command-grid button")
+        .evaluateAll((buttons) =>
+          buttons.map((button) => {
+            const clone = button.cloneNode(true) as HTMLElement;
+            clone.querySelectorAll("kbd").forEach((kbd) => kbd.remove());
+            return clone.textContent?.trim() || "";
+          }),
+        )),
+    );
     await expect(
       page.getByRole("button", { name: /Zen mode/ }),
     ).not.toBeVisible();
@@ -52,7 +58,11 @@ test("mobile offers every desktop menu action except Zen through one File entry"
       fullPage: true,
     });
   }
-  const normalize = (text: string) => text.replace(/…/g, "").replace(/^(Hide|Show) /, "Toggle ").trim();
+  const normalize = (text: string) =>
+    text
+      .replace(/…/g, "")
+      .replace(/^(Hide|Show) /, "Toggle ")
+      .trim();
   const available = found.map(normalize);
   for (const command of commands.filter(
     (command) => !command.includes("Zen mode"),
