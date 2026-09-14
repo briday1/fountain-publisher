@@ -82,6 +82,12 @@ jobs:
             --exclude='.nojekyll' \
             out/ published/
           touch published/.nojekyll
+          # The beta Worker serves this directory. Retire its frontend while
+          # retaining old assets for writing sessions that are already open.
+          mkdir -p published/previews/beta
+          rsync -a out/previews/beta/ published/previews/beta/
+          cp out/previews/beta/index.html published/previews/beta/404.html
+          cp out/previews/beta/sw.js published/previews/beta/service-worker.js
           if [ ! -s published/CNAME ]; then
             printf '%s\n' 'fountain-publisher.com' > published/CNAME
           fi
