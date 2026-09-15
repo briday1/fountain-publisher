@@ -90,3 +90,35 @@ test("iPad uses desktop UI in landscape and mobile UI in portrait", async ({
   );
   await context.close();
 });
+
+test("iPad Zen keeps the writing workspace after native fullscreen exits", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    viewport: { width: 1024, height: 768 },
+    userAgent: iPadUserAgent,
+    hasTouch: true,
+  });
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, "platform", { value: "MacIntel" });
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 5 });
+  });
+  const page = await context.newPage();
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await expect(editor).toBeVisible();
+  await page
+    .getByRole("button", { name: "Enter Zen mode", exact: true })
+    .click();
+  await expect
+    .poll(() => page.evaluate(() => !!document.fullscreenElement))
+    .toBe(true);
+  await page.evaluate(() => document.exitFullscreen());
+  await editor.fill("Writing stays in Zen.");
+  await expect(page.locator(".app.zen")).toHaveCSS("position", "fixed");
+  await expect(page.locator(".app-header")).toBeHidden();
+  await page.getByRole("button", { name: "Exit Zen", exact: true }).click();
+  await expect(page.locator(".app-header")).toBeVisible();
+  await expect(editor).toHaveText("Writing stays in Zen.");
+  await context.close();
+});

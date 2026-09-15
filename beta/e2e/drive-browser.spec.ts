@@ -102,6 +102,8 @@ test("Drive picker opens files and destination folders, restores its dialog on c
       developerKey = "";
       document = document;
       setDocument(value: Document) {
+        if (value !== window.document || value.defaultView !== window.top)
+          throw new Error("Picker must use the top-page account context");
         this.document = value;
         return this;
       }
@@ -144,6 +146,7 @@ test("Drive picker opens files and destination folders, restores its dialog on c
           developerKey: this.developerKey,
         };
         const overlay = document.createElement("div");
+        overlay.className = "picker-dialog";
         overlay.setAttribute("role", "region");
         overlay.setAttribute("aria-label", "Google Picker test UI");
         Object.assign(overlay.style, {
@@ -182,8 +185,6 @@ test("Drive picker opens files and destination folders, restores its dialog on c
         if (fault) {
           overlay.textContent =
             "There was an error! The API developer key is invalid.";
-          overlay.style.inset = "0";
-          overlay.style.zIndex = "2147483647";
           overlay.tabIndex = 0;
         }
         return {
@@ -218,7 +219,10 @@ test("Drive picker opens files and destination folders, restores its dialog on c
     exact: true,
   });
   await dialog.getByRole("button", { name: "Browse Google Drive…" }).click();
-  const picker = page.frameLocator('iframe[title="Google Drive files"]');
+  const picker = page;
+  await expect(page.locator('iframe[title="Google Drive files"]')).toHaveCount(
+    0,
+  );
   await expect(
     picker.getByRole("region", { name: "Google Picker test UI" }),
   ).toBeVisible();
@@ -250,7 +254,7 @@ test("Drive picker opens files and destination folders, restores its dialog on c
       await page
         .getByRole("button", { name: "Close Drive browser", exact: true })
         .click();
-    else if (exit === "backdrop") await page.mouse.click(2, 2);
+    else if (exit === "backdrop") await page.mouse.click(2, 900);
     else await page.keyboard.press("Escape");
     await expect(
       page.getByRole("dialog", { name: "Browse Google Drive", exact: true }),
