@@ -3,6 +3,7 @@ test("Drive picker opens files and destination folders, restores its dialog on c
   page,
 }) => {
   const requests: string[] = [];
+  let pickerApiKey = "test-only-key";
   let saved: Record<string, unknown> | undefined;
   await page.route("**/api/**", async (route) => {
     const request = route.request();
@@ -22,7 +23,7 @@ test("Drive picker opens files and destination folders, restores its dialog on c
     else if (path === "/google/picker")
       body = {
         accessToken: "test-only-token",
-        apiKey: "test-only-key",
+        apiKey: pickerApiKey,
         appId: "test-project",
       };
     else if (path === "/google/files")
@@ -98,6 +99,7 @@ test("Drive picker opens files and destination folders, restores its dialog on c
       callback!: (data: { action: string; docs?: Item[] }) => void;
       origin = "";
       title = "";
+      developerKey = "";
       document = document;
       setDocument(value: Document) {
         this.document = value;
@@ -110,10 +112,9 @@ test("Drive picker opens files and destination folders, restores its dialog on c
       setAppId() {
         return this;
       }
-      setDeveloperKey() {
-        throw new Error(
-          "OAuth Drive browsing must not depend on a developer key",
-        );
+      setDeveloperKey(value: string) {
+        this.developerKey = value;
+        return this;
       }
       setOAuthToken() {
         return this;
@@ -135,7 +136,13 @@ test("Drive picker opens files and destination folders, restores its dialog on c
       }
       build() {
         const document = this.document;
-        scope.pickerOptions = { ...this.view, origin: this.origin };
+        if (this.developerKey !== "test-only-key")
+          throw new Error("Picker must receive the configured browser API key");
+        scope.pickerOptions = {
+          ...this.view,
+          origin: this.origin,
+          developerKey: this.developerKey,
+        };
         const overlay = document.createElement("div");
         overlay.setAttribute("role", "region");
         overlay.setAttribute("aria-label", "Google Picker test UI");
@@ -226,6 +233,7 @@ test("Drive picker opens files and destination folders, restores its dialog on c
     folder: false,
     drives: true,
     mode: "list",
+    developerKey: "test-only-key",
   });
   await picker.getByRole("button", { name: "Cancel Google Picker" }).click();
   await expect(dialog).toBeVisible();
@@ -290,4 +298,16 @@ test("Drive picker opens files and destination folders, restores its dialog on c
   });
   expect(await page.locator("#root").evaluate((el) => el.inert)).toBe(false);
   expect(await page.evaluate(() => document.body.style.overflow)).toBe("");
+  // Missing setup must produce an app-owned error, not a broken Google frame.
+  pickerApiKey = "";
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Open from Google Drive…", exact: true })
+    .click();
+  await dialog.getByRole("button", { name: "Browse Google Drive…" }).click();
+  await expect(dialog.getByText(/configuration is incomplete/)).toBeVisible();
+  await expect(
+    page.getByRole("dialog", { name: "Browse Google Drive", exact: true }),
+  ).toHaveCount(0);
+  expect(await page.locator("#root").evaluate((el) => el.inert)).toBe(false);
 });
