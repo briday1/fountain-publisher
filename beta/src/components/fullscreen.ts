@@ -14,6 +14,16 @@ export async function setBrowserFullscreen(
   enabled: boolean,
   doc: Document = document,
 ) {
+  const win = doc.defaultView;
+  // Installed web apps already own their window. iPadOS may omit both
+  // fullscreen APIs here, so neither entering nor exiting should call them.
+  if (
+    (win?.navigator as (Navigator & { standalone?: boolean }) | undefined)
+      ?.standalone === true ||
+    win?.matchMedia?.("(display-mode: standalone)").matches ||
+    win?.matchMedia?.("(display-mode: fullscreen)").matches
+  )
+    return;
   if (enabled === !!fullscreenElement(doc)) return;
   if (enabled) {
     const element = doc.documentElement as SafariElement;

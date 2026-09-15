@@ -3,6 +3,40 @@ import { expect, test } from "@playwright/test";
 const iPadUserAgent =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 
+test("installed iPad app ignores Full screen without a native fullscreen API", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "standalone", { value: true });
+    Object.defineProperty(navigator, "platform", { value: "MacIntel" });
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 5 });
+    Object.defineProperty(document.documentElement, "requestFullscreen", {
+      value: undefined,
+    });
+    Object.defineProperty(document.documentElement, "webkitRequestFullscreen", {
+      value: undefined,
+    });
+  });
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await expect(editor).toBeVisible();
+  await editor.fill("The installed app stays usable.");
+  const button = page.getByRole("button", { name: "Full screen", exact: true });
+  await button.click();
+  await button.click();
+  await expect(button).toHaveAttribute("aria-pressed", "false");
+  await expect(editor).toHaveText("The installed app stays usable.");
+  await expect(
+    page.getByText(
+      /Full screen is unavailable|requestFullscreen.*not a function/,
+    ),
+  ).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("iPad uses desktop UI in landscape and mobile UI in portrait", async ({
   browser,
 }) => {

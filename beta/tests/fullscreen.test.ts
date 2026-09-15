@@ -33,3 +33,34 @@ it("reports unsupported fullscreen without claiming it is active", async () => {
   await expect(setBrowserFullscreen(true, doc)).rejects.toThrow("unavailable");
   expect(fullscreenElement(doc)).toBeFalsy();
 });
+
+for (const mode of ["ios", "standalone", "fullscreen"]) {
+  it(`does nothing in an installed ${mode} app without fullscreen APIs`, async () => {
+    const doc = {
+      documentElement: {},
+      defaultView: {
+        navigator: { standalone: mode === "ios" },
+        matchMedia: (query: string) => ({
+          matches: query === `(display-mode: ${mode})`,
+        }),
+      },
+    } as unknown as Document;
+    await expect(setBrowserFullscreen(true, doc)).resolves.toBeUndefined();
+    await expect(setBrowserFullscreen(false, doc)).resolves.toBeUndefined();
+  });
+}
+
+it("does not enter or exit native fullscreen even if an installed app exposes the APIs", async () => {
+  const requestFullscreen = vi.fn();
+  const exitFullscreen = vi.fn();
+  const doc = {
+    documentElement: { requestFullscreen },
+    exitFullscreen,
+    fullscreenElement: document.documentElement,
+    defaultView: { navigator: { standalone: true } },
+  } as unknown as Document;
+  await setBrowserFullscreen(true, doc);
+  await setBrowserFullscreen(false, doc);
+  expect(requestFullscreen).not.toHaveBeenCalled();
+  expect(exitFullscreen).not.toHaveBeenCalled();
+});
