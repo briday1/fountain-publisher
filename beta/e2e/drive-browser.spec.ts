@@ -69,6 +69,9 @@ test("Drive picker opens files and destination folders, restores its dialog on c
       mode = "";
       mime = "";
       parent = "";
+      label = "";
+      ownedByMe = true;
+      constructor(public viewId: string) {}
       setIncludeFolders(value: boolean) {
         this.includeFolders = value;
         return this;
@@ -93,22 +96,35 @@ test("Drive picker opens files and destination folders, restores its dialog on c
         this.parent = value;
         return this;
       }
+      setOwnedByMe(value: boolean) {
+        this.ownedByMe = value;
+        return this;
+      }
+      setLabel(value: string) {
+        this.label = value;
+        return this;
+      }
     }
     class PickerBuilder {
-      view!: DocsView;
+      views: DocsView[] = [];
+      features: string[] = [];
       callback!: (data: { action: string; docs?: Item[] }) => void;
       origin = "";
       title = "";
       developerKey = "";
-      document = document;
-      setDocument(value: Document) {
-        if (value !== window.document || value.defaultView !== window.top)
-          throw new Error("Picker must use the top-page account context");
-        this.document = value;
+      width = 0;
+      height = 0;
+      setDocument() {
+        throw new Error(
+          "Let Google use its default document, as in the legacy app",
+        );
+      }
+      enableFeature(value: string) {
+        this.features.push(value);
         return this;
       }
       addView(value: DocsView) {
-        this.view = value;
+        this.views.push(value);
         return this;
       }
       setAppId() {
@@ -129,7 +145,9 @@ test("Drive picker opens files and destination folders, restores its dialog on c
         this.title = value;
         return this;
       }
-      setSize() {
+      setSize(width: number, height: number) {
+        this.width = width;
+        this.height = height;
         return this;
       }
       setCallback(value: typeof this.callback) {
@@ -137,34 +155,43 @@ test("Drive picker opens files and destination folders, restores its dialog on c
         return this;
       }
       build() {
-        const document = this.document;
         if (this.developerKey !== "test-only-key")
           throw new Error("Picker must receive the configured browser API key");
         scope.pickerOptions = {
-          ...this.view,
+          views: this.views,
+          features: this.features,
           origin: this.origin,
           developerKey: this.developerKey,
         };
+        const backdrop = document.createElement("div");
+        backdrop.className = "picker-dialog-bg";
+        Object.assign(backdrop.style, {
+          position: "fixed",
+          inset: "0",
+          zIndex: "9998",
+          background: "#0006",
+        });
         const overlay = document.createElement("div");
         overlay.className = "picker-dialog";
         overlay.setAttribute("role", "region");
         overlay.setAttribute("aria-label", "Google Picker test UI");
         Object.assign(overlay.style, {
           position: "fixed",
-          inset: "60px",
+          width: `${this.width}px`,
+          height: `${this.height}px`,
           zIndex: "9999",
           background: "white",
           padding: "24px",
         });
         const choose = document.createElement("button");
-        choose.textContent = this.view.folder
+        choose.textContent = this.views[0].folder
           ? "Choose Scripts folder"
           : "Choose screenplay from nested folder";
         choose.onclick = () =>
           this.callback({
             action: "picked",
             docs: [
-              this.view.folder
+              this.views[0].folder
                 ? {
                     id: "folder-123",
                     name: "Scripts",
@@ -189,13 +216,14 @@ test("Drive picker opens files and destination folders, restores its dialog on c
         }
         return {
           setVisible() {
-            document.body.append(overlay);
+            document.body.append(backdrop, overlay);
             if (fault) overlay.focus();
             else choose.focus();
           },
           dispose() {
-            overlay.remove();
             if (fault) throw new Error("Google's error UI failed to dispose");
+            overlay.remove();
+            backdrop.remove();
           },
         };
       }
@@ -204,8 +232,10 @@ test("Drive picker opens files and destination folders, restores its dialog on c
       picker: {
         DocsView,
         PickerBuilder,
+        ViewId: { DOCS: "docs" },
+        Feature: { SUPPORT_DRIVES: "support-drives" },
         DocsViewMode: { LIST: "list" },
-        Action: { PICKED: "picked", CANCEL: "cancel" },
+        Action: { PICKED: "picked", CANCEL: "cancel", ERROR: "error" },
       },
     };
   });
@@ -220,6 +250,7 @@ test("Drive picker opens files and destination folders, restores its dialog on c
   });
   await dialog.getByRole("button", { name: "Browse Google Drive…" }).click();
   const picker = page;
+  await expect(page.locator(".drive-picker-host, dialog[open]")).toHaveCount(0);
   await expect(page.locator('iframe[title="Google Drive files"]')).toHaveCount(
     0,
   );
@@ -233,12 +264,47 @@ test("Drive picker opens files and destination folders, restores its dialog on c
       () => (window as unknown as { pickerOptions: unknown }).pickerOptions,
     ),
   ).toMatchObject({
-    includeFolders: true,
-    folder: false,
-    drives: true,
-    mode: "list",
+    views: [
+      {
+        viewId: "docs",
+        label: "Shared with me",
+        ownedByMe: false,
+        drives: false,
+        includeFolders: true,
+        folder: false,
+        mode: "list",
+      },
+      { viewId: "docs", label: "My Drive", parent: "root", drives: false },
+      { viewId: "docs", label: "All files", drives: false },
+      { viewId: "docs", label: "Shared drives", drives: true },
+    ],
+    features: ["support-drives"],
     developerKey: "test-only-key",
   });
+  await expect(page.locator(".picker-dialog-bg")).toBeVisible();
+  // Google's minimum-size UI must fit a phone, iPad portrait and landscape.
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 820, height: 1180 },
+    { width: 1180, height: 820 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect
+      .poll(async () => {
+        const box = await page.locator(".picker-dialog").boundingBox();
+        return (
+          !!box &&
+          box.x >= 0 &&
+          box.y >= 0 &&
+          box.x + box.width <= viewport.width &&
+          box.y + box.height <= viewport.height
+        );
+      })
+      .toBe(true);
+    await expect(
+      page.getByRole("button", { name: "Close Drive browser" }),
+    ).toBeVisible();
+  }
   await picker.getByRole("button", { name: "Cancel Google Picker" }).click();
   await expect(dialog).toBeVisible();
   expect(await page.locator("#root").evaluate((el) => el.inert)).toBe(false);
@@ -254,10 +320,10 @@ test("Drive picker opens files and destination folders, restores its dialog on c
       await page
         .getByRole("button", { name: "Close Drive browser", exact: true })
         .click();
-    else if (exit === "backdrop") await page.mouse.click(2, 900);
+    else if (exit === "backdrop") await page.mouse.click(2, 2);
     else await page.keyboard.press("Escape");
     await expect(
-      page.getByRole("dialog", { name: "Browse Google Drive", exact: true }),
+      page.locator(".drive-picker-controls, .picker-dialog, .picker-dialog-bg"),
     ).toHaveCount(0);
     await expect(dialog).toBeVisible();
     expect(await page.locator("#root").evaluate((el) => el.inert)).toBe(false);
@@ -290,7 +356,12 @@ test("Drive picker opens files and destination folders, restores its dialog on c
     await page.evaluate(
       () => (window as unknown as { pickerOptions: unknown }).pickerOptions,
     ),
-  ).toMatchObject({ folder: true, mime: "application/vnd.google-apps.folder" });
+  ).toMatchObject({
+    views: Array.from({ length: 4 }, () => ({
+      folder: true,
+      mime: "application/vnd.google-apps.folder",
+    })),
+  });
   await dialog
     .getByRole("textbox", { name: "Filename", exact: true })
     .fill("Another draft.fountain");
@@ -311,7 +382,7 @@ test("Drive picker opens files and destination folders, restores its dialog on c
   await dialog.getByRole("button", { name: "Browse Google Drive…" }).click();
   await expect(dialog.getByText(/configuration is incomplete/)).toBeVisible();
   await expect(
-    page.getByRole("dialog", { name: "Browse Google Drive", exact: true }),
+    page.locator(".drive-picker-controls, .picker-dialog, .picker-dialog-bg"),
   ).toHaveCount(0);
   expect(await page.locator("#root").evaluate((el) => el.inert)).toBe(false);
 });
