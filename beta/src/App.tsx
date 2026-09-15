@@ -1567,10 +1567,6 @@ export default function App() {
                   <span>words</span>
                 </div>
               </div>
-              <div className="runtime">
-                <span>Estimated runtime</span>
-                <b>{insights.estimatedMinutes.toFixed(1)} min</b>
-              </div>
               <section className="insight-section">
                 <div className="section-label">
                   <h3>On the page</h3>
@@ -1756,10 +1752,6 @@ export default function App() {
           doc={doc}
           onChange={changeDoc}
           onDialogue={showBeatRange}
-          onAnalytics={() => {
-            setCharacter(null);
-            setDialog("characters");
-          }}
           onClose={() => setCharacter(null)}
         />
       )}

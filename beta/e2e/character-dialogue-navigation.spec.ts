@@ -52,6 +52,9 @@ async function fixture(page: Page) {
   }
   await insights.getByRole("button", { name: /^MARA / }).click();
   await expect(
+    insights.getByText("Estimated runtime", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
     page.getByRole("dialog", { name: "MARA", exact: true }),
   ).toBeVisible();
 }
@@ -64,6 +67,19 @@ for (const mobile of [false, true]) {
     await fixture(page);
     const dialog = page.getByRole("dialog", { name: "MARA", exact: true });
     const speechList = dialog.locator(".speech-list");
+    await expect(
+      dialog.getByText("speaking time", { exact: true }),
+    ).toHaveCount(0);
+    const heading = await dialog
+      .getByRole("heading", { name: "MARA", exact: true })
+      .boundingBox();
+    const metrics = await dialog.locator(".character-metrics").boundingBox();
+    expect(metrics!.x).toBeGreaterThan(heading!.x + heading!.width);
+    expect(
+      Math.abs(
+        metrics!.y + metrics!.height / 2 - heading!.y - heading!.height / 2,
+      ),
+    ).toBeLessThan(2);
     await expect(
       dialog.getByRole("heading", { name: "Presence across the story" }),
     ).toHaveCount(0);
@@ -101,9 +117,11 @@ for (const mobile of [false, true]) {
       ]).flat(),
     ]);
     await expect(dialog.locator(".character-metrics")).toContainText(
-      "46speeches",
+      "46 speeches",
     );
-    await expect(dialog.locator(".character-metrics")).toContainText("3scenes");
+    await expect(dialog.locator(".character-metrics")).toContainText(
+      "3 scenes",
+    );
     await dialog
       .getByRole("textbox", { name: "Character notes" })
       .fill("Mara needs to hear the entire message.");

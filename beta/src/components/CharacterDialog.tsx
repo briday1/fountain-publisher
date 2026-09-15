@@ -12,14 +12,12 @@ export function CharacterDialog({
   doc,
   onChange,
   onDialogue,
-  onAnalytics,
   onClose,
 }: {
   name: string;
   doc: Screenplay;
   onChange: (doc: Screenplay) => void;
   onDialogue: (range: BeatRange) => void;
-  onAnalytics?: () => void;
   onClose: () => void;
 }) {
   const stats = useMemo(() => analyzeScreenplay(doc), [doc.blocks]);
@@ -64,27 +62,21 @@ export function CharacterDialog({
       : {}
   ) as Record<string, string>;
   return (
-    <Modal title={name} eyebrow="CHARACTER ANALYTICS" onClose={onClose} wide>
-      {onAnalytics && (
-        <button className="character-analytics-back" onClick={onAnalytics}>
-          All character analytics
-        </button>
-      )}
-      <div className="character-metrics">
-        <span>
-          <strong>{person?.dialogueWords ?? 0}</strong>spoken words
+    <Modal
+      title={name}
+      className="character-dialog"
+      onClose={onClose}
+      wide
+      titleAside={
+        <span className="character-metrics">
+          <span>{person?.dialogueWords ?? 0} words</span>
+          <span aria-hidden="true"> · </span>
+          <span>{person?.speeches ?? 0} speeches</span>
+          <span aria-hidden="true"> · </span>
+          <span>{person?.sceneCount ?? 0} scenes</span>
         </span>
-        <span>
-          <strong>{person?.speeches ?? 0}</strong>speeches
-        </span>
-        <span>
-          <strong>{person?.sceneCount ?? 0}</strong>scenes
-        </span>
-        <span>
-          <strong>{Math.round((person?.estimatedMinutes ?? 0) * 60)}s</strong>
-          speaking time
-        </span>
-      </div>
+      }
+    >
       <label className="field detail-label">
         Character notes
         <textarea
@@ -117,8 +109,7 @@ export function CharacterDialog({
             <h4 className="character-dialogue-scene-heading">
               {scene ? (
                 <>
-                  <span>Scene {scene.number}</span>{" "}
-                  {scene.heading}
+                  <span>Scene {scene.number}</span> {scene.heading}
                 </>
               ) : (
                 "Before the first scene"

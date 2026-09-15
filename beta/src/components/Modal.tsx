@@ -5,6 +5,7 @@ import { useModalScrollLock } from "./useModalScrollLock";
 export function Modal({
   title,
   eyebrow,
+  titleAside,
   children,
   onClose,
   wide = false,
@@ -13,6 +14,7 @@ export function Modal({
 }: {
   title: string;
   eyebrow?: string;
+  titleAside?: ReactNode;
   children: ReactNode;
   onClose: () => void;
   wide?: boolean;
@@ -45,7 +47,16 @@ export function Modal({
         <header className="modal-header">
           <div>
             {eyebrow && <small>{eyebrow}</small>}
-            <h2 id={id}>{title}</h2>
+            {titleAside ? (
+              <div className="modal-title-row">
+                <h2 id={id} title={title}>
+                  {title}
+                </h2>
+                {titleAside}
+              </div>
+            ) : (
+              <h2 id={id}>{title}</h2>
+            )}
           </div>
           <button
             className="icon-button"

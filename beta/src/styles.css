@@ -597,11 +597,6 @@ hr {
   width: 100%;
   margin: 14px 0 0;
 }
-.character-analytics-back {
-  margin-bottom: 14px;
-  padding: 5px 8px;
-  font-size: 11px;
-}
 .metrics {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -633,17 +628,6 @@ hr {
   display: block;
   font-size: 9px;
   margin-top: 5px;
-}
-.runtime {
-  padding: 14px 18px 20px;
-  display: flex;
-  justify-content: space-between;
-  color: var(--muted);
-  font-size: 10px;
-}
-.runtime b {
-  font-weight: 500;
-  color: var(--ink);
 }
 .insight-section {
   border-top: 1px solid var(--border);
@@ -1678,21 +1662,6 @@ hr {
   .screenplay-editor
   p[data-kind="scene"][data-scene-number]:before {
   content: attr(data-scene-number) " ";
-}
-.character-metrics {
-  display: flex;
-  justify-content: space-between;
-  gap: 15px;
-  text-align: center;
-  font-size: 11px;
-  color: var(--muted);
-}
-.character-metrics strong {
-  display: block;
-  font-size: 23px;
-  color: var(--ink);
-  font-weight: 500;
-  margin-bottom: 5px;
 }
 .detail-label {
   margin: 25px 0 10px;

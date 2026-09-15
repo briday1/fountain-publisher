@@ -158,12 +158,11 @@ test("character analytics restores cast overview, scene and act Gantts, PNG expo
   await expect(dialogue).toContainText("You said the train would wait.");
   await expect(dialogue).toContainText("Then we leave together.");
   await expect(dialogue).toContainText("Two for the next stop.");
-  await dialogue
-    .getByRole("button", { name: /^All character analytics/ })
-    .click();
-  await expect(overview).toBeVisible();
+  await expect(
+    dialogue.getByRole("button", { name: /^All character analytics/ }),
+  ).toHaveCount(0);
   await page.keyboard.press("Escape");
-  await expect(overview).not.toBeVisible();
+  await expect(dialogue).not.toBeVisible();
   await expect(
     page.getByRole("textbox", { name: "Screenplay editor" }),
   ).toContainText("Two for the next stop.");
