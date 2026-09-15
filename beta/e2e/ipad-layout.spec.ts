@@ -13,13 +13,21 @@ test("iPad uses desktop UI in landscape and mobile UI in portrait", async ({
     isMobile: true,
     deviceScaleFactor: 2,
   });
-  // iPadOS reports MacIntel; ProseMirror uses that platform signal to map Mod
-  // shortcuts to the Command key.
+  // Match both iPadOS signals: the Mac platform selects Command shortcuts,
+  // and multi-touch distinguishes a desktop-mode iPad from a desktop Mac.
+  // Chromium's hasTouch alone does not emulate the iPad's touch-point count.
   await context.addInitScript(() => {
     Object.defineProperty(navigator, "platform", { value: "MacIntel" });
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 5 });
   });
   const page = await context.newPage();
   await page.goto("/");
+  expect(
+    await page.evaluate(() => ({
+      platform: navigator.platform,
+      maxTouchPoints: navigator.maxTouchPoints,
+    })),
+  ).toEqual({ platform: "MacIntel", maxTouchPoints: 5 });
   const editor = page.getByRole("textbox", { name: "Screenplay editor" });
   await expect(editor).toBeVisible();
 
