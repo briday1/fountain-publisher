@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from "react";
 
-const query = "(max-width: 950px), (hover: none) and (pointer: coarse)";
+// Layout follows available space, not the primary pointer. iPadOS reports a
+// coarse touch pointer even when a Magic Keyboard/trackpad is attached.
+const query = "(max-width: 950px)";
 const subscribe = (notify: () => void) => {
   const media = window.matchMedia(query);
   media.addEventListener("change", notify);
