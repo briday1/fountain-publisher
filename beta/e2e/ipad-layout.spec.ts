@@ -36,7 +36,7 @@ test("iPad uses desktop UI in landscape and mobile UI in portrait", async ({
     page.getByRole("button", { name: /Zen mode/ }).first(),
   ).toBeVisible();
   await page.getByRole("button", { name: "View", exact: true }).click();
-  await page.getByRole("menuitem", { name: "PDF pages", exact: true }).click();
+  await page.getByRole("button", { name: "PDF pages", exact: true }).click();
   const pdf = page.getByRole("dialog", { name: "PDF pages", exact: true });
   await expect(
     pdf.getByRole("link", { name: "Download PDF", exact: true }),
