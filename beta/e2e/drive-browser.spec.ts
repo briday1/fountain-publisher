@@ -259,6 +259,8 @@ test("Drive picker opens files and destination folders, restores its dialog on c
   ).toBeVisible();
   expect(await page.locator("#root").evaluate((el) => el.inert)).toBe(true);
   await expect(dialog).not.toBeVisible();
+  await page.keyboard.press("Control+f");
+  await expect(page.locator(".search-panel")).toHaveCount(0);
   expect(
     await page.evaluate(
       () => (window as unknown as { pickerOptions: unknown }).pickerOptions,

@@ -961,6 +961,9 @@ export default function App() {
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.isComposing) return;
+      // Google's native Picker is a sibling, not an app-owned <dialog>.
+      // Inert background elements do not suppress window-level shortcuts.
+      if (document.body.classList.contains("drive-picker-active")) return;
       const cmd = e.metaKey || e.ctrlKey;
       // Native dialogs own their in-progress fields. Global navigation must not
       // dismiss them and discard a draft title or other unsaved form changes.
