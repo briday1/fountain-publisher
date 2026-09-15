@@ -1871,79 +1871,53 @@ hr {
     monospace;
 }
 
-.drive-picker-host {
+.drive-picker-active {
+  overscroll-behavior: none;
+}
+.drive-picker-controls {
   position: fixed;
-  inset: 0;
-  margin: 0;
-  width: 100%;
-  height: 100dvh;
-  max-width: none;
-  max-height: none;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: rgb(0 0 0 / 40%);
+  z-index: 2147483647;
+  top: var(--drive-picker-top);
+  left: var(--drive-picker-left);
+  width: var(--drive-picker-width);
+  border: 1px solid var(--border);
+  border-radius: 9px 9px 0 0;
+  background: var(--surface);
   color: var(--ink);
   box-shadow: var(--shadow);
-  overflow: visible;
-  overscroll-behavior: contain;
+  overflow: hidden;
 }
-.drive-picker-host[open] {
+.drive-picker-controls > header {
   display: flex;
-  flex-direction: column;
-}
-.drive-picker-host::backdrop {
-  background: rgb(0 0 0 / 40%);
-}
-.drive-picker-host > header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 2147483647;
-  background: var(--surface);
-  display: flex;
-  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 48px;
+  height: 63px;
   padding: 8px 12px 8px 18px;
-  border-bottom: 1px solid var(--border);
 }
-.drive-picker-host strong {
+.drive-picker-controls strong {
   font-size: 14px;
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .drive-picker-close {
   flex: none;
 }
-.drive-picker-viewport {
-  pointer-events: none;
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-}
+/* Match the legacy app: only position/scale Google's outer dialog. Keep its
+   native backdrop, iframe, focus handling and account UI intact. */
 .drive-picker-active .picker-dialog {
-  z-index: 2147483646 !important;
-}
-.drive-picker-active .picker-dialog-bg {
-  display: none !important;
-}
-.drive-picker-frame {
-  display: block;
-  width: 100%;
-  height: 100%;
-  min-width: 566px;
-  min-height: 350px;
-  border: 0;
-  background: white;
+  position: fixed !important;
+  top: calc(var(--drive-picker-top) + 64px) !important;
+  left: var(--drive-picker-left) !important;
+  transform: scale(var(--drive-picker-scale, 1));
+  transform-origin: top left;
+  border-radius: 0 0 9px 9px;
 }
 .drive-picker-loading {
-  position: absolute;
-  top: 55px;
-  left: 18px;
+  margin: 0;
+  padding: 24px 16px;
   color: var(--muted);
 }
 
