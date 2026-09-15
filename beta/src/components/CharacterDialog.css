@@ -44,3 +44,50 @@
   background: var(--raised);
   border-color: var(--border);
 }
+.character-dialog .modal-header {
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.character-dialog .modal-header > div {
+  flex: 1;
+  min-width: 0;
+}
+.character-dialog .modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.character-dialog .modal-header h2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.character-dialog .character-metrics {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+.character-dialog .modal-header > button {
+  flex-shrink: 0;
+}
+.character-dialog .detail-label {
+  margin-top: 12px;
+}
+@media (max-width: 600px) {
+  .character-dialog .modal-content {
+    padding: 16px;
+  }
+  .character-dialog .modal-title-row {
+    gap: 8px;
+  }
+  .character-dialog .modal-header h2 {
+    font-size: 18px;
+  }
+  .character-dialog .character-metrics {
+    font-size: 10px;
+  }
+}
