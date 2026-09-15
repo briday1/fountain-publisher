@@ -112,12 +112,8 @@ export function pickDriveItem(options: {
     close.className = "drive-picker-close";
     close.textContent = "Close ×";
     close.setAttribute("aria-label", "Close Drive browser");
-    const frame = document.createElement("iframe");
-    frame.title = "Google Drive files";
-    frame.className = "drive-picker-frame";
     const viewport = document.createElement("div");
     viewport.className = "drive-picker-viewport";
-    viewport.append(frame);
     const loading = document.createElement("p");
     loading.className = "drive-picker-loading";
     loading.setAttribute("role", "status");
@@ -129,6 +125,8 @@ export function pickDriveItem(options: {
       if (finished) return;
       finished = true;
       options.signal.removeEventListener("abort", abort);
+      document.removeEventListener("keydown", escape, true);
+      document.body.classList.remove("drive-picker-active");
       // Even a broken SDK's dispose must not prevent returning to the editor.
       try {
         picker?.dispose();
@@ -144,6 +142,13 @@ export function pickDriveItem(options: {
     };
     const abort = () =>
       finish(undefined, new DOMException("Picker closed", "AbortError"));
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        finish();
+      }
+    };
     close.addEventListener("click", () => finish());
     host.addEventListener("cancel", (event) => {
       event.preventDefault();
@@ -156,20 +161,14 @@ export function pickDriveItem(options: {
     try {
       options.onReady();
       document.body.append(host);
-      host.showModal();
+      // The old app loaded Picker in the top document. An extra about:blank
+      // frame changes Google's embedded account/cookie context on iPad.
+      // A non-modal host lets Google's sibling dialog receive input.
+      host.show();
+      document.body.classList.add("drive-picker-active");
+      document.addEventListener("keydown", escape, true);
       if (root) root.inert = true;
-      const target = frame.contentDocument!;
-      const style = target.createElement("style");
-      style.textContent =
-        "html,body{margin:0;width:100%;height:100%;overflow:hidden;background:white}";
-      target.head.append(style);
-      // Key events from our inner document do not bubble to the parent dialog.
-      target.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          finish();
-        }
-      });
+      const target = document;
       void Promise.all([cloud.drivePicker(), loadPicker(target)])
         .then(([config, sdk]) => {
           if (finished) return;
@@ -194,7 +193,10 @@ export function pickDriveItem(options: {
             .setOAuthToken(config.accessToken)
             .setOrigin(location.origin)
             .setTitle(title.textContent!)
-            .setSize(frame.clientWidth, frame.clientHeight)
+            .setSize(
+              Math.max(566, innerWidth - 24),
+              Math.max(350, innerHeight - 100),
+            )
             .setCallback((data) => {
               if (data.action === api.Action.CANCEL) finish();
               else if (data.action === "error")

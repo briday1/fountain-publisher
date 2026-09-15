@@ -70,6 +70,10 @@ import { Modal } from "./components/Modal";
 import { Menu, MenuItem } from "./components/Menu";
 import { ApplicationMenu } from "./components/ApplicationMenu";
 import { useMobileLayout } from "./components/useMobileLayout";
+import {
+  fullscreenElement,
+  setBrowserFullscreen,
+} from "./components/fullscreen";
 import { Resizable } from "./components/Resizable";
 import { Help } from "./components/Help";
 import { CloudDialog } from "./components/CloudDialog";
@@ -133,23 +137,19 @@ export default function App() {
     // changes presentation state. Do not let that transient resize cancel Zen.
     if (mobile && !isIPad) setZen(false);
   }, [mobile]);
-  const [nativeFullscreen, setNativeFullscreen] = useState(
-    !!document.fullscreenElement,
-  );
+  const [nativeFullscreen, setNativeFullscreen] =
+    useState(!!fullscreenElement());
   const fullscreen = nativeFullscreen;
   useEffect(() => {
-    let wasFullscreen = !!document.fullscreenElement;
     const update = () => {
-      const active = !!document.fullscreenElement;
-      if (isIPad && wasFullscreen && !active)
-        setNotice(
-          "Full screen ended. If Safari exits when you type, use Zen in this tab, or open Fountain from your Home Screen for a browser-toolbar-free workspace.",
-        );
-      wasFullscreen = active;
-      setNativeFullscreen(active);
+      setNativeFullscreen(!!fullscreenElement());
     };
     document.addEventListener("fullscreenchange", update);
-    return () => document.removeEventListener("fullscreenchange", update);
+    document.addEventListener("webkitfullscreenchange", update);
+    return () => {
+      document.removeEventListener("fullscreenchange", update);
+      document.removeEventListener("webkitfullscreenchange", update);
+    };
   }, []);
   const [busy, setBusy] = useState(false);
   const [pdfUrl, setPdfUrl] = useState("");
@@ -1017,15 +1017,21 @@ export default function App() {
     setDialog(next);
   };
   const toggleFullscreen = () => {
-    void (async () => {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else await document.documentElement.requestFullscreen();
-    })().catch(report);
+    void setBrowserFullscreen(!fullscreenElement()).catch(report);
   };
   const toggleZen = () => {
-    if (mobile) return;
+    if (mobile && !isIPad) return;
     setZen(!zen);
     setSearchOpen(false);
+    if (isIPad) {
+      // Restore the old iPad Zen path. Its page layout remains usable even if
+      // native fullscreen is unavailable; do not force focus after entering.
+      const standalone =
+        matchMedia("(display-mode: standalone)").matches ||
+        (navigator as Navigator & { standalone?: boolean }).standalone;
+      if (!standalone) void setBrowserFullscreen(!zen).catch(() => {});
+      return;
+    }
     editor.current?.focus();
   };
   const openIntegration = (
