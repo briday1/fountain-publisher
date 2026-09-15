@@ -12,7 +12,7 @@ Disconnecting affects the shared API session, so it also disconnects that accoun
 
 ## Optional independent local server
 
-Copy `.env.example` to `.env` and configure your own development OAuth applications. For native Drive browsing, enable the Picker API and set `GOOGLE_APP_ID` to the same Cloud project number as your OAuth app. The picker uses its OAuth token and app ID; it does not send a developer key. Its app-owned dialog retains a close control, Escape and backdrop dismissal independently of Google’s iframe, including error states. Never put client secrets in `VITE_` variables. Register callback URLs:
+Copy `.env.example` to `.env` and configure your own development OAuth applications. For native Drive browsing, enable the Picker API, set `GOOGLE_APP_ID` to the same Cloud project number as your OAuth app, and configure `GOOGLE_API_KEY` as a browser API key from that project. The picker receives all three: OAuth token, app ID, and developer key. For the hosted app these settings belong to the shared account Worker. Restrict the key to the Google Picker API (and Drive API if needed); website restrictions must allow the application origins and `https://docs.google.com/*`, where Google renders its picker. See [Google's Picker setup guide](https://developers.google.com/workspace/drive/picker/guides/web-picker). The browser key is not an OAuth client secret. Its app-owned dialog retains a close control, Escape and backdrop dismissal independently of Google’s iframe, including error states. Never put client secrets in `VITE_` variables. Register callback URLs:
 
 - `http://127.0.0.1:5173/api/auth/github/callback`
 - `http://127.0.0.1:5173/api/auth/google/callback`

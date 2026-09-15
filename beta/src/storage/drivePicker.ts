@@ -20,6 +20,7 @@ interface Picker {
 interface PickerBuilder {
   addView(view: DocsView): PickerBuilder;
   setAppId(value: string): PickerBuilder;
+  setDeveloperKey(value: string): PickerBuilder;
   setDocument(value: Document): PickerBuilder;
   setOAuthToken(value: string): PickerBuilder;
   setOrigin(value: string): PickerBuilder;
@@ -172,9 +173,9 @@ export function pickDriveItem(options: {
       void Promise.all([cloud.drivePicker(), loadPicker(target)])
         .then(([config, sdk]) => {
           if (finished) return;
-          if (!config.accessToken || !config.appId)
+          if (!config.accessToken || !config.appId || !config.apiKey)
             throw new Error(
-              "Google Drive browsing is unavailable because its account configuration is incomplete. Your existing files are still available below.",
+              "Google Drive browsing needs an OAuth token, Google project number, and Picker API key. This installation’s configuration is incomplete. Your existing files are still available below.",
             );
           const api = sdk.google!.picker;
           const view = new api.DocsView()
@@ -189,6 +190,7 @@ export function pickDriveItem(options: {
             .addView(view)
             .setDocument(target)
             .setAppId(config.appId)
+            .setDeveloperKey(config.apiKey)
             .setOAuthToken(config.accessToken)
             .setOrigin(location.origin)
             .setTitle(title.textContent!)
