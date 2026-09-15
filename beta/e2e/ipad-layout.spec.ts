@@ -35,6 +35,14 @@ test("iPad uses desktop UI in landscape and mobile UI in portrait", async ({
   await expect(
     page.getByRole("button", { name: /Zen mode/ }).first(),
   ).toBeVisible();
+  await page.getByRole("button", { name: "View", exact: true }).click();
+  await page.getByRole("menuitem", { name: "PDF pages", exact: true }).click();
+  const pdf = page.getByRole("dialog", { name: "PDF pages", exact: true });
+  await expect(
+    pdf.getByRole("link", { name: "Download PDF", exact: true }),
+  ).toBeVisible({ timeout: 30000 });
+  await expect(pdf.locator("iframe, canvas, object, embed")).toHaveCount(0);
+  await pdf.getByRole("button", { name: "Close" }).click();
   await editor.fill("Magic Keyboard formatting");
   await editor.press("Meta+a");
   await editor.press("Meta+b");

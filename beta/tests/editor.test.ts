@@ -459,6 +459,34 @@ describe("screenplay editing", () => {
     expect(textAndKinds(editor)).toEqual([["character", "ADA"]]);
   });
 
+  it("does not insert twice when iPad follows a hardware Enter with beforeinput", () => {
+    const editor = create([["character", "ADA"]]);
+    select(editor, 4);
+    const keydown = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "Enter",
+    });
+    editor.view.dom.dispatchEvent(keydown);
+    expect(keydown.defaultPrevented).toBe(true);
+    expect(textAndKinds(editor)).toEqual([
+      ["character", "ADA"],
+      ["dialogue", ""],
+    ]);
+
+    const paragraph = new InputEvent("beforeinput", {
+      bubbles: true,
+      cancelable: true,
+      inputType: "insertParagraph",
+    });
+    editor.view.dom.dispatchEvent(paragraph);
+    expect(paragraph.defaultPrevented).toBe(true);
+    expect(textAndKinds(editor)).toEqual([
+      ["character", "ADA"],
+      ["dialogue", ""],
+    ]);
+  });
+
   it("preserves moved scene links while giving copied paragraphs unique IDs", () => {
     const editor = create([
       ["scene", "INT. TRAIN - DAY"],

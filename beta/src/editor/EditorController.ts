@@ -144,6 +144,8 @@ export class EditorController {
   private callbacks: EditorCallbacks;
   private destroyed = false;
   private compositionTimer?: ReturnType<typeof setTimeout>;
+  private hardwareInputTimer?: ReturnType<typeof setTimeout>;
+  private hardwareInputType?: string;
   private selectedKind?: BlockKind;
   private live?: LiveBinding;
   private metadataNotification = false;
@@ -224,6 +226,12 @@ export class EditorController {
           // Native text insertion (mobile, dictation, insertText) may not have a
           // keydown. Read the visible caret before any command or DOM insertion.
           syncNativeSelection(view);
+          if (this.hardwareInputType === input.inputType) {
+            clearTimeout(this.hardwareInputTimer);
+            this.hardwareInputType = undefined;
+            input.preventDefault();
+            return true;
+          }
           const command = (
             {
               insertParagraph: screenplayEnter,
@@ -305,6 +313,18 @@ export class EditorController {
   }
 
   private createState(screenplay: Screenplay): EditorState {
+    const hardwareCommand = (inputType: string, command: Command): Command =>
+      (state, dispatch, view) => {
+        const handled = command(state, dispatch, view);
+        if (handled && dispatch) {
+          clearTimeout(this.hardwareInputTimer);
+          this.hardwareInputType = inputType;
+          this.hardwareInputTimer = setTimeout(() => {
+            this.hardwareInputType = undefined;
+          }, 250);
+        }
+        return handled;
+      };
     const normalize = new Plugin({
       key: normalizeKey,
       appendTransaction: (transactions, _previous, state) => {
@@ -404,16 +424,25 @@ export class EditorController {
         beatAnchorPlugin(screenplay),
         ...(!this.live ? [history({ depth: 500, newGroupDelay: 500 })] : []),
         keymap({
-          Enter: screenplayEnter,
-          "Shift-Enter": insertLineBreak,
+          Enter: hardwareCommand("insertParagraph", screenplayEnter),
+          "Shift-Enter": hardwareCommand("insertLineBreak", insertLineBreak),
           Tab: cycleBlockKind(),
           "Shift-Tab": cycleBlockKind(true),
-          "Mod-z": undo,
-          "Mod-Shift-z": redo,
-          "Mod-y": redo,
-          "Mod-b": toggleMark(screenplaySchema.marks.bold),
-          "Mod-i": toggleMark(screenplaySchema.marks.italic),
-          "Mod-u": toggleMark(screenplaySchema.marks.underline),
+          "Mod-z": hardwareCommand("historyUndo", undo),
+          "Mod-Shift-z": hardwareCommand("historyRedo", redo),
+          "Mod-y": hardwareCommand("historyRedo", redo),
+          "Mod-b": hardwareCommand(
+            "formatBold",
+            toggleMark(screenplaySchema.marks.bold),
+          ),
+          "Mod-i": hardwareCommand(
+            "formatItalic",
+            toggleMark(screenplaySchema.marks.italic),
+          ),
+          "Mod-u": hardwareCommand(
+            "formatUnderline",
+            toggleMark(screenplaySchema.marks.underline),
+          ),
           "Mod-1": setBlockKind("scene"),
           "Mod-2": setBlockKind("action"),
           "Mod-3": setBlockKind("character"),
@@ -951,6 +980,7 @@ export class EditorController {
     this.detachCollaboration();
     this.destroyed = true;
     clearTimeout(this.compositionTimer);
+    clearTimeout(this.hardwareInputTimer);
     this.view.destroy();
   }
 }

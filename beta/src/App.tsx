@@ -74,6 +74,9 @@ import { Resizable } from "./components/Resizable";
 import { Help } from "./components/Help";
 import { CloudDialog } from "./components/CloudDialog";
 const mod = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
+const isIPad =
+  /iPad/.test(navigator.userAgent) ||
+  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const errorMessage = (e: unknown) =>
   e instanceof Error
     ? e.message
@@ -124,6 +127,7 @@ export default function App() {
   const [character, setCharacter] = useState<string | null>(null);
   const [zen, setZen] = useState(false);
   const mobile = useMobileLayout();
+  const downloadOnlyPdf = mobile || isIPad;
   useEffect(() => {
     if (mobile) setZen(false);
   }, [mobile]);
@@ -1780,9 +1784,11 @@ export default function App() {
           className="pdf-preview-dialog"
           onClose={() => setDialog(null)}
         >
-          <div className={`pdf-view${mobile ? " pdf-mobile-view" : ""}`}>
+          <div
+            className={`pdf-view${downloadOnlyPdf ? " pdf-mobile-view" : ""}`}
+          >
             <div className="pdf-toolbar">
-              {!mobile && (
+              {!downloadOnlyPdf && (
                 <span>
                   {pdfWorking || !exact
                     ? "Preparing your pages…"
@@ -1821,7 +1827,7 @@ export default function App() {
                   Try again
                 </button>
               </div>
-            ) : mobile ? null : pdfUrl && exact ? (
+            ) : downloadOnlyPdf ? null : pdfUrl && exact ? (
               <iframe src={pdfUrl} title="Published screenplay PDF" />
             ) : (
               <div className="pdf-loading">
