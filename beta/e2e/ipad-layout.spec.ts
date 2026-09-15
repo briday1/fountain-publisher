@@ -13,13 +13,21 @@ test("iPad uses desktop UI in landscape and mobile UI in portrait", async ({
     isMobile: true,
     deviceScaleFactor: 2,
   });
-  // iPadOS reports MacIntel; ProseMirror uses that platform signal to map Mod
-  // shortcuts to the Command key.
+  // Match both iPadOS signals: the Mac platform selects Command shortcuts,
+  // and multi-touch distinguishes a desktop-mode iPad from a desktop Mac.
+  // Chromium's hasTouch alone does not emulate the iPad's touch-point count.
   await context.addInitScript(() => {
     Object.defineProperty(navigator, "platform", { value: "MacIntel" });
+    Object.defineProperty(navigator, "maxTouchPoints", { value: 5 });
   });
   const page = await context.newPage();
   await page.goto("/");
+  expect(
+    await page.evaluate(() => ({
+      platform: navigator.platform,
+      maxTouchPoints: navigator.maxTouchPoints,
+    })),
+  ).toEqual({ platform: "MacIntel", maxTouchPoints: 5 });
   const editor = page.getByRole("textbox", { name: "Screenplay editor" });
   await expect(editor).toBeVisible();
 
@@ -35,6 +43,31 @@ test("iPad uses desktop UI in landscape and mobile UI in portrait", async ({
   await expect(
     page.getByRole("button", { name: /Zen mode/ }).first(),
   ).toBeVisible();
+  await page.getByRole("button", { name: "View", exact: true }).click();
+  await page.getByRole("button", { name: "PDF pages", exact: true }).click();
+  const pdf = page.getByRole("dialog", { name: "PDF pages", exact: true });
+  await expect(
+    pdf.getByRole("link", { name: "Download PDF", exact: true }),
+  ).toBeVisible({ timeout: 30000 });
+  await expect(pdf.locator("iframe, canvas, object, embed")).toHaveCount(0);
+  await pdf.getByRole("button", { name: "Close" }).click();
+
+  await page.getByRole("button", { name: "Full screen", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Exit full screen", exact: true }),
+  ).toBeVisible();
+  await page.evaluate(async () => {
+    if (document.fullscreenElement) await document.exitFullscreen();
+  });
+  await expect(
+    page.getByRole("button", { name: "Exit full screen", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".app.ipad-fullscreen")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Exit full screen", exact: true })
+    .click();
+  await expect(page.locator(".app.ipad-fullscreen")).toHaveCount(0);
+
   await editor.fill("Magic Keyboard formatting");
   await editor.press("Meta+a");
   await editor.press("Meta+b");
