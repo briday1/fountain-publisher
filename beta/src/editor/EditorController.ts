@@ -189,6 +189,18 @@ export class EditorController {
           const key = event as KeyboardEvent;
           if (key.isComposing || view.composing) return true;
           syncNativeSelection(view);
+          // Handle Enter before ProseMirror's iOS DOM handler schedules its
+          // 200ms fallback. Otherwise beforeinput inserts once and the pending
+          // fallback runs the keymap again. Keep using the existing keymaps so
+          // Shift-Enter, completion, and the native-input deduplication agree.
+          if (
+            this.writable &&
+            key.key === "Enter" &&
+            view.someProp("handleKeyDown", (handler) => handler(view, key))
+          ) {
+            key.preventDefault();
+            return true;
+          }
           if (
             !key.shiftKey &&
             !key.altKey &&
@@ -313,7 +325,8 @@ export class EditorController {
   }
 
   private createState(screenplay: Screenplay): EditorState {
-    const hardwareCommand = (inputType: string, command: Command): Command =>
+    const hardwareCommand =
+      (inputType: string, command: Command): Command =>
       (state, dispatch, view) => {
         const handled = command(state, dispatch, view);
         if (handled && dispatch) {
