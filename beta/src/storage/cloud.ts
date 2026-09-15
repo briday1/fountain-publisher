@@ -202,14 +202,19 @@ export const cloud = {
 export async function connectAccount(
   provider: Provider,
   before: () => Promise<void>,
+  base = apiBase,
 ): Promise<void> {
-  if (!apiBase.startsWith("https:")) {
+  if (!base.startsWith("https:")) {
     await before();
-    location.assign(`${apiBase}/auth/${provider}/start`);
+    location.assign(`${base}/auth/${provider}/start`);
     return;
   }
+  // Navigate to our same-site API during the original tap. Safari on iPad can
+  // discard popup authorization/cookie context when an about:blank window is
+  // navigated only after awaiting IndexedDB persistence.
+  const start = `${base}/auth/${provider}/start?${query({ returnOrigin: location.origin })}`;
   const popup = window.open(
-    "about:blank",
+    start,
     "fountain-account",
     "popup,width=640,height=740",
   );
@@ -226,7 +231,7 @@ export async function connectAccount(
     throw error;
   }
   return new Promise((resolve, reject) => {
-    const origin = new URL(apiBase).origin;
+    const origin = new URL(base).origin;
     let settled = false;
     const finish = (error?: Error) => {
       if (settled) return;
@@ -267,6 +272,5 @@ export async function connectAccount(
       () => finish(new Error("Sign-in expired. Try connecting again.")),
       600000,
     );
-    popup.location.href = `${apiBase}/auth/${provider}/start?${query({ returnOrigin: location.origin })}`;
   });
 }
