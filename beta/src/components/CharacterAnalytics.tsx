@@ -143,7 +143,6 @@ export function CharacterAnalytics({
   const dark = surface.colorScheme.includes("dark");
   const colors = {
     paper: surface.getPropertyValue("--raised").trim() || "#fff",
-    stripe: surface.getPropertyValue("--surface").trim() || "#f2f2f2",
     ink: surface.getPropertyValue("--ink").trim() || "#202124",
     muted: surface.getPropertyValue("--muted").trim() || "#6b7280",
     border: surface.getPropertyValue("--border").trim() || "#d7d9dd",
@@ -346,7 +345,7 @@ export function CharacterAnalytics({
             <rect
               width={selected ? width : labelWidth}
               height={headerHeight}
-              fill={colors.stripe}
+              fill={colors.paper}
             />
             {selected ? (
               <>
@@ -402,7 +401,7 @@ export function CharacterAnalytics({
                       y={0.5}
                       width={act.length * sceneWidth}
                       height={28}
-                      fill={colors.stripe}
+                      fill={colors.paper}
                       stroke={colors.border}
                     />
                     <text
