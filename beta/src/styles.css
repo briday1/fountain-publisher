@@ -221,6 +221,13 @@ hr {
   flex-direction: column;
   overflow: hidden;
 }
+.app.ipad-fullscreen {
+  position: fixed;
+  inset: 0;
+  height: auto;
+  z-index: 100;
+  background: var(--bg);
+}
 .app-header {
   height: 43px;
   flex-shrink: 0;

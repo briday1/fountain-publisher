@@ -43,6 +43,23 @@ test("iPad uses desktop UI in landscape and mobile UI in portrait", async ({
   ).toBeVisible({ timeout: 30000 });
   await expect(pdf.locator("iframe, canvas, object, embed")).toHaveCount(0);
   await pdf.getByRole("button", { name: "Close" }).click();
+
+  await page.getByRole("button", { name: "Full screen", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Exit full screen", exact: true }),
+  ).toBeVisible();
+  await page.evaluate(async () => {
+    if (document.fullscreenElement) await document.exitFullscreen();
+  });
+  await expect(
+    page.getByRole("button", { name: "Exit full screen", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".app.ipad-fullscreen")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Exit full screen", exact: true })
+    .click();
+  await expect(page.locator(".app.ipad-fullscreen")).toHaveCount(0);
+
   await editor.fill("Magic Keyboard formatting");
   await editor.press("Meta+a");
   await editor.press("Meta+b");
