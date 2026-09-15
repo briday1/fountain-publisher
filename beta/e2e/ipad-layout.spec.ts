@@ -19,6 +19,9 @@ test("iPad uses desktop UI in landscape and mobile UI in portrait", async ({
   await context.addInitScript(() => {
     Object.defineProperty(navigator, "platform", { value: "MacIntel" });
     Object.defineProperty(navigator, "maxTouchPoints", { value: 5 });
+    Object.defineProperty(navigator, "vendor", {
+      value: "Apple Computer, Inc.",
+    });
   });
   const page = await context.newPage();
   await page.goto("/");
@@ -60,12 +63,8 @@ test("iPad uses desktop UI in landscape and mobile UI in portrait", async ({
     if (document.fullscreenElement) await document.exitFullscreen();
   });
   await expect(
-    page.getByRole("button", { name: "Exit full screen", exact: true }),
+    page.getByRole("button", { name: "Full screen", exact: true }),
   ).toBeVisible();
-  await expect(page.locator(".app.ipad-fullscreen")).toBeVisible();
-  await page
-    .getByRole("button", { name: "Exit full screen", exact: true })
-    .click();
   await expect(page.locator(".app.ipad-fullscreen")).toHaveCount(0);
 
   await editor.fill("Magic Keyboard formatting");

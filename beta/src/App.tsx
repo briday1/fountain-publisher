@@ -136,10 +136,18 @@ export default function App() {
   const [nativeFullscreen, setNativeFullscreen] = useState(
     !!document.fullscreenElement,
   );
-  const [ipadFullscreen, setIpadFullscreen] = useState(false);
-  const fullscreen = nativeFullscreen || ipadFullscreen;
+  const fullscreen = nativeFullscreen;
   useEffect(() => {
-    const update = () => setNativeFullscreen(!!document.fullscreenElement);
+    let wasFullscreen = !!document.fullscreenElement;
+    const update = () => {
+      const active = !!document.fullscreenElement;
+      if (isIPad && wasFullscreen && !active)
+        setNotice(
+          "Full screen ended. If Safari exits when you type, use Zen in this tab, or open Fountain from your Home Screen for a browser-toolbar-free workspace.",
+        );
+      wasFullscreen = active;
+      setNativeFullscreen(active);
+    };
     document.addEventListener("fullscreenchange", update);
     return () => document.removeEventListener("fullscreenchange", update);
   }, []);
@@ -1010,19 +1018,6 @@ export default function App() {
   };
   const toggleFullscreen = () => {
     void (async () => {
-      if (isIPad) {
-        if (ipadFullscreen) {
-          setIpadFullscreen(false);
-          if (document.fullscreenElement) await document.exitFullscreen();
-          return;
-        }
-        // iPad Safari may leave native fullscreen when a contenteditable takes
-        // focus. Keep an app-level fullscreen state until the writer exits it.
-        setIpadFullscreen(true);
-        if (!document.fullscreenElement)
-          await document.documentElement.requestFullscreen().catch(() => {});
-        return;
-      }
       if (document.fullscreenElement) await document.exitFullscreen();
       else await document.documentElement.requestFullscreen();
     })().catch(report);
@@ -1060,7 +1055,7 @@ export default function App() {
   );
   return (
     <div
-      className={`app ${zen ? "zen" : ""}${ipadFullscreen ? " ipad-fullscreen" : ""}`}
+      className={`app ${zen ? "zen" : ""}`}
       style={
         {
           "--left-width": `${preferences.leftWidth}px`,
