@@ -1,6 +1,6 @@
 /* The compact mobile header hides standalone desktop menu buttons by default.
    Keep Settings available while leaving the adjacent Help shortcut hidden. */
-@media (max-width: 950px), (hover: none) and (pointer: coarse) {
+@media (max-width: 950px) {
   .menus > .menu-trigger:first-of-type {
     display: inline-flex;
     align-items: center;
