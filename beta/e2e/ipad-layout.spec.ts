@@ -11,10 +11,10 @@ test("installed iPad app ignores Full screen without a native fullscreen API", a
     Object.defineProperty(navigator, "standalone", { value: true });
     Object.defineProperty(navigator, "platform", { value: "MacIntel" });
     Object.defineProperty(navigator, "maxTouchPoints", { value: 5 });
-    Object.defineProperty(document.documentElement, "requestFullscreen", {
+    Object.defineProperty(Element.prototype, "requestFullscreen", {
       value: undefined,
     });
-    Object.defineProperty(document.documentElement, "webkitRequestFullscreen", {
+    Object.defineProperty(Element.prototype, "webkitRequestFullscreen", {
       value: undefined,
     });
   });
