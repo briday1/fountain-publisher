@@ -13,6 +13,11 @@ test("iPad uses desktop UI in landscape and mobile UI in portrait", async ({
     isMobile: true,
     deviceScaleFactor: 2,
   });
+  // iPadOS reports MacIntel; ProseMirror uses that platform signal to map Mod
+  // shortcuts to the Command key.
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, "platform", { value: "MacIntel" });
+  });
   const page = await context.newPage();
   await page.goto("/");
   const editor = page.getByRole("textbox", { name: "Screenplay editor" });
