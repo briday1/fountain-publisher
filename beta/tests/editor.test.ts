@@ -351,7 +351,6 @@ describe("screenplay editing", () => {
     editor.view.pasteText("INT. TRAIN - NIGHT\n\nADA\nAre we there?");
     expect(textAndKinds(editor)).toEqual([
       ["scene", "INT. TRAIN - NIGHT"],
-      ["action", ""],
       ["character", "ADA"],
       ["dialogue", "Are we there?"],
     ]);
@@ -693,5 +692,79 @@ describe("character-name completion", () => {
     type(editor, "MA");
     press(editor, "Tab");
     expect(textAndKinds(editor)).toEqual([["character", "MA"]]);
+  });
+});
+
+describe("Fountain clipboard import", () => {
+  const source =
+    ".THE CABIN #12#\n\n!A **bold** arrival.\nStill raining.\n\n@McKay\n(quietly)\nStay *here*.\n\n>FADE OUT.\n\n# Act Two\n\n= The escape\n\n>THE END<\n\n~A song\n\n[[A note]]\n\n===";
+  it("formats source syntax, paragraphs, attributes and emphasis and undoes in one step", () => {
+    const editor = create();
+    editor.view.pasteText(source.replace(/\n/g, "\r\n"));
+    expect(textAndKinds(editor)).toEqual([
+      ["scene", "THE CABIN"],
+      ["action", "A bold arrival.\nStill raining."],
+      ["character", "McKay"],
+      ["parenthetical", "(quietly)"],
+      ["dialogue", "Stay here."],
+      ["transition", "FADE OUT."],
+      ["section", "Act Two"],
+      ["synopsis", "The escape"],
+      ["centered", "THE END"],
+      ["lyrics", "A song"],
+      ["note", "A note"],
+      ["pageBreak", ""],
+    ]);
+    expect(editor.getBlocks()[0].sceneNumber).toBe("12");
+    expect(editor.view.dom.querySelector("strong")?.textContent).toBe("bold");
+    expect(editor.view.dom.querySelector("em")?.textContent).toBe("here");
+    expect(editor.undo()).toBe(true);
+    expect(textAndKinds(editor)).toEqual([["action", ""]]);
+    expect(editor.redo()).toBe(true);
+    expect(editor.getBlocks()[0].kind).toBe("scene");
+  });
+  it("inserts a scene between existing text without absorbing its formatting", () => {
+    const editor = create([["action", "BeforeAfter"]]);
+    select(editor, 7);
+    editor.view.pasteText(".THE CABIN\n\n@Ada\nHello.");
+    expect(textAndKinds(editor)).toEqual([
+      ["action", "Before"],
+      ["scene", "THE CABIN"],
+      ["character", "Ada"],
+      ["dialogue", "Hello."],
+      ["action", "After"],
+    ]);
+  });
+  it("keeps ordinary and emphasized single-line pastes in dialogue", () => {
+    const editor = create([["dialogue", "Say "]]);
+    select(editor, 5);
+    editor.view.pasteText("**hello**");
+    expect(textAndKinds(editor)).toEqual([["dialogue", "Say hello"]]);
+    expect(editor.view.dom.querySelector("strong")?.textContent).toBe("hello");
+  });
+  it("uses plain Fountain when a text editor also supplies HTML", () => {
+    const editor = create();
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", {
+      value: {
+        getData: (type: string) =>
+          type === "text/plain" ? source : `<pre>${source}</pre>`,
+        files: [],
+      },
+    });
+    editor.view.dom.dispatchEvent(event);
+    expect(editor.getBlocks()[0]).toMatchObject({
+      kind: "scene",
+      text: "THE CABIN",
+    });
+    expect(editor.view.dom.querySelector("strong")?.textContent).toBe("bold");
+  });
+  it("preserves pasted title fields visibly without changing the current title", () => {
+    const editor = create();
+    editor.view.pasteText(
+      "Title: Example\nAuthor: Someone\n\nINT. ROOM - DAY\n\nHello.",
+    );
+    expect(editor.getBlocks()[0].text).toBe("Title: Example\nAuthor: Someone");
+    expect(editor.getBlocks()[1].kind).toBe("scene");
   });
 });
