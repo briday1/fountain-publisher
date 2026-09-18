@@ -310,7 +310,10 @@ function readTitle(lines: string[]): { titlePage: TitlePage; end: number } {
   return { titlePage, end: i };
 }
 
-export function parseFountain(input: string): Screenplay {
+export function parseFountain(
+  input: string,
+  options: { titlePage?: boolean } = {},
+): Screenplay {
   let source = input.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
   const originalLineCount = source.split("\n").length;
   let envelope: Envelope | undefined;
@@ -356,7 +359,10 @@ export function parseFountain(input: string): Screenplay {
     ? normalizeMetadata(envelope.metadata)
     : { version: 1 as const, beats: [], notes: "" };
   const lines = source.split("\n");
-  const title = readTitle(lines);
+  const title =
+    options.titlePage === false
+      ? { titlePage: emptyTitlePage(), end: 0 }
+      : readTitle(lines);
   if (legacy.length) {
     metadata.legacyAnnotations = legacy.map((item) => item.raw);
     for (const item of legacy) {

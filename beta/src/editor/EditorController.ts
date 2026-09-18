@@ -1,4 +1,6 @@
 import { Fragment, Slice } from "prosemirror-model";
+import type { Node as ProseMirrorNode, ResolvedPos } from "prosemirror-model";
+import { parseFountain } from "../core/fountain";
 import {
   EditorState,
   Plugin,
@@ -136,6 +138,30 @@ function pendingNativeSelection(view: EditorView): Selection | undefined {
 function syncNativeSelection(view: EditorView) {
   const next = pendingNativeSelection(view);
   if (next) view.dispatch(view.state.tr.setSelection(next));
+}
+
+const fountainBlockPastes = new WeakSet<ProseMirrorNode>();
+
+/** Use the import parser for Fountain, retaining ordinary inline paste behavior. */
+function fountainClipboardSlice(
+  text: string,
+  context: ResolvedPos,
+): Slice | null {
+  // A pasted title stays visible in the body; pasting must not replace document metadata.
+  const blocks = parseFountain(text, { titlePage: false }).blocks;
+  const structured =
+    blocks.some((block) => block.kind !== "action") || /^!/m.test(text);
+  if (!structured && !blocks.some((block) => block.spans?.length)) return null;
+  const inline = !structured && !/[\r\n]/.test(text);
+  const nodes = blocks.map((block) =>
+    blockToNode({
+      ...block,
+      id: newId(),
+      ...(inline ? { kind: context.parent.attrs.kind as BlockKind } : {}),
+    }),
+  );
+  if (!inline) nodes.forEach((node) => fountainBlockPastes.add(node));
+  return new Slice(Fragment.from(nodes), inline ? 1 : 0, inline ? 1 : 0);
 }
 
 /** All editing state belongs to ProseMirror. React mounts one persistent surface. */
@@ -282,13 +308,36 @@ export class EditorController {
         });
         // Copy creates fresh IDs; cut/paste keeps scene and beat links when the
         // original paragraphs have been removed from the document.
+        // ProseMirror opens external clipboard slices after parsing. Restore
+        // complete Fountain blocks so a scene cannot merge into surrounding prose.
+        const fountainBlocks =
+          slice.content.firstChild &&
+          fountainBlockPastes.has(slice.content.firstChild);
         return new Slice(
           freshenPastedIds(slice.content, usedIds),
-          slice.openStart,
-          slice.openEnd,
+          fountainBlocks ? 0 : slice.openStart,
+          fountainBlocks ? 0 : slice.openEnd,
         );
       },
+      handlePaste: (view, event) => {
+        const text = event.clipboardData?.getData("text/plain");
+        const html = event.clipboardData?.getData("text/html") || "";
+        // Native editor copies carry their own block types, marks, and identity.
+        if (!text || /data-pm-slice=/.test(html)) return false;
+        const slice = fountainClipboardSlice(text, view.state.selection.$from);
+        if (!slice) return false;
+        view.dispatch(
+          view.state.tr
+            .replaceSelection(slice)
+            .scrollIntoView()
+            .setMeta("paste", true)
+            .setMeta("uiEvent", "paste"),
+        );
+        return true;
+      },
       clipboardTextParser: (text, $context) => {
+        const fountain = fountainClipboardSlice(text, $context);
+        if (fountain) return fountain;
         // A single-line paste stays in its current paragraph. Multiple lines retain
         // their paragraph boundaries and receive screenplay styling immediately.
         let previous = ($context.parent.attrs.kind as BlockKind) || "action";
