@@ -68,7 +68,8 @@ export function screenplayLines(doc: Screenplay): ScreenplayLine[] {
       (block.kind === "dialogue" || block.kind === "parenthetical") &&
       previous &&
       ["character", "dialogue", "parenthetical"].includes(previous.kind);
-    if (hasBody) number += continuous ? 1 : 2;
+    if (hasBody)
+      number += continuous || (block.kind === "note" && previous) ? 1 : 2;
     if (block.kind === "boneyard") number++;
     let start = 0;
     const lines = block.kind === "pageBreak" ? [""] : block.text.split("\n");

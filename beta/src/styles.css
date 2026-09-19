@@ -1911,9 +1911,32 @@ hr {
   position: fixed !important;
   top: calc(var(--drive-picker-top) + 64px) !important;
   left: var(--drive-picker-left) !important;
-  transform: scale(var(--drive-picker-scale, 1));
+  width: var(--drive-picker-native-width) !important;
+  height: var(--drive-picker-native-height) !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  box-sizing: border-box;
+  transform: scale(var(--drive-picker-scale, 1)) !important;
   transform-origin: top left;
   border-radius: 0 0 9px 9px;
+}
+.drive-picker-active .picker-dialog-content {
+  width: 100% !important;
+  height: 100% !important;
+}
+.drive-picker-active .picker-dialog-content iframe {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none;
+}
+.drive-save-destination {
+  grid-column: 1 / -1;
+}
+.drive-save-destination p {
+  margin: 8px 0;
+  overflow-wrap: anywhere;
 }
 .drive-picker-loading {
   margin: 0;

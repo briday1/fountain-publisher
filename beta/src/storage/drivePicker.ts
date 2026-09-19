@@ -161,6 +161,8 @@ export function pickDriveItem(options: {
       const shownHeight = pickerHeight ? pickerHeight * scale + 64 : 144;
       const style = document.documentElement.style;
       style.setProperty("--drive-picker-scale", String(scale));
+      style.setProperty("--drive-picker-native-width", `${pickerWidth}px`);
+      style.setProperty("--drive-picker-native-height", `${pickerHeight}px`);
       style.setProperty("--drive-picker-width", `${shownWidth}px`);
       style.setProperty(
         "--drive-picker-left",
@@ -194,7 +196,14 @@ export function pickDriveItem(options: {
           if (!previousPickerNodes.has(node)) node.remove();
         }
         controls.remove();
-        for (const property of ["scale", "width", "left", "top"])
+        for (const property of [
+          "scale",
+          "width",
+          "left",
+          "top",
+          "native-width",
+          "native-height",
+        ])
           document.documentElement.style.removeProperty(
             `--drive-picker-${property}`,
           );

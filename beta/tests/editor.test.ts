@@ -1,6 +1,8 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AllSelection, TextSelection } from "prosemirror-state";
 import { closeHistory } from "prosemirror-history";
+import { parseFountain, serializeFountain } from "../src/core/fountain";
+import type { AnnotationTarget } from "../src/editor/annotations";
 import { EditorController } from "../src/editor/EditorController";
 import { screenplayEnter, cycleBlockKind } from "../src/editor/commands";
 import { emptyScreenplay } from "../src/core/model";
@@ -767,4 +769,110 @@ describe("Fountain clipboard import", () => {
     expect(editor.getBlocks()[0].text).toBe("Title: Example\nAuthor: Someone");
     expect(editor.getBlocks()[1].kind).toBe("scene");
   });
+});
+
+it("restores legacy annotation orbs and keeps add/edit/delete undoable in Fountain syntax", () => {
+  const editor = create([["action", "The door opens."]]);
+  const target: AnnotationTarget = {
+    blockId: "block-0",
+    text: "",
+    canEdit: true,
+  };
+  editor.saveAnnotation(target, "Check the door.\nKeep it quiet.]]");
+  const note = editor.getBlocks()[1];
+  expect(note.kind).toBe("note");
+  expect(note.text).toBe("Check the door. Keep it quiet.] ]");
+  expect(
+    editor.view.dom
+      .querySelector(".annotation-orb")
+      ?.getAttribute("aria-label"),
+  ).toBe("Edit annotation: Check the door. Keep it quiet.] ]");
+  const source = serializeFountain({
+    ...emptyScreenplay(),
+    blocks: editor.getBlocks(),
+  });
+  expect(source).toContain(
+    "!The door opens.\n[[Check the door. Keep it quiet.\\] \\]]]",
+  );
+  expect(parseFountain(source).blocks[1].text).toBe(note.text);
+  const edit = { ...target, noteId: note.id, text: note.text };
+  editor.saveAnnotation(edit, "A new note");
+  expect(editor.getBlocks()[1].text).toBe("A new note");
+  expect(() => editor.saveAnnotation(edit, "Stale edit")).toThrow("changed");
+  editor.saveAnnotation({ ...edit, text: "A new note" }, null);
+  expect(editor.view.dom.querySelector(".annotation-orb")).toBeNull();
+  editor.undo();
+  expect(editor.getBlocks()[1].text).toBe("A new note");
+  editor.undo();
+  expect(editor.getBlocks()[1].text).toBe(note.text);
+  editor.undo();
+  expect(editor.getBlocks()).toHaveLength(1);
+});
+
+it("opens the existing imported note from its glowing marker and rejects a removed target", () => {
+  const onAnnotation = vi.fn();
+  const host = document.createElement("div");
+  document.body.append(host);
+  const editor = new EditorController(
+    host,
+    parseFountain("!The door opens.\n[[Old annotation]]"),
+    { onAnnotation },
+  );
+  editors.push(editor);
+  host.querySelector<HTMLButtonElement>(".annotation-orb")!.click();
+  expect(onAnnotation).toHaveBeenCalledWith(
+    expect.objectContaining({ text: "Old annotation", canEdit: true }),
+  );
+  const target = onAnnotation.mock.calls[0][0];
+  editor.saveAnnotation(target, null);
+  expect(() => editor.saveAnnotation(target, "Try again")).toThrow("removed");
+});
+
+it.each(["delete", "empty"])(
+  "removes an annotation when its text is %s and restores both with undo",
+  (operation) => {
+    const editor = create([
+      ["action", "Previous paragraph."],
+      ["action", "Annotated paragraph."],
+      ["note", "Do not leave me behind"],
+      ["action", "Next paragraph."],
+    ]);
+    const first = editor.view.state.doc.child(0);
+    const anchor = editor.view.state.doc.child(1);
+    const pos = first.nodeSize;
+    const tr = closeHistory(editor.view.state.tr);
+    editor.view.dispatch(
+      operation === "delete"
+        ? tr.delete(pos, pos + anchor.nodeSize)
+        : tr.delete(pos + 1, pos + anchor.nodeSize - 1),
+    );
+    expect(editor.getBlocks().some((block) => block.kind === "note")).toBe(
+      false,
+    );
+    expect(editor.view.dom.querySelector(".annotation-orb")).toBeNull();
+    editor.undo();
+    expect(editor.getBlocks().map((block) => block.text)).toEqual([
+      "Previous paragraph.",
+      "Annotated paragraph.",
+      "Do not leave me behind",
+      "Next paragraph.",
+    ]);
+    expect(editor.view.dom.querySelector(".annotation-orb")).not.toBeNull();
+  },
+);
+
+it("retains annotations during ordinary text edits and rejects attaching to empty text", () => {
+  const editor = create([
+    ["action", "Anchor"],
+    ["note", "Keep this"],
+  ]);
+  editor.view.dispatch(editor.view.state.tr.insertText(" revised", 7));
+  expect(editor.getBlocks()[1].text).toBe("Keep this");
+  const blank = create();
+  expect(() =>
+    blank.saveAnnotation(
+      { blockId: "block-0", text: "", canEdit: true },
+      "Orphan",
+    ),
+  ).toThrow("empty");
 });

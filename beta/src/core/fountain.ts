@@ -838,7 +838,8 @@ export function serializeFountain(document: Screenplay): string {
       (block.kind === "dialogue" || block.kind === "parenthetical") &&
       previous &&
       ["character", "dialogue", "parenthetical"].includes(previous.kind);
-    if (body) body += continuous ? "\n" : "\n\n";
+    if (body)
+      body += continuous || (block.kind === "note" && previous) ? "\n" : "\n\n";
     let prefix = "";
     let suffix = "";
     let content = formatInline(blockSpans(block));

@@ -74,9 +74,12 @@ import {
   updateBeatAnchors,
 } from "./beatAnchors";
 import { characterCompletion } from "./characterCompletion";
+import { annotationPlugin } from "./annotations";
+import type { AnnotationTarget } from "./annotations";
 import "./editor.css";
 
 export interface EditorCallbacks {
+  onAnnotation?: (target: AnnotationTarget) => void;
   /** A dirty signal, never a whole-document snapshot. Use getBlocks on idle/save. */
   onChange?: (remote?: boolean) => void;
   onSelection?: (kind: BlockKind) => void;
@@ -211,6 +214,16 @@ export class EditorController {
       },
       dispatchTransaction: (transaction) => this.dispatch(transaction),
       handleDOMEvents: {
+        contextmenu: (_view, event) => {
+          const block =
+            event.target instanceof Element
+              ? event.target.closest("p[data-id]")
+              : null;
+          if (!block || !this.callbacks.onAnnotation) return false;
+          event.preventDefault();
+          this.openAnnotation(block.getAttribute("data-id")!);
+          return true;
+        },
         keydown: (view, event) => {
           const key = event as KeyboardEvent;
           if (key.isComposing || view.composing) return true;
@@ -482,6 +495,10 @@ export class EditorController {
               yUndoPlugin({ undoManager: this.live.undoManager }),
             ]
           : []),
+        annotationPlugin(
+          (id) => this.openAnnotation(id),
+          () => this.writable,
+        ),
         characterCompletion(),
         beatAnchorPlugin(screenplay),
         ...(!this.live ? [history({ depth: 500, newGroupDelay: 500 })] : []),
@@ -795,6 +812,71 @@ export class EditorController {
       ),
     );
     return true;
+  }
+
+  openAnnotation(blockId: string): void {
+    const blocks = this.getBlocks();
+    const index = blocks.findIndex((block) => block.id === blockId);
+    if (index < 0) return;
+    const block = blocks[index];
+    if (block.kind !== "note" && !block.text.trim()) return;
+    const note =
+      block.kind === "note"
+        ? block
+        : blocks[index + 1]?.kind === "note"
+          ? blocks[index + 1]
+          : undefined;
+    this.callbacks.onAnnotation?.({
+      blockId,
+      noteId: note?.id,
+      text: note?.text ?? "",
+      canEdit: this.writable,
+    });
+  }
+
+  saveAnnotation(target: AnnotationTarget, value: string | null): void {
+    if (!this.writable) throw new Error("This screenplay is view only.");
+    const text = value
+      ?.trim()
+      .replace(/\s*\n+\s*/g, " ")
+      .replaceAll("]]", "] ]");
+    if (value !== null && !text) throw new Error("Enter an annotation.");
+    let found: { pos: number; node: ProseMirrorNode } | undefined;
+    this.view.state.doc.forEach((node, pos) => {
+      if (node.attrs.id === (target.noteId ?? target.blockId))
+        found = { pos, node };
+    });
+    if (!found)
+      throw new Error(
+        "This paragraph or annotation was removed. Close this dialog and choose another paragraph.",
+      );
+    const { pos, node } = found;
+    if (
+      target.noteId &&
+      (node.attrs.kind !== "note" || node.textContent !== target.text)
+    )
+      throw new Error("This annotation changed. Reopen it before editing.");
+    let tr = closeHistory(this.view.state.tr);
+    if (target.noteId) {
+      tr =
+        value === null
+          ? tr.delete(pos, pos + node.nodeSize)
+          : tr.replaceWith(
+              pos,
+              pos + node.nodeSize,
+              blockToNode({ id: target.noteId, kind: "note", text: text! }),
+            );
+    } else if (value !== null) {
+      if (!node.textContent.trim())
+        throw new Error(
+          "This paragraph is empty. Add text before annotating it.",
+        );
+      tr = tr.insert(
+        pos + node.nodeSize,
+        blockToNode({ id: newId(), kind: "note", text: text! }),
+      );
+    } else return;
+    this.view.dispatch(tr);
   }
 
   getBlocks(): ScriptBlock[] {
