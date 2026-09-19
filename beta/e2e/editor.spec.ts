@@ -36,7 +36,7 @@ test("existing production writing migrates before startup and later edits surviv
     ),
   ).toBe(legacy);
 });
-test("deployed app starts both account sign-ins using the existing callbacks", async ({
+test("deployed app exposes Drive browsing and starts both account sign-ins using the existing callbacks", async ({
   request,
 }) => {
   test.skip(
@@ -47,6 +47,19 @@ test("deployed app starts both account sign-ins using the existing callbacks", a
     "Requires the deployed account adapter.",
   );
   const api = "https://api.fountain-publisher.com";
+  // Pages releases do not deploy the account adapter. A stale Worker can still
+  // support sign-in while returning 404 for the newer app-owned Drive browser.
+  const browser = await request.get(`${api}/beta/api/google/browser`, {
+    headers: { Origin: process.env.TEST_BASE_URL! },
+  });
+  expect(
+    browser.status(),
+    "Deploy the account adapter before the frontend.",
+  ).toBe(401);
+  expect(await browser.json()).toMatchObject({ code: "NOT_CONNECTED" });
+  expect(browser.headers()["access-control-allow-origin"]).toBe(
+    process.env.TEST_BASE_URL,
+  );
   for (const provider of ["github", "google"]) {
     const response = await request.get(
       `${api}/beta/api/auth/${provider}/start?returnOrigin=${encodeURIComponent(process.env.TEST_BASE_URL!)}`,

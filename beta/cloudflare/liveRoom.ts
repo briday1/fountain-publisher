@@ -199,7 +199,7 @@ function relativePosition(value: unknown): unknown {
       );
   }
   if (
-    raw.tname !== undefined &&
+    raw.tname != null &&
     (typeof raw.tname !== "string" || raw.tname.length > 80)
   )
     throw new LiveError(

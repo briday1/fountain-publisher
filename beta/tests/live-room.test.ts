@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
+import { Awareness, encodeAwarenessUpdate } from "y-protocols/awareness";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import {
@@ -543,6 +544,80 @@ describe("structured live room durability and authorization", () => {
     });
     expect(JSON.stringify(socket.messages)).not.toContain("secret");
   });
+
+  it("accepts actual Yjs cursor positions and keeps edits saveable after room restart", async () => {
+    const f = fixture();
+    const initial = await bootstrap(f);
+    const doc = client(initial.state);
+    const socket = f.connect("alice", doc);
+    const awareness = new Awareness(doc);
+    const paragraph = doc.getXmlFragment("script").toArray()[1] as Y.XmlElement;
+    const text = paragraph.toArray()[0] as Y.XmlText;
+    try {
+      f.restart();
+      for (const index of [0, 4, text.length]) {
+        // y-prosemirror sends these class instances directly through awareness,
+        // including nullable fields omitted by relativePositionToJSON().
+        const position = Y.createRelativePositionFromTypeIndex(text, index);
+        expect(position.tname).toBeNull();
+        awareness.setLocalStateField("cursor", {
+          anchor: position,
+          head: position,
+        });
+        await f.room.webSocketMessage(
+          socket,
+          JSON.stringify({
+            type: "presence",
+            awareness: encodeBytes(
+              encodeAwarenessUpdate(awareness, [doc.clientID]),
+            ),
+          }),
+        );
+        expect(socket.readyState).toBe(1);
+        const message = socket.messages.at(-1)!;
+        expect(message.type).toBe("presence");
+        const decoded = decoding.createDecoder(decodeBytes(message.awareness));
+        decoding.readVarUint(decoded);
+        decoding.readVarUint(decoded);
+        decoding.readVarUint(decoded);
+        const cursor = JSON.parse(decoding.readVarString(decoded)).cursor;
+        expect(
+          Y.createAbsolutePositionFromRelativePosition(
+            Y.createRelativePositionFromJSON(cursor.anchor),
+            doc,
+          )?.index,
+        ).toBe(index);
+      }
+      await send(f.room, socket, write(doc, "Still live. "));
+      expect(socket.messages.at(-1)?.type).toBe("ack");
+      expect((await f.request("checkpoint")).status).toBe(200);
+      expect(f.content).toContain("Still live. ");
+    } finally {
+      awareness.destroy();
+      doc.destroy();
+    }
+  });
+
+  it.each([false, 12, {}, "x".repeat(81)])(
+    "still rejects invalid cursor type names: %j",
+    async (tname) => {
+      const f = fixture();
+      const initial = await bootstrap(f);
+      const doc = client(initial.state);
+      const socket = f.connect("alice", doc);
+      await f.room.webSocketMessage(
+        socket,
+        presence(doc.clientID, 1, {
+          cursor: { anchor: { tname }, head: { tname } },
+        }),
+      );
+      expect(socket.messages.at(-1)).toMatchObject({
+        type: "error",
+        code: "LIVE_INVALID_PRESENCE",
+      });
+      doc.destroy();
+    },
+  );
 });
 
 describe("original room preflight", () => {

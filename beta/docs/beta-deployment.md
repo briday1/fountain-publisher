@@ -18,7 +18,10 @@ The production workflow also publishes `beta/public/previews/beta/` to the retir
 
 ## Adapter releases
 
-Deploy compatible API changes before releasing a frontend that needs them:
+The Pages workflows deploy frontend files only. A successful Pages release does not update either Cloudflare Worker. Deploy compatible API changes before publishing a frontend that needs them, in this order:
+
+1. Apply any required `github-worker` database migrations, then deploy the shared `fountain-publisher` account Worker when that service changes. Follow the prerequisites in [Account integrations](integrations.md); the full Drive browser requires migration `0004_google_scopes.sql` and the updated shared Worker.
+2. Test, build, and deploy the `fountain-publisher-beta` adapter from the same source revision that will be published:
 
 ```sh
 cd beta
@@ -28,7 +31,19 @@ npx wrangler deploy --dry-run
 npx wrangler deploy
 ```
 
-Wrangler uses the existing Cloudflare authentication. Its routes retain the beta custom domain, `/beta/*` API adapter and two exact existing OAuth callbacks. The adapter accepts only the exact production and beta origins, retains CSRF checks, and directs authorization messages to the trusted origin that opened the popup. Credentials remain in the existing account service.
+3. Check the deployed account routes before publishing Pages:
+
+```sh
+TEST_BASE_URL=https://fountain-publisher.com npm run test:browser -- e2e/editor.spec.ts --grep 'deployed app exposes Drive browsing'
+```
+
+4. Publish the frontend through the main Pages workflow, then run the deployed browser suite.
+
+The account smoke check requires unauthenticated `/beta/api/google/browser` requests to return `401 NOT_CONNECTED` with the correct origin header. A `404` reveals an outdated adapter even when OAuth redirects still work. This check runs only against the deployed app; local browser checks cannot establish which Worker version is live.
+
+Wrangler uses the existing Cloudflare authentication. Automated deployment would additionally require a GitHub Actions `CLOUDFLARE_API_TOKEN` secret created with the [Edit Cloudflare Workers policy](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/) and scoped to the existing account and `fountain-publisher.com` zone. No automated Worker deployment is configured by the current Pages workflow.
+
+The adapter's routes retain the beta custom domain, `/beta/*` API adapter and two exact existing OAuth callbacks. It accepts only the exact production and beta origins, retains CSRF checks, and directs authorization messages to the trusted origin that opened the popup. Credentials remain in the existing account service.
 
 The beta Worker proxies static files from `https://fountain-publisher.com/previews/beta`. Do not point the primary apex at this Worker while retaining that upstream URL: it would proxy back into itself. Production static files continue to be served by Pages.
 
