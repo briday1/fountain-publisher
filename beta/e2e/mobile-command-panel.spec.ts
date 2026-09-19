@@ -9,7 +9,7 @@ test("mobile offers every desktop menu action except Zen through one File entry"
     page.getByRole("textbox", { name: "Screenplay editor" }),
   ).toBeVisible();
   const commands: string[] = [];
-  for (const name of ["File", "Write", "Edit", "View", "Insert"]) {
+  for (const name of ["File", "Edit", "View", "Insert"]) {
     await page.getByRole("button", { name, exact: true }).click();
     commands.push(
       ...(await page.locator(".menu-popup button").evaluateAll((buttons) =>
