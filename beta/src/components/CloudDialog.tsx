@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { flushSync } from "react-dom";
 import { pickDriveItem } from "../storage/drivePicker";
+import { DriveBrowser } from "./DriveBrowser";
 import { Modal } from "./Modal";
 import { cloud, connectAccount } from "../storage/cloud";
 import type {
@@ -49,6 +50,7 @@ export function CloudDialog({
   onClose: () => void;
 }) {
   const [saveCopy, setSaveCopy] = useState(false);
+  const [destinationAllowed, setDestinationAllowed] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerAbort = useRef<AbortController | null>(null);
   const [status, setStatus] = useState<CloudStatus>();
@@ -169,7 +171,11 @@ export function CloudDialog({
     });
   }
   useEffect(() => {
-    if (status?.[provider].connected && (mode === "open" || mode === "save"))
+    if (
+      !(provider === "google" && status?.google.driveAccess === "full") &&
+      status?.[provider].connected &&
+      (mode === "open" || mode === "save")
+    )
       void list();
   }, [status, repo, branch, path, parent, shared]);
   useEffect(() => {
@@ -318,6 +324,8 @@ export function CloudDialog({
       if (alive.current) setSaving(false);
     });
   };
+  const fullDrive =
+    provider === "google" && status?.google.driveAccess === "full";
   const connected = status?.[provider].connected;
   const configured = status?.[provider].configured;
   return (
@@ -405,7 +413,7 @@ export function CloudDialog({
         )}
         {connected && (mode === "open" || mode === "save") && (
           <>
-            {provider === "google" && (
+            {provider === "google" && !fullDrive && (
               <div className="drive-browse">
                 <button
                   className="primary"
@@ -423,137 +431,183 @@ export function CloudDialog({
                 </span>
               </div>
             )}
-            <div className="cloud-controls">
-              {provider === "github" ? (
-                <>
-                  <label>
-                    Repository
-                    <select
-                      value={repo}
-                      onChange={(e) => {
-                        setRepo(e.target.value);
-                        setPath("");
-                        setBranch(
-                          repos.find((r) => r.fullName === e.target.value)
-                            ?.defaultBranch ?? "",
-                        );
-                      }}
-                    >
-                      {repos.map((r) => (
-                        <option key={r.fullName} value={r.fullName}>
-                          {r.fullName}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {repoNext && (
-                    <button
-                      onClick={() =>
-                        void run(async () => {
-                          const r = await cloud.githubRepos(repoNext);
-                          setRepos((old) => [...old, ...r.items]);
-                          setRepoNext(r.nextPage);
-                        })
-                      }
-                    >
-                      More repositories
-                    </button>
-                  )}
-                  <label>
-                    Branch
-                    <select
-                      value={branch}
-                      onChange={(e) => {
-                        setBranch(e.target.value);
-                        setPath("");
-                      }}
-                    >
-                      {branches.map((b) => (
-                        <option key={b}>{b}</option>
-                      ))}
-                    </select>
-                  </label>
-                </>
-              ) : (
-                <label className="check-label">
-                  <input
-                    type="checkbox"
-                    checked={shared}
-                    onChange={(e) => {
-                      setShared(e.target.checked);
-                      setParent("root");
-                      setParents([]);
-                      if (mode === "save") setSaveCopy(true);
-                    }}
-                  />
-                  Shared with me
-                </label>
+            {provider === "google" &&
+              !fullDrive &&
+              status?.google.driveAccess === "limited" && (
+                <div className="drive-upgrade">
+                  <p>
+                    Browse all your Drive folders here. Reconnect and allow
+                    Drive access to open and save screenplays without Google's
+                    picker.
+                  </p>
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async () => {
+                        await connectAccount("google", onBeforeConnect);
+                        if (alive.current) setStatus(await cloud.status());
+                      })
+                    }
+                  >
+                    Enable full Drive browsing
+                  </button>
+                </div>
               )}
-              <button
-                className="icon-button"
+            {fullDrive && (
+              <DriveBrowser
                 disabled={busy}
-                aria-label="Refresh files"
-                onClick={() => void list()}
-              >
-                <RefreshCw size={16} />
-              </button>
-            </div>
-            <div className="breadcrumb">
-              <button
-                disabled={provider === "github" ? !path : parents.length === 0}
-                aria-label="Parent folder"
-                onClick={() => {
-                  if (provider === "github")
-                    setPath(path.split("/").slice(0, -1).join("/"));
-                  else {
-                    setParent(parents.at(-1)!.id);
-                    setParents(parents.slice(0, -1));
-                    if (mode === "save") setSaveCopy(true);
+                onFile={openEntry}
+                onNavigate={(destination) => {
+                  setSaveCopy(true);
+                  setDestinationAllowed(!!destination?.canSave);
+                  if (destination) {
+                    setParent(destination.id);
+                    setParents(
+                      destination.names
+                        .filter((name) => name !== "My Drive")
+                        .map((name) => ({ id: destination.id, name })),
+                    );
                   }
                 }}
-              >
-                <ArrowLeft size={14} />
-              </button>
-              <span>
-                {provider === "github"
-                  ? path || "Repository root"
-                  : parents.length
-                    ? parents.map((p) => p.name).join(" / ")
-                    : shared
-                      ? "Shared with me"
-                      : "Files opened with this app"}
-              </span>
-            </div>
-            <div className="cloud-files" aria-busy={busy}>
-              {entries.map((e) => {
-                const folder =
-                  "type" in e
-                    ? e.type === "dir"
-                    : e.mimeType === "application/vnd.google-apps.folder";
-                return (
+              />
+            )}
+            {!fullDrive && (
+              <>
+                <div className="cloud-controls">
+                  {provider === "github" ? (
+                    <>
+                      <label>
+                        Repository
+                        <select
+                          value={repo}
+                          onChange={(e) => {
+                            setRepo(e.target.value);
+                            setPath("");
+                            setBranch(
+                              repos.find((r) => r.fullName === e.target.value)
+                                ?.defaultBranch ?? "",
+                            );
+                          }}
+                        >
+                          {repos.map((r) => (
+                            <option key={r.fullName} value={r.fullName}>
+                              {r.fullName}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {repoNext && (
+                        <button
+                          onClick={() =>
+                            void run(async () => {
+                              const r = await cloud.githubRepos(repoNext);
+                              setRepos((old) => [...old, ...r.items]);
+                              setRepoNext(r.nextPage);
+                            })
+                          }
+                        >
+                          More repositories
+                        </button>
+                      )}
+                      <label>
+                        Branch
+                        <select
+                          value={branch}
+                          onChange={(e) => {
+                            setBranch(e.target.value);
+                            setPath("");
+                          }}
+                        >
+                          {branches.map((b) => (
+                            <option key={b}>{b}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </>
+                  ) : (
+                    <label className="check-label">
+                      <input
+                        type="checkbox"
+                        checked={shared}
+                        onChange={(e) => {
+                          setShared(e.target.checked);
+                          setParent("root");
+                          setParents([]);
+                          if (mode === "save") setSaveCopy(true);
+                        }}
+                      />
+                      Shared with me
+                    </label>
+                  )}
                   <button
-                    key={"path" in e ? e.path : e.id}
+                    className="icon-button"
                     disabled={busy}
-                    onClick={() => openEntry(e)}
+                    aria-label="Refresh files"
+                    onClick={() => void list()}
                   >
-                    {folder ? <Folder size={17} /> : <FileText size={17} />}
-                    <span>{e.name}</span>
+                    <RefreshCw size={16} />
                   </button>
-                );
-              })}
-              {!entries.length && !busy && (
-                <p className="muted">
-                  {provider === "google"
-                    ? "No available screenplay files. Browse Google Drive to choose a file or folder."
-                    : "No screenplay files in this folder."}
-                </p>
-              )}
-              {next && provider === "google" && (
-                <button disabled={busy} onClick={() => void list(true)}>
-                  Load more files
-                </button>
-              )}
-            </div>
+                </div>
+                <div className="breadcrumb">
+                  <button
+                    disabled={
+                      provider === "github" ? !path : parents.length === 0
+                    }
+                    aria-label="Parent folder"
+                    onClick={() => {
+                      if (provider === "github")
+                        setPath(path.split("/").slice(0, -1).join("/"));
+                      else {
+                        setParent(parents.at(-1)!.id);
+                        setParents(parents.slice(0, -1));
+                        if (mode === "save") setSaveCopy(true);
+                      }
+                    }}
+                  >
+                    <ArrowLeft size={14} />
+                  </button>
+                  <span>
+                    {provider === "github"
+                      ? path || "Repository root"
+                      : parents.length
+                        ? parents.map((p) => p.name).join(" / ")
+                        : shared
+                          ? "Shared with me"
+                          : "Files opened with this app"}
+                  </span>
+                </div>
+                <div className="cloud-files" aria-busy={busy}>
+                  {entries.map((e) => {
+                    const folder =
+                      "type" in e
+                        ? e.type === "dir"
+                        : e.mimeType === "application/vnd.google-apps.folder";
+                    return (
+                      <button
+                        key={"path" in e ? e.path : e.id}
+                        disabled={busy}
+                        onClick={() => openEntry(e)}
+                      >
+                        {folder ? <Folder size={17} /> : <FileText size={17} />}
+                        <span>{e.name}</span>
+                      </button>
+                    );
+                  })}
+                  {!entries.length && !busy && (
+                    <p className="muted">
+                      {provider === "google"
+                        ? "No available screenplay files. Browse Google Drive to choose a file or folder."
+                        : "No screenplay files in this folder."}
+                    </p>
+                  )}
+                  {next && provider === "google" && (
+                    <button disabled={busy} onClick={() => void list(true)}>
+                      Load more files
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
             {mode === "save" && (
               <div className="save-cloud-form">
                 {provider === "google" && (
@@ -572,7 +626,9 @@ export function CloudDialog({
                     <p role="status">
                       {remote?.provider === "google" && !saveCopy
                         ? `Updating ${filename}`
-                        : `Save in: ${parents.length ? parents.map((p) => p.name).join(" / ") : "My Drive"}`}
+                        : !destinationAllowed
+                          ? "Open a writable folder to save here."
+                          : `Save in: ${parents.length ? parents.map((p) => p.name).join(" / ") : "My Drive"}`}
                     </p>
                   </div>
                 )}
@@ -598,6 +654,9 @@ export function CloudDialog({
                   disabled={
                     busy ||
                     !name.trim() ||
+                    (fullDrive &&
+                      !destinationAllowed &&
+                      (saveCopy || remote?.provider !== "google")) ||
                     (provider === "github" &&
                       (!repo || !branch || !commit.trim()))
                   }

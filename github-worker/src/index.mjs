@@ -4,7 +4,7 @@ const SESSION_COOKIE = "fp_github_session";
 const OAUTH_COOKIE = "fp_github_oauth";
 const GOOGLE_SESSION_COOKIE = "fp_google_session";
 const GOOGLE_OAUTH_COOKIE = "fp_google_oauth";
-const GOOGLE_SCOPES = "openid email profile https://www.googleapis.com/auth/drive.file";
+const GOOGLE_SCOPES = "openid email profile https://www.googleapis.com/auth/drive";
 const DAY = 86_400;
 
 function json(data, status = 200, headers = {}) {
@@ -285,6 +285,7 @@ async function googleApiRequest(request, env, url) {
   if (!session) return json({ error: "Not signed in with Google" }, 401);
   if (url.pathname === "/api/google/session") return json({
     connected: true,
+    driveAccess: (session.granted_scopes || "").split(" ").includes("https://www.googleapis.com/auth/drive") ? "full" : "limited",
     account: { id: session.google_sub, email: session.email, name: session.display_name, picture: session.picture_url },
   });
   if (url.pathname === "/api/google/picker/config" && request.method === "GET") return json({
@@ -579,8 +580,8 @@ async function handle(request, env) {
     if (!profileResponse.ok || !profile.sub || !profile.email || profile.email_verified !== true) return popupResponse(env, "google-error", "Google did not return a verified account.");
     const id = randomToken();
     const expiresAt = now + 30 * DAY;
-    await env.DB.prepare("INSERT INTO google_sessions (id,google_sub,email,display_name,picture_url,access_token,refresh_token,access_expires_at,created_at,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-      .bind(id, profile.sub, profile.email, profile.name || null, profile.picture || null, await encryptToken(token.access_token, env), await encryptToken(token.refresh_token, env), now + Number(token.expires_in || 3600), now, expiresAt).run();
+    await env.DB.prepare("INSERT INTO google_sessions (id,google_sub,email,display_name,picture_url,access_token,refresh_token,access_expires_at,created_at,expires_at,granted_scopes) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+      .bind(id, profile.sub, profile.email, profile.name || null, profile.picture || null, await encryptToken(token.access_token, env), await encryptToken(token.refresh_token, env), now + Number(token.expires_in || 3600), now, expiresAt, typeof token.scope === "string" ? token.scope : "").run();
     const response = popupResponse(env, "google-connected");
     response.headers.append("set-cookie", secureCookie(GOOGLE_SESSION_COOKIE, id, 30 * DAY));
     response.headers.append("set-cookie", secureCookie(GOOGLE_OAUTH_COOKIE, "", 0));

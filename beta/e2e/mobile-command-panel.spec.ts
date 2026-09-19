@@ -9,7 +9,7 @@ test("mobile offers every desktop menu action except Zen through one File entry"
     page.getByRole("textbox", { name: "Screenplay editor" }),
   ).toBeVisible();
   const commands: string[] = [];
-  for (const name of ["File", "Edit", "View", "Insert"]) {
+  for (const name of ["File", "Write", "Edit", "View", "Insert"]) {
     await page.getByRole("button", { name, exact: true }).click();
     commands.push(
       ...(await page.locator(".menu-popup button").evaluateAll((buttons) =>
@@ -25,7 +25,9 @@ test("mobile offers every desktop menu action except Zen through one File entry"
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator(".app-header button:visible")).toHaveCount(3); // F logo, title and hamburger.
   const logo = (await page.locator(".app-header > .brand").boundingBox())!;
-  const title = (await page.locator(".app-header > .document-name").boundingBox())!;
+  const title = (await page
+    .locator(".app-header > .document-name")
+    .boundingBox())!;
   const hamburger = (await page.locator(".mobile-file-trigger").boundingBox())!;
   expect(logo.x + logo.width).toBeLessThanOrEqual(title.x);
   expect(title.x + title.width).toBeLessThanOrEqual(hamburger.x);

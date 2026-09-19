@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("right-click annotations glow, edit, delete and clean up with their text", async ({
+test("Write menu annotations glow, edit, delete and clean up with their text", async ({
   page,
 }) => {
   await page.goto("/");
@@ -8,7 +8,22 @@ test("right-click annotations glow, edit, delete and clean up with their text", 
   await editor.click();
   await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.insertText("The door opens.");
-  await editor.locator("p").first().click({ button: "right" });
+  expect(
+    await editor
+      .locator("p")
+      .first()
+      .evaluate((element) => {
+        const event = new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+        });
+        return element.dispatchEvent(event);
+      }),
+  ).toBe(true);
+  await page.getByRole("button", { name: "Write", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Add annotation…", exact: true })
+    .click();
   const dialog = page.getByRole("dialog", { name: "Add Annotation" });
   await dialog
     .getByRole("textbox", { name: "Annotation" })
@@ -28,8 +43,15 @@ test("right-click annotations glow, edit, delete and clean up with their text", 
     editor.getByRole("button", { name: "Edit annotation: Keep it quiet." }),
   ).toBeVisible();
   await editor.locator('p[data-kind="action"]').first().click();
-  await page.keyboard.press("Home");
-  await page.keyboard.press("Shift+End");
+  await editor.locator('p[data-kind="action"]').first().evaluate((paragraph) => {
+    const text = [...paragraph.childNodes].find((node) => node.nodeType === Node.TEXT_NODE)!;
+    const selection = window.getSelection()!;
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("The door opens.");
   await page.keyboard.press("Backspace");
   await expect(editor.locator('[data-kind="note"]')).toHaveCount(0);
   await page.keyboard.press("ControlOrMeta+z");

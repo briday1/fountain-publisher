@@ -2002,3 +2002,86 @@ hr {
     margin-right: 0;
   }
 }
+
+.drive-browser {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 16px;
+  margin: 16px 0;
+}
+.drive-views {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.drive-views button {
+  text-align: left;
+  min-height: 42px;
+}
+.drive-views button[aria-current="page"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.drive-browser-main {
+  min-width: 0;
+}
+.drive-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.drive-search input {
+  min-width: 0;
+  width: 100%;
+}
+.drive-breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 12px 0;
+}
+.drive-breadcrumbs button {
+  min-height: 36px;
+}
+.drive-browser-files {
+  min-height: 240px;
+  max-height: 45dvh;
+}
+.drive-browser-files button {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+.drive-browser-files button span:first-of-type {
+  flex: 1;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.drive-upgrade {
+  border: 1px solid var(--border);
+  padding: 12px;
+  border-radius: 8px;
+  margin: 12px 0;
+}
+@media (max-width: 600px) {
+  .drive-browser {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .drive-views {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .drive-views button {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .drive-search {
+    flex-wrap: wrap;
+  }
+  .drive-search input {
+    flex: 1;
+  }
+}

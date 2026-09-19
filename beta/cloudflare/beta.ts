@@ -1,3 +1,4 @@
+import { driveBrowserQuery, driveBrowserPath } from "../shared/driveBrowser";
 import { z } from "zod";
 export { LiveScreenplayRoom } from "./liveRoom";
 interface Fetcher {
@@ -346,12 +347,16 @@ export function createBetaWorker(network: typeof fetch = fetch) {
             if (response.status === 401)
               return { configured: true, connected: false };
             const data = (await (await checked(response)).json()) as {
+              driveAccess?: "full" | "limited";
               login?: string;
               account?: { name?: string; email?: string };
             };
             return {
               configured: true,
               connected: true,
+              ...(provider === "google"
+                ? { driveAccess: data.driveAccess }
+                : {}),
               account:
                 provider === "github"
                   ? data.login
@@ -550,7 +555,7 @@ export function createBetaWorker(network: typeof fetch = fetch) {
             }),
           );
         }
-        // A per-request token stays inside the Worker and uses the existing account's narrow Drive scope.
+        // A per-request token stays inside the Worker and uses the existing account's granted Drive scopes.
         let tokenPromise: Promise<string> | undefined;
         const drive = async (route: string, init: RequestInit = {}) => {
           const accessToken = await (tokenPromise ??= upstreamJson(
@@ -611,6 +616,20 @@ export function createBetaWorker(network: typeof fetch = fetch) {
             );
           return { ...file, etag: v.etag };
         };
+        if (route === "/google/browser" && request.method === "GET") {
+          const q = driveBrowserQuery.parse(query);
+          const data = (await (await drive(driveBrowserPath(q))).json()) as {
+            files?: unknown[];
+            drives?: unknown[];
+            nextPageToken?: string;
+          };
+          return cors(
+            json({
+              items: data.files ?? data.drives ?? [],
+              nextPageToken: data.nextPageToken,
+            }),
+          );
+        }
         if (route === "/google/files" && request.method === "GET") {
           const q = z
             .object({

@@ -22,6 +22,7 @@ export interface CloudDocument {
   remote: RemoteLocation;
 }
 export interface ProviderStatus {
+  driveAccess?: "full" | "limited";
   configured: boolean;
   connected: boolean;
   account?: string;
@@ -52,7 +53,8 @@ export interface DriveEntry {
   mimeType: string;
   modifiedTime?: string;
   webViewLink?: string;
-  capabilities?: { canEdit?: boolean };
+  driveId?: string;
+  capabilities?: { canEdit?: boolean; canAddChildren?: boolean };
   shared?: boolean;
 }
 export interface DriveRevision {
@@ -177,6 +179,16 @@ export const cloud = {
   driveFiles: (parent = "root", pageToken?: string, shared = false) =>
     request<{ items: DriveEntry[]; nextPageToken?: string }>(
       `/google/files?${query({ parent, pageToken, shared, all: parent === "root" && !shared })}`,
+    ),
+  driveBrowse: (options: {
+    view: string;
+    parent?: string;
+    driveId?: string;
+    search?: string;
+    pageToken?: string;
+  }) =>
+    request<{ items: DriveEntry[]; nextPageToken?: string }>(
+      `/google/browser?${query(options)}`,
     ),
   driveOpen: (id: string) =>
     request<CloudDocument>(`/google/open?${query({ id })}`),

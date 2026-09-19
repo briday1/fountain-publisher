@@ -171,23 +171,21 @@ describe("shared Cloudflare infrastructure boundary", () => {
     async (origin) => {
       const html = `<script>window.opener.postMessage({type:'google-connected'},"${main}")</script>`;
       const f = fixture(
-        vi
-          .fn()
-          .mockImplementation(async (input: Request) =>
-            new URL(input.url).pathname.endsWith("/start")
-              ? new Response(null, {
-                  status: 302,
-                  headers: {
-                    location: "https://accounts.google.com/authorize",
-                  },
-                })
-              : new Response(html, {
-                  headers: {
-                    "content-type": "text/html",
-                    "set-cookie": "fp_google_session=opaque; HttpOnly; Secure",
-                  },
-                }),
-          ),
+        vi.fn().mockImplementation(async (input: Request) =>
+          new URL(input.url).pathname.endsWith("/start")
+            ? new Response(null, {
+                status: 302,
+                headers: {
+                  location: "https://accounts.google.com/authorize",
+                },
+              })
+            : new Response(html, {
+                headers: {
+                  "content-type": "text/html",
+                  "set-cookie": "fp_google_session=opaque; HttpOnly; Secure",
+                },
+              }),
+        ),
       );
       const start = await f.request(
         `/auth/google/start?returnOrigin=${encodeURIComponent(origin)}`,
@@ -453,4 +451,36 @@ describe("native Drive browsing adapter", () => {
     expect(second.searchParams.get("q")).toContain("'folder' in parents");
     expect(second.searchParams.get("pageToken")).toBe("next");
   });
+});
+
+it("browses shared drives through the Worker without leaking its account token", async () => {
+  const f = fixture(
+    vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ accessToken: "private-drive-token" })),
+      ),
+    vi
+      .fn()
+      .mockImplementation(
+        async () =>
+          new Response(
+            JSON.stringify({
+              drives: [{ id: "studio", name: "Studio" }],
+              nextPageToken: "more",
+            }),
+          ),
+      ),
+  );
+  const response = await f.request("/google/browser?view=drives");
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    items: [{ id: "studio", name: "Studio" }],
+    nextPageToken: "more",
+  });
+  const [url, init] = f.network.mock.calls[0];
+  expect(String(url)).toContain("/drive/v3/drives?");
+  expect(new Headers(init?.headers).get("Authorization")).toBe(
+    "Bearer private-drive-token",
+  );
 });

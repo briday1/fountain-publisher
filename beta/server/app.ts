@@ -1,3 +1,4 @@
+import { driveBrowserQuery, driveBrowserPath } from "../shared/driveBrowser";
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
@@ -139,6 +140,15 @@ export async function createApp(
       configured: !!config[provider],
       connected: !!current.credentials[provider],
       account: current.credentials[provider]?.account,
+      ...(provider === "google"
+        ? {
+            driveAccess: current.credentials.google?.scope
+              ?.split(" ")
+              .includes("https://www.googleapis.com/auth/drive")
+              ? "full"
+              : "limited",
+          }
+        : {}),
     });
     res.json({
       csrfToken: current.csrf,
@@ -402,6 +412,20 @@ export async function createApp(
       accessToken: current.credentials.google!.accessToken,
       apiKey: config.google?.apiKey ?? "",
       appId: config.google?.appId ?? "",
+    });
+  });
+  app.get("/api/google/browser", async (req, res) => {
+    const q = driveBrowserQuery.parse(req.query);
+    const data = (await (
+      await providers.request(session(res), "google", driveBrowserPath(q))
+    ).json()) as {
+      files?: unknown[];
+      drives?: unknown[];
+      nextPageToken?: string;
+    };
+    res.json({
+      items: data.files ?? data.drives ?? [],
+      nextPageToken: data.nextPageToken,
     });
   });
   app.get("/api/google/files", async (req, res) => {
