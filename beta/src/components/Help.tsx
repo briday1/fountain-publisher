@@ -57,6 +57,17 @@ export function Help({ onClose }: { onClose: () => void }) {
         active beat guide. Choose Exit Zen or press Escape to bring back your
         tools; your writing stays where you left it.
       </p>
+      <nav className="policy-links" aria-label="About and policies">
+        <a href="/about.html" target="_blank" rel="noopener noreferrer">
+          About Fountain Publisher
+        </a>
+        <a href="/privacy.html" target="_blank" rel="noopener noreferrer">
+          Privacy
+        </a>
+        <a href="/terms.html" target="_blank" rel="noopener noreferrer">
+          Terms
+        </a>
+      </nav>
       <footer className="dialog-actions">
         <button className="primary" onClick={onClose}>
           Back to writing

@@ -393,6 +393,23 @@ export function CloudDialog({
                 ? "Sign in securely to browse and save your screenplays."
                 : `This installation needs ${provider === "github" ? "GitHub" : "Google"} OAuth credentials before it can connect your account. See the integration setup guide included with the project.`}
             </p>
+            {configured && provider === "google" && (
+              <p>
+                Drive access lets you browse your folders and open or save the
+                screenplays you choose. Shared writing syncs through our server.{" "}
+                <a
+                  href="/privacy.html"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Privacy
+                </a>
+                {" · "}
+                <a href="/terms.html" target="_blank" rel="noopener noreferrer">
+                  Terms
+                </a>
+              </p>
+            )}
             {configured && (
               <button
                 className="primary"

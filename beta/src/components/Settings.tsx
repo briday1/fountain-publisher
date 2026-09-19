@@ -8,7 +8,7 @@ export interface Preferences {
   sceneNumbers: "margin" | "inline" | "off";
   sceneNumberFormat: "sequential" | "act";
   pageSize: "letter" | "a4";
-  background: "dots" | "plain" | "grid";
+  background: "dots" | "topographic" | "hyperspace" | "plain";
   typewriter: boolean;
   outline: boolean;
   insights: boolean;
@@ -33,9 +33,17 @@ export const defaults: Preferences = {
 };
 export function readPreferences(): Preferences {
   try {
+    const saved = JSON.parse(localStorage.getItem("fp2.preferences") || "{}");
     return {
       ...defaults,
-      ...JSON.parse(localStorage.getItem("fp2.preferences") || "{}"),
+      ...saved,
+      background: ["dots", "topographic", "hyperspace", "plain"].includes(
+        saved?.background,
+      )
+        ? saved.background
+        : saved?.background === "grid"
+          ? "plain"
+          : defaults.background,
     };
   } catch {
     return defaults;
@@ -124,9 +132,10 @@ export function Settings({
               patch({ background: e.target.value as Preferences["background"] })
             }
           >
-            <option value="dots">Dots</option>
-            <option value="plain">Plain</option>
-            <option value="grid">Grid</option>
+            <option value="dots">Animated dots</option>
+            <option value="topographic">Topographic</option>
+            <option value="hyperspace">Hyperspace</option>
+            <option value="plain">None</option>
           </select>
         </label>
         <label>

@@ -1,0 +1,82 @@
+.workspace-background {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  contain: strict;
+  color: var(--muted);
+}
+
+.workspace-background-dots {
+  position: absolute;
+  inset: -24px;
+  background-image: radial-gradient(currentColor 0.9px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: 0.3;
+  animation: workspace-dots-drift 28s linear infinite;
+}
+
+.workspace-background-contours {
+  position: absolute;
+  top: -12%;
+  left: -12%;
+  width: 124%;
+  height: 124%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  opacity: 0.23;
+  animation: workspace-terrain-drift 48s ease-in-out infinite alternate;
+}
+
+.workspace-background-stars {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: inherit;
+}
+
+.workspace-background-dots,
+.workspace-background-contours {
+  animation-play-state: paused;
+}
+
+.workspace-background[data-running="true"] .workspace-background-dots,
+.workspace-background[data-running="true"] .workspace-background-contours {
+  animation-play-state: running;
+  will-change: transform;
+}
+
+@keyframes workspace-dots-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(24px, 24px, 0);
+  }
+}
+
+@keyframes workspace-terrain-drift {
+  from {
+    transform: translate3d(-2%, -1%, 0) rotate(-2deg);
+  }
+  to {
+    transform: translate3d(2%, 1%, 0) rotate(2deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-background-dots,
+  .workspace-background-contours {
+    animation: none;
+    will-change: auto;
+  }
+}
+
+@media print {
+  .workspace-background {
+    display: none;
+  }
+}

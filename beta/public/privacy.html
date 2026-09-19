@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy Policy — Fountain Publisher</title>
+    <link rel="icon" href="/favicon.svg" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f0f0ef;
+        --paper: #fafaf9;
+        --ink: #24272a;
+        --muted: #656a70;
+        --border: #ced1d3;
+        --link: #245a9d;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 32px 20px;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          16px/1.65 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 760px;
+        margin: auto;
+        padding: clamp(24px, 5vw, 48px);
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+      }
+      h1,
+      h2 {
+        line-height: 1.2;
+      }
+      h1 {
+        font-size: clamp(30px, 6vw, 42px);
+        margin: 16px 0 24px;
+      }
+      h2 {
+        font-size: 21px;
+        margin-top: 32px;
+      }
+      small {
+        color: var(--muted);
+        letter-spacing: 0.08em;
+      }
+      a {
+        color: var(--link);
+        text-underline-offset: 3px;
+      }
+      a:focus-visible {
+        outline: 2px solid currentColor;
+        outline-offset: 4px;
+      }
+      nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 24px;
+        margin-top: 32px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #17191b;
+          --paper: #202326;
+          --ink: #e5e8eb;
+          --muted: #a0a6ac;
+          --border: #373c41;
+          --link: #83afe8;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <small>FOUNTAIN PUBLISHER</small>
+      <h1>Privacy Policy</h1>
+      <p><strong>Effective September 19, 2026</strong></p>
+      <p>
+        Fountain Publisher is a screenplay editor that can connect to Google
+        Drive and GitHub and provide live collaboration through Cloudflare. This
+        policy explains what information the application handles and why.
+      </p>
+      <h2>Information we process</h2>
+      <p>
+        When you sign in with Google, we receive your Google account identifier,
+        name, email address, profile image, OAuth access token, and, when Google
+        provides one, a refresh token. When you connect GitHub, we receive the
+        authorization tokens needed to perform the repository actions you
+        request.
+      </p>
+      <p>
+        The Google Drive connection requests permission to view and manage Drive
+        files. When you browse or search Drive, the application processes your
+        search query and file, folder, and shared-drive metadata, such as names,
+        identifiers, file types, modification times, and access capabilities.
+        This lets you navigate existing folders and find screenplays, including
+        files that were not created with Fountain Publisher. When you choose a
+        screenplay to open, save, share, or view its history, the application
+        processes the file content, revisions, or permissions needed for that
+        action.
+      </p>
+      <p>
+        Local writing and recovery copies are stored in your browser. When you
+        use Google Drive, files are saved in Drive and remain subject to Drive
+        permissions. Live collaboration also stores screenplay synchronization
+        data in Cloudflare Durable Objects and an account-specific cache on your
+        device so collaborators can reconnect. Active rooms process document
+        changes, cursor positions, selections, display names, email addresses,
+        access roles, and presence state. If you use GitHub features, the
+        application processes the repositories, branches, paths, and file
+        content needed for the action you select.
+      </p>
+      <h2>How information is used</h2>
+      <p>
+        Google user data is used only to sign you in, browse and search Drive
+        for screenplays and folders, open the files you choose, save your
+        changes, manage sharing at your direction, verify access to
+        collaboration rooms, and display collaborator identity and presence.
+        GitHub data is used only for repository browsing and file operations you
+        request. We do not sell personal information, use document content for
+        advertising, or train machine-learning models on it.
+      </p>
+      <h2>Storage and security</h2>
+      <p>
+        OAuth tokens are stored server-side in Cloudflare D1 and encrypted using
+        AES-GCM. Authentication cookies are Secure and HttpOnly. Cloudflare
+        processes authentication, encrypted credentials, rate limits, Drive file
+        operations, and collaboration data. Live collaboration is not end-to-end
+        encrypted: the service processes screenplay contents to synchronize and
+        save changes. Google and GitHub process information under their own
+        policies.
+      </p>
+      <h2>Sharing</h2>
+      <p>
+        Drive sharing is controlled by Google Drive permissions. People you
+        invite can access the file according to the role you choose. During a
+        live session, authorized collaborators receive document updates and the
+        identity and cursor presence of other participants.
+      </p>
+      <h2>Retention and control</h2>
+      <p>
+        Application sessions expire after 30 days unless renewed. Signing out
+        removes the corresponding server session; it does not erase your local
+        drafts, files in Drive or GitHub, or collaboration data. You can revoke
+        Fountain Publisher from your Google or GitHub account settings and
+        manage or delete screenplay files and sharing permissions in those
+        services. Local workspace and recovery data remain on your device until
+        you remove them or clear the site's browser storage. Collaboration data
+        may remain on Cloudflare for continuity; to request deletion of
+        application-held account or collaboration data, contact us with the
+        relevant account and file details.
+      </p>
+      <h2>Google API Services User Data Policy</h2>
+      <p>
+        Fountain Publisher’s use and transfer of information received from
+        Google APIs adheres to the
+        <a
+          href="https://developers.google.com/terms/api-services-user-data-policy"
+          rel="external"
+          >Google API Services User Data Policy</a
+        >, including its Limited Use requirements.
+      </p>
+      <h2>Changes and contact</h2>
+      <p>
+        We may update this policy as the application changes. Material revisions
+        will be reflected by the effective date above. Questions or deletion
+        requests can be sent to
+        <a href="mailto:brian.day1@gmail.com">brian.day1@gmail.com</a>.
+      </p>
+      <nav aria-label="About and policies">
+        <a href="/">Open the editor</a>
+        <a href="/about.html">About Fountain Publisher</a>
+        <a href="/terms.html">Terms of Service</a>
+      </nav>
+    </main>
+  </body>
+</html>

@@ -65,6 +65,7 @@ import { formatPageCount } from "./core/pageCount";
 import { BeatGuide } from "./components/BeatGuide";
 import { ZenExitButton } from "./components/ZenExitButton";
 import { Settings, readPreferences } from "./components/Settings";
+import { WorkspaceBackground } from "./components/WorkspaceBackground";
 import { TitleDialog } from "./components/TitleDialog";
 import { TitlePreview } from "./components/TitlePreview";
 import { Modal } from "./components/Modal";
@@ -1221,7 +1222,9 @@ export default function App() {
               {preferences.insights ? "Hide" : "Show"} insights
             </MenuItem>
             <hr />
-            <MenuItem onClick={() => setDialog("annotations")}>Annotations…</MenuItem>
+            <MenuItem onClick={() => setDialog("annotations")}>
+              Annotations…
+            </MenuItem>
             <MenuItem onClick={() => openView("beats")}>Beat sheet</MenuItem>
             <MenuItem onClick={() => openView("pdf")}>PDF pages</MenuItem>
             <hr />
@@ -1528,30 +1531,38 @@ export default function App() {
               onExitZen={zen ? toggleZen : undefined}
             />
           )}
-          <div
-            className={`writing-scroll background-${preferences.background}`}
-          >
-            <div
-              className="paper-wrap"
-              style={{ zoom: preferences.zoom / 100 }}
-            >
-              <article
-                className={`screenplay-paper ${preferences.colors ? "element-colors" : ""} ${preferences.boldSceneHeadings ? "bold-scenes" : ""} numbers-${preferences.sceneNumbers}`}
-                data-number-format={preferences.sceneNumberFormat}
-                aria-label="Screenplay page"
+          <div className="writing-viewport">
+            {!mobile && (
+              <WorkspaceBackground
+                pattern={preferences.background}
+                paused={Boolean(
+                  (dialog && dialog !== "settings") || cloudDialog || character,
+                )}
+              />
+            )}
+            <div className="writing-scroll">
+              <div
+                className="paper-wrap"
+                style={{ zoom: preferences.zoom / 100 }}
               >
-                <TitlePreview
-                  value={doc.titlePage}
-                  onEdit={() => setDialog("title")}
-                />
-                <EditorSurface
-                  initial={doc}
-                  onReady={onReady}
-                  onChange={onEditorChange}
-                  onSelection={setKind}
-                  onAnnotationState={setAnnotationState}
-                />
-              </article>
+                <article
+                  className={`screenplay-paper ${preferences.colors ? "element-colors" : ""} ${preferences.boldSceneHeadings ? "bold-scenes" : ""} numbers-${preferences.sceneNumbers}`}
+                  data-number-format={preferences.sceneNumberFormat}
+                  aria-label="Screenplay page"
+                >
+                  <TitlePreview
+                    value={doc.titlePage}
+                    onEdit={() => setDialog("title")}
+                  />
+                  <EditorSurface
+                    initial={doc}
+                    onReady={onReady}
+                    onChange={onEditorChange}
+                    onSelection={setKind}
+                    onAnnotationState={setAnnotationState}
+                  />
+                </article>
+              </div>
             </div>
           </div>
         </main>
@@ -1787,7 +1798,11 @@ export default function App() {
         </button>
       )}
       {dialog === "annotations" && (
-        <AnnotationsDialog doc={doc} onJump={showBeatRange} onClose={() => setDialog(null)} />
+        <AnnotationsDialog
+          doc={doc}
+          onJump={showBeatRange}
+          onClose={() => setDialog(null)}
+        />
       )}
       {character && (
         <CharacterDialog

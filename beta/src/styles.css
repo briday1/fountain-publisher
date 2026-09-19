@@ -464,23 +464,25 @@ hr {
   flex-direction: column;
   position: relative;
 }
+.writing-viewport {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
 .writing-scroll {
+  position: relative;
+  z-index: 1;
   flex: 1;
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
 }
 
-.background-dots {
-  background-image: radial-gradient(var(--line) 0.7px, transparent 0.7px);
-  background-size: 14px 14px;
-}
-.background-grid {
-  background-image:
-    linear-gradient(var(--line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--line) 1px, transparent 1px);
-  background-size: 28px 28px;
-}
 .paper-wrap {
   width: 816px;
   max-width: calc(100% - 64px);
@@ -1307,6 +1309,17 @@ hr {
   text-align: center;
   padding: 25px 15px;
 }
+.policy-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 20px 0;
+}
+.policy-links a,
+.connect-state a {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
 .connect-state h3 {
   font-size: 17px;
   font-weight: 500;
@@ -1617,6 +1630,7 @@ hr {
   .app,
   .workspace,
   .main-panel,
+  .writing-viewport,
   .writing-scroll {
     display: block;
     height: auto;
