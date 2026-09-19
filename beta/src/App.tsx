@@ -1159,12 +1159,10 @@ export default function App() {
           </Menu>
           <Menu label="Write">
             <MenuItem
-              disabled={annotationState === "unavailable"}
+              disabled={annotationState !== "add"}
               onClick={() => editor.current?.annotateSelection()}
             >
-              {annotationState === "edit"
-                ? "Edit annotation…"
-                : "Add annotation…"}
+              Add annotation…
             </MenuItem>
           </Menu>
           <Menu label="Edit">
