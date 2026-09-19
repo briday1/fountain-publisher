@@ -1,6 +1,18 @@
 # Google OAuth verification
 
-The current hosted authorization request includes a restricted Drive scope. Google controls the verification warning: a frontend release or changing the app's publishing status does not remove it. This document prepares the existing Cloud project for review; it does not record an approval or a submitted application. [Google's app-state explanation](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview)
+The current hosted authorization request includes a restricted Drive scope. Google controls the verification warning: a frontend release or changing the app's publishing status does not remove it. Branding approval is separate from approval of Drive data access. [Google's app-state explanation](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview)
+
+## Review record — September 19, 2026
+
+- Project: `fountain-publisher` (`607072153436`).
+- Hosted OAuth client: `607072153436-k2oagn1fqr82hqsp2td17r328gscrf17.apps.googleusercontent.com`.
+- Domain ownership: verified in Search Console. Keep `public/google6769a51ed7d075c9.html` deployed to retain ownership verification.
+- Branding: verified and published. Google confirms it is being shown to users.
+- Data access: submitted September 19, 2026 with identity scopes and the Drive productivity justification. Google's Verification Center confirms: **“Your app's data access is under review.”** This is not approval; the unverified-app warning can remain while review and the required assessment are outstanding.
+- Evidence: [unlisted OAuth/Drive demonstration](https://youtu.be/9NO3a9yzfDQ), uploaded and attached to the review form. It uses real browser captures and fictional screenplays. The collaboration portion uses two sessions of the same developer account; it does not claim a second person or invitation was tested.
+- Google requires acknowledgment of an annual Cloud App Security Assessment before restricted Drive access can be approved. No completed assessment, exemption, or approval date is claimed.
+
+During the real-account demonstration, an outdated adapter was deployed and a valid Yjs cursor format was fixed. Production adapter version `655b37de-6df0-46ec-b86c-1f84ee7a03a1` passed real folder browsing, opening an externally uploaded screenplay, editing/saving, revision retrieval, and synchronization between two authorized browser sessions. See [deployment instructions](docs/beta-deployment.md) for the separate Worker release step.
 
 ## Current implementation
 
