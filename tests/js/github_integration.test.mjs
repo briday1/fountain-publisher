@@ -98,7 +98,7 @@ test("Worker encrypts and isolates GitHub sessions with lifecycle controls", asy
   assert.doesNotMatch(worker, /access_token[^\n]+localStorage/);
 });
 
-test("Worker establishes hardened Google sessions and limits Drive access", async () => {
+test("Worker establishes hardened Google sessions and tracks granted Drive access", async () => {
   const [worker, config, migration] = await Promise.all([
     readFile(workerPath, "utf8"),
     readFile(workerConfigPath, "utf8"),
@@ -108,7 +108,9 @@ test("Worker establishes hardened Google sessions and limits Drive access", asyn
   assert.match(config, /GOOGLE_CLIENT_SECRET/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS google_oauth_states/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS google_sessions/);
-  assert.match(worker, /GOOGLE_SCOPES = "openid email profile https:\/\/www\.googleapis\.com\/auth\/drive\.file"/);
+  assert.match(worker, /GOOGLE_SCOPES = "openid email profile https:\/\/www\.googleapis\.com\/auth\/drive"/);
+  assert.match(worker, /session\.granted_scopes/);
+  assert.match(worker, /typeof token\.scope === "string"/);
   assert.match(worker, /code_challenge_method: "S256"/);
   assert.match(worker, /DELETE FROM google_oauth_states[\s\S]*RETURNING pkce_verifier/);
   assert.match(worker, /profile\.email_verified !== true/);
