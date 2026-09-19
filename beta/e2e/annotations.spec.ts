@@ -43,8 +43,15 @@ test("Write menu annotations glow, edit, delete and clean up with their text", a
     editor.getByRole("button", { name: "Edit annotation: Keep it quiet." }),
   ).toBeVisible();
   await editor.locator('p[data-kind="action"]').first().click();
-  await page.keyboard.press("Home");
-  await page.keyboard.press("Shift+End");
+  await editor.locator('p[data-kind="action"]').first().evaluate((paragraph) => {
+    const text = [...paragraph.childNodes].find((node) => node.nodeType === Node.TEXT_NODE)!;
+    const selection = window.getSelection()!;
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("The door opens.");
   await page.keyboard.press("Backspace");
   await expect(editor.locator('[data-kind="note"]')).toHaveCount(0);
   await page.keyboard.press("ControlOrMeta+z");
