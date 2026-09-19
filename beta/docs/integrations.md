@@ -4,7 +4,18 @@ The production app and beta preview reuse the existing `fountain-publisher` Clou
 
 The `fountain-publisher-beta` Worker adapts repository, branch, content, folder, sharing and version APIs. Google access tokens used for file operations stay inside this Worker. The native Google Picker receives the short-lived scoped access token through an origin-checked, uncached endpoint; the browser keeps it only in memory and does not log it. GitHub writes use the opened content SHA. Drive reads verify the version both before and after downloading; writes use Drive v2 ETags and conditional media uploads. A missing version or concurrent update stops the write, preserving the local draft.
 
-Google authorization retains the existing `drive.file` scope. The quick list contains files and folders already authorized for this app. Browse Google Drive opens Google's native picker for folder navigation, search, shared drives, and choosing files to authorize. Choose destination folder uses the same picker to authorize a new destination. In the app-owned list, one click or tap enters a folder; Save here writes into that open folder, even when the current screenplay was opened from another Drive file. Save a new copy also enables saving to My Drive without choosing another folder. The Google-owned authorization picker retains its own folder-selection gestures; the app cannot override events inside its cross-origin frame. Files selected previously through the original app's Google picker remain accessible. Shared files are subject to the same provider permissions. Sharing grants access without sending a notification email.
+Google authorization now requests `https://www.googleapis.com/auth/drive` so the app-owned browser can list, open, and save existing screenplays without Google's picker. Both OAuth implementations persist the scopes actually granted. Existing hosted sessions remain limited until the user chooses **Enable full Drive browsing** and approves the new permission; a partial grant does not enable the full browser. Limited/older installations retain the authorized-file list and Google Picker fallback. No token is exposed in the new browser endpoints.
+
+Full access enables My Drive, All files, Shared with me, Shared drives, Recent, Starred, search, folder breadcrumbs, pagination, single-click/tap navigation, and Save here. Search is scoped to the current view or folder. Virtual views and search results are not save destinations: enter a writable folder first. Existing files can still be updated with Save current Drive file. On mobile, Save to Google Drive remains under Share.
+
+Before enabling this in production:
+
+1. Declare the full Drive scope in the existing Google OAuth consent configuration and complete the applicable Google restricted-scope verification requirements. See [Google's scope guidance](https://developers.google.com/workspace/drive/api/guides/api-specific-auth).
+2. Apply `github-worker/migrations/0004_google_scopes.sql` with `wrangler d1 migrations apply fountain-publisher-github --remote` from `github-worker`.
+3. Deploy the shared `fountain-publisher` Worker from `github-worker`, then build/deploy `fountain-publisher-beta` from `beta`. The adapter implements `/google/browser` and forwards the granted-access flag.
+4. Deploy the frontend through the normal main/Pages workflow. Existing users can then reconnect. A frontend-only deployment keeps the old browsing flow until the Workers are updated.
+
+Apply the database migration before deploying the shared Worker. Its default is an empty scope list, so existing sessions do not acquire permissions automatically. Verify with an old session, a full grant, and a declined/partial grant, plus a writable and a read-only shared-drive folder.
 
 Both app origins use the registered OAuth callback URLs. The adapter records the exact trusted origin that started the login and returns the popup message to that origin. Legacy callbacks without a return marker still pass through. Session cookies and OAuth state remain owned by the original account service.
 
@@ -19,7 +30,7 @@ Copy `.env.example` to `.env` and configure your own development OAuth applicati
 
 The Express server listens at port 5174 behind Vite's `/api` proxy. It persists opaque sessions and encrypted credentials under `.data/`, which is ignored by Git. `APP_ORIGIN` must match the web origin; production origins require HTTPS. A generated encryption key is private to this local installation. For a managed standalone deployment, supply `DATA_ENCRYPTION_KEY` and a persistent data directory.
 
-The independent local Google OAuth flow uses broader Drive scope for browsing; the hosted app uses the existing narrow scope. Do not confuse a local test account with the production shared account service.
+Both the independent local OAuth flow and the hosted flow request full Drive scope. Local and hosted credentials remain separate.
 
 ## Live collaboration
 

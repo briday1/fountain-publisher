@@ -99,6 +99,9 @@ export default function App() {
     undefined,
   );
   const [preferences, setPreferences] = useState(readPreferences);
+  const [annotationState, setAnnotationState] = useState<
+    "add" | "edit" | "unavailable"
+  >("unavailable");
   const [kind, setKind] = useState<BlockKind>("action");
   const [guideTarget, setGuideTarget] = useState<string>();
   const [beatGuide, setBeatGuide] = useState(() => {
@@ -1154,6 +1157,16 @@ export default function App() {
               Export Final Draft…
             </MenuItem>
           </Menu>
+          <Menu label="Write">
+            <MenuItem
+              disabled={annotationState === "unavailable"}
+              onClick={() => editor.current?.annotateSelection()}
+            >
+              {annotationState === "edit"
+                ? "Edit annotation…"
+                : "Add annotation…"}
+            </MenuItem>
+          </Menu>
           <Menu label="Edit">
             <MenuItem
               onClick={() => editor.current?.undo()}
@@ -1537,6 +1550,7 @@ export default function App() {
                   onReady={onReady}
                   onChange={onEditorChange}
                   onSelection={setKind}
+                  onAnnotationState={setAnnotationState}
                 />
               </article>
             </div>

@@ -4,6 +4,7 @@ import { join } from "node:path";
 export type Provider = "github" | "google";
 export interface Credential {
   accessToken: string;
+  scope?: string;
   refreshToken?: string;
   expiresAt?: number;
   account?: string;

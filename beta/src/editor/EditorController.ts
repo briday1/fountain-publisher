@@ -79,6 +79,7 @@ import type { AnnotationTarget } from "./annotations";
 import "./editor.css";
 
 export interface EditorCallbacks {
+  onAnnotationState?: (state: "add" | "edit" | "unavailable") => void;
   onAnnotation?: (target: AnnotationTarget) => void;
   /** A dirty signal, never a whole-document snapshot. Use getBlocks on idle/save. */
   onChange?: (remote?: boolean) => void;
@@ -214,16 +215,6 @@ export class EditorController {
       },
       dispatchTransaction: (transaction) => this.dispatch(transaction),
       handleDOMEvents: {
-        contextmenu: (_view, event) => {
-          const block =
-            event.target instanceof Element
-              ? event.target.closest("p[data-id]")
-              : null;
-          if (!block || !this.callbacks.onAnnotation) return false;
-          event.preventDefault();
-          this.openAnnotation(block.getAttribute("data-id")!);
-          return true;
-        },
         keydown: (view, event) => {
           const key = event as KeyboardEvent;
           if (key.isComposing || view.composing) return true;
@@ -660,7 +651,19 @@ export class EditorController {
     this.notifySelection();
   }
 
+  private annotationState?: string;
   private notifySelection(): void {
+    const target = this.annotationAtSelection();
+    const annotationState =
+      !target || !this.writable
+        ? "unavailable"
+        : target.noteId
+          ? "edit"
+          : "add";
+    if (annotationState !== this.annotationState) {
+      this.annotationState = annotationState;
+      this.callbacks.onAnnotationState?.(annotationState);
+    }
     const kind = (this.view.state.selection.$from.parent.attrs.kind ||
       "action") as BlockKind;
     if (kind !== this.selectedKind) {
@@ -812,6 +815,31 @@ export class EditorController {
       ),
     );
     return true;
+  }
+
+  annotationAtSelection(): AnnotationTarget | undefined {
+    const { $from } = this.view.state.selection;
+    if (!$from.depth) return;
+    const node = $from.parent;
+    if (!node.textContent.trim()) return;
+    const next = this.view.state.doc.nodeAt($from.after());
+    const note =
+      node.attrs.kind === "note"
+        ? node
+        : next?.attrs.kind === "note"
+          ? next
+          : undefined;
+    return {
+      blockId: node.attrs.id,
+      noteId: note?.attrs.id,
+      text: note?.textContent ?? "",
+      canEdit: this.writable,
+    };
+  }
+
+  annotateSelection(): void {
+    const target = this.annotationAtSelection();
+    if (target) this.callbacks.onAnnotation?.(target);
   }
 
   openAnnotation(blockId: string): void {

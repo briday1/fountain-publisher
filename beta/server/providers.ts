@@ -105,6 +105,7 @@ export class Providers {
       },
     );
     const token = (await response.json()) as {
+      scope?: string;
       access_token?: string;
       refresh_token?: string;
       expires_in?: number;
@@ -117,6 +118,7 @@ export class Providers {
       );
     return {
       accessToken: token.access_token,
+      ...(token.scope ? { scope: token.scope } : {}),
       refreshToken: token.refresh_token,
       expiresAt: token.expires_in
         ? Date.now() + token.expires_in * 1000

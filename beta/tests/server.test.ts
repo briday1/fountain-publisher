@@ -168,19 +168,17 @@ describe("conditional provider writes", () => {
     expect(await response.json()).toMatchObject({ code: "CONFLICT" });
   });
   it("refuses a Drive save if the metadata changed before the upload", async () => {
-    const network = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            id: "file",
-            name: "a.fountain",
-            mimeType: "text/plain",
-            version: "2",
-          }),
-          { headers: { etag: '"new"' } },
-        ),
-      );
+    const network = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: "file",
+          name: "a.fountain",
+          mimeType: "text/plain",
+          version: "2",
+        }),
+        { headers: { etag: '"new"' } },
+      ),
+    );
     const f = await fixture(network);
     f.current.credentials.google = { accessToken: "google-token" };
     const response = await fetch(`${f.base}/api/google/save`, {
@@ -266,4 +264,22 @@ describe("conditional provider writes", () => {
     ).toHaveLength(1);
     expect(f.current.credentials.google.accessToken).toBe("new-token");
   });
+});
+
+it("reports full Drive browsing only for a granted full Drive scope", async () => {
+  const f = await fixture();
+  f.current.credentials.google = {
+    accessToken: "private",
+    scope: "https://www.googleapis.com/auth/drive.file",
+  };
+  let result = await (
+    await fetch(`${f.base}/api/status`, { headers: f.headers })
+  ).json();
+  expect(result.google.driveAccess).toBe("limited");
+  f.current.credentials.google.scope = "https://www.googleapis.com/auth/drive";
+  result = await (
+    await fetch(`${f.base}/api/status`, { headers: f.headers })
+  ).json();
+  expect(result.google.driveAccess).toBe("full");
+  expect(JSON.stringify(result)).not.toContain("private");
 });

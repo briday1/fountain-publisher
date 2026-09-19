@@ -8,23 +8,32 @@ export const EditorSurface = memo(function EditorSurface({
   onReady,
   onChange,
   onSelection,
+  onAnnotationState,
 }: {
   initial: Screenplay;
   onReady: (editor: EditorController | null) => void;
   onChange: (remote?: boolean) => void;
   onSelection: (kind: BlockKind) => void;
+  onAnnotationState?: (state: "add" | "edit" | "unavailable") => void;
 }) {
   const controller = useRef<EditorController | null>(null);
   const [annotation, setAnnotation] = useState<AnnotationTarget | null>(null);
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const host = useRef<HTMLDivElement>(null);
-  const props = useRef({ initial, onReady, onChange, onSelection });
+  const props = useRef({
+    initial,
+    onReady,
+    onChange,
+    onSelection,
+    onAnnotationState,
+  });
   useEffect(() => {
     const p = props.current;
     const editor = new EditorController(host.current!, p.initial, {
       onChange: p.onChange,
       onSelection: p.onSelection,
+      onAnnotationState: p.onAnnotationState,
       onAnnotation: (target) => {
         setAnnotation(target);
         setText(target.text);
