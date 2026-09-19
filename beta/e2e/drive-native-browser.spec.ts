@@ -148,9 +148,13 @@ test("mobile Write menu adds annotations without intercepting the native context
   await expect(
     editor.getByRole("button", { name: "Edit annotation: Remember this." }),
   ).toBeVisible();
-  await editor
-    .getByRole("button", { name: "Edit annotation: Remember this." })
-    .click();
+  await mobileSection(page, "View");
+  await page.getByRole("button", { name: "Annotations…", exact: true }).click();
+  const list = page.getByRole("dialog", { name: "Annotations", exact: true });
+  await list.getByRole("button", { name: "Go to annotation: Remember this." }).click();
+  await expect(list).not.toBeVisible();
+  await expect(editor).toBeFocused();
+  await editor.getByRole("button", { name: "Edit annotation: Remember this." }).click();
   await expect(
     page.getByRole("dialog", { name: "Edit Annotation" }),
   ).toBeVisible();

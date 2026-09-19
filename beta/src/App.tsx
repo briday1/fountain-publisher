@@ -56,6 +56,7 @@ import {
 import { EditorSurface } from "./components/EditorSurface";
 import { HighlightPdfDialog } from "./components/HighlightPdfDialog";
 import { highlightedPdfFilename } from "./core/characterHighlights";
+import { AnnotationsDialog } from "./components/AnnotationsDialog";
 import { CharacterDialog } from "./components/CharacterDialog";
 import { CharacterAnalytics } from "./components/CharacterAnalytics";
 import { BeatSheetDialog } from "./components/BeatSheetDialog";
@@ -118,6 +119,7 @@ export default function App() {
     | "library"
     | "history"
     | "rename"
+    | "annotations"
     | "characters"
     | "beats"
     | "pdf"
@@ -1157,15 +1159,13 @@ export default function App() {
               Export Final Draft…
             </MenuItem>
           </Menu>
-          <Menu label="Write">
+          <Menu label="Edit">
             <MenuItem
               disabled={annotationState !== "add"}
               onClick={() => editor.current?.annotateSelection()}
             >
               Add annotation…
             </MenuItem>
-          </Menu>
-          <Menu label="Edit">
             <MenuItem
               onClick={() => editor.current?.undo()}
               shortcut={`${mod}Z`}
@@ -1221,6 +1221,7 @@ export default function App() {
               {preferences.insights ? "Hide" : "Show"} insights
             </MenuItem>
             <hr />
+            <MenuItem onClick={() => setDialog("annotations")}>Annotations…</MenuItem>
             <MenuItem onClick={() => openView("beats")}>Beat sheet</MenuItem>
             <MenuItem onClick={() => openView("pdf")}>PDF pages</MenuItem>
             <hr />
@@ -1784,6 +1785,9 @@ export default function App() {
         >
           Recovered writing is available · Open workspace
         </button>
+      )}
+      {dialog === "annotations" && (
+        <AnnotationsDialog doc={doc} onJump={showBeatRange} onClose={() => setDialog(null)} />
       )}
       {character && (
         <CharacterDialog

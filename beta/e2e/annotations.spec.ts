@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("Write menu annotations glow, edit, delete and clean up with their text", async ({
+test("Edit menu annotations glow, edit, delete and clean up with their text", async ({
   page,
 }) => {
   await page.goto("/");
@@ -20,7 +20,7 @@ test("Write menu annotations glow, edit, delete and clean up with their text", a
         return element.dispatchEvent(event);
       }),
   ).toBe(true);
-  await page.getByRole("button", { name: "Write", exact: true }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page
     .getByRole("button", { name: "Add annotation…", exact: true })
     .click();
@@ -33,6 +33,13 @@ test("Write menu annotations glow, edit, delete and clean up with their text", a
     name: "Edit annotation: Check the door.",
   });
   await expect(orb).toBeVisible();
+  await page.getByRole("button", { name: "View", exact: true }).click();
+  await page.getByRole("button", { name: "Annotations…", exact: true }).click();
+  const list = page.getByRole("dialog", { name: "Annotations", exact: true });
+  await expect(list).toContainText("The door opens.");
+  await list.getByRole("button", { name: "Go to annotation: Check the door." }).click();
+  await expect(list).not.toBeVisible();
+  await expect(editor).toBeFocused();
   await orb.click();
   const edit = page.getByRole("dialog", { name: "Edit Annotation" });
   await edit
