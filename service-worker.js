@@ -1,6 +1,6 @@
-const CACHE='fp2-shell-6fd6a871bd89ea25';
-const SHELL="/offline-shell-6fd6a871bd89ea25.html";
-const FILES=["/offline-shell-6fd6a871bd89ea25.html","/manifest.webmanifest","/favicon.svg","/assets/courier-prime-latin-ext-400-normal-B-EsvyE4.woff2","/assets/courier-prime-latin-400-normal-BbyBr73r.woff2","/assets/courier-prime-latin-ext-400-italic-BTeyNO-8.woff2","/assets/courier-prime-latin-ext-700-normal-ByMJlNdM.woff2","/assets/courier-prime-latin-700-normal-D1YCjmaD.woff2","/assets/courier-prime-latin-400-italic-CaR7PCvg.woff2","/assets/courier-prime-latin-ext-700-italic-BzK4HIs4.woff2","/assets/courier-prime-latin-700-italic-CZikIXQl.woff2","/assets/courier-prime-latin-ext-400-normal-CKOCNFvK.woff","/assets/courier-prime-latin-400-normal-BAlbUm6l.woff","/assets/courier-prime-latin-ext-400-italic-DU0XzPqs.woff","/assets/courier-prime-latin-ext-700-normal-BIFoAzHx.woff","/assets/courier-prime-latin-700-normal-CVvp4Sof.woff","/assets/courier-prime-latin-400-italic-GR5bBv_9.woff","/assets/courier-prime-latin-ext-700-italic-DHJjmZA7.woff","/assets/courier-prime-latin-700-italic-Cxv_jV69.woff","/assets/index-BztJzGjn.css","/assets/index-C6iancOD.js","/assets/export-CH6iEthp.js","/assets/index-DgaGEApI.js","/assets/fontkit.es-D-bmFk5i.js","/assets/index-BbDbBOC5.js","/assets/index-DxEa_kac.js","/assets/fontkit.es-DnSO1DdL.js","/assets/index-Dc7YlXRz.js","/assets/publish.worker-CSvO8vvt.js","/THIRD_PARTY_NOTICES.txt"];
+const CACHE='fp2-shell-be7a0aa6b8289060';
+const SHELL="/offline-shell-be7a0aa6b8289060.html";
+const FILES=["/offline-shell-be7a0aa6b8289060.html","/manifest.webmanifest","/favicon.svg","/assets/courier-prime-latin-ext-400-normal-B-EsvyE4.woff2","/assets/courier-prime-latin-400-normal-BbyBr73r.woff2","/assets/courier-prime-latin-400-italic-CaR7PCvg.woff2","/assets/courier-prime-latin-ext-400-italic-BTeyNO-8.woff2","/assets/courier-prime-latin-ext-700-normal-ByMJlNdM.woff2","/assets/courier-prime-latin-700-normal-D1YCjmaD.woff2","/assets/courier-prime-latin-ext-700-italic-BzK4HIs4.woff2","/assets/courier-prime-latin-700-italic-CZikIXQl.woff2","/assets/courier-prime-latin-ext-400-normal-CKOCNFvK.woff","/assets/courier-prime-latin-400-normal-BAlbUm6l.woff","/assets/courier-prime-latin-400-italic-GR5bBv_9.woff","/assets/courier-prime-latin-ext-400-italic-DU0XzPqs.woff","/assets/courier-prime-latin-ext-700-normal-BIFoAzHx.woff","/assets/courier-prime-latin-700-normal-CVvp4Sof.woff","/assets/courier-prime-latin-ext-700-italic-DHJjmZA7.woff","/assets/courier-prime-latin-700-italic-Cxv_jV69.woff","/assets/index-BztJzGjn.css","/assets/index-yurk6OXV.js","/assets/export-GTfsnwnB.js","/assets/index-CkrvJnp4.js","/assets/fontkit.es-Cjgy9vB7.js","/assets/index-DEfvre-c.js","/assets/index-fDdggEIY.js","/assets/fontkit.es-NacMhbjk.js","/assets/index-B0LVhTEE.js","/assets/publish.worker-4k9dBL7K.js","/THIRD_PARTY_NOTICES.txt","/licenses.html","/licenses/Adobe-AFM-MustRead.html"];
 self.addEventListener('install',event=>event.waitUntil((async()=>{
   const alreadyInstalled=await caches.has(CACHE);
   const cache=await caches.open(CACHE);
@@ -19,7 +19,9 @@ self.addEventListener('fetch',event=>{
   if(request.mode==='navigate'){
     event.respondWith((async()=>{
       try{const response=await fetch(request);if(response.ok)return response;}catch{}
-      return (await (await caches.open(CACHE)).match(SHELL,{ignoreVary:true}))||Response.error();
+      const cache=await caches.open(CACHE);
+      if(FILES.includes(url.pathname))return (await cache.match(url.pathname,{ignoreVary:true}))||Response.error();
+      return (await cache.match(SHELL,{ignoreVary:true}))||Response.error();
     })());
     return;
   }
