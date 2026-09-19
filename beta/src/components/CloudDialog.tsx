@@ -54,6 +54,8 @@ export function CloudDialog({
   const [status, setStatus] = useState<CloudStatus>();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [repos, setRepos] = useState<GitHubRepository[]>([]);
   const [repo, setRepo] = useState(
     remote?.provider === "github" ? `${remote.owner}/${remote.repo}` : "",
@@ -78,14 +80,14 @@ export function CloudDialog({
   const pending = useRef(0);
   const alive = useRef(true);
   const request = useRef(0);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    alive.current = true;
+    return () => {
       alive.current = false;
       pickerAbort.current?.abort();
       request.current++;
-    },
-    [],
-  );
+    };
+  }, []);
   async function run(fn: () => Promise<void>) {
     setError("");
     pending.current++;
@@ -195,6 +197,7 @@ export function CloudDialog({
       else {
         setParents((p) => [...p, { id: parent, name: entry.name }]);
         setParent(entry.id);
+        if (mode === "save") setSaveCopy(true);
       }
       return;
     }
@@ -246,8 +249,24 @@ export function CloudDialog({
       }
     });
   const save = () => {
-    const content = getContent();
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
     void run(async () => {
+      const content = getContent();
+      const trimmedName = name.trim();
+      const driveName = /\.(fountain|txt)$/i.test(trimmedName)
+        ? trimmedName
+        : `${trimmedName.replace(/\.fdx$/i, "")}.fountain`;
+      if (
+        provider === "google" &&
+        (!trimmedName ||
+          /[/\\\x00-\x1f]/.test(driveName) ||
+          driveName.length > 200)
+      )
+        throw new Error(
+          "Enter a filename under 200 characters without slashes.",
+        );
       if (
         provider === "google" &&
         remote?.provider === "google" &&
@@ -288,12 +307,15 @@ export function CloudDialog({
                 etag: remote.etag,
                 content,
               })
-            : await cloud.driveCreate({ name, content, parent });
+            : await cloud.driveCreate({ name: driveName, content, parent });
       }
       if (alive.current) {
         await onSaved(result);
         onClose();
       }
+    }).finally(() => {
+      savingRef.current = false;
+      if (alive.current) setSaving(false);
     });
   };
   const connected = status?.[provider].connected;
@@ -395,7 +417,10 @@ export function CloudDialog({
                     ? "Choose destination folder…"
                     : "Browse Google Drive…"}
                 </button>
-                <span>Folders, search, and shared drives</span>
+                <span>
+                  Use Google to grant access to another file or folder. Browse
+                  available folders below with one tap.
+                </span>
               </div>
             )}
             <div className="cloud-controls">
@@ -458,6 +483,7 @@ export function CloudDialog({
                       setShared(e.target.checked);
                       setParent("root");
                       setParents([]);
+                      if (mode === "save") setSaveCopy(true);
                     }}
                   />
                   Shared with me
@@ -482,6 +508,7 @@ export function CloudDialog({
                   else {
                     setParent(parents.at(-1)!.id);
                     setParents(parents.slice(0, -1));
+                    if (mode === "save") setSaveCopy(true);
                   }
                 }}
               >
@@ -529,6 +556,26 @@ export function CloudDialog({
             </div>
             {mode === "save" && (
               <div className="save-cloud-form">
+                {provider === "google" && (
+                  <div className="drive-save-destination">
+                    {remote?.provider === "google" && (
+                      <label className="check-label">
+                        <input
+                          type="checkbox"
+                          checked={saveCopy}
+                          disabled={busy}
+                          onChange={(e) => setSaveCopy(e.target.checked)}
+                        />
+                        Save a new copy
+                      </label>
+                    )}
+                    <p role="status">
+                      {remote?.provider === "google" && !saveCopy
+                        ? `Updating ${filename}`
+                        : `Save in: ${parents.length ? parents.map((p) => p.name).join(" / ") : "My Drive"}`}
+                    </p>
+                  </div>
+                )}
                 <label>
                   Filename
                   <input
@@ -556,7 +603,7 @@ export function CloudDialog({
                   }
                   onClick={save}
                 >
-                  {busy
+                  {saving
                     ? "Saving…"
                     : remote?.provider === "google" && !saveCopy
                       ? "Save current Drive file"

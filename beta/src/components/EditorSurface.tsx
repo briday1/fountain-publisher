@@ -1,5 +1,7 @@
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { EditorController } from "../editor/EditorController";
+import { Modal } from "./Modal";
+import type { AnnotationTarget } from "../editor/annotations";
 import type { Screenplay, BlockKind } from "../core/model";
 export const EditorSurface = memo(function EditorSurface({
   initial,
@@ -12,6 +14,10 @@ export const EditorSurface = memo(function EditorSurface({
   onChange: (remote?: boolean) => void;
   onSelection: (kind: BlockKind) => void;
 }) {
+  const controller = useRef<EditorController | null>(null);
+  const [annotation, setAnnotation] = useState<AnnotationTarget | null>(null);
+  const [text, setText] = useState("");
+  const [error, setError] = useState("");
   const host = useRef<HTMLDivElement>(null);
   const props = useRef({ initial, onReady, onChange, onSelection });
   useEffect(() => {
@@ -19,12 +25,78 @@ export const EditorSurface = memo(function EditorSurface({
     const editor = new EditorController(host.current!, p.initial, {
       onChange: p.onChange,
       onSelection: p.onSelection,
+      onAnnotation: (target) => {
+        setAnnotation(target);
+        setText(target.text);
+        setError("");
+      },
     });
+    controller.current = editor;
     p.onReady(editor);
     return () => {
       p.onReady(null);
+      controller.current = null;
       editor.destroy();
     };
   }, []);
-  return <div ref={host} className="editor-host" />;
+  const close = () => {
+    setAnnotation(null);
+    controller.current?.focus();
+  };
+  const save = (value: string | null) => {
+    try {
+      if (!annotation || !controller.current) return;
+      controller.current.saveAnnotation(annotation, value);
+      close();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save annotation.");
+    }
+  };
+  return (
+    <>
+      <div ref={host} className="editor-host" />
+      {annotation && (
+        <Modal
+          title={annotation.noteId ? "Edit Annotation" : "Add Annotation"}
+          onClose={close}
+        >
+          <form
+            className="form-grid"
+            onSubmit={(event) => {
+              event.preventDefault();
+              save(text);
+            }}
+          >
+            <label>
+              Annotation
+              <textarea
+                autoFocus
+                rows={5}
+                value={text}
+                readOnly={!annotation.canEdit}
+                onChange={(event) => setText(event.target.value)}
+              />
+            </label>
+            {error && <p role="alert">{error}</p>}
+            {annotation.canEdit && (
+              <div className="annotation-actions">
+                {annotation.noteId && (
+                  <button type="button" onClick={() => save(null)}>
+                    Delete annotation
+                  </button>
+                )}
+                <button
+                  className="primary"
+                  type="submit"
+                  disabled={!text.trim()}
+                >
+                  Save annotation
+                </button>
+              </div>
+            )}
+          </form>
+        </Modal>
+      )}
+    </>
+  );
 });

@@ -5,6 +5,7 @@ test("Drive picker opens files and destination folders, restores its dialog on c
   const requests: string[] = [];
   let pickerApiKey = "test-only-key";
   let saved: Record<string, unknown> | undefined;
+  let failSave = true;
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -47,6 +48,16 @@ test("Drive picker opens files and destination folders, restores its dialog on c
       };
     else if (path === "/google/create") {
       saved = request.postDataJSON();
+      if (failSave) {
+        failSave = false;
+        await route.fulfill({
+          status: 403,
+          json: {
+            error: { message: "You cannot add files to this Drive folder." },
+          },
+        });
+        return;
+      }
       body = {
         name: saved!.name,
         content: saved!.content,
@@ -177,7 +188,7 @@ test("Drive picker opens files and destination folders, restores its dialog on c
         overlay.setAttribute("aria-label", "Google Picker test UI");
         Object.assign(overlay.style, {
           position: "fixed",
-          width: `${this.width}px`,
+          width: "600px", // Simulate the SDK ignoring the requested initial dimensions.
           height: `${this.height}px`,
           zIndex: "9999",
           background: "white",
@@ -303,6 +314,22 @@ test("Drive picker opens files and destination folders, restores its dialog on c
         );
       })
       .toBe(true);
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const bar = document
+            .querySelector(".drive-picker-controls")!
+            .getBoundingClientRect();
+          const picker = document
+            .querySelector(".picker-dialog")!
+            .getBoundingClientRect();
+          return Math.max(
+            Math.abs(bar.width - picker.width),
+            Math.abs(bar.x - picker.x),
+          );
+        }),
+      )
+      .toBeLessThan(2);
     await expect(
       page.getByRole("button", { name: "Close Drive browser" }),
     ).toBeVisible();
@@ -364,13 +391,22 @@ test("Drive picker opens files and destination folders, restores its dialog on c
       mime: "application/vnd.google-apps.folder",
     })),
   });
+  await dialog.getByRole("button", { name: "Drafts", exact: true }).click();
+  await expect(
+    dialog.getByText("Save in: Scripts / Drafts", { exact: true }),
+  ).toBeVisible();
   await dialog
     .getByRole("textbox", { name: "Filename", exact: true })
-    .fill("Another draft.fountain");
+    .fill("Another draft");
+  await dialog.getByRole("button", { name: "Save here", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: "Save here", exact: true }),
+  ).toBeEnabled();
   await dialog.getByRole("button", { name: "Save here", exact: true }).click();
   await expect(dialog).not.toBeVisible();
   expect(saved).toMatchObject({
-    parent: "folder-123",
+    parent: "child-folder",
     name: "Another draft.fountain",
   });
   expect(await page.locator("#root").evaluate((el) => el.inert)).toBe(false);
@@ -387,4 +423,90 @@ test("Drive picker opens files and destination folders, restores its dialog on c
     page.locator(".drive-picker-controls, .picker-dialog, .picker-dialog-bg"),
   ).toHaveCount(0);
   expect(await page.locator("#root").evaluate((el) => el.inert)).toBe(false);
+});
+
+test("single-tap folder navigation changes an existing file save into Save here", async ({
+  page,
+}) => {
+  let created: Record<string, unknown> | undefined;
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname.split("/api")[1];
+    let body: unknown;
+    if (path === "/status")
+      body = {
+        csrfToken: "test",
+        collaboration: false,
+        google: { configured: true, connected: true, account: "Writer" },
+        github: { configured: false, connected: false },
+      };
+    else if (path === "/google/files")
+      body = {
+        items:
+          url.searchParams.get("parent") === "drafts"
+            ? []
+            : [
+                {
+                  id: "existing",
+                  name: "Existing.fountain",
+                  mimeType: "text/plain",
+                },
+                {
+                  id: "drafts",
+                  name: "Drafts",
+                  mimeType: "application/vnd.google-apps.folder",
+                },
+              ],
+      };
+    else if (path === "/google/open")
+      body = {
+        name: "Existing.fountain",
+        content: "!An existing screenplay.",
+        remote: { provider: "google", id: "existing", etag: "one" },
+      };
+    else if (path === "/google/create") {
+      created = request.postDataJSON();
+      body = {
+        name: created!.name,
+        content: created!.content,
+        remote: { provider: "google", id: "copy", etag: "two" },
+      };
+    } else throw new Error("Unexpected request " + path);
+    await route.fulfill({ json: body });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Open from Google Drive…", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: "Google Drive",
+    exact: true,
+  });
+  await dialog
+    .getByRole("button", { name: "Existing.fountain", exact: true })
+    .click();
+  await expect(dialog).not.toBeVisible();
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Save to Google Drive…", exact: true })
+    .click();
+  await expect(
+    dialog.getByRole("button", {
+      name: "Save current Drive file",
+      exact: true,
+    }),
+  ).toBeEnabled();
+  await dialog.getByRole("button", { name: "Drafts", exact: true }).click();
+  await expect(
+    dialog.getByText("Save in: Drafts", { exact: true }),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: "Save here", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  expect(created).toMatchObject({
+    parent: "drafts",
+    name: "Existing.fountain",
+    content: expect.stringContaining("An existing screenplay."),
+  });
 });

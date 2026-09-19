@@ -314,7 +314,7 @@ async function googleApiRequest(request, env, url) {
     if (parentId !== undefined && parentId !== "root" && !safeDriveId(parentId)) return json({ error: "Invalid Drive folder" }, 400);
     if (parentId !== undefined && parentId !== "root") {
       const fields = encodeURIComponent("id,mimeType,trashed,capabilities(canAddChildren)");
-      const folder = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(parentId)}?fields=${fields}`, session.access_token)).json();
+      const folder = await (await driveFetch(`/drive/v3/files/${encodeURIComponent(parentId)}?supportsAllDrives=true&fields=${fields}`, session.access_token)).json();
       if (folder.mimeType !== "application/vnd.google-apps.folder" || folder.trashed) return json({ error: "Choose a folder that is not in the trash" }, 400);
       if (folder.capabilities?.canAddChildren !== true) return json({ error: "You cannot add files to this Drive folder" }, 403);
     }
@@ -322,7 +322,7 @@ async function googleApiRequest(request, env, url) {
     const metadata = { name, mimeType: "text/plain", appProperties: { fountainPublisherDocument: "true", fountainPublisherDocumentId: documentId } };
     if (parentId !== undefined) metadata.parents = [parentId];
     const upload = driveMultipart(metadata, body.content);
-    const file = await (await driveFetch("/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime,appProperties,capabilities(canEdit,canShare)", session.access_token, {
+    const file = await (await driveFetch("/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,modifiedTime,appProperties,capabilities(canEdit,canShare)", session.access_token, {
       method: "POST", headers: { "content-type": upload.contentType }, body: upload.body,
     })).json();
     return json({ file }, 201);
