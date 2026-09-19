@@ -689,50 +689,6 @@ export function exportFdx(document: Screenplay): string {
   return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n<FinalDraft DocumentType="Script" Template="No" Version="3"><Content>${paragraphs.join("\n")}</Content><TitlePage><Content>${title}${contact}</Content></TitlePage><PageLayout TopMargin="72" BottomMargin="72"><PageSize Width="8.50" Height="11.00"/></PageLayout></FinalDraft>\n`;
 }
 
-function styledHtml(block: ScriptBlock): string {
-  return blockSpans(block)
-    .map((span) => {
-      let text = xml(span.text).replace(/\n/g, "<br>");
-      for (const mark of span.marks ?? []) {
-        const tag = mark === "bold" ? "strong" : mark === "italic" ? "em" : "u";
-        text = `<${tag}>${text}</${tag}>`;
-      }
-      return text;
-    })
-    .join("");
-}
-
-export function exportHtml(document: Screenplay): string {
-  const title = document.titlePage;
-  const titleHtml =
-    title.title || title.author
-      ? `<header class="title-page"><h1>${xml(title.title || "Untitled")}</h1><p>${xml(title.credit)}</p><p>${xml(title.author).replace(/\n/g, "<br>")}</p><p>${xml(title.source).replace(/\n/g, "<br>")}</p><address>${xml(title.contact).replace(/\n/g, "<br>")}<br>${xml(title.draftDate)}</address></header>`
-      : "";
-  const blocks = document.blocks.filter((block) =>
-    publishedKinds.has(block.kind),
-  );
-  const html: string[] = [];
-  const paragraph = (block: ScriptBlock) =>
-    block.kind === "pageBreak"
-      ? '<div class="page-break"></div>'
-      : `<p class="${block.kind}">${styledHtml(block)}</p>`;
-  for (let i = 0; i < blocks.length;) {
-    if (blocks[i].kind === "character") {
-      const first = dialogueGroup(blocks, i);
-      if (blocks[first.end]?.kind === "character" && blocks[first.end].dual) {
-        const second = dialogueGroup(blocks, first.end);
-        html.push(
-          `<div class="dual"><div>${first.group.map(paragraph).join("")}</div><div>${second.group.map(paragraph).join("")}</div></div>`,
-        );
-        i = second.end;
-        continue;
-      }
-    }
-    html.push(paragraph(blocks[i++]));
-  }
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${xml(title.title || "Untitled screenplay")}</title><style>body{margin:0;background:#eee;color:#111;font:12pt/1 "Courier Prime",Courier,monospace}.script,.title-page{box-sizing:border-box;max-width:8.5in;margin:24px auto;padding:1in 1in 1in 1.5in;background:white}p{white-space:pre-wrap;overflow-wrap:break-word;margin:0 0 12pt}.scene{break-after:avoid}.character{margin-left:2in;margin-bottom:0;break-after:avoid}.dialogue,.lyrics{margin-left:1in;margin-right:1.5in;margin-bottom:0}.parenthetical{margin-left:1.5in;margin-right:1.5in;margin-bottom:0;break-after:avoid}.lyrics{font-style:italic}.transition{text-align:right}.centered{text-align:center}.page-break{break-before:page}.dual{display:grid;grid-template-columns:1fr 1fr;gap:24pt;margin-bottom:12pt}.dual p{margin-left:0;margin-right:0}.dual .character{margin-left:24pt}.title-page{min-height:11in;text-align:center;padding-top:3in;position:relative;break-after:page}.title-page h1{font-size:12pt}.title-page p{margin-top:24pt}.title-page address{font-style:normal;white-space:pre-wrap;text-align:left;margin-top:2in}@media print{body{background:white}.script,.title-page{margin:0;max-width:none;padding:0;box-shadow:none}.title-page{min-height:8in;padding-top:2in}@page{size:letter;margin:1in 1in 1in 1.5in}}@media(max-width:640px){.script,.title-page{padding:32px 20px}.character{margin-left:35%}.dialogue,.lyrics{margin-left:15%;margin-right:15%}.parenthetical{margin-left:20%;margin-right:20%}}</style></head><body>${titleHtml}<main class="script">${html.join("\n")}</main></body></html>`;
-}
-
 function beatExportAssignments(document: Screenplay) {
   const lines = screenplayLines(document);
   const scenes = analyzeScreenplay(document).scenes;

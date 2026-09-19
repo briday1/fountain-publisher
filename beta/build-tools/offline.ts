@@ -20,6 +20,21 @@ export function offlineShell(): Plugin {
         const version = createHash("sha256")
           .update(assets.join("\n"))
           .update(html.source)
+          // Fixed-name notices also form part of this release, even when no JS changes.
+          .update(
+            String(
+              bundle["THIRD_PARTY_NOTICES.txt"]?.type === "asset"
+                ? bundle["THIRD_PARTY_NOTICES.txt"].source
+                : "",
+            ),
+          )
+          .update(
+            String(
+              bundle["licenses.html"]?.type === "asset"
+                ? bundle["licenses.html"].source
+                : "",
+            ),
+          )
           .digest("hex")
           .slice(0, 16);
         const shell = `/offline-shell-${version}.html`;
@@ -55,7 +70,9 @@ self.addEventListener('fetch',event=>{
   if(request.mode==='navigate'){
     event.respondWith((async()=>{
       try{const response=await fetch(request);if(response.ok)return response;}catch{}
-      return (await (await caches.open(CACHE)).match(SHELL,{ignoreVary:true}))||Response.error();
+      const cache=await caches.open(CACHE);
+      if(FILES.includes(url.pathname))return (await cache.match(url.pathname,{ignoreVary:true}))||Response.error();
+      return (await cache.match(SHELL,{ignoreVary:true}))||Response.error();
     })());
     return;
   }

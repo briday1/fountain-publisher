@@ -8,12 +8,7 @@ import {
 import { emptyScreenplay, newId } from "../src/core/model";
 import type { BlockKind, TextSpan } from "../src/core/model";
 import { analyzeScreenplay } from "../src/core/insights";
-import {
-  exportFdx,
-  exportHtml,
-  exportBeatSheetCsv,
-  exportPdf,
-} from "../src/core/export";
+import { exportFdx, exportBeatSheetCsv, exportPdf } from "../src/core/export";
 import { PDFDocument } from "pdf-lib";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 const canonical = (source: string) => {
@@ -223,7 +218,6 @@ describe("portable document contract", () => {
       "A <script> & a thought.",
     );
     expect(exportFdx(doc)).not.toContain("Secret note");
-    expect(exportHtml(doc)).toContain("&lt;script&gt;");
     expect(exportBeatSheetCsv(doc)).toContain("'=HYPERLINK");
   });
 });

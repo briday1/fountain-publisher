@@ -1,9 +1,9 @@
-// Keep shared-document links intact on both the beta domain and its Pages URL.
+// Keep shared-document links intact on the retired beta domain and preview URLs.
 const destination = new URL(location.href);
 destination.protocol = "https:";
 destination.host = "fountain-publisher.com";
 destination.pathname = destination.pathname.replace(
-  /^\/previews\/beta(?:\/|$)/,
+  /^\/previews\/(?:beta|pr-\d+)(?:\/|$)/,
   "/",
 );
 if (destination.pathname === "/index.html") destination.pathname = "/";

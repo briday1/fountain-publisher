@@ -1,0 +1,652 @@
+{
+  "description": "Audited production graph and supplemental notices for code/data already bundled in published packages. Additional conservative transitive notices are retained even if an individual helper is tree-shaken. No package author field is treated as a copyright statement.",
+  "fontkit": {
+    "version": "1.1.1",
+    "publishedRuntimeSha256": "62ad9c769e6a7a9028b0c711504908f0a231955b39619aaabd56dd4eabe800be",
+    "equivalentPublishedVersion": "1.1.0",
+    "equivalentRuntimeSha256": "62ad9c769e6a7a9028b0c711504908f0a231955b39619aaabd56dd4eabe800be",
+    "upstreamCommit": "72b8e42bd6a398d496a63a6d483eabeed43861fb",
+    "upstreamLock": "https://raw.githubusercontent.com/Hopding/fontkit/72b8e42bd6a398d496a63a6d483eabeed43861fb/yarn.lock",
+    "upstreamLockSha256": "5903eac6754917fe014982144c78281b3ac34f82f622b5fe47b55a72dde70b45"
+  },
+  "vendoredPackages": [
+    {
+      "name": "@pdf-lib/brotli",
+      "version": "0.0.0",
+      "registry": "https://registry.npmjs.org/@pdf-lib/brotli/-/brotli-0.0.0.tgz",
+      "tarballSha256": "fc847f0b854bab804004af133c790ec09fcaee56b34e2268d8ee36b7e304884b",
+      "integrity": "sha512-hUQg09XRVvWglv395r36psY6ysNDOfIRTgVMfsA0/ZXwCk/b0bxjQj/QfpwPWQ/NUkQiiyEDTBoS5Rm0amUbhQ==",
+      "licenseFiles": [],
+      "declaredLicense": "MIT",
+      "licenseTextBasis": "Published package declares MIT, with no root license text/copyright. Standard MIT terms supplied verbatim as documented for fontkit-mit; no copyright inferred from package author."
+    },
+    {
+      "name": "base64-js",
+      "version": "1.3.0",
+      "registry": "https://registry.npmjs.org/base64-js/-/base64-js-1.3.0.tgz",
+      "tarballSha256": "a5e0f75f33aa2e502243758f8ecf86631d842ceb4f78cf82a9905d95f62916ac",
+      "integrity": "sha512-ccav/yGvoa80BQDljCxsmmQ3Xvx60/UpBIij5QN21W3wBi/hhIC9OoO+KLpu9IJTS9j4DRVJ3aDDF9cMSoa2lw==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "136239d1783a151cdbf6fd7935dd945082b9d0ee2cbb8497cc0ae49e8a743a47"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "@pdf-lib/restructure",
+      "version": "0.0.1",
+      "registry": "https://registry.npmjs.org/@pdf-lib/restructure/-/restructure-0.0.1.tgz",
+      "tarballSha256": "d06fee5fce6ee121ad78c5d23175f9f0507ec9dca312dedd508e9c75d1aa40c2",
+      "integrity": "sha512-CgCG7w7GiYxBLo8AyjP3viIiyPyYuoZWXczNTxZQtElXWQN5Vw8A2TGcrvwstCwOrJHfT4KeNGpEvLApVYoBuA==",
+      "licenseFiles": [],
+      "declaredLicense": "MIT",
+      "licenseTextBasis": "Published package declares MIT, with no root license text/copyright. Standard MIT terms supplied verbatim as documented for fontkit-mit; no copyright inferred from package author."
+    },
+    {
+      "name": "@pdf-lib/unicode-properties",
+      "version": "0.0.1",
+      "registry": "https://registry.npmjs.org/@pdf-lib/unicode-properties/-/unicode-properties-0.0.1.tgz",
+      "tarballSha256": "6703a1c2dfae72c8415f65966a6ea5c8d4c0bb695eb03a57489135960146a8e5",
+      "integrity": "sha512-zPhtCnQ4YuR2CX0h7zqBN7dPe/XN2dL71qi7Xh8JQON2IibogLdezwlEn1AIzs3m/+kjeKxXsQClN/D4U2i5NA==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "43439dbd4f43837aadab215cdbe5a422cc6323a50c4ea84d8d6bbc3671666a1d"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "base64-arraybuffer",
+      "version": "0.1.5",
+      "registry": "https://registry.npmjs.org/base64-arraybuffer/-/base64-arraybuffer-0.1.5.tgz",
+      "tarballSha256": "1fa54c7c3ccce10f005415b6680df8015834c9614d7556a8220fecf2b7b45a62",
+      "integrity": "sha512-437oANT9tP582zZMwSvZGy2nmSeAb8DW2me3y+Uv1Wp2Rulr8Mqlyrv3E7MLxmsiaPSMMDmiDVzgE+e8zlMx9g==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE-MIT",
+          "sha256": "f3eca6ff762533fa5a77caf954a143e48afa204668cf97dce758c45a9e006be3"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "unicode-trie",
+      "version": "0.3.1",
+      "registry": "https://registry.npmjs.org/unicode-trie/-/unicode-trie-0.3.1.tgz",
+      "tarballSha256": "d4c160af91e358f3014ff1a316f9ab3c9cd2b89f8f522af4a33488257dd2b13d",
+      "integrity": "sha512-WgVuO0M2jDl7hVfbPgXv2LUrD81HM0bQj/bvLGiw6fJ4Zo8nNFnDrA0/hU2Te/wz6pjxCm5cxJwtLjo2eyV51Q==",
+      "licenseFiles": [],
+      "declaredLicense": "MIT",
+      "licenseTextBasis": "Published package declares MIT, with no root license text/copyright. Standard MIT terms supplied verbatim as documented for fontkit-mit; no copyright inferred from package author."
+    },
+    {
+      "name": "tiny-inflate",
+      "version": "1.0.2",
+      "registry": "https://registry.npmjs.org/tiny-inflate/-/tiny-inflate-1.0.2.tgz",
+      "tarballSha256": "9d9a0912315462c9c380544ae325a2cb4d37471c0099be8444e99589213539d8",
+      "integrity": "sha512-fEndoHfuiSlXtvG0EA1gB4uAdy2dbQ3WfOtQw1/Y8NQ9rxtGbGkENwfGmN0wK7OkxDz1lgc5Ei2LQ0oxKDUcVw==",
+      "licenseFiles": [],
+      "declaredLicense": "MIT",
+      "licenseTextBasis": "Published package declares MIT, with no root license text/copyright. Standard MIT terms supplied verbatim as documented for fontkit-mit; no copyright inferred from package author."
+    },
+    {
+      "name": "buffer",
+      "version": "5.6.0",
+      "registry": "https://registry.npmjs.org/buffer/-/buffer-5.6.0.tgz",
+      "tarballSha256": "b9ec3ea5264dc312d869ff76f68bc770cab6df117de95e7ba7e196c4220e2505",
+      "integrity": "sha512-/gDYp/UtU0eA1ys8bOs9J6a+E/KWIY+DZ+Q2WESNUA0jFRsJOc0SNUO6xJ5SGA1xueg3NL65W6s+NY5l9cunuw==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "06bafa45fdad2579ba0e43b0c9b2c6290287c99c4203c300254a462b38a307f6"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "base64-js",
+      "version": "1.3.1",
+      "registry": "https://registry.npmjs.org/base64-js/-/base64-js-1.3.1.tgz",
+      "tarballSha256": "e07a87b3d76297252f6284c37fc2c16929a80c17886740ba2093251b82e40368",
+      "integrity": "sha512-mLQ4i2QO1ytvGWFWmcngKO//JXAQueZvwEKtjgQFM4jIK0kU+ytMfplL8j+n5mspOfjHwoAg+9yhb7BwAHm36g==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "5b37224c080cdcc97c871ada971c224e9926370fe74f11b539aa1cf9f3b1aca1"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "ieee754",
+      "version": "1.1.13",
+      "registry": "https://registry.npmjs.org/ieee754/-/ieee754-1.1.13.tgz",
+      "tarballSha256": "603e6b4c40da1551bbaabe8aa8a4b35f62f132b0b60e99906a59f0ad04d47ae2",
+      "integrity": "sha512-4vf7I2LYV/HaWerSo3XmlMkp5eZ83i+/CDluXi/IGTs/O1sejBNhTtnxzmRZfvOUqj7lZjqHkeTvpgSFDlWZTg==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "18d45466ba3253deae04667e267a91ea8de8548f18c1125264d1c9db28194cc1"
+        }
+      ],
+      "declaredLicense": "BSD-3-Clause"
+    },
+    {
+      "name": "clone",
+      "version": "1.0.4",
+      "registry": "https://registry.npmjs.org/clone/-/clone-1.0.4.tgz",
+      "tarballSha256": "3393d5552400ded353826ad4052a7968f61c0ff59d4b515d0a502ea150588023",
+      "integrity": "sha512-JQHZ2QMW6l3aH/j6xCqQThY/9OH4D/9ls34cgkUBiEeocRTU04tHfKPBsUK1PqZCUQM7GiA0IIXJSuXHI64Kbg==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "3fb0857ef0133928cf72c88dfc464e931486e88778961eedec25585e2321507f"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "deep-equal",
+      "version": "1.1.1",
+      "registry": "https://registry.npmjs.org/deep-equal/-/deep-equal-1.1.1.tgz",
+      "tarballSha256": "b1c1a13716e3f4c34dc6473b3321f643fe680b6e45b9bc308e183a753d0b849a",
+      "integrity": "sha512-yd9c5AdiqVcR+JjcwUQb9DkhJc8ngNr0MahEBGvDiJw8puWab2yZlh+nkasOnZP+EGTAP6rRp2JzJhJZzvNF8g==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "4839125439c51ef70db530780f90cfa90e3a09b7e18694fc914d5daa2e463d14"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "is-arguments",
+      "version": "1.0.4",
+      "registry": "https://registry.npmjs.org/is-arguments/-/is-arguments-1.0.4.tgz",
+      "tarballSha256": "8afe33ec76149bd5dd1bab1cd3f251016defc16991b0703e8e711391bae4df2a",
+      "integrity": "sha512-xPh0Rmt8NE65sNzvyUmWgI1tz3mKq74lGA0mL8LYZcoIzKOzDh6HmrYm3d18k60nHerC8A9Km8kYu87zfSFnLA==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "dc0fe5a22d9336f345ee984f9bf56f11f22877a3aa5fd16a1db9a8ca0e23a5d1"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "is-date-object",
+      "version": "1.0.2",
+      "registry": "https://registry.npmjs.org/is-date-object/-/is-date-object-1.0.2.tgz",
+      "tarballSha256": "305b0f5fe94161935fe4c77df330e997f6c8b20630dc515defd0295bd1a58382",
+      "integrity": "sha512-USlDT524woQ08aoZFzh3/Z6ch9Y/EWXEHQ/AaRN0SkKq4t2Jw2R2339tSXmwuVoY7LLlBCbOIlx2myP/L5zk0g==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "c61652db3d2808f667b48af0a358f0d85fd07ad4a0d0b1a50882dec3b764c522"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "is-regex",
+      "version": "1.0.5",
+      "registry": "https://registry.npmjs.org/is-regex/-/is-regex-1.0.5.tgz",
+      "tarballSha256": "ee371a4361906505d368e8e6c5ca947a73f072f07cc7fc30c6cd577d34e5a55d",
+      "integrity": "sha512-vlKW17SNq44owv5AQR3Cq0bQPEb8+kF3UKZ2fiZNOWtztYE5i0CzCZxFDwO58qAOWtxdBRVO/V5Qin1wjCqFYQ==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "dc0fe5a22d9336f345ee984f9bf56f11f22877a3aa5fd16a1db9a8ca0e23a5d1"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "has",
+      "version": "1.0.3",
+      "registry": "https://registry.npmjs.org/has/-/has-1.0.3.tgz",
+      "tarballSha256": "c38cf9eefce04e58ec3e945bfe448b9236d64f9337f6bf6e1f62e1c5b6b05573",
+      "integrity": "sha512-f2dvO0VU6Oej7RkWJGrehjbzMAjFp5/VKPp5tTpWIV4JHHZK1/BxbFRtf/siA2SWTe09caDmVtYYzWEIbBS4zw==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE-MIT",
+          "sha256": "4fe5fd7b3318def0b74f8bf8c9276403f01da628fa8888822661519d80f237d3"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "function-bind",
+      "version": "1.1.1",
+      "registry": "https://registry.npmjs.org/function-bind/-/function-bind-1.1.1.tgz",
+      "tarballSha256": "2d552e7c98b4c3acbf6420cc2eed535e592bb987ed2b32e35795bf777dd2e082",
+      "integrity": "sha512-yIovAzMX49sF8Yl58fSCWJ5svSLuaibPxXQJFLmBObTuCr0Mf1KiPopGM9NiFjiYBCbfaa2Fh6breQ6ANVTI0A==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "773e131a7684726005a7e4688a80b4620033bc08499bc1404dd1a1eb3bca725e"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "object-is",
+      "version": "1.1.2",
+      "registry": "https://registry.npmjs.org/object-is/-/object-is-1.1.2.tgz",
+      "tarballSha256": "83ad0dc408cb3e3db1e89590db82e452a76d83af9cc55a48fb32c2323cac9d12",
+      "integrity": "sha512-5lHCz+0uufF6wZ7CRFWJN3hp8Jqblpgve06U5CMQ3f//6iDjPr2PEo9MWCjEssDsa+UZEL4PkFpr+BMop6aKzQ==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "dc0fe5a22d9336f345ee984f9bf56f11f22877a3aa5fd16a1db9a8ca0e23a5d1"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "define-properties",
+      "version": "1.1.3",
+      "registry": "https://registry.npmjs.org/define-properties/-/define-properties-1.1.3.tgz",
+      "tarballSha256": "5524f4db15bb95af92c791ba208e2fc774bd8ae17eb347865492d444f95a70a5",
+      "integrity": "sha512-3MqfYKj2lLzdMSf8ZIZE/V+Zuy+BgD6f164e8K2w7dgnpKArBDerGYpM46IYYcjnkdPNMjPk9A6VFB8+3SKlXQ==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "00d402c2bbe7c67369bd01ce2c16b8ed46ccc949a1ee2d6bb8f9606afa8c7434"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "object-keys",
+      "version": "1.1.1",
+      "registry": "https://registry.npmjs.org/object-keys/-/object-keys-1.1.1.tgz",
+      "tarballSha256": "9678d9055619767c8a134033709e88a6e0a19600f3d3f2cda40acdfd75e7f212",
+      "integrity": "sha512-NuAESUOUMrlIXOfHKzD6bpPu3tYt3xvjNdRIQ+FeT0lNb4K8WR70CaDxhuNguS2XG+GjkyMwOzsN5ZktImfhLA==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "5640e5cbe2e9f57f6ccfdd8dbfbeadb875495bdbcb69d2666ce3177ccd0942e4"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "es-abstract",
+      "version": "1.17.5",
+      "registry": "https://registry.npmjs.org/es-abstract/-/es-abstract-1.17.5.tgz",
+      "tarballSha256": "91c554f3fdd442fc11eb1ab8f718abb966fcfaf618941c336c78282caaefc8e6",
+      "integrity": "sha512-BR9auzDbySxOcfog0tLECW8l28eRGpDpU3Dm3Hp4q/N+VtLTmyj4EUN088XZWQDW/hzj6sYRDXeOFsaAODKvpg==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "00d402c2bbe7c67369bd01ce2c16b8ed46ccc949a1ee2d6bb8f9606afa8c7434"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "es-to-primitive",
+      "version": "1.2.1",
+      "registry": "https://registry.npmjs.org/es-to-primitive/-/es-to-primitive-1.2.1.tgz",
+      "tarballSha256": "f30558271d77e69fffa5eea8b4d990fff7cfa9d33e1168d0e28982179e698bea",
+      "integrity": "sha512-QCOllgZJtaUo9miYBcLChTUaHNjJF3PYs1VidD7AwiEj1kYxKeQTctLAezAOH5ZKRH0g2IgPn6KwB4IT8iRpvA==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "c61652db3d2808f667b48af0a358f0d85fd07ad4a0d0b1a50882dec3b764c522"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "is-callable",
+      "version": "1.1.5",
+      "registry": "https://registry.npmjs.org/is-callable/-/is-callable-1.1.5.tgz",
+      "tarballSha256": "0bc4e25e92f5f1b3a22c3def638be8c7968a574a60a1c52eff564f12d4fbfbab",
+      "integrity": "sha512-ESKv5sMCJB2jnHTWZ3O5itG+O128Hsus4K4Qh1h2/cgn2vbgnLSVqfV46AeJA9D5EeeLa9w81KUXMtn34zhX+Q==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "c61652db3d2808f667b48af0a358f0d85fd07ad4a0d0b1a50882dec3b764c522"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "is-symbol",
+      "version": "1.0.3",
+      "registry": "https://registry.npmjs.org/is-symbol/-/is-symbol-1.0.3.tgz",
+      "tarballSha256": "08ad22249c0a5dece157e86d206bf7a138cc49670464a3abb9dd89e28cebfa4d",
+      "integrity": "sha512-OwijhaRSgqvhm/0ZdAcXNZt9lYdKFpcRDT5ULUuYXPoT794UNOdU+gpT6Rzo7b4V2HUl/op6GqY894AZwv9faQ==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "c61652db3d2808f667b48af0a358f0d85fd07ad4a0d0b1a50882dec3b764c522"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "has-symbols",
+      "version": "1.0.1",
+      "registry": "https://registry.npmjs.org/has-symbols/-/has-symbols-1.0.1.tgz",
+      "tarballSha256": "3d0af8ac4a12bcab413fd2505a33cddd8ddef0ae06e123e33a71559163e3d689",
+      "integrity": "sha512-PLcsoqu++dmEIZB+6totNFKq/7Do+Z0u4oT0zKOJNl3lYK6vGwwu2hjHs+68OEZbTjiUE9bgOABXbP/GvrS0Kg==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "206c1adcf206dc0031b11232f5b054ec5f1662407ab1ca415247921cab2068ab"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "object-inspect",
+      "version": "1.7.0",
+      "registry": "https://registry.npmjs.org/object-inspect/-/object-inspect-1.7.0.tgz",
+      "tarballSha256": "d4fd262b65a01ed931b95492e1b7e862921e1d2fb28b9f098ba88a9a2420b763",
+      "integrity": "sha512-a7pEHdh1xKIAgTySUGgLMx/xwDZskN1Ud6egYYN3EdRW4ZMPNEDUTF+hwy2LUC+Bl+SyLXANnwz/jyh/qutKUw==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "bd40cc437e28a3ad7bef2ad34e6b72e757b182e67bda1acadbab4ef0476f8232"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "object.assign",
+      "version": "4.1.0",
+      "registry": "https://registry.npmjs.org/object.assign/-/object.assign-4.1.0.tgz",
+      "tarballSha256": "0e791b6687f4c5f2ab5f5af71dc7835d43597ced458e9bc4bf5fff06d62543c3",
+      "integrity": "sha512-exHJeq6kBKj58mqGyTQ9DFvrZC/eR6OwxzoM9YRoGBqrXYonaFyGiFMuc9VZrXf7DarreEwMpurG3dd+CNyW5w==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "a596744eec6b05682ed972bf93937668bbc8da2caed93fbf6510389de019b5c0"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "string.prototype.trimleft",
+      "version": "2.1.2",
+      "registry": "https://registry.npmjs.org/string.prototype.trimleft/-/string.prototype.trimleft-2.1.2.tgz",
+      "tarballSha256": "7990302ecd0e93f6ac2bf412a1e68bc466143940cb652bbdaef95ec29d89b67d",
+      "integrity": "sha512-gCA0tza1JBvqr3bfAIFJGqfdRTyPae82+KTnm3coDXkZN9wnuW3HjGgN386D7hfv5CHQYCI022/rJPVlqXyHSw==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "c61652db3d2808f667b48af0a358f0d85fd07ad4a0d0b1a50882dec3b764c522"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "string.prototype.trimstart",
+      "version": "1.0.1",
+      "registry": "https://registry.npmjs.org/string.prototype.trimstart/-/string.prototype.trimstart-1.0.1.tgz",
+      "tarballSha256": "446b546c404d668fa1c459f64a27ba549957299bfa8bfbf19f34b306cf5abef1",
+      "integrity": "sha512-XxZn+QpvrBI1FOcg6dIpxUPgWCPuNXvMD72aaRaUQv1eD4e/Qy8i/hFTe0BUmD60p/QA6bh1avmuPTfNjqVWRw==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "a5e49293b629194f16e08c965807b34a4a8f45aa2735658a3b0e3c1478a34b30"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "string.prototype.trimright",
+      "version": "2.1.2",
+      "registry": "https://registry.npmjs.org/string.prototype.trimright/-/string.prototype.trimright-2.1.2.tgz",
+      "tarballSha256": "1790f97f35c663efed82e45161d454dec776a76146b32ff73e5facb2bdcd8d4b",
+      "integrity": "sha512-ZNRQ7sY3KroTaYjRS6EbNiiHrOkjihL9aQE/8gfQ4DtAC/aEBRHFJa44OmoWxGGqXuJlfKkZW4WcXErGr+9ZFg==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "c61652db3d2808f667b48af0a358f0d85fd07ad4a0d0b1a50882dec3b764c522"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "string.prototype.trimend",
+      "version": "1.0.1",
+      "registry": "https://registry.npmjs.org/string.prototype.trimend/-/string.prototype.trimend-1.0.1.tgz",
+      "tarballSha256": "e98726e0c1c5e6cdcd9a2ed7040db7a4e6d3c7e6d97d561d51baad29378dd529",
+      "integrity": "sha512-LRPxFUaTtpqYsTeNKaFOw3R4bxIzWOnbQ837QfBylo8jIxtcbK/A/sMV7Q+OAV/vWo+7s25pOE10KYSjaSO06g==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "a5e49293b629194f16e08c965807b34a4a8f45aa2735658a3b0e3c1478a34b30"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "regexp.prototype.flags",
+      "version": "1.3.0",
+      "registry": "https://registry.npmjs.org/regexp.prototype.flags/-/regexp.prototype.flags-1.3.0.tgz",
+      "tarballSha256": "a003b2b06eb982fa75d23f4effdeb9c252aa0cc897128427bb0474efcf4a2379",
+      "integrity": "sha512-2+Q0C5g951OlYlJz6yu5/M33IcsESLlLfsyIaLJaG4FA2r4yP8MvVMJUUP/fVBkSpbbbZlS5gynbEWLipiiXiQ==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "0c3fb74dd54705869d561cb765495b64c4dada8a127e9cd3390303cd7cb8a770"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "dfa",
+      "version": "1.2.0",
+      "registry": "https://registry.npmjs.org/dfa/-/dfa-1.2.0.tgz",
+      "tarballSha256": "d781eb3a307ab6aa2d97028f695b17dbeadf6fd27788c333b1fb96d18d2a23ad",
+      "integrity": "sha512-ED3jP8saaweFTjeGX8HQPjeC1YYyZs98jGNZx6IiBvxW7JG5v492kamAQB3m2wop07CvU/RQmzcKr6bgcC5D/Q==",
+      "licenseFiles": [],
+      "declaredLicense": "MIT",
+      "licenseTextBasis": "Published package declares MIT, with no root license text/copyright. Standard MIT terms supplied verbatim as documented for fontkit-mit; no copyright inferred from package author."
+    },
+    {
+      "name": "iconv-lite",
+      "version": "0.4.24",
+      "registry": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.24.tgz",
+      "tarballSha256": "576c64f2098ed44c3d5e48d7a9dc65512700c1d6a969a71a74d474da8e734635",
+      "integrity": "sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "ac779f7314c74f232ef847ea86e714abe25cf6eeb5cc97b69451b74e2af6492d"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "safer-buffer",
+      "version": "2.1.2",
+      "registry": "https://registry.npmjs.org/safer-buffer/-/safer-buffer-2.1.2.tgz",
+      "tarballSha256": "78812f65ae3b98071ce1c9bacbe0666f4220d0b2753c2a11530eb27df440a3b3",
+      "integrity": "sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "4bc935e71be198c67ddf3c2b5fddb195f6edc182bfc155a96a6db61b44b494b9"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "tiny-inflate",
+      "version": "1.0.3",
+      "registry": "https://registry.npmjs.org/tiny-inflate/-/tiny-inflate-1.0.3.tgz",
+      "tarballSha256": "73932b339424e5ffaeaf043e6481229cab407ee277b2a01fa23938dfad6a8f4e",
+      "integrity": "sha512-pkY1fj1cKHb2seWDy0B16HeWyczlJA9/WW3u3c4z/NiWDsO3DOU5D7nhTLE9CF0yXv/QZFY7sEJmj24dK+Rrqw==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "c0df7f551401f8f80197ff31bf69b8cd23727d127423403282514d242a3ab132"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "rollup-plugin-node-globals",
+      "version": "1.4.0",
+      "registry": "https://registry.npmjs.org/rollup-plugin-node-globals/-/rollup-plugin-node-globals-1.4.0.tgz",
+      "tarballSha256": "6d407bb4b040c80e43d44f48513a41e1275c7946f43f111b229055f517471a7c",
+      "integrity": "sha512-xRkB+W/m1KLIzPUmG0ofvR+CPNcvuCuNdjVBVS7ALKSxr3EDhnzNceGkGi1m8MToSli13AzKFYH4ie9w3I5L3g==",
+      "licenseFiles": [],
+      "declaredLicense": "MIT",
+      "licenseTextBasis": "Published package declares MIT, with no root license text/copyright. Standard MIT terms supplied verbatim as documented for fontkit-mit; no copyright inferred from package author."
+    },
+    {
+      "name": "process-es6",
+      "version": "0.11.6",
+      "registry": "https://registry.npmjs.org/process-es6/-/process-es6-0.11.6.tgz",
+      "tarballSha256": "b92ace26d77767521f0c935a98172536d4f573cc46a231a0e6c522da5a9299ac",
+      "integrity": "sha512-GYBRQtL4v3wgigq10Pv58jmTbFXlIiTbSfgnNqZLY0ldUPqy1rRxDI5fCjoCpnM6TqmHQI8ydzTBXW86OYc0gA==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "59a400d04c5078579acc27ddd6452c1bdf763f9506e01364700935fbb1a7c91b"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "buffer-es6",
+      "version": "4.9.3",
+      "registry": "https://registry.npmjs.org/buffer-es6/-/buffer-es6-4.9.3.tgz",
+      "tarballSha256": "c7e26d1d1e720d03906dec97d00c3a79d8dbcd0128aaf511684452f0fd5c4660",
+      "integrity": "sha512-Ibt+oXxhmeYJSsCkODPqNpPmyegefiD8rfutH1NYGhMZQhSp95Rz7haemgnJ6dxa6LT+JLLbtgOMORRluwKktw==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "468f636190b3825fd4b4e03d7998a6912edc7d260d99ec0869d9eb3eab30df0b"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "@babel/helpers",
+      "version": "7.9.6",
+      "registry": "https://registry.npmjs.org/@babel/helpers/-/helpers-7.9.6.tgz",
+      "tarballSha256": "d3c284a27e41d8344d4009a8f13ea615709d16789fe1be23468908a85b095f24",
+      "integrity": "sha512-tI4bUbldloLcHWoRUMAj4g1bF313M/o6fBKhIsb3QnGVPwRm9JsNf/gqMkQ7zjqReABiffPV6RWj7hEglID5Iw==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "117da2af0d4ce0fe1c8e19b5cff9dcd806adf973d328d27b11d4448c4ff24f76"
+        }
+      ],
+      "declaredLicense": "MIT"
+    },
+    {
+      "name": "@rollup/plugin-commonjs",
+      "version": "11.1.0",
+      "registry": "https://registry.npmjs.org/@rollup/plugin-commonjs/-/plugin-commonjs-11.1.0.tgz",
+      "tarballSha256": "a35ac3ae2be465412147ebad69db7c8320baeb50a9e408d6fb0b05079a4e7742",
+      "integrity": "sha512-Ycr12N3ZPN96Fw2STurD21jMqzKwL9QuFhms3SD7KKRK7oaXUsBU9Zt0jL/rOPHiPYisI21/rXGO3jr9BnLHUA==",
+      "licenseFiles": [
+        {
+          "path": "LICENSE",
+          "sha256": "7b8136f76c483d03597500bfa991aae9be68d4629e1121cbf9b93aa727efe305"
+        }
+      ],
+      "declaredLicense": "MIT"
+    }
+  ],
+  "notes": [
+    {
+      "id": "fontkit-mit",
+      "declaration": "@pdf-lib/fontkit/package.json license MIT and README License section link to MIT. The published package and official repository omit a copyright notice and full LICENSE. No copyright holder or year is invented. Standard MIT permission/condition/disclaimer text is reproduced verbatim from pdf-lib@1.17.1/LICENSE.md starting at Permission is hereby granted; its unrelated copyright line is not attributed to fontkit."
+    },
+    {
+      "id": "fontkit-pdf-lib-brotli-0.0.0",
+      "declaration": "Published package declares MIT, with no root license text/copyright. Standard MIT terms supplied verbatim as documented for fontkit-mit; no copyright inferred from package author."
+    },
+    {
+      "id": "fontkit-pdf-lib-restructure-0.0.1",
+      "declaration": "Published package declares MIT, with no root license text/copyright. Standard MIT terms supplied verbatim as documented for fontkit-mit; no copyright inferred from package author."
+    },
+    {
+      "id": "fontkit-unicode-trie-0.3.1",
+      "declaration": "Published package declares MIT, with no root license text/copyright. Standard MIT terms supplied verbatim as documented for fontkit-mit; no copyright inferred from package author."
+    },
+    {
+      "id": "fontkit-tiny-inflate-1.0.2",
+      "declaration": "Published package declares MIT, with no root license text/copyright. Standard MIT terms supplied verbatim as documented for fontkit-mit; no copyright inferred from package author."
+    },
+    {
+      "id": "fontkit-dfa-1.2.0",
+      "declaration": "Published package declares MIT, with no root license text/copyright. Standard MIT terms supplied verbatim as documented for fontkit-mit; no copyright inferred from package author."
+    },
+    {
+      "id": "fontkit-rollup-plugin-node-globals-1.4.0",
+      "declaration": "Published package declares MIT, with no root license text/copyright. Standard MIT terms supplied verbatim as documented for fontkit-mit; no copyright inferred from package author."
+    },
+    {
+      "id": "fontkit-node-polyfills",
+      "files": "src/es6/{events,util,inherits,stream,string-decoder,readable-stream/*}; full Joyent permission/copyright header preserved verbatim from string-decoder.js. ES module ports are modifications of their original Node/browserify implementations, as stated by the plugin README."
+    },
+    {
+      "id": "fontkit-brotli-apache",
+      "modifications": "The upstream @pdf-lib/brotli package is a JavaScript port, with compressed/base64 dictionary storage. Fountain Publisher bundles/minifies this published code without otherwise changing its algorithm."
+    },
+    {
+      "id": "standard-fonts-brown",
+      "declaration": "Copyright line reproduced verbatim from @pdf-lib/standard-fonts@1.0.0/README.md Original Repo License section, followed by full standard MIT terms; no attribution inferred."
+    },
+    {
+      "id": "adobe-afm",
+      "declaration": "Permission paragraph copied exactly from original HTML, all 14 copyright/trademark Notice fields decoded from installed @pdf-lib/standard-fonts@1.0.0 compressed metric JSON. Original HTML distributed byte-for-byte separately."
+    }
+  ],
+  "portedAlgorithmsAndData": [
+    {
+      "id": "fontkit-harfbuzz-1.4.6-COPYING",
+      "sources": [
+        "https://raw.githubusercontent.com/harfbuzz/harfbuzz/141b33de9a141248e2f034d55f48460159536cb9/COPYING",
+        "https://raw.githubusercontent.com/harfbuzz/harfbuzz/141b33de9a141248e2f034d55f48460159536cb9/src/hb-ot-layout-gpos-table.hh",
+        "https://raw.githubusercontent.com/harfbuzz/harfbuzz/141b33de9a141248e2f034d55f48460159536cb9/src/hb-ot-layout-gsub-table.hh",
+        "https://raw.githubusercontent.com/harfbuzz/harfbuzz/141b33de9a141248e2f034d55f48460159536cb9/src/hb-ot-shape-complex-arabic.cc",
+        "https://raw.githubusercontent.com/harfbuzz/harfbuzz/141b33de9a141248e2f034d55f48460159536cb9/src/hb-ot-shape-complex-indic.cc",
+        "https://raw.githubusercontent.com/harfbuzz/harfbuzz/141b33de9a141248e2f034d55f48460159536cb9/src/hb-ot-shape-fallback.cc"
+      ],
+      "extraction": "Full COPYING plus opening source-file license headers"
+    },
+    {
+      "id": "fontkit-icu-2015",
+      "sources": [
+        "https://raw.githubusercontent.com/unicode-org/icu/dd8356c7545a570b56136d3e44c62f7efdf5495f/icu4c/license.html"
+      ],
+      "extraction": "COPYRIGHT AND PERMISSION NOTICE through first horizontal rule; HTML tags stripped and entities decoded"
+    },
+    {
+      "id": "fontkit-unicode-2015",
+      "sources": [
+        "https://raw.githubusercontent.com/unicode-org/icu/dd8356c7545a570b56136d3e44c62f7efdf5495f/icu4c/license.html"
+      ],
+      "extraction": "First preformatted block (Unicode Data Files and Software); HTML tags stripped and entities decoded"
+    },
+    {
+      "id": "fontkit-unicode-2019",
+      "sources": [
+        "https://raw.githubusercontent.com/unicode-org/icu/e2d85306162d3a0691b070b4f0a73e4012433444/icu4c/LICENSE"
+      ],
+      "extraction": "Main Unicode copyright and permission notice before first dashed divider"
+    },
+    {
+      "id": "fontkit-tinf-2014-plain",
+      "sources": [
+        "https://raw.githubusercontent.com/jibsen/tinf/474a7faa319d242f582901944062ab228aa1aee7/src/tinflate.c"
+      ],
+      "extraction": "Opening copyright/license comment, with C comment delimiters removed"
+    }
+  ]
+}

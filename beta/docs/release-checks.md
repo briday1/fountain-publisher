@@ -43,10 +43,10 @@ Covered by executable tests:
 Manual acceptance checks:
 
 1. Use a nonproduction file to connect each real provider, open, save, reopen, change branches/folders, and deliberately create a concurrent remote version. Verify the saved text and conflict recovery, not only the status indicator.
-2. Check Google shared-reader/writer permissions and revision downloads with two accounts. The hosted authorization scope only includes files authorized for the existing app.
+2. Check Google shared-reader/writer permissions and revision downloads with two accounts. Full Drive browsing requires the granted full Drive scope; older limited sessions keep their existing authorized-file access until reconnecting.
 3. Test Japanese, Chinese and Korean native IMEs; accent dead keys; autocorrection; emoji/combining-character deletion; drag/drop; touch selection; and platform editing menus in Safari, Chrome, Firefox and iPad.
 4. Test long scripts and offline reopening on target devices with realistic notes and beat sheets. Recovery must survive a failed remote save and a second tab editing the same local draft.
 5. Inspect dialogue continuation, dual dialogue, long title/contact fields and non-Latin font warnings in representative PDFs. Fountain and FDX preserve all text; Courier Prime's PDF glyph coverage is limited.
 6. Open one Drive Fountain file from two Google accounts using its sharing link. Verify simultaneous edits, local undo, title/beat changes, writer presence, view-only permissions, disconnection/reconnection, and a second tab on the same account. Change the Drive file outside the shared room and confirm collaboration pauses without overwriting either version; save a local recovery copy before resolving the conflict.
 
-PDF import/reconstruction, regex search, and the old animated background effects are not included in this application. Source and Vim modes were intentionally removed. Native browser spellcheck replaces the old custom spelling subsystem.
+PDF import/reconstruction and regex search are not included in this application. Animated dots, topographic contours and hyperspace are implemented by the current app, with reduced-motion support. Source and Vim modes were intentionally removed. Native browser spellcheck replaces the old custom spelling subsystem.

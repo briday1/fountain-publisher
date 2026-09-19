@@ -1,30 +1,23 @@
 {
   "name": "fountain-publisher",
+  "private": true,
   "version": "1.0.0",
-  "description": "A web app for editing and previewing Fountain screenplay files.",
-  "main": "src/fountain_publisher/web/app.mjs",
+  "description": "A web app for editing and publishing Fountain screenplays.",
   "scripts": {
-    "start": "PYTHONPATH=src python3 -m fountain_publisher",
-    "build:web": "node scripts/build-web.mjs",
-    "benchmark:editor": "node scripts/benchmark-editor.mjs",
-    "benchmark:backgrounds": "node scripts/benchmark-backgrounds.mjs",
-    "test:wasm": "node scripts/smoke-screenplain-wasm.mjs",
-    "test": "node --test tests/js/*.test.mjs && PYTHONPATH=src python3 -m unittest discover -s tests -v"
+    "postinstall": "npm --prefix beta ci",
+    "dev": "npm --prefix beta run dev --",
+    "prestart": "npm run build",
+    "start": "npm --prefix beta start --",
+    "build": "npm --prefix beta run build --",
+    "build:web": "npm run build --",
+    "build:beta": "npm --prefix beta run build:beta --",
+    "test": "npm --prefix beta test --",
+    "test:watch": "npm --prefix beta run test:watch --",
+    "test:browser": "npm --prefix beta run test:browser --",
+    "check": "npm test && npm run build",
+    "format": "npm --prefix beta run format --"
   },
-  "devDependencies": {
-    "esbuild": "^0.28.2"
-  },
-  "repository": {
-    "type": "git",
-    "url": "http://localhost:26831/briday1/fountain-publisher"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "dictionary-en": "^4.0.0",
-    "nspell": "^2.1.5",
-    "pyodide": "314.0.6",
-    "yjs": "^13.6.32"
+  "engines": {
+    "node": ">=22.0.0"
   }
 }

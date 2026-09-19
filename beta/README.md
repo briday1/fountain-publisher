@@ -2,7 +2,7 @@
 
 A fresh implementation of Fountain Publisher built around one continuous ProseMirror editor. The previous application supplied the product reference and existing cloud infrastructure; its editor and application implementation were not copied.
 
-The application lives in the `beta/` directory of `briday1/fountain-publisher`. The directory name is retained for repository continuity: `main` publishes this editor at https://fountain-publisher.com, while `beta/writing-first` maintains the preview site.
+The application lives in the `beta/` directory of `briday1/fountain-publisher`. The directory name is retained for repository continuity: local development, the local production server, and `main` publishing at https://fountain-publisher.com all use this editor. The retired beta domain and historical preview entrypoints forward to production.
 
 ## Run locally
 
@@ -49,7 +49,7 @@ Externally edited screenplay text is authoritative; a stale embedded snapshot ne
 
 ## Deployment
 
-See [deployment and rollback](docs/beta-deployment.md). Pushes to `main` test and build this app, publishing at the existing Pages root. Pushes to `beta/writing-first` update only `gh-pages/previews/beta`, which Cloudflare serves at https://beta.fountain-publisher.com. Existing main-origin local drafts migrate into the new workspace without deleting their original cache. Beta-origin local drafts remain accessible on beta; origins keep separate device storage.
+See [deployment and rollback](docs/beta-deployment.md). Pushes to `main` test and build this app, publishing at the existing Pages root and refreshing the beta and historical preview redirects. The obsolete Python/Screenplain runtime is removed during publication; both service-worker migration URLs and current-app hashed assets remain available. There is no separate beta frontend release. Existing main-origin local drafts migrate into the new workspace without deleting their original cache. Beta-origin storage is retained but cannot be read from production; export beta-only drafts from an already-open beta session before closing it.
 
 ## Validation
 

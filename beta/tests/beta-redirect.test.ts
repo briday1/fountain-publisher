@@ -20,6 +20,10 @@ it.each([
     "https://fountain-publisher.com/?drive=abc#scene-2",
   ],
   [
+    "https://fountain-publisher.com/previews/pr-86/index.html?drive=abc#scene-2",
+    "https://fountain-publisher.com/?drive=abc#scene-2",
+  ],
+  [
     "https://beta.fountain-publisher.com/script?next=https://example.com",
     "https://fountain-publisher.com/script?next=https://example.com",
   ],
@@ -29,43 +33,49 @@ it.each([
   expect(replace).toHaveBeenCalledWith(expected);
 });
 
-it("retires offline navigation while leaving open sessions and API requests alone", () => {
-  const listeners: Record<string, (event: any) => void> = {};
-  const skipWaiting = vi.fn(() => Promise.resolve());
-  runInNewContext(source("sw.js"), {
-    URL,
-    Response,
-    self: {
-      skipWaiting,
-      addEventListener: (type: string, handler: (event: any) => void) => {
-        listeners[type] = handler;
+it.each([
+  "https://beta.fountain-publisher.com/?drive=abc",
+  "https://fountain-publisher.com/previews/pr-86/?drive=abc",
+])(
+  "retires offline navigation at %s while leaving open sessions and API requests alone",
+  (url) => {
+    const listeners: Record<string, (event: any) => void> = {};
+    const skipWaiting = vi.fn(() => Promise.resolve());
+    runInNewContext(source("sw.js"), {
+      URL,
+      Response,
+      self: {
+        skipWaiting,
+        addEventListener: (type: string, handler: (event: any) => void) => {
+          listeners[type] = handler;
+        },
       },
-    },
-  });
-  listeners.install({ waitUntil: vi.fn() });
-  expect(skipWaiting).toHaveBeenCalledOnce();
-  const respondWith = vi.fn();
-  listeners.fetch({
-    request: {
-      mode: "navigate",
-      method: "GET",
-      url: "https://beta.fountain-publisher.com/?drive=abc",
-    },
-    respondWith,
-  });
-  expect(respondWith.mock.calls[0][0].headers.get("location")).toBe(
-    "https://fountain-publisher.com/?drive=abc",
-  );
-  respondWith.mockClear();
-  listeners.fetch({
-    request: {
-      mode: "cors",
-      method: "POST",
-      url: "https://api.fountain-publisher.com/beta/api/drive",
-    },
-    respondWith,
-  });
-  expect(respondWith).not.toHaveBeenCalled();
-  // No activation handler claims clients, reloads tabs, or removes local data.
-  expect(listeners.activate).toBeUndefined();
-});
+    });
+    listeners.install({ waitUntil: vi.fn() });
+    expect(skipWaiting).toHaveBeenCalledOnce();
+    const respondWith = vi.fn();
+    listeners.fetch({
+      request: {
+        mode: "navigate",
+        method: "GET",
+        url,
+      },
+      respondWith,
+    });
+    expect(respondWith.mock.calls[0][0].headers.get("location")).toBe(
+      "https://fountain-publisher.com/?drive=abc",
+    );
+    respondWith.mockClear();
+    listeners.fetch({
+      request: {
+        mode: "cors",
+        method: "POST",
+        url: "https://api.fountain-publisher.com/beta/api/drive",
+      },
+      respondWith,
+    });
+    expect(respondWith).not.toHaveBeenCalled();
+    // No activation handler claims clients, reloads tabs, or removes local data.
+    expect(listeners.activate).toBeUndefined();
+  },
+);

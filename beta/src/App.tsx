@@ -860,9 +860,7 @@ export default function App() {
     if (result.warnings.length) tell(result.warnings.join(" "));
     setDialog((current) => (current === "highlight" ? null : current));
   }
-  async function exportFile(
-    format: "pdf" | "beatPdf" | "fdx" | "beats" | "html",
-  ) {
+  async function exportFile(format: "pdf" | "beatPdf" | "fdx" | "beats") {
     if (!session) return;
     const snap = session.capture();
     const stem = snap.name.replace(/\.[^.]+$/, "");
@@ -890,17 +888,11 @@ export default function App() {
       const text =
         format === "fdx"
           ? exports.exportFdx(snap.screenplay)
-          : format === "beats"
-            ? exports.exportBeatSheetCsv(snap.screenplay)
-            : exports.exportHtml(snap.screenplay);
+          : exports.exportBeatSheetCsv(snap.screenplay);
       downloadFile(
         text,
         `${stem}${format === "beats" ? "-beats.csv" : `.${format}`}`,
-        format === "fdx"
-          ? "application/xml"
-          : format === "beats"
-            ? "text/csv"
-            : "text/html",
+        format === "fdx" ? "application/xml" : "text/csv",
       );
     }
     if (format !== "pdf" && format !== "beatPdf") tell("Export ready.");

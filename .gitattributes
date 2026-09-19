@@ -1,0 +1,2 @@
+# License provenance verifies exact upstream bytes on every checkout platform.
+beta/build-tools/licenses/** -text

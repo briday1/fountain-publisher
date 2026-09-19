@@ -4,7 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import { offlineShell } from "../build-tools/offline";
 
 const origin = "https://beta.fountain-publisher.com";
-function build(html = '<script src="/assets/app-test.js"></script>') {
+function build(
+  html = '<script src="/assets/app-test.js"></script>',
+  notices = "Full dependency license text",
+) {
   const emitted: { fileName: string; source: string }[] = [];
   const hook = offlineShell().generateBundle as { handler: Function };
   hook.handler.call(
@@ -16,6 +19,8 @@ function build(html = '<script src="/assets/app-test.js"></script>') {
     {
       "index.html": { type: "asset", source: html },
       "assets/app-test.js": { type: "chunk", code: "app" },
+      "licenses.html": { type: "asset", source: `<pre>${notices}</pre>` },
+      "THIRD_PARTY_NOTICES.txt": { type: "asset", source: notices },
     },
   );
   return {
@@ -122,6 +127,30 @@ describe("offline release integrity", () => {
       build('<title>Changed</title><script src="/assets/app-test.js"></script>')
         .shell.fileName,
     ).not.toBe(first.shell.fileName);
+  });
+  it("versions notice-only changes and includes both notice formats in the offline release", () => {
+    const first = build();
+    expect(first.script).toContain('"/licenses.html"');
+    expect(first.script).toContain('"/THIRD_PARTY_NOTICES.txt"');
+    expect(build(undefined, "Updated license notices").shell.fileName).not.toBe(
+      first.shell.fileName,
+    );
+  });
+  it("opens cached license documents themselves during an offline navigation", async () => {
+    const h = harness();
+    await h.lifecycle("install");
+    const cache = await h.caches.open(
+      [...h.stores.keys()].find((key) => key.startsWith("fp2-shell-"))!,
+    );
+    await cache.put("/licenses.html", new Response("License page"));
+    await cache.put("/THIRD_PARTY_NOTICES.txt", new Response("License text"));
+    h.network.mockRejectedValue(new TypeError("Offline"));
+    expect(await (await h.request("/licenses.html?from=help"))!.text()).toBe(
+      "License page",
+    );
+    expect(await (await h.request("/THIRD_PARTY_NOTICES.txt"))!.text()).toBe(
+      "License text",
+    );
   });
   it("installs every asset without the browser HTTP cache and removes incomplete installs", async () => {
     const h = harness();

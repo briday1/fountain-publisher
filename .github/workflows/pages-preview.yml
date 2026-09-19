@@ -13,6 +13,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     concurrency:
       group: writing-app-checks-${{ github.ref }}
       cancel-in-progress: true
@@ -28,6 +29,9 @@ jobs:
           cache-dependency-path: beta/package-lock.json
       - name: Install
         run: npm ci
+      - name: Test publication and legacy retirement
+        working-directory: .
+        run: node --test .github/scripts/prepare-pages.test.mjs
       - name: Test document, editor, persistence and cloud contracts
         run: npm test
       - name: Browser regression tests
@@ -40,6 +44,10 @@ jobs:
           fi
       - name: Build writing app
         run: npm run build:beta
+      - name: Validate the publishable artifact and required license files
+        run: node ../.github/scripts/prepare-pages.mjs dist "$RUNNER_TEMP/pages-check"
+      - name: Validate account adapter without deploying
+        run: npx wrangler deploy --dry-run
       - name: Keep the tested build
         uses: actions/upload-artifact@v4
         with:
@@ -47,11 +55,31 @@ jobs:
           path: beta/dist
           if-no-files-found: error
 
+  account_worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: github-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: github-worker/package-lock.json
+      - name: Install account Worker dependencies
+        run: npm ci
+      - name: Test account Worker response boundaries
+        run: npm test
+      - name: Validate account Worker without deploying
+        run: npx wrangler deploy --dry-run
+
   deploy_production:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: build
+    needs: [build, account_worker]
     runs-on: ubuntu-latest
-    # Share the lock with beta.yml from reading gh-pages through Pages deploy.
+    # Serialize reading gh-pages through Pages deployment.
     # Tests run before the lock, and PR checks never update the published site.
     concurrency:
       group: pages-push
@@ -64,6 +92,13 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Read the tested publication script
+        uses: actions/checkout@v4
+        with:
+          path: source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - name: Read the current published site
         uses: actions/checkout@v4
         with:
@@ -73,24 +108,9 @@ jobs:
         with:
           name: writing-app
           path: out
-      - name: Publish production while preserving installed clients and previews
+      - name: Publish the writing app and retire obsolete runtimes
         run: |
-          rsync -a \
-            --exclude='.git/' \
-            --exclude='previews/' \
-            --exclude='CNAME' \
-            --exclude='.nojekyll' \
-            out/ published/
-          touch published/.nojekyll
-          # The beta Worker serves this directory. Retire its frontend while
-          # retaining old assets for writing sessions that are already open.
-          mkdir -p published/previews/beta
-          rsync -a out/previews/beta/ published/previews/beta/
-          cp out/previews/beta/index.html published/previews/beta/404.html
-          cp out/previews/beta/sw.js published/previews/beta/service-worker.js
-          if [ ! -s published/CNAME ]; then
-            printf '%s\n' 'fountain-publisher.com' > published/CNAME
-          fi
+          node source/.github/scripts/prepare-pages.mjs out published
           cd published
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
