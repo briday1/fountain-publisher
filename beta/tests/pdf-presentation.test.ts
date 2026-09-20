@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { PDFDocument, PDFPage } from "pdf-lib";
+import { PDFDocument, PDFName, PDFPage } from "pdf-lib";
 import {
   exportPdf,
   pdfPageContentSignatures,
@@ -468,6 +468,25 @@ describe("character-highlighted PDFs", () => {
       mobilePages[1].getHeight(),
     );
     expect(new Set(mobilePages.map((page) => page.getHeight())).size).toBe(2);
+
+    // Tightness is part of the format contract, not a visual guess. The
+    // converter lays out first, then sizes the physical PDF page around those
+    // baselines with exactly 24pt top and bottom layout borders.
+    for (const page of mobilePages) {
+      const raw = page.node.get(PDFName.of("FPPageLayout")) as
+        | { decodeText?: () => string }
+        | undefined;
+      expect(raw?.decodeText).toBeTypeOf("function");
+      const records = JSON.parse(raw!.decodeText!()) as Array<{
+        baselineY?: number;
+      }>;
+      const baselines = records
+        .map((record) => record.baselineY)
+        .filter((value): value is number => typeof value === "number");
+      expect(baselines.length).toBeGreaterThan(0);
+      expect(Math.min(...baselines)).toBeCloseTo(24);
+      expect(Math.max(...baselines) + 12).toBeCloseTo(page.getHeight() - 24);
+    }
   });
 
 });
