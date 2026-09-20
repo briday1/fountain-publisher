@@ -181,32 +181,69 @@ function sceneNumbers(
   return numbers;
 }
 
+async function mobilePdfFromCanonical(bytes: Uint8Array): Promise<Uint8Array> {
+  const { PDFDocument } = await import("pdf-lib");
+  const source = await PDFDocument.load(bytes);
+  const output = await PDFDocument.create();
+
+  // The canonical screenplay's useful horizontal region is 54..558 points:
+  // scene numbers through the right edge of the 61-column screenplay measure.
+  // Mobile pages are independently sized and retain a small, consistent border.
+  const sourceLeft = 48;
+  const sourceRight = 564;
+  const topBorder = 24;
+  const bottomBorder = 24;
+  const mobileWidth = 336; // narrow portrait reading width, ~4.67in
+  const contentWidth = mobileWidth - 32;
+  const scale = contentWidth / (sourceRight - sourceLeft);
+
+  for (let index = 0; index < source.getPageCount(); index++) {
+    const sourcePage = source.getPage(index);
+    const { height } = sourcePage.getSize();
+
+    // Embed the completed canonical page itself. No Fountain/source document is
+    // consulted here: page N of this output can only contain page N's PDF marks.
+    const embedded = await output.embedPage(sourcePage, {
+      left: sourceLeft,
+      right: sourceRight,
+      bottom: 24,
+      top: height - 24,
+    });
+    const drawnHeight = (height - 48) * scale;
+    const mobileHeight = topBorder + drawnHeight + bottomBorder;
+    const page = output.addPage([mobileWidth, mobileHeight]);
+    page.drawPage(embedded, {
+      x: 16,
+      y: bottomBorder,
+      width: contentWidth,
+      height: drawnHeight,
+    });
+  }
+
+  return output.save();
+}
+
 /** A self-contained screenplay compositor. Its returned count is read from the PDF itself. */
 export async function exportPdf(
   document: Screenplay,
   options: PdfOptions = {},
 ): Promise<PdfExport> {
-  // A mobile export is deliberately a two-pass conversion. First compose the
-  // ordinary screenplay PDF and capture its canonical page boundaries. Only
-  // then recompose those exact pages into a narrow reading layout. This makes
-  // the normal PDF, not the mobile geometry, authoritative for pagination.
+  // Mobile publishing is a PDF-to-PDF conversion. The conventional rendered
+  // PDF is the sole source: mobile conversion never repaginates the Fountain
+  // document or consults its blocks to decide page membership.
   if (options.mobileLayout && !options.canonicalPageStarts) {
     const canonical = await exportPdf(document, {
       ...options,
       mobileLayout: false,
       canonicalPageStarts: [],
     });
-    const mobile = await exportPdf(document, {
-      ...options,
-      mobileLayout: true,
-      canonicalPageStarts: canonical.pageStarts ?? [],
-    });
+    const mobileBytes = await mobilePdfFromCanonical(canonical.bytes);
     return {
-      ...mobile,
+      bytes: mobileBytes,
       pageCount: canonical.pageCount,
       scriptPageCount: canonical.scriptPageCount,
       pageEquivalent: canonical.pageEquivalent,
-      warnings: [...new Set([...canonical.warnings, ...mobile.warnings])],
+      warnings: canonical.warnings,
     };
   }
   const [{ PDFDocument, StandardFonts, rgb }, { default: fontkit }] =
