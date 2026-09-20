@@ -1,7 +1,11 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { PDFPage } from "pdf-lib";
-import { exportPdf, type PdfOptions } from "../src/core/export";
+import { PDFDocument, PDFPage } from "pdf-lib";
+import {
+  exportPdf,
+  pdfPageContentSignatures,
+  type PdfOptions,
+} from "../src/core/export";
 import { emptyScreenplay, newId } from "../src/core/model";
 import { parseFountain } from "../src/core/fountain";
 import { formatPageCount } from "../src/core/pageCount";
@@ -425,4 +429,45 @@ describe("character-highlighted PDFs", () => {
     await mkdir("tmp/pdf-qa", { recursive: true });
     await writeFile("tmp/pdf-qa/highlighted.pdf", highlighted.bytes);
   });
+  it("keeps exact canonical page content on the corresponding mobile page while reflowing to narrow variable-height pages", async () => {
+    const document = emptyScreenplay();
+    // One source block crosses the canonical page boundary. This catches the
+    // failure mode where a mobile reflow silently pulls text from page 2 back
+    // onto page 1 (or pushes page-1 text forward).
+    document.blocks[0].text = "X".repeat(61 * 56);
+
+    const canonical = await exportPdf(document, { fontBytes });
+    const mobile = await exportPdf(document, {
+      fontBytes,
+      mobileLayout: true,
+    });
+
+    expect(mobile.pageCount).toBe(canonical.pageCount);
+    expect(mobile.scriptPageCount).toBe(canonical.scriptPageCount);
+    expect(await pdfPageContentSignatures(mobile.bytes)).toEqual(
+      await pdfPageContentSignatures(canonical.bytes),
+    );
+
+    const canonicalPdf = await PDFDocument.load(canonical.bytes);
+    const mobilePdf = await PDFDocument.load(mobile.bytes);
+    expect(mobilePdf.getPageCount()).toBe(canonicalPdf.getPageCount());
+
+    const canonicalWidths = canonicalPdf
+      .getPages()
+      .map((page) => page.getWidth());
+    const mobilePages = mobilePdf.getPages();
+    expect(
+      mobilePages.every(
+        (page, index) => page.getWidth() < canonicalWidths[index],
+      ),
+    ).toBe(true);
+
+    // The first canonical page owns 55 rows while the second owns one. Mobile
+    // pages therefore remain one-to-one but are independently height-fitted.
+    expect(mobilePages[0].getHeight()).toBeGreaterThan(
+      mobilePages[1].getHeight(),
+    );
+    expect(new Set(mobilePages.map((page) => page.getHeight())).size).toBe(2);
+  });
+
 });
