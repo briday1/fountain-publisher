@@ -235,23 +235,22 @@ export async function exportPdf(
     );
   }
   const paperHeight = options.pageSize === "a4" ? 841.89 : 792;
-  // Mobile PDF keeps the exact screenplay compositor width/line count, but
-  // trims the mostly-empty paper margins. PDF viewers therefore fit the same
-  // text substantially larger on a phone without zooming or horizontal scroll.
-  // Because line width and vertical pagination are unchanged, page count stays
-  // identical to the normal PDF.
-  const fullWidth = 61 * 7.2;
+  // Mobile PDF is a true tall/skinny reading format. It keeps Courier Prime at
+  // 12pt, narrows the screenplay measure so text reflows naturally, and grows
+  // each page vertically enough to hold the same source material that belongs
+  // to the corresponding conventional screenplay page.
+  const fullWidth = options.mobileLayout ? 39 * 7.2 : 61 * 7.2;
   const pageWidth = options.mobileLayout
-    ? fullWidth + 42.8
+    ? fullWidth + 56
     : options.pageSize === "a4"
       ? 595.28
       : 612;
-  const pageHeight = paperHeight;
+  const pageHeight = options.mobileLayout ? 1040 : paperHeight;
   const left = options.mobileLayout ? 28 : 108;
   const right = pageWidth - left - fullWidth;
-  const leading = 12;
-  const top = pageHeight - 72 - leading;
-  const bottom = top - 54 * leading;
+  const leading = options.mobileLayout ? 14 : 12;
+  const top = pageHeight - (options.mobileLayout ? 56 : 72) - leading;
+  const bottom = options.mobileLayout ? 42 : top - 54 * leading;
   let page: PDFPage;
   let y = top;
   let scriptPageCount = 0;
@@ -441,13 +440,13 @@ export async function exportPdf(
         width -= 13 * 3.6;
       }
     } else if (block.kind === "character") {
-      x = left + 19 * 7.2;
+      x = left + (options.mobileLayout ? 10 : 19) * 7.2;
       width = pageWidth - right - x;
     } else if (block.kind === "dialogue" || block.kind === "lyrics") {
-      x = left + 9 * 7.2;
-      width = 36 * 7.2;
+      x = left + (options.mobileLayout ? 4 : 9) * 7.2;
+      width = (options.mobileLayout ? 31 : 36) * 7.2;
     } else if (block.kind === "parenthetical") {
-      x = left + 13 * 7.2;
+      x = left + (options.mobileLayout ? 7 : 13) * 7.2;
       width = pageWidth - right - x;
     } else if (block.kind === "transition") align = "right";
     else if (block.kind === "centered") align = "center";
