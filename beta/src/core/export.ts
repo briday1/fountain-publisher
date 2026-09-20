@@ -26,6 +26,8 @@ export interface PdfOptions {
   highlightCharacters?: string[];
   includeTitlePage?: boolean;
   pageSize?: "letter" | "a4";
+  /** Narrow, margin-trimmed pages for comfortable phone reading without changing screenplay pagination. */
+  mobileLayout?: boolean;
   sceneNumbers?: "margin" | "inline" | "off";
   boldSceneHeadings?: boolean;
   sceneNumberFormat?: "sequential" | "act";
@@ -232,11 +234,20 @@ export async function exportPdf(
       "Courier Prime could not be loaded. This PDF uses standard Courier.",
     );
   }
-  const [pageWidth, pageHeight] =
-    options.pageSize === "a4" ? [595.28, 841.89] : [612, 792];
-  const left = 108;
-  // Keep the established 61-column, 55-line screenplay page on both paper sizes.
+  const paperHeight = options.pageSize === "a4" ? 841.89 : 792;
+  // Mobile PDF keeps the exact screenplay compositor width/line count, but
+  // trims the mostly-empty paper margins. PDF viewers therefore fit the same
+  // text substantially larger on a phone without zooming or horizontal scroll.
+  // Because line width and vertical pagination are unchanged, page count stays
+  // identical to the normal PDF.
   const fullWidth = 61 * 7.2;
+  const pageWidth = options.mobileLayout
+    ? fullWidth + 42.8
+    : options.pageSize === "a4"
+      ? 595.28
+      : 612;
+  const pageHeight = paperHeight;
+  const left = options.mobileLayout ? 28 : 108;
   const right = pageWidth - left - fullWidth;
   const leading = 12;
   const top = pageHeight - 72 - leading;
@@ -578,7 +589,7 @@ export async function exportPdf(
         numberStyle === "margin"
       ) {
         const number = numbers.get(block.id)!;
-        drawLine(textLines(number, 54, 48)[0], y);
+        drawLine(textLines(number, options.mobileLayout ? 2 : 54, options.mobileLayout ? 24 : 48)[0], y);
       }
       drawLine(lines[lineIndex], y);
       y -= leading;
