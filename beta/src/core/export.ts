@@ -26,10 +26,8 @@ export interface PdfOptions {
   highlightCharacters?: string[];
   includeTitlePage?: boolean;
   pageSize?: "letter" | "a4";
-  /** Narrow, margin-trimmed pages for comfortable phone reading without changing screenplay pagination. */
+  /** Reformat the already-rendered conventional PDF page-by-page for phone reading. */
   mobileLayout?: boolean;
-  /** Internal: force canonical page boundaries before these source block ids. */
-  canonicalPageStarts?: string[];
   sceneNumbers?: "margin" | "inline" | "off";
   boldSceneHeadings?: boolean;
   sceneNumberFormat?: "sequential" | "act";
@@ -48,8 +46,6 @@ export interface PdfExport {
   /** Completed physical pages plus occupied eighths of the final script page. */
   pageEquivalent: number;
   warnings: string[];
-  /** Internal source block ids that began each canonical script page. */
-  pageStarts?: string[];
 }
 type Fonts = Record<"regular" | "bold" | "italic" | "boldItalic", PDFFont>;
 interface Glyph {
@@ -65,6 +61,11 @@ interface Line {
   x: number;
   boxWidth: number;
   align?: "left" | "right" | "center";
+  sourceId?: string;
+  sourceKind?: string;
+  sourceRole?: "content" | "pageNumber" | "sceneNumber" | "title" | "more" | "continued";
+  sourceColumn?: number;
+  breakAfter?: "space" | "none" | "hard";
 }
 
 function fontKey(marks: TextMark[]): keyof Fonts {
@@ -107,20 +108,21 @@ function wrap(
   const lines: Line[] = [];
   let current: Glyph[] = [];
   let currentWidth = 0;
-  const flush = () => {
+  const flush = (breakAfter?: Line["breakAfter"]) => {
     lines.push({
       glyphs: current,
       width: currentWidth,
       x,
       boxWidth: width,
       align,
+      breakAfter,
     });
     current = [];
     currentWidth = 0;
   };
   for (const glyph of all) {
     if (glyph.text === "\n") {
-      flush();
+      flush("hard");
       continue;
     }
     if (current.length && currentWidth + glyph.width > width + 0.05) {
@@ -130,10 +132,10 @@ function wrap(
         const after = current.slice(space + 1);
         current = current.slice(0, space);
         currentWidth = current.reduce((sum, item) => sum + item.width, 0);
-        flush();
+        flush("space");
         current = after;
         currentWidth = current.reduce((sum, item) => sum + item.width, 0);
-      } else flush();
+} else flush("none");
       if (!current.length && /\s/.test(glyph.text)) continue;
     }
     current.push(glyph);
@@ -181,46 +183,349 @@ function sceneNumbers(
   return numbers;
 }
 
-async function mobilePdfFromCanonical(bytes: Uint8Array): Promise<Uint8Array> {
-  const { PDFDocument } = await import("pdf-lib");
+type PdfPageRecord = {
+  spans: TextSpan[];
+  sourceId?: string;
+  sourceKind?: string;
+  sourceRole: "content" | "pageNumber" | "sceneNumber" | "title" | "more" | "continued";
+  sourceColumn?: number;
+  align?: Line["align"];
+  breakAfter?: Line["breakAfter"];
+};
+
+function pageRecordText(records: PdfPageRecord[]): string {
+  let text = "";
+  for (let index = 0; index < records.length; index++) {
+    const record = records[index];
+    if (index) {
+      const previous = records[index - 1];
+      const sameSource =
+        previous.sourceId !== undefined &&
+        previous.sourceId === record.sourceId &&
+        previous.sourceRole === record.sourceRole &&
+        previous.sourceColumn === record.sourceColumn;
+      text += sameSource
+        ? previous.breakAfter === "none"
+          ? ""
+          : previous.breakAfter === "hard"
+            ? "\n"
+            : " "
+        : "\n";
+    }
+    text += record.spans.map((span) => span.text).join("");
+  }
+  return text;
+}
+
+function pageContentSignature(records: PdfPageRecord[]): string {
+  return (pageRecordText(records).match(/\S+/g) ?? []).join("\u0000");
+}
+
+function mergeCanonicalRecords(records: PdfPageRecord[]): PdfPageRecord[] {
+  const merged: PdfPageRecord[] = [];
+  for (const record of records) {
+    const previous = merged.at(-1);
+    const sameSource =
+      previous &&
+      record.sourceId !== undefined &&
+      previous.sourceId === record.sourceId &&
+      previous.sourceKind === record.sourceKind &&
+      previous.sourceRole === record.sourceRole &&
+      previous.sourceColumn === record.sourceColumn &&
+      previous.align === record.align;
+    if (!sameSource) {
+      merged.push({
+        ...record,
+        spans: record.spans.map((span) => ({
+          text: span.text,
+          ...(span.marks?.length ? { marks: [...span.marks] } : {}),
+        })),
+      });
+      continue;
+    }
+    const separator =
+      previous.breakAfter === "none"
+        ? ""
+        : previous.breakAfter === "hard"
+          ? "\n"
+          : " ";
+    if (separator) previous.spans.push({ text: separator });
+    previous.spans.push(
+      ...record.spans.map((span) => ({
+        text: span.text,
+        ...(span.marks?.length ? { marks: [...span.marks] } : {}),
+      })),
+    );
+    previous.breakAfter = record.breakAfter;
+  }
+  return merged;
+}
+
+async function mobilePdfFromCanonical(
+  bytes: Uint8Array,
+  fontBytes?: PdfOptions["fontBytes"],
+): Promise<{ bytes: Uint8Array; warnings: string[] }> {
+  const [
+    { PDFDocument, PDFHexString, PDFName, StandardFonts, rgb },
+    { default: fontkit },
+  ] = await Promise.all([import("pdf-lib"), import("@pdf-lib/fontkit")]);
   const source = await PDFDocument.load(bytes);
   const output = await PDFDocument.create();
+  const warnings = new Set<string>();
 
-  // The canonical screenplay's useful horizontal region is 54..558 points:
-  // scene numbers through the right edge of the 61-column screenplay measure.
-  // Mobile pages are independently sized and retain a small, consistent border.
-  const sourceLeft = 48;
-  const sourceRight = 564;
+  let fonts: Fonts;
+  try {
+    const bytes =
+      fontBytes ??
+      (Object.fromEntries(
+        await Promise.all(
+          Object.entries({
+            regular: regularFontUrl,
+            bold: boldFontUrl,
+            italic: italicFontUrl,
+            boldItalic: boldItalicFontUrl,
+          }).map(async ([name, url]) => {
+            const response = await fetch(url);
+            if (!response.ok)
+              throw new Error(`Font request failed (${response.status})`);
+            return [name, new Uint8Array(await response.arrayBuffer())];
+          }),
+        ),
+      ) as NonNullable<PdfOptions["fontBytes"]>);
+    output.registerFontkit(fontkit);
+    fonts = Object.fromEntries(
+      await Promise.all(
+        Object.entries(bytes).map(async ([name, data]) => [
+          name,
+          await output.embedFont(data, { subset: true }),
+        ]),
+      ),
+    ) as Fonts;
+  } catch {
+    fonts = {
+      regular: await output.embedFont(StandardFonts.Courier),
+      bold: await output.embedFont(StandardFonts.CourierBold),
+      italic: await output.embedFont(StandardFonts.CourierOblique),
+      boldItalic: await output.embedFont(StandardFonts.CourierBoldOblique),
+    };
+    warnings.add(
+      "Courier Prime could not be loaded. This mobile PDF uses standard Courier.",
+    );
+  }
+
+  const mobileWidth = 336;
+  const side = 20;
+  const bodyWidth = mobileWidth - side * 2;
   const topBorder = 24;
   const bottomBorder = 24;
-  const mobileWidth = 336; // narrow portrait reading width, ~4.67in
-  const contentWidth = mobileWidth - 32;
-  const scale = contentWidth / (sourceRight - sourceLeft);
+  const leading = 14;
+  const fontSize = 12;
+
+  const layoutFor = (record: PdfPageRecord) => {
+    let x = side;
+    let width = bodyWidth;
+    let align: Line["align"] = record.align ?? "left";
+    if (record.sourceRole === "pageNumber") align = "right";
+    else if (record.sourceRole === "sceneNumber") {
+      width = bodyWidth;
+      align = "left";
+    } else if (record.sourceKind === "character") {
+      x += 72;
+      width -= 72;
+    } else if (
+      record.sourceKind === "dialogue" ||
+      record.sourceKind === "lyrics"
+    ) {
+      x += 28;
+      width -= 56;
+    } else if (record.sourceKind === "parenthetical") {
+      x += 48;
+      width -= 80;
+    } else if (record.sourceKind === "transition") align = "right";
+    else if (record.sourceKind === "centered") align = "center";
+    return { x, width, align };
+  };
+
+  const gapBefore = (
+    record: PdfPageRecord,
+    previous?: PdfPageRecord,
+  ): number => {
+    if (!previous) return 0;
+    if (record.sourceRole === "pageNumber") return 0;
+    if (previous.sourceRole === "pageNumber") return 10;
+    if (
+      record.sourceRole === "sceneNumber" ||
+      previous.sourceRole === "sceneNumber"
+    )
+      return 0;
+    if (
+      record.sourceKind === "dialogue" ||
+      record.sourceKind === "parenthetical" ||
+      record.sourceRole === "more" ||
+      record.sourceRole === "continued"
+    )
+      return 0;
+    if (
+      previous.sourceKind === "character" &&
+      (record.sourceKind === "dialogue" ||
+        record.sourceKind === "parenthetical")
+    )
+      return 0;
+    return 10;
+  };
 
   for (let index = 0; index < source.getPageCount(); index++) {
     const sourcePage = source.getPage(index);
-    const { height } = sourcePage.getSize();
-
-    // Embed the completed canonical page itself. No Fountain/source document is
-    // consulted here: page N of this output can only contain page N's PDF marks.
-    const embedded = await output.embedPage(sourcePage, {
-      left: sourceLeft,
-      right: sourceRight,
-      bottom: 24,
-      top: height - 24,
+    const raw = sourcePage.node.get(PDFName.of("FPPageLayout")) as
+      | { decodeText?: () => string }
+      | undefined;
+    if (!raw?.decodeText)
+      throw new Error(
+        `Mobile PDF conversion could not read canonical page ${index + 1}.`,
+      );
+    const canonicalRecords = JSON.parse(raw.decodeText()) as PdfPageRecord[];
+    const groups = mergeCanonicalRecords(canonicalRecords);
+    const planned = groups.map((record, groupIndex) => {
+      const box = layoutFor(record);
+      const lines = wrap(
+        record.spans,
+        fonts,
+        box.x,
+        box.width,
+        warnings,
+        box.align,
+      );
+      return {
+        record,
+        lines,
+        gap: gapBefore(record, groups[groupIndex - 1]),
+      };
     });
-    const drawnHeight = (height - 48) * scale;
-    const mobileHeight = topBorder + drawnHeight + bottomBorder;
+    const totalRows = planned.reduce((sum, item) => sum + item.lines.length, 0);
+    const totalGaps = planned.reduce((sum, item) => sum + item.gap, 0);
+    const contentHeight =
+      totalRows > 0
+        ? fontSize + Math.max(0, totalRows - 1) * leading + totalGaps
+        : 0;
+    const mobileHeight = Math.max(
+      topBorder + bottomBorder + fontSize,
+      topBorder + contentHeight + bottomBorder,
+    );
     const page = output.addPage([mobileWidth, mobileHeight]);
-    page.drawPage(embedded, {
-      x: 16,
-      y: bottomBorder,
-      width: contentWidth,
-      height: drawnHeight,
-    });
+    const mobileRecords: PdfPageRecord[] = [];
+    let y = mobileHeight - topBorder - fontSize;
+
+    const drawMobileLine = (
+      line: Line,
+      record: PdfPageRecord,
+      breakAfter?: Line["breakAfter"],
+    ) => {
+      let x =
+        line.x +
+        (line.align === "right"
+          ? line.boxWidth - line.width
+          : line.align === "center"
+            ? (line.boxWidth - line.width) / 2
+            : 0);
+      const renderedSpans: TextSpan[] = [];
+      let start = 0;
+      while (start < line.glyphs.length) {
+        const first = line.glyphs[start];
+        let end = start + 1;
+        while (
+          end < line.glyphs.length &&
+          line.glyphs[end].font === first.font &&
+          line.glyphs[end].marks.join() === first.marks.join()
+        )
+          end++;
+        const glyphs = line.glyphs.slice(start, end);
+        let text = glyphs.map((glyph) => glyph.text).join("");
+        try {
+          first.font.encodeText(text);
+        } catch {
+          text = text.replace(/[^\x20-\x7e]/g, "?");
+        }
+        const width = glyphs.reduce((sum, glyph) => sum + glyph.width, 0);
+        if (text) {
+          page.drawText(text, {
+            x,
+            y,
+            size: fontSize,
+            font: first.font,
+            color: rgb(0.07, 0.07, 0.07),
+          });
+          renderedSpans.push({
+            text,
+            ...(first.marks.length ? { marks: [...first.marks] } : {}),
+          });
+        }
+        if (first.marks.includes("underline") && width)
+          page.drawLine({
+            start: { x, y: y - 1.5 },
+            end: { x: x + width, y: y - 1.5 },
+            thickness: 0.5,
+            color: rgb(0.07, 0.07, 0.07),
+          });
+        x += width;
+        start = end;
+      }
+      mobileRecords.push({
+        spans: renderedSpans,
+        sourceId: record.sourceId,
+        sourceKind: record.sourceKind,
+        sourceRole: record.sourceRole,
+        sourceColumn: record.sourceColumn,
+        align: line.align,
+        breakAfter,
+      });
+    };
+
+    for (const item of planned) {
+      y -= item.gap;
+      item.lines.forEach((line, lineIndex) => {
+        drawMobileLine(line, item.record, line.breakAfter);
+        if (
+          lineIndex === item.lines.length - 1 &&
+          item.record.breakAfter !== undefined
+        )
+          mobileRecords[mobileRecords.length - 1].breakAfter =
+            item.record.breakAfter;
+        y -= leading;
+      });
+    }
+
+    const canonicalSignature = pageContentSignature(canonicalRecords);
+    const mobileSignature = pageContentSignature(mobileRecords);
+    if (canonicalSignature !== mobileSignature)
+      throw new Error(
+        `Mobile PDF conversion changed the content of canonical page ${index + 1}.`,
+      );
+    page.node.set(
+      PDFName.of("FPPageLayout"),
+      PDFHexString.fromText(JSON.stringify(mobileRecords)),
+    );
+    page.node.set(
+      PDFName.of("FPPageText"),
+      PDFHexString.fromText(mobileSignature),
+    );
   }
 
-  return output.save();
+  return { bytes: await output.save(), warnings: [...warnings] };
+}
+
+export async function pdfPageContentSignatures(
+  bytes: Uint8Array,
+): Promise<string[]> {
+  const { PDFDocument, PDFName } = await import("pdf-lib");
+  const pdf = await PDFDocument.load(bytes);
+  return pdf.getPages().map((page, index) => {
+    const raw = page.node.get(PDFName.of("FPPageText")) as
+      | { decodeText?: () => string }
+      | undefined;
+    if (!raw?.decodeText)
+      throw new Error(`PDF page ${index + 1} has no content signature.`);
+    return raw.decodeText();
+  });
 }
 
 /** A self-contained screenplay compositor. Its returned count is read from the PDF itself. */
@@ -228,25 +533,18 @@ export async function exportPdf(
   document: Screenplay,
   options: PdfOptions = {},
 ): Promise<PdfExport> {
-  // Mobile publishing is a PDF-to-PDF conversion. The conventional rendered
-  // PDF is the sole source: mobile conversion never repaginates the Fountain
-  // document or consults its blocks to decide page membership.
-  if (options.mobileLayout && !options.canonicalPageStarts) {
-    const canonical = await exportPdf(document, {
-      ...options,
-      mobileLayout: false,
-      canonicalPageStarts: [],
-    });
-    const mobileBytes = await mobilePdfFromCanonical(canonical.bytes);
+  if (options.mobileLayout) {
+    const canonical = await exportPdf(document, { ...options, mobileLayout: false });
+    const mobile = await mobilePdfFromCanonical(canonical.bytes, options.fontBytes);
     return {
-      bytes: mobileBytes,
+      bytes: mobile.bytes,
       pageCount: canonical.pageCount,
       scriptPageCount: canonical.scriptPageCount,
       pageEquivalent: canonical.pageEquivalent,
-      warnings: canonical.warnings,
+      warnings: [...new Set([...canonical.warnings, ...mobile.warnings])],
     };
   }
-  const [{ PDFDocument, StandardFonts, rgb }, { default: fontkit }] =
+  const [{ PDFDocument, PDFHexString, PDFName, StandardFonts, rgb }, { default: fontkit }] =
     await Promise.all([import("pdf-lib"), import("@pdf-lib/fontkit")]);
   const highlights = new Map(
     characterHighlights(options.highlightCharacters ?? []).map(
@@ -298,34 +596,20 @@ export async function exportPdf(
       "Courier Prime could not be loaded. This PDF uses standard Courier.",
     );
   }
-  const paperHeight = options.pageSize === "a4" ? 841.89 : 792;
-  // Mobile PDF is a true tall/skinny reading format. It keeps Courier Prime at
-  // 12pt, narrows the screenplay measure so text reflows naturally, and grows
-  // each page vertically enough to hold the same source material that belongs
-  // to the corresponding conventional screenplay page.
-  const fullWidth = options.mobileLayout ? 39 * 7.2 : 61 * 7.2;
-  const pageWidth = options.mobileLayout
-    ? fullWidth + 56
-    : options.pageSize === "a4"
-      ? 595.28
-      : 612;
-  // Mobile page height is finalized per page after composition so each mobile
-  // page contains exactly the same screenplay slice as its conventional page.
-  // Start with a generous canvas; it is cropped to the content boundary below.
-  const pageHeight = options.mobileLayout ? 1800 : paperHeight;
-  const left = options.mobileLayout ? 28 : 108;
+  const [pageWidth, pageHeight] =
+    options.pageSize === "a4" ? [595.28, 841.89] : [612, 792];
+  const left = 108;
+  const fullWidth = 61 * 7.2;
   const right = pageWidth - left - fullWidth;
-  const leading = options.mobileLayout ? 14 : 12;
-  const top = pageHeight - (options.mobileLayout ? 56 : 72) - leading;
-  const bottom = options.mobileLayout ? 42 : top - 54 * leading;
-  const mobilePageBottoms = new Map<PDFPage, number>();
+  const leading = 12;
+  const top = pageHeight - 72 - leading;
+  const bottom = top - 54 * leading;
+  const pageRecords = new Map<PDFPage, PdfPageRecord[]>();
   let page: PDFPage;
   let y = top;
   let scriptPageCount = 0;
   let titlePageCount = 0;
   let lastPageUsedRows = 0;
-  const pageStarts: string[] = [];
-  let pendingPageStart: string | undefined;
   const drawLine = (line: Line, atY: number, target: PDFPage = page) => {
     // Measure the actual ink-bearing body rows. Cover text, running page numbers,
     // and the compositor's trailing paragraph gaps do not advance this metric.
@@ -336,11 +620,6 @@ export async function exportPdf(
       line.glyphs.some((glyph) => /\S/.test(glyph.text))
     )
       lastPageUsedRows = Math.max(lastPageUsedRows, (top - atY) / leading + 1);
-    if (options.mobileLayout && target === page)
-      mobilePageBottoms.set(
-        target,
-        Math.min(mobilePageBottoms.get(target) ?? atY, atY),
-      );
     let x =
       line.x +
       (line.align === "right"
@@ -357,6 +636,7 @@ export async function exportPdf(
         color: rgb(...line.highlight),
         borderWidth: 0,
       });
+    const renderedSpans: TextSpan[] = [];
     let start = 0;
     while (start < line.glyphs.length) {
       const first = line.glyphs[start];
@@ -375,7 +655,7 @@ export async function exportPdf(
         text = text.replace(/[^\x20-\x7e]/g, "?");
       }
       const width = glyphs.reduce((sum, glyph) => sum + glyph.width, 0);
-      if (text)
+      if (text) {
         target.drawText(text, {
           x,
           y: atY,
@@ -383,6 +663,11 @@ export async function exportPdf(
           font: first.font,
           color: rgb(0.07, 0.07, 0.07),
         });
+        renderedSpans.push({
+          text,
+          ...(first.marks.length ? { marks: [...first.marks] } : {}),
+        });
+      }
       if (first.marks.includes("underline") && width)
         target.drawLine({
           start: { x, y: atY - 1.5 },
@@ -392,6 +677,19 @@ export async function exportPdf(
         });
       x += width;
       start = end;
+    }
+    if (renderedSpans.length) {
+      const records = pageRecords.get(target) ?? [];
+      records.push({
+        spans: renderedSpans,
+        sourceId: line.sourceId,
+        sourceKind: line.sourceKind,
+        sourceRole: line.sourceRole ?? "content",
+        sourceColumn: line.sourceColumn,
+        align: line.align,
+        breakAfter: line.breakAfter,
+      });
+      pageRecords.set(target, records);
     }
   };
   const textLines = (
@@ -403,14 +701,17 @@ export async function exportPdf(
   ) => wrap([{ text, marks }], fonts, x, width, warnings, align);
   const newPage = () => {
     page = pdf.addPage([pageWidth, pageHeight]);
-    if (pendingPageStart) pageStarts.push(pendingPageStart);
     y = top;
     lastPageUsedRows = 0;
     scriptPageCount++;
-    drawLine(
-      textLines(`${scriptPageCount}.`, left, fullWidth, "right")[0],
-      pageHeight - 42,
-    );
+    const runningNumber = textLines(
+      `${scriptPageCount}.`,
+      left,
+      fullWidth,
+      "right",
+    )[0];
+    runningNumber.sourceRole = "pageNumber";
+    drawLine(runningNumber, pageHeight - 42);
   };
   if (options.includeTitlePage !== false && hasTitlePage(document.titlePage)) {
     let titlePage = pdf.addPage([pageWidth, pageHeight]);
@@ -425,11 +726,13 @@ export async function exportPdf(
       for (const field of fields) {
         if (!field.text) continue;
         textLines(field.text, left, titleWidth, field.align).forEach(
-          (line, index) =>
+          (line, index) => {
+            line.sourceRole = "title";
             result.push({
               line,
               gap: result.length ? (index ? titleLeading : field.gap) : 0,
-            }),
+            });
+          },
         );
       }
       return result;
@@ -516,13 +819,13 @@ export async function exportPdf(
         width -= 13 * 3.6;
       }
     } else if (block.kind === "character") {
-      x = left + (options.mobileLayout ? 10 : 19) * 7.2;
+      x = left + 19 * 7.2;
       width = pageWidth - right - x;
     } else if (block.kind === "dialogue" || block.kind === "lyrics") {
-      x = left + (options.mobileLayout ? 4 : 9) * 7.2;
-      width = (options.mobileLayout ? 31 : 36) * 7.2;
+      x = left + 9 * 7.2;
+      width = 36 * 7.2;
     } else if (block.kind === "parenthetical") {
-      x = left + (options.mobileLayout ? 7 : 13) * 7.2;
+      x = left + 13 * 7.2;
       width = pageWidth - right - x;
     } else if (block.kind === "transition") align = "right";
     else if (block.kind === "centered") align = "center";
@@ -557,6 +860,12 @@ export async function exportPdf(
         ...spans,
       ];
     const lines = wrap(spans, fonts, x, width, warnings, align);
+    for (const line of lines) {
+      line.sourceId = block.id;
+      line.sourceKind = block.kind;
+      line.sourceRole = "content";
+      line.sourceColumn = dualColumn;
+    }
     const highlight =
       block.kind === "character"
         ? highlights.get(characterName(block.text))
@@ -607,6 +916,7 @@ export async function exportPdf(
             { ...group[0], text: "(MORE)", spans: undefined },
             groups.length > 1 ? column : undefined,
           )[0];
+          more.sourceRole = "more";
           drawLine(more, Math.max(bottom, y));
         });
         newPage();
@@ -620,24 +930,18 @@ export async function exportPdf(
             { ...group[0], text, spans: undefined },
             groups.length > 1 ? column : undefined,
           );
-          cues.forEach((line, index) => drawLine(line, y - index * leading));
+          cues.forEach((line, index) => {
+            line.sourceRole = "continued";
+            drawLine(line, y - index * leading);
+          });
           cueHeight = Math.max(cueHeight, cues.length);
         });
         y -= cueHeight * leading;
       }
     }
   };
-  const forcedStarts = new Set(options.canonicalPageStarts ?? []);
   for (let i = 0; i < blocks.length;) {
     const block = blocks[i];
-    pendingPageStart = block.id;
-    if (
-      options.mobileLayout &&
-      pageStarts.length > 0 &&
-      forcedStarts.has(block.id) &&
-      y < top
-    )
-      newPage();
     if (block.kind === "pageBreak") {
       if (y < top) newPage();
       i++;
@@ -673,27 +977,27 @@ export async function exportPdf(
         numberStyle === "margin"
       ) {
         const number = numbers.get(block.id)!;
-        drawLine(textLines(number, options.mobileLayout ? 2 : 54, options.mobileLayout ? 24 : 48)[0], y);
+        const sceneNumber = textLines(number, 54, 48)[0];
+        sceneNumber.sourceId = block.id;
+        sceneNumber.sourceKind = "scene";
+        sceneNumber.sourceRole = "sceneNumber";
+        drawLine(sceneNumber, y);
       }
       drawLine(lines[lineIndex], y);
       y -= leading;
     }
     i++;
   }
-  if (options.mobileLayout) {
-    // Each page is independently sized around exactly the material composed on
-    // that page. This preserves page boundaries/content while producing the
-    // tall, narrow phone-reading shape instead of repaginating the screenplay.
-    for (const mobilePage of pdf.getPages()) {
-      const usedBottom = mobilePageBottoms.get(mobilePage);
-      if (usedBottom === undefined) continue;
-      const desiredBottomMargin = 42;
-      const usedTop = top + 20;
-      const height = Math.max(240, usedTop - usedBottom + desiredBottomMargin);
-      const shift = pageHeight - height;
-      mobilePage.setMediaBox(0, shift, pageWidth, height);
-      mobilePage.setCropBox(0, shift, pageWidth, height);
-    }
+  for (const renderedPage of pdf.getPages()) {
+    const records = pageRecords.get(renderedPage) ?? [];
+    renderedPage.node.set(
+      PDFName.of("FPPageLayout"),
+      PDFHexString.fromText(JSON.stringify(records)),
+    );
+    renderedPage.node.set(
+      PDFName.of("FPPageText"),
+      PDFHexString.fromText(pageContentSignature(records)),
+    );
   }
   const bytes = await pdf.save();
   return {
@@ -705,7 +1009,6 @@ export async function exportPdf(
       Math.max(0, scriptPageCount - 1) +
       Math.min(1, Math.ceil((lastPageUsedRows / 55) * 8) / 8),
     warnings: [...warnings],
-    pageStarts,
   };
 }
 
