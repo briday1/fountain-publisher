@@ -860,11 +860,11 @@ export default function App() {
     if (result.warnings.length) tell(result.warnings.join(" "));
     setDialog((current) => (current === "highlight" ? null : current));
   }
-  async function exportFile(format: "pdf" | "beatPdf" | "fdx" | "beats") {
+  async function exportFile(format: "pdf" | "mobilePdf" | "beatPdf" | "fdx" | "beats") {
     if (!session) return;
     const snap = session.capture();
     const stem = snap.name.replace(/\.[^.]+$/, "");
-    if (format === "pdf" || format === "beatPdf") {
+    if (format === "pdf" || format === "mobilePdf" || format === "beatPdf") {
       const outputDoc =
         format === "beatPdf"
           ? (await import("./core/export")).beatSheetDocument(snap.screenplay)
@@ -876,11 +876,14 @@ export default function App() {
         cached.epoch === snap.epoch &&
         cached.options === pdfOptionsKey
           ? cached.result
-          : await publishPdf(outputDoc, pdfOptions);
+          : await publishPdf(outputDoc, {
+              ...pdfOptions,
+              ...(format === "mobilePdf" ? { mobileLayout: true } : {}),
+            });
       if (result.warnings.length) tell(result.warnings.join(" "));
       downloadFile(
         new Blob([result.bytes as BlobPart], { type: "application/pdf" }),
-        `${stem}${format === "beatPdf" ? "-beats" : ""}.pdf`,
+        `${stem}${format === "beatPdf" ? "-beats" : format === "mobilePdf" ? "-mobile" : ""}.pdf`,
       );
       if (format === "pdf") acceptPdf(result, snap, pdfOptionsKey);
     } else {
@@ -895,7 +898,7 @@ export default function App() {
         format === "fdx" ? "application/xml" : "text/csv",
       );
     }
-    if (format !== "pdf" && format !== "beatPdf") tell("Export ready.");
+    if (format !== "pdf" && format !== "mobilePdf" && format !== "beatPdf") tell("Export ready.");
   }
   useEffect(() => {
     if (!snapshot) return;
@@ -1138,6 +1141,9 @@ export default function App() {
             <small>PUBLISH</small>
             <MenuItem onClick={() => void run(() => exportFile("pdf"))}>
               Export PDF…
+            </MenuItem>
+            <MenuItem onClick={() => void run(() => exportFile("mobilePdf"))}>
+              Export mobile PDF…
             </MenuItem>
             <MenuItem
               onClick={() => {
