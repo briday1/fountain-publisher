@@ -245,12 +245,16 @@ export async function exportPdf(
     : options.pageSize === "a4"
       ? 595.28
       : 612;
-  const pageHeight = options.mobileLayout ? 1040 : paperHeight;
+  // Mobile page height is finalized per page after composition so each mobile
+  // page contains exactly the same screenplay slice as its conventional page.
+  // Start with a generous canvas; it is cropped to the content boundary below.
+  const pageHeight = options.mobileLayout ? 1800 : paperHeight;
   const left = options.mobileLayout ? 28 : 108;
   const right = pageWidth - left - fullWidth;
   const leading = options.mobileLayout ? 14 : 12;
   const top = pageHeight - (options.mobileLayout ? 56 : 72) - leading;
   const bottom = options.mobileLayout ? 42 : top - 54 * leading;
+  const mobilePageBottoms = new Map<PDFPage, number>();
   let page: PDFPage;
   let y = top;
   let scriptPageCount = 0;
@@ -266,6 +270,11 @@ export async function exportPdf(
       line.glyphs.some((glyph) => /\S/.test(glyph.text))
     )
       lastPageUsedRows = Math.max(lastPageUsedRows, (top - atY) / leading + 1);
+    if (options.mobileLayout && target === page)
+      mobilePageBottoms.set(
+        target,
+        Math.min(mobilePageBottoms.get(target) ?? atY, atY),
+      );
     let x =
       line.x +
       (line.align === "right"
@@ -594,6 +603,21 @@ export async function exportPdf(
       y -= leading;
     }
     i++;
+  }
+  if (options.mobileLayout) {
+    // Each page is independently sized around exactly the material composed on
+    // that page. This preserves page boundaries/content while producing the
+    // tall, narrow phone-reading shape instead of repaginating the screenplay.
+    for (const mobilePage of pdf.getPages()) {
+      const usedBottom = mobilePageBottoms.get(mobilePage);
+      if (usedBottom === undefined) continue;
+      const desiredBottomMargin = 42;
+      const usedTop = top + 20;
+      const height = Math.max(240, usedTop - usedBottom + desiredBottomMargin);
+      const shift = pageHeight - height;
+      mobilePage.setMediaBox(0, shift, pageWidth, height);
+      mobilePage.setCropBox(0, shift, pageWidth, height);
+    }
   }
   const bytes = await pdf.save();
   return {
