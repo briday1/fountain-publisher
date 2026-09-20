@@ -135,7 +135,7 @@ function wrap(
         flush("space");
         current = after;
         currentWidth = current.reduce((sum, item) => sum + item.width, 0);
-} else flush("none");
+      } else flush("none");
       if (!current.length && /\s/.test(glyph.text)) continue;
     }
     current.push(glyph);
@@ -191,6 +191,7 @@ type PdfPageRecord = {
   sourceColumn?: number;
   align?: Line["align"];
   breakAfter?: Line["breakAfter"];
+  baselineY?: number;
 };
 
 function pageRecordText(records: PdfPageRecord[]): string {
@@ -403,14 +404,15 @@ async function mobilePdfFromCanonical(
     });
     const totalRows = planned.reduce((sum, item) => sum + item.lines.length, 0);
     const totalGaps = planned.reduce((sum, item) => sum + item.gap, 0);
+    // Size after layout, never before it. The first line's 12pt line box ends
+    // exactly topBorder below the page edge; the final baseline lands exactly
+    // bottomBorder above the bottom edge. Different canonical pages therefore
+    // naturally produce different physical mobile-page heights.
     const contentHeight =
       totalRows > 0
         ? fontSize + Math.max(0, totalRows - 1) * leading + totalGaps
-        : 0;
-    const mobileHeight = Math.max(
-      topBorder + bottomBorder + fontSize,
-      topBorder + contentHeight + bottomBorder,
-    );
+        : fontSize;
+    const mobileHeight = topBorder + contentHeight + bottomBorder;
     const page = output.addPage([mobileWidth, mobileHeight]);
     const mobileRecords: PdfPageRecord[] = [];
     let y = mobileHeight - topBorder - fontSize;
@@ -477,6 +479,7 @@ async function mobilePdfFromCanonical(
         sourceColumn: record.sourceColumn,
         align: line.align,
         breakAfter,
+        baselineY: y,
       });
     };
 
