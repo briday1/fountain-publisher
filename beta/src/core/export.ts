@@ -28,6 +28,8 @@ export interface PdfOptions {
   pageSize?: "letter" | "a4";
   /** Narrow, margin-trimmed pages for comfortable phone reading without changing screenplay pagination. */
   mobileLayout?: boolean;
+  /** Internal: force canonical page boundaries before these source block ids. */
+  canonicalPageStarts?: string[];
   sceneNumbers?: "margin" | "inline" | "off";
   boldSceneHeadings?: boolean;
   sceneNumberFormat?: "sequential" | "act";
@@ -46,6 +48,8 @@ export interface PdfExport {
   /** Completed physical pages plus occupied eighths of the final script page. */
   pageEquivalent: number;
   warnings: string[];
+  /** Internal source block ids that began each canonical script page. */
+  pageStarts?: string[];
 }
 type Fonts = Record<"regular" | "bold" | "italic" | "boldItalic", PDFFont>;
 interface Glyph {
@@ -182,6 +186,29 @@ export async function exportPdf(
   document: Screenplay,
   options: PdfOptions = {},
 ): Promise<PdfExport> {
+  // A mobile export is deliberately a two-pass conversion. First compose the
+  // ordinary screenplay PDF and capture its canonical page boundaries. Only
+  // then recompose those exact pages into a narrow reading layout. This makes
+  // the normal PDF, not the mobile geometry, authoritative for pagination.
+  if (options.mobileLayout && !options.canonicalPageStarts) {
+    const canonical = await exportPdf(document, {
+      ...options,
+      mobileLayout: false,
+      canonicalPageStarts: [],
+    });
+    const mobile = await exportPdf(document, {
+      ...options,
+      mobileLayout: true,
+      canonicalPageStarts: canonical.pageStarts ?? [],
+    });
+    return {
+      ...mobile,
+      pageCount: canonical.pageCount,
+      scriptPageCount: canonical.scriptPageCount,
+      pageEquivalent: canonical.pageEquivalent,
+      warnings: [...new Set([...canonical.warnings, ...mobile.warnings])],
+    };
+  }
   const [{ PDFDocument, StandardFonts, rgb }, { default: fontkit }] =
     await Promise.all([import("pdf-lib"), import("@pdf-lib/fontkit")]);
   const highlights = new Map(
@@ -260,6 +287,8 @@ export async function exportPdf(
   let scriptPageCount = 0;
   let titlePageCount = 0;
   let lastPageUsedRows = 0;
+  const pageStarts: string[] = [];
+  let pendingPageStart: string | undefined;
   const drawLine = (line: Line, atY: number, target: PDFPage = page) => {
     // Measure the actual ink-bearing body rows. Cover text, running page numbers,
     // and the compositor's trailing paragraph gaps do not advance this metric.
@@ -337,6 +366,7 @@ export async function exportPdf(
   ) => wrap([{ text, marks }], fonts, x, width, warnings, align);
   const newPage = () => {
     page = pdf.addPage([pageWidth, pageHeight]);
+    if (pendingPageStart) pageStarts.push(pendingPageStart);
     y = top;
     lastPageUsedRows = 0;
     scriptPageCount++;
@@ -560,8 +590,17 @@ export async function exportPdf(
       }
     }
   };
+  const forcedStarts = new Set(options.canonicalPageStarts ?? []);
   for (let i = 0; i < blocks.length;) {
     const block = blocks[i];
+    pendingPageStart = block.id;
+    if (
+      options.mobileLayout &&
+      pageStarts.length > 0 &&
+      forcedStarts.has(block.id) &&
+      y < top
+    )
+      newPage();
     if (block.kind === "pageBreak") {
       if (y < top) newPage();
       i++;
@@ -629,6 +668,7 @@ export async function exportPdf(
       Math.max(0, scriptPageCount - 1) +
       Math.min(1, Math.ceil((lastPageUsedRows / 55) * 8) / 8),
     warnings: [...warnings],
+    pageStarts,
   };
 }
 
