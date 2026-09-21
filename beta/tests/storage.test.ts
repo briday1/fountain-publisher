@@ -237,7 +237,14 @@ describe("file durability", () => {
       } as File),
     ).toEqual({ name: "Draft.fdx", content: xml });
   });
-  it("rejects binary files and oversized files before reading", async () => {
+  it("rejects unsupported, binary and oversized files after mobile selection", async () => {
+    await expect(
+      readLocalFile({
+        name: "photo.jpg",
+        size: 3,
+        arrayBuffer: async () => new TextEncoder().encode("abc").buffer,
+      } as File),
+    ).rejects.toThrow("Fountain");
     await expect(
       readLocalFile({ size: 12 * 1024 * 1024 } as File),
     ).rejects.toThrow("10 MB");

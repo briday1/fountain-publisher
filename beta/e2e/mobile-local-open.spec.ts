@@ -42,6 +42,9 @@ test("mobile Downloads selection loads and can reopen the same screenplay filena
 
   const picker = page.locator('[data-fp-local-file-picker="true"]');
   await expect(picker).toHaveCount(1);
+  // No accept filter on Android: .fountain has no registered MIME type, and
+  // DocumentsUI can otherwise show it while refusing to let the user tap it.
+  await expect(picker).not.toHaveAttribute("accept", /.+/);
   const originalPicker = await picker.elementHandle();
 
   await mobileSection(page, "File");
