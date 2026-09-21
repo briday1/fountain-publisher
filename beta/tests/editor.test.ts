@@ -66,6 +66,9 @@ it("sets dual dialogue from either cue or speech without changing the speech kin
   editor.view.state.doc.forEach((_node, pos) => positions.push(pos));
 
   select(editor, positions[3] + 1);
+  // Toolbar controls own focus when invoked; the command must still target the
+  // last screenplay block that held the caret.
+  editor.view.dom.blur();
   expect(editor.setDualDialogue(true)).toBe(true);
   expect(editor.getBlocks()[2]).toMatchObject({
     kind: "character",
