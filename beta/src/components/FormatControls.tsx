@@ -1,6 +1,7 @@
 import { Bold, Italic, Underline } from "lucide-react";
 import { blockLabels } from "../core/model";
 import type { BlockKind, TextMark } from "../core/model";
+import "./mobile-header-history.css";
 
 export interface FormatControlsProps {
   kind: BlockKind;
