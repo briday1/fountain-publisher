@@ -23,13 +23,15 @@ test("mobile offers every desktop menu action except Zen through one File entry"
     await page.keyboard.press("Escape");
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator(".app-header button:visible")).toHaveCount(5); // F, B/I/U and hamburger.
+  await expect(page.locator(".app-header button:visible")).toHaveCount(7); // F, B/I/U, Undo/Redo and hamburger.
   await expect(page.locator(".app-header > .document-name")).toHaveCount(0);
   const logo = (await page.locator(".app-header > .brand").boundingBox())!;
   const format = (await page.locator(".app-header > .mobile-header-format").boundingBox())!;
+  const history = (await page.locator(".app-header > .header-history").boundingBox())!;
   const hamburger = (await page.locator(".mobile-file-trigger").boundingBox())!;
   expect(logo.x + logo.width).toBeLessThanOrEqual(format.x);
-  expect(format.x + format.width).toBeLessThanOrEqual(hamburger.x);
+  expect(format.x + format.width).toBeLessThanOrEqual(history.x);
+  expect(history.x + history.width).toBeLessThanOrEqual(hamburger.x);
   expect(hamburger.x + hamburger.width).toBeGreaterThan(360);
   await expect(page.locator(".mobile-file-trigger")).toHaveText("");
   await expect(page.locator(".app-header .brand-mark")).toHaveText("F");
@@ -38,6 +40,8 @@ test("mobile offers every desktop menu action except Zen through one File entry"
   ).toHaveCount(0);
   const found: string[] = [];
   await mobileSection(page, "File");
+  await expect(page.locator(".app-header > .header-history")).not.toBeVisible();
+  await expect(page.locator(".app-header > .mobile-header-format")).not.toBeVisible();
   for (const name of ["File", "Write", "View", "Share"] as const) {
     await page
       .getByRole("group", { name: "Command categories" })
@@ -80,6 +84,7 @@ test("mobile offers every desktop menu action except Zen through one File entry"
   await page.keyboard.press("Escape");
   await expect(page.locator(".mobile-command-panel")).toHaveCount(0);
   await expect(page.locator(".mobile-file-trigger")).toBeFocused();
+  await expect(page.locator(".app-header > .header-history")).toBeVisible();
 });
 
 test("mobile formatting preserves the editor, selection and undo", async ({
