@@ -39,7 +39,12 @@ function stableLocalFileInput(): HTMLInputElement {
   localFileInput ??= document.createElement("input");
   const input = localFileInput;
   input.type = "file";
-  input.accept = ".fountain,.txt,.fdx,text/plain,application/xml";
+  // Android's DocumentsUI can show a custom-extension file while refusing to
+  // select it when Chrome translates HTML accept tokens into MIME filters.
+  // Fountain has no registered MIME type, so mobile must request */* and let
+  // the app validate the filename/content after the user chooses it.
+  if (prefersInputFilePicker()) input.removeAttribute("accept");
+  else input.accept = ".fountain,.txt,.fdx,text/plain,application/xml";
   input.tabIndex = -1;
   input.setAttribute("aria-hidden", "true");
   input.setAttribute("data-fp-local-file-picker", "true");
@@ -65,6 +70,10 @@ export function supportsFileAccess() {
 export async function readLocalFile(
   file: File,
 ): Promise<{ name: string; content: string }> {
+  if (!/\.(?:fountain|txt|fdx)$/i.test(file.name))
+    throw new Error(
+      "Choose a Fountain (.fountain or .txt) or Final Draft (.fdx) screenplay.",
+    );
   if (file.size > MAX_FILE_BYTES)
     throw new Error("This file exceeds the 10 MB screenplay limit.");
   const bytes = new Uint8Array(await file.arrayBuffer());
