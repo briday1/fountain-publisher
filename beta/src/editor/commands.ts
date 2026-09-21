@@ -3,7 +3,7 @@ import { TextSelection } from "prosemirror-state";
 import { closeHistory } from "./history";
 import type { BlockKind } from "../core/model";
 import { newId } from "../core/model";
-import { clearSelectedDualDialogue, setDualDialogue, speechKinds } from "./dualDialogue";
+import { clearSelectedDualDialogue, selectedDialoguePair, setDualDialogue, speechKinds } from "./dualDialogue";
 
 export const cycleKinds: BlockKind[] = [
   "action",
@@ -39,6 +39,8 @@ export function setBlockKind(kind: BlockKind, dual = false): Command {
     // On existing speech text this is a mode, not a conversion of dialogue to a cue.
     if (dual && (currentKind === "character" || speechKinds.has(currentKind)))
       return setDualDialogue(true)(state, dispatch, view);
+    if (!dual && kind === currentKind && selectedDialoguePair(state))
+      return setDualDialogue(false)(state, dispatch, view);
     // Retain the explicit low-level operation used when creating a new character cue.
     if (dual && kind !== "character") return false;
     const { from, to, $from } = state.selection;
