@@ -66,7 +66,9 @@ test("one writing toolbar preserves selection, editor identity and undo through 
   ).toBeFocused();
 });
 
-test("element picker stays themed and exposes dual dialogue", async ({ page }) => {
+test("element picker stays themed and dual dialogue renders as two live columns", async ({
+  page,
+}) => {
   await page.goto("/");
   const toolbar = page.getByRole("toolbar", {
     name: "Writing controls",
@@ -81,8 +83,6 @@ test("element picker stays themed and exposes dual dialogue", async ({ page }) =
   await page
     .getByRole("button", { name: "New screenplay", exact: true })
     .click();
-  await editor.click();
-  await page.keyboard.type("MARA");
 
   await page.evaluate(() => {
     document.documentElement.dataset.theme = "solarized-dark";
@@ -106,16 +106,56 @@ test("element picker stays themed and exposes dual dialogue", async ({ page }) =
   expect(colors.optionBackground).toBe(colors.themeBackground);
   expect(colors.optionColor).toBe(colors.themeColor);
 
+  await editor.click();
+  await page.keyboard.type("MARA");
+  await element.selectOption("character");
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Left line.");
+  await page.keyboard.press("Enter");
+  await element.selectOption("character");
+  await page.keyboard.type("ELI");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Right line.");
+
+  // Selecting Dual dialogue from the speech itself must not turn that speech
+  // into a character cue. It marks the associated second cue with Fountain ^.
   await element.selectOption("dual-dialogue");
   await expect(element).toHaveValue("dual-dialogue");
   await expect(
     editor.locator('p[data-kind="character"][data-dual="true"]'),
-  ).toHaveText("MARA");
+  ).toHaveText("ELI");
+  await expect(editor.locator('p[data-kind="dialogue"]')).toHaveCount(2);
+  await expect(editor.locator('p[data-kind="dialogue"]').last()).toHaveText(
+    "Right line.",
+  );
+  await expect(editor.locator(".dual-dialogue-left")).toHaveCount(2);
+  await expect(editor.locator(".dual-dialogue-right")).toHaveCount(2);
   await expect(page.locator(".statusbar")).toContainText("Dual dialogue");
 
-  await element.selectOption("character");
-  await expect(element).toHaveValue("character");
-  await expect(editor.locator('p[data-dual="true"]')).toHaveCount(0);
+  const leftCue = (await editor
+    .locator('.dual-dialogue-left[data-kind="character"]')
+    .boundingBox())!;
+  const rightCue = (await editor
+    .locator('.dual-dialogue-right[data-kind="character"]')
+    .boundingBox())!;
+  const leftSpeech = (await editor
+    .locator('.dual-dialogue-left[data-kind="dialogue"]')
+    .boundingBox())!;
+  const rightSpeech = (await editor
+    .locator('.dual-dialogue-right[data-kind="dialogue"]')
+    .boundingBox())!;
+  expect(rightCue.x).toBeGreaterThan(leftCue.x + leftCue.width / 2);
+  expect(Math.abs(rightCue.y - leftCue.y)).toBeLessThanOrEqual(2);
+  expect(rightSpeech.x).toBeGreaterThan(leftSpeech.x + leftSpeech.width / 2);
+  expect(Math.abs(rightSpeech.y - leftSpeech.y)).toBeLessThanOrEqual(2);
+
+  // Either side of the pair reports Dual dialogue and can turn the pair off.
+  await editor.locator('.dual-dialogue-left[data-kind="dialogue"]').click();
+  await expect(element).toHaveValue("dual-dialogue");
+  await element.selectOption("dialogue");
+  await expect(editor.locator(".dual-dialogue-block")).toHaveCount(0);
+  await expect(editor.locator('p[data-kind="dialogue"]')).toHaveCount(2);
 });
 
 test("writing controls stay in one compact row, respond to panel width, and remain reachable on mobile", async ({
