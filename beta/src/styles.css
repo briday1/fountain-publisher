@@ -1620,6 +1620,26 @@ hr {
     max-width: calc(100% - 24px);
   }
 }
+@media (max-width: 950px) {
+  /*
+   * Mobile Safari/WebKit can pan the visual viewport upward for the software
+   * keyboard without changing document scrollTop. Keep the single-page app
+   * shell aligned to the actually visible rectangle instead of 100dvh alone.
+   */
+  .app {
+    position: fixed;
+    inset: auto;
+    top: 0;
+    left: 0;
+    width: var(--fp-visual-width, 100vw);
+    height: var(--fp-visual-height, 100dvh);
+    transform: translate3d(
+      var(--fp-visual-left, 0px),
+      var(--fp-visual-top, 0px),
+      0
+    );
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
