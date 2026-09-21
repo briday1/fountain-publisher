@@ -1,4 +1,4 @@
-import { Bold, Italic, Underline } from "lucide-react";
+import { Bold, Italic, MessageSquarePlus, Redo2, Underline, Undo2 } from "lucide-react";
 import { blockLabels } from "../core/model";
 import type { BlockKind, TextMark } from "../core/model";
 
@@ -7,10 +7,23 @@ export interface FormatControlsProps {
   dualDialogue: boolean;
   onKind: (kind: BlockKind, dual?: boolean) => void;
   onMark: (mark: TextMark) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  onAnnotation?: () => void;
+  annotationEnabled?: boolean;
 }
 
 /** The same formatting actions in the desktop toolbar and the always-visible mobile header. */
-export function FormatControls({ kind, dualDialogue, onKind, onMark }: FormatControlsProps) {
+export function FormatControls({
+  kind,
+  dualDialogue,
+  onKind,
+  onMark,
+  onUndo,
+  onRedo,
+  onAnnotation,
+  annotationEnabled = false,
+}: FormatControlsProps) {
   return (
     <div
       className="writing-control-group writing-format-group"
@@ -53,6 +66,54 @@ export function FormatControls({ kind, dualDialogue, onKind, onMark }: FormatCon
           <Icon size={16} aria-hidden="true" />
         </button>
       ))}
+      {onUndo && (
+        <button
+          type="button"
+          className="writing-tool"
+          aria-label="Undo"
+          title="Undo"
+          aria-keyshortcuts="Control+Z Meta+Z"
+          onPointerDown={(event) => {
+            if (event.button === 0) event.preventDefault();
+          }}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={onUndo}
+        >
+          <Undo2 size={16} aria-hidden="true" />
+        </button>
+      )}
+      {onRedo && (
+        <button
+          type="button"
+          className="writing-tool"
+          aria-label="Redo"
+          title="Redo"
+          aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z"
+          onPointerDown={(event) => {
+            if (event.button === 0) event.preventDefault();
+          }}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={onRedo}
+        >
+          <Redo2 size={16} aria-hidden="true" />
+        </button>
+      )}
+      {onAnnotation && (
+        <button
+          type="button"
+          className="writing-tool"
+          aria-label="Add annotation"
+          title="Add annotation"
+          disabled={!annotationEnabled}
+          onPointerDown={(event) => {
+            if (event.button === 0) event.preventDefault();
+          }}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={onAnnotation}
+        >
+          <MessageSquarePlus size={16} aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }
