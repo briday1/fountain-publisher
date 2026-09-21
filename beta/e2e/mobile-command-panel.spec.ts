@@ -23,7 +23,7 @@ test("mobile offers every desktop menu action except Zen through one File entry"
     await page.keyboard.press("Escape");
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator(".app-header button:visible")).toHaveCount(5); // F, B/I/U and hamburger.
+  await expect(page.locator(".app-header button:visible")).toHaveCount(8); // F, B/I/U, undo/redo, annotation and hamburger.
   await expect(page.locator(".app-header > .document-name")).toHaveCount(0);
   const logo = (await page.locator(".app-header > .brand").boundingBox())!;
   const format = (await page.locator(".app-header > .mobile-header-format").boundingBox())!;
