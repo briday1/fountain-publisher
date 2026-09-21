@@ -25,7 +25,7 @@ test("mobile offers every desktop menu action except Zen through one File entry"
   await page.setViewportSize({ width: 390, height: 844 });
   const logo = (await page.locator(".app-header > .brand").boundingBox())!;
   const inline = page.getByRole("toolbar", {
-    name: "Mobile writing controls",
+    name: "Quick formatting",
     exact: true,
   });
   const inlineBounds = (await inline.boundingBox())!;
@@ -95,7 +95,7 @@ test("mobile header formatting, history and annotation preserve the editor", asy
   await page.goto("/");
   const editor = page.getByRole("textbox", { name: "Screenplay editor" });
   const controls = page.getByRole("toolbar", {
-    name: "Mobile writing controls",
+    name: "Quick formatting",
     exact: true,
   });
   await expect(editor).toBeVisible();
