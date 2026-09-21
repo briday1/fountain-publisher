@@ -22,7 +22,8 @@ import "./WritingToolbar.css";
 
 export interface WritingToolbarProps {
   kind: BlockKind;
-  onKind: (kind: BlockKind) => void;
+  dualDialogue: boolean;
+  onKind: (kind: BlockKind, dual?: boolean) => void;
   onMark: (mark: TextMark) => void;
   preferences: Preferences;
   onPreferences: (preferences: Preferences) => void;
@@ -42,6 +43,7 @@ export interface WritingToolbarProps {
 /** Compact controls around one persistent editor. It never observes document input. */
 export function WritingToolbar({
   kind,
+  dualDialogue,
   onKind,
   onMark,
   preferences,
@@ -124,14 +126,19 @@ export function WritingToolbar({
             className="writing-element"
             aria-label="Screenplay element"
             title="Screenplay element"
-            value={kind}
-            onChange={(event) => onKind(event.target.value as BlockKind)}
+            value={dualDialogue && kind === "character" ? "dual-dialogue" : kind}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (value === "dual-dialogue") onKind("character", true);
+              else onKind(value as BlockKind, false);
+            }}
           >
             {Object.entries(blockLabels).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
             ))}
+            <option value="dual-dialogue">Dual dialogue</option>
           </select>
           <span className="writing-group-rule" aria-hidden="true" />
           {(

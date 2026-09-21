@@ -60,7 +60,9 @@
   gap: 5px;
 }
 .writing-toolbar .writing-tool:hover,
-.writing-toolbar select:hover {
+.writing-toolbar select:hover,
+.writing-toolbar select:focus,
+.writing-toolbar select:active {
   color: var(--ink);
   background: var(--raised);
 }

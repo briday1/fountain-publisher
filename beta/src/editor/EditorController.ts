@@ -83,7 +83,7 @@ export interface EditorCallbacks {
   onAnnotation?: (target: AnnotationTarget) => void;
   /** A dirty signal, never a whole-document snapshot. Use getBlocks on idle/save. */
   onChange?: (remote?: boolean) => void;
-  onSelection?: (kind: BlockKind) => void;
+  onSelection?: (kind: BlockKind, dual: boolean) => void;
 }
 export interface FindOptions {
   caseSensitive?: boolean;
@@ -177,6 +177,7 @@ export class EditorController {
   private hardwareInputTimer?: ReturnType<typeof setTimeout>;
   private hardwareInputType?: string;
   private selectedKind?: BlockKind;
+  private selectedDual?: boolean;
   private live?: LiveBinding;
   private metadataNotification = false;
   get isComposing(): boolean {
@@ -666,9 +667,13 @@ export class EditorController {
     }
     const kind = (this.view.state.selection.$from.parent.attrs.kind ||
       "action") as BlockKind;
-    if (kind !== this.selectedKind) {
+    const dual =
+      kind === "character" &&
+      Boolean(this.view.state.selection.$from.parent.attrs.dual);
+    if (kind !== this.selectedKind || dual !== this.selectedDual) {
       this.selectedKind = kind;
-      this.callbacks.onSelection?.(kind);
+      this.selectedDual = dual;
+      this.callbacks.onSelection?.(kind, dual);
     }
   }
 
@@ -1011,11 +1016,12 @@ export class EditorController {
     clearTimeout(this.compositionTimer);
     this.view.updateState(this.createState(screenplay));
     this.selectedKind = undefined;
+    this.selectedDual = undefined;
     this.notifySelection();
   }
 
-  setKind(kind: BlockKind): boolean {
-    return this.run(setBlockKind(kind));
+  setKind(kind: BlockKind, dual = false): boolean {
+    return this.run(setBlockKind(kind, dual));
   }
   toggleMark(mark: TextMark): boolean {
     return this.run(toggleMark(screenplaySchema.marks[mark]));
