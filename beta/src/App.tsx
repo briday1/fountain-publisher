@@ -20,6 +20,7 @@ import {
   FolderOpen,
   Github,
   Link,
+  MessageSquarePlus,
   Plus,
   Redo2,
   Search,
@@ -1296,6 +1297,21 @@ export default function App() {
           >
             <Redo2 size={17} />
           </button>
+          {mobile && (
+            <button
+              className="icon-button"
+              aria-label="Add annotation"
+              title="Add annotation"
+              disabled={annotationState !== "add"}
+              onPointerDown={(event) => {
+                if (event.button === 0) event.preventDefault();
+              }}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => editor.current?.annotateSelection()}
+            >
+              <MessageSquarePlus size={17} />
+            </button>
+          )}
         </div>
         <div className="spacer" />
         {mobile ? (
