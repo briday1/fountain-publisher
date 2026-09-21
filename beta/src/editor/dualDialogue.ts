@@ -182,7 +182,7 @@ export function dualDialoguePlugin(): Plugin<Layout> {
     },
     props: {
       decorations: (state) => layoutKey.getState(state)?.decorations,
-      attributes: (state) => layoutKey.getState(state)?.pairs.length
+      attributes: (state): Record<string, string> => layoutKey.getState(state)?.pairs.length
         ? { class: "has-dual-dialogue" }
         : {},
     },

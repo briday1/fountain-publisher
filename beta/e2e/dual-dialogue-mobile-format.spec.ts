@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
+test.use({ screenshot: "on" });
+
 const modifier = process.platform === "darwin" ? "Meta" : "Control";
 const source = `INT. STUDIO - DAY\n\nMARA\n${"The left speech wraps independently and remains editable. ".repeat(8)}\n(quietly)\nA final left sentence.\n\nELI\nRight begins.\n(shouting)\nA final right sentence.\n\n!After both speeches.`;
 async function open(page: Page, text: string) {
