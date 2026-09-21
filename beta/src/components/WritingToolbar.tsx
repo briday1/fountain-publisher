@@ -24,6 +24,7 @@ export interface WritingToolbarProps {
   kind: BlockKind;
   dualDialogue: boolean;
   onKind: (kind: BlockKind, dual?: boolean) => void;
+  onDualDialogue: (enabled: boolean) => void;
   onMark: (mark: TextMark) => void;
   preferences: Preferences;
   onPreferences: (preferences: Preferences) => void;
@@ -45,6 +46,7 @@ export function WritingToolbar({
   kind,
   dualDialogue,
   onKind,
+  onDualDialogue,
   onMark,
   preferences,
   onPreferences,
@@ -129,8 +131,11 @@ export function WritingToolbar({
             value={dualDialogue && kind === "character" ? "dual-dialogue" : kind}
             onChange={(event) => {
               const value = event.target.value;
-              if (value === "dual-dialogue") onKind("character", true);
-              else onKind(value as BlockKind, false);
+              if (value === "dual-dialogue") onDualDialogue(true);
+              else {
+                if (dualDialogue) onDualDialogue(false);
+                onKind(value as BlockKind, false);
+              }
             }}
           >
             {Object.entries(blockLabels).map(([value, label]) => (
