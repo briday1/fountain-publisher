@@ -1305,6 +1305,10 @@ export default function App() {
               dualDialogue={dualDialogue}
               onKind={changeElement}
               onMark={(mark) => editor.current?.toggleMark(mark)}
+              onUndo={() => editor.current?.undo()}
+              onRedo={() => editor.current?.redo()}
+              onAnnotation={() => editor.current?.annotateSelection()}
+              annotationEnabled={annotationState === "add"}
             />
           </div>
         ) : (
