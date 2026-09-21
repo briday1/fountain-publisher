@@ -23,13 +23,15 @@ test("mobile offers every desktop menu action except Zen through one File entry"
     await page.keyboard.press("Escape");
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator(".app-header button:visible")).toHaveCount(5); // F, B/I/U and hamburger.
+  await expect(page.locator(".app-header button:visible")).toHaveCount(7); // F, B/I/U, undo/redo and hamburger.
   await expect(page.locator(".app-header > .document-name")).toHaveCount(0);
   const logo = (await page.locator(".app-header > .brand").boundingBox())!;
   const format = (await page.locator(".app-header > .mobile-header-format").boundingBox())!;
+  const history = (await page.locator(".app-header > .header-history").boundingBox())!;
   const hamburger = (await page.locator(".mobile-file-trigger").boundingBox())!;
   expect(logo.x + logo.width).toBeLessThanOrEqual(format.x);
-  expect(format.x + format.width).toBeLessThanOrEqual(hamburger.x);
+  expect(format.x + format.width).toBeLessThanOrEqual(history.x);
+  expect(history.x + history.width).toBeLessThanOrEqual(hamburger.x);
   expect(hamburger.x + hamburger.width).toBeGreaterThan(360);
   await expect(page.locator(".mobile-file-trigger")).toHaveText("");
   await expect(page.locator(".app-header .brand-mark")).toHaveText("F");
@@ -100,7 +102,51 @@ test("mobile formatting preserves the editor, selection and undo", async ({
     ),
   ).toBe(true);
   await mobileSection(page, "Write");
-  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await page.locator(".mobile-command-grid").getByRole("button", { name: "Undo", exact: true }).click();
   await expect(editor.locator("strong")).toHaveCount(0);
   await expect(editor).toHaveText("Keep this sentence.");
+});
+
+test.describe("mobile header history", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test("undo and redo work beside formatting without opening a menu", async ({ page }, info) => {
+    await page.goto("/");
+    const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+    await expect(editor).toBeVisible();
+    const header = page.locator(".app-header");
+    const history = header.locator(".header-history");
+    for (const width of [390, 320, 640]) {
+      await page.setViewportSize({ width, height: 844 });
+      const bounds = (await header.boundingBox())!;
+      for (const control of await header.locator(".mobile-header-format button, .mobile-header-format select, .header-history button, .mobile-file-trigger").all()) {
+        await expect(control).toBeVisible();
+        const box = (await control.boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(bounds.x);
+        expect(box.x + box.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+        expect(box.y).toBeGreaterThanOrEqual(bounds.y);
+        expect(box.y + box.height).toBeLessThanOrEqual(bounds.y + bounds.height);
+        expect(box.height).toBeGreaterThanOrEqual(40);
+      }
+      expect(await header.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+    await page.setViewportSize({ width: 320, height: 844 });
+    await editor.fill("Keep this sentence.");
+    const original = await editor.elementHandle();
+    for (const [name, tag] of [["Bold", "strong"], ["Italic", "em"], ["Underline", "u"]]) {
+      await editor.click();
+      await page.keyboard.press("ControlOrMeta+a");
+      await header.getByRole("button", { name, exact: true }).tap();
+      await expect(editor.locator(tag)).toHaveText("Keep this sentence.");
+      await history.getByRole("button", { name: "Undo", exact: true }).tap();
+      await expect(editor.locator(tag)).toHaveCount(0);
+      await expect(editor).toHaveText("Keep this sentence.");
+      await history.getByRole("button", { name: "Redo", exact: true }).tap();
+      await expect(editor.locator(tag)).toHaveText("Keep this sentence.");
+      await expect(page.locator("dialog[open]")).toHaveCount(0);
+    }
+    expect(await original!.evaluate((node) => node === document.querySelector(".screenplay-editor"))).toBe(true);
+    await page.screenshot({ path: info.outputPath("mobile-header-with-history.png"), fullPage: true });
+  });
 });
