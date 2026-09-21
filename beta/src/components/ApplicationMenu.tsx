@@ -15,17 +15,21 @@ import {
   PenLine,
   PanelsTopLeft,
   Upload,
+  Undo2,
+  Redo2,
   Menu as MenuIcon,
 } from "lucide-react";
 import { Menu } from "./Menu";
 import { Modal } from "./Modal";
 import type { WritingToolbarProps } from "./WritingToolbar";
+import { ScreenplayFormatControls } from "./ScreenplayFormatControls";
 import "./mobile-command-panel.css";
 
 type Command = ReactElement<{
   children?: ReactNode;
   onClick?: () => void;
   label?: string;
+  disabled?: boolean;
 }>;
 const sections = [
   ["File", FileText],
@@ -70,6 +74,7 @@ export function ApplicationMenu({
     View: [],
     Share: [],
   };
+  const historyActions: Partial<Record<"Undo" | "Redo", Command["props"]>> = {};
   const storageShortcuts: ReactNode[] = [];
   const action = (node: Command, key: string) =>
     cloneElement(node, {
@@ -80,7 +85,7 @@ export function ApplicationMenu({
         node.props.onClick?.();
       },
     });
-  Children.forEach(open ? children : null, (child, index) => {
+  Children.forEach(children, (child, index) => {
     if (!isValidElement(child)) return;
     const menu = child as Command;
     if (menu.type !== Menu) {
@@ -96,6 +101,8 @@ export function ApplicationMenu({
     Children.forEach(menu.props.children, (item, i) => {
       if (!isValidElement(item)) return;
       const command = item as Command;
+      if (command.props.children === "Undo" || command.props.children === "Redo")
+        historyActions[command.props.children] = command.props;
       if (command.type === "small") {
         if (
           command.props.children === "CONNECTED STORAGE" ||
@@ -153,6 +160,31 @@ export function ApplicationMenu({
   });
   return (
     <nav className="mobile-command-nav" aria-label="Application menu">
+      <div
+        className="mobile-writing-controls"
+        role="toolbar"
+        aria-label="Mobile writing controls"
+        aria-hidden={open || undefined}
+      >
+        <ScreenplayFormatControls {...controls.props} compact />
+        <div className="mobile-history-controls" role="group" aria-label="Editing history">
+          {([["Undo", Undo2], ["Redo", Redo2]] as const).map(([name, Icon]) => (
+            <button
+              key={name}
+              type="button"
+              className="writing-tool"
+              aria-label={name}
+              title={name}
+              disabled={!historyActions[name]?.onClick || historyActions[name]?.disabled}
+              onPointerDown={(event) => event.preventDefault()}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={historyActions[name]?.onClick}
+            >
+              <Icon size={17} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      </div>
       <button
         ref={trigger}
         className="mobile-file-trigger"
