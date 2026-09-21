@@ -15,12 +15,16 @@ import {
   PenLine,
   PanelsTopLeft,
   Upload,
+  Undo2,
+  Redo2,
   Menu as MenuIcon,
 } from "lucide-react";
 import { Menu } from "./Menu";
 import { Modal } from "./Modal";
+import { WritingFormatControls } from "./WritingFormatControls";
 import type { WritingToolbarProps } from "./WritingToolbar";
 import "./mobile-command-panel.css";
+import "./mobile-header-controls.css";
 
 type Command = ReactElement<{
   children?: ReactNode;
@@ -63,6 +67,15 @@ export function ApplicationMenu({
         {children}
       </nav>
     );
+
+  // Reuse the exact Edit menu actions rather than synthesizing key events or
+  // maintaining a second undo stack. The document name remains in the File panel.
+  const editMenu = Children.toArray(children).find((child) =>
+    isValidElement(child) && child.type === Menu && (child as Command).props.label === "Edit",
+  ) as Command | undefined;
+  const historyCommands = Children.toArray(editMenu?.props.children).filter(isValidElement) as Command[];
+  const undo = historyCommands.find((command) => command.props.children === "Undo")?.props.onClick;
+  const redo = historyCommands.find((command) => command.props.children === "Redo")?.props.onClick;
 
   const groups: Record<Section, ReactNode[]> = {
     File: [],
@@ -153,6 +166,29 @@ export function ApplicationMenu({
   });
   return (
     <nav className="mobile-command-nav" aria-label="Application menu">
+      <div className="mobile-header-writing" role="toolbar" aria-label="Mobile writing controls">
+        <WritingFormatControls
+          kind={controls.props.kind}
+          dualDialogue={controls.props.dualDialogue}
+          onKind={controls.props.onKind}
+          onMark={controls.props.onMark}
+        />
+        {([["Undo", Undo2, undo], ["Redo", Redo2, redo]] as const).map(([label, Icon, onClick]) => (
+          <button
+            key={label}
+            type="button"
+            className="writing-tool"
+            aria-label={label}
+            title={label}
+            disabled={!onClick}
+            onPointerDown={(event) => event.preventDefault()}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={onClick}
+          >
+            <Icon size={16} aria-hidden="true" />
+          </button>
+        ))}
+      </div>
       <button
         ref={trigger}
         className="mobile-file-trigger"
