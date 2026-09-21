@@ -166,7 +166,13 @@ export function ApplicationMenu({
   });
   return (
     <nav className="mobile-command-nav" aria-label="Application menu">
-      <div className="mobile-header-writing" role="toolbar" aria-label="Mobile writing controls">
+      <div
+        className="mobile-header-writing"
+        role="toolbar"
+        aria-label="Mobile formatting"
+        aria-hidden={open}
+        style={open ? { visibility: "hidden" } : undefined}
+      >
         <WritingFormatControls
           kind={controls.props.kind}
           dualDialogue={controls.props.dualDialogue}

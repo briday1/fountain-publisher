@@ -3,6 +3,12 @@ import type { Page } from "@playwright/test";
 import { mobileSection } from "./mobile-menu-helper";
 
 async function openScript(page: Page, source: string) {
+  // Exercise the portable file-input path, as the other import browser tests do.
+  // Chrome's OS-native File System Access picker does not emit filechooser.
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "showOpenFilePicker", { value: undefined, configurable: true });
+    Object.defineProperty(window, "showSaveFilePicker", { value: undefined, configurable: true });
+  });
   await page.goto("/");
   await expect(page.getByRole("textbox", { name: "Screenplay editor" })).toBeVisible();
   await page.getByRole("button", { name: "File", exact: true }).click();
@@ -16,8 +22,11 @@ async function expectColumns(page: Page) {
   await expect(editor.locator('[data-dual-side="1"][data-kind="character"]')).toHaveCount(1);
   await expect(editor.locator('[data-dual-side="2"][data-kind="character"]')).toHaveCount(1);
   await expect.poll(async () => editor.evaluate((root) => {
-    const left = [...root.querySelectorAll<HTMLElement>('p[data-dual-side="1"]')].map((p) => p.getBoundingClientRect());
-    const right = [...root.querySelectorAll<HTMLElement>('p[data-dual-side="2"]')].map((p) => p.getBoundingClientRect());
+    const rects = (side: string) => [...root.querySelectorAll<HTMLElement>(`p[data-dual-side="${side}"]`)]
+      .filter((p) => getComputedStyle(p).display !== "none")
+      .map((p) => p.getBoundingClientRect());
+    const left = rects("1");
+    const right = rects("2");
     const after = root.querySelector<HTMLElement>('p[data-kind="action"]')!.getBoundingClientRect();
     return Math.abs(left[0].y - right[0].y) < 1 &&
       Math.max(...left.map((r) => r.right)) < Math.min(...right.map((r) => r.left)) &&
@@ -30,6 +39,7 @@ test("dual dialogue formats whole editable speeches, reflows and unpairs without
   const source = `INT. ROOM - DAY\n\nMARA\n(quietly)\nA short first sentence.\n(then louder)\nAnother left sentence.\n\nELI\n${"The other voice continues for several lines. ".repeat(16)}\n\n!They both stop.`;
   await openScript(page, source);
   const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await expect(editor).toContainText("They both stop.");
   const original = await editor.elementHandle();
   const before = await editor.locator("p").evaluateAll((ps) => ps.map((p) => [p.getAttribute("data-kind"), p.textContent]));
   const right = editor.locator('p[data-kind="dialogue"]').last();
@@ -57,7 +67,7 @@ test("dual dialogue formats whole editable speeches, reflows and unpairs without
   await expectColumns(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await expectColumns(page);
-  const header = page.getByRole("toolbar", { name: "Mobile writing controls", exact: true });
+  const header = page.getByRole("toolbar", { name: "Mobile formatting", exact: true });
   await expect(header.getByRole("combobox")).toHaveValue("dual-dialogue");
   await page.screenshot({ path: info.outputPath("dual-dialogue-mobile.png"), fullPage: true });
   const current = await editor.textContent();
@@ -76,11 +86,33 @@ test("imported dual dialogue is side by side immediately, not just after a toolb
   await expectColumns(page);
 });
 
+test("revealing and collapsing a note reflows only its own column", async ({ page }) => {
+  await openScript(page, `MARA\nLeft.\n[[A note with enough words to wrap over several lines in the left column.]]\n(continuing)\nMore left dialogue.\n\nELI ^\n${"A longer right speech. ".repeat(40)}\n\n!They both stop.`);
+  const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  const note = editor.locator('p[data-kind="note"]');
+  await expect(note).toHaveClass(/annotation-collapsed/);
+  await expectColumns(page);
+  await editor.locator('p[data-kind="dialogue"]').first().click();
+  // Native keyboard navigation can reach the hidden note; model the resulting
+  // text selection rather than making an otherwise hidden paragraph clickable.
+  await note.evaluate((node) => {
+    const text = node.firstChild!;
+    const selection = window.getSelection()!;
+    selection.collapse(text, 0);
+    document.dispatchEvent(new Event("selectionchange"));
+  });
+  await expect(note).not.toHaveClass(/annotation-collapsed/);
+  await expectColumns(page);
+  await editor.locator('[data-dual-side="2"][data-kind="dialogue"]').click();
+  await expect(note).toHaveClass(/annotation-collapsed/);
+  await expectColumns(page);
+});
+
 for (const width of [320, 390, 640, 900]) {
   test(`mobile header exposes all requested controls without scrolling at ${width}px`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/");
-    const header = page.getByRole("toolbar", { name: "Mobile writing controls", exact: true });
+    const header = page.getByRole("toolbar", { name: "Mobile formatting", exact: true });
     await expect(header).toBeVisible();
     await expect(page.locator(".app-header > .document-name")).not.toBeVisible();
     await expect(header.getByRole("combobox", { name: "Screenplay element" })).toBeVisible();
@@ -108,7 +140,7 @@ test("mobile header formats the selection and undo/redo work without opening a m
   const original = await editor.elementHandle();
   await editor.fill("Keep this sentence.");
   await page.keyboard.press("ControlOrMeta+a");
-  const header = page.getByRole("toolbar", { name: "Mobile writing controls", exact: true });
+  const header = page.getByRole("toolbar", { name: "Mobile formatting", exact: true });
   for (const [name, tag] of [["Bold", "strong"], ["Italic", "em"], ["Underline", "u"]]) {
     await header.getByRole("button", { name, exact: true }).click();
     await expect(editor.locator(tag)).toHaveText("Keep this sentence.");

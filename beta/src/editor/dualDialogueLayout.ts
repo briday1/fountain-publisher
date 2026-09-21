@@ -34,7 +34,7 @@ function layout(state: EditorState, heights: Map<string, number>, structure = di
           }));
           const height = heights.get(entry.node.attrs.id);
           if (height !== undefined) usedHeights.set(entry.node.attrs.id, height);
-          // Layout measurements never become document attributes, undo items or Yjs updates.
+          // Measurements never become document attributes, undo items or Yjs updates.
           offset += height ?? (entry.node.attrs.kind === "note" ? 0 : 16);
         }
       }
@@ -75,34 +75,52 @@ export function dualDialogueLayout(): Plugin<Layout> {
     },
     props: {
       decorations: (state) => layoutKey.getState(state)?.decorations,
-      attributes: (state) => layoutKey.getState(state)?.structure.pairs.length
-        ? { class: "has-dual-dialogue" }
-        : {},
+      attributes: (state) => ({
+        class: layoutKey.getState(state)?.structure.pairs.length ? "has-dual-dialogue" : "",
+      }),
     },
     view: (view) => {
       let destroyed = false;
       let queued = false;
+      let observer: ResizeObserver | undefined;
+      const observed = new Set<HTMLElement>();
       const measure = () => {
         queued = false;
         if (destroyed || view.composing) return;
         const current = layoutKey.getState(view.state);
-        if (!current?.structure.pairs.length) return;
+        if (!current) return;
         const rootWidth = view.dom.offsetWidth;
         const scale = rootWidth ? view.dom.getBoundingClientRect().width / rootWidth : 1;
         if (!scale) return;
         const heights = new Map<string, number>();
+        const targets = new Set<HTMLElement>([view.dom]);
         let changed = false;
         for (const pair of current.structure.pairs) {
           for (const speech of [pair.left, pair.right]) {
             for (const entry of speech.entries) {
               const element = view.nodeDOM(entry.pos);
               if (!(element instanceof HTMLElement)) continue;
+              targets.add(element);
               // Ignore zoom transforms; offsets are unscaled CSS pixels. Round upward
               // to hundredths so fractional font metrics cannot overlap a later line.
               const height = Math.ceil(element.getBoundingClientRect().height / scale * 100) / 100;
               heights.set(entry.node.attrs.id, height);
               if (current.heights.get(entry.node.attrs.id) !== height) changed = true;
             }
+          }
+        }
+        // Observe individual paragraphs too: revealing an annotation or changing
+        // a font need not resize the root when the opposite column is taller.
+        for (const element of observed) {
+          if (!targets.has(element)) {
+            observer?.unobserve(element);
+            observed.delete(element);
+          }
+        }
+        for (const element of targets) {
+          if (!observed.has(element)) {
+            observer?.observe(element);
+            observed.add(element);
           }
         }
         if (changed)
@@ -114,18 +132,20 @@ export function dualDialogueLayout(): Plugin<Layout> {
         // Finish the current transaction, then measure before the browser paints.
         queueMicrotask(measure);
       };
-      const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(schedule) : undefined;
+      observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(schedule) : undefined;
       observer?.observe(view.dom);
+      observed.add(view.dom);
       view.dom.ownerDocument.fonts?.ready.then(schedule);
       view.dom.addEventListener("compositionend", schedule);
       schedule();
       return {
         update: (next, previous) => {
-          if (next.state.doc !== previous.doc) schedule();
+          if (next.state.doc !== previous.doc || !next.state.selection.eq(previous.selection)) schedule();
         },
         destroy: () => {
           destroyed = true;
           observer?.disconnect();
+          observed.clear();
           view.dom.removeEventListener("compositionend", schedule);
         },
       };

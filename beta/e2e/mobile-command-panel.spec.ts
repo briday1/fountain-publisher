@@ -27,7 +27,7 @@ test("mobile offers every desktop menu action except Zen through one File entry"
   await expect(page.locator(".app-header button:visible")).toHaveCount(7);
   await expect(page.locator(".app-header > .document-name")).not.toBeVisible();
   const logo = (await page.locator(".app-header > .brand").boundingBox())!;
-  const writing = (await page.getByRole("toolbar", { name: "Mobile writing controls", exact: true }).boundingBox())!;
+  const writing = (await page.getByRole("toolbar", { name: "Mobile formatting", exact: true }).boundingBox())!;
   const hamburger = (await page.locator(".mobile-file-trigger").boundingBox())!;
   expect(logo.x + logo.width).toBeLessThanOrEqual(writing.x);
   expect(writing.x + writing.width).toBeLessThanOrEqual(hamburger.x);
@@ -94,9 +94,11 @@ test("mobile formatting preserves the editor, selection and undo", async ({
   const original = await editor.elementHandle();
   await page.keyboard.press("ControlOrMeta+a");
   await mobileSection(page, "Write");
+  await expect(page.getByRole("toolbar", { name: "Mobile formatting", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Bold", exact: true }).click();
   await page.getByRole("button", { name: "Back to writing" }).click();
   await expect(editor.locator("strong")).toHaveText("Keep this sentence.");
+  await expect(page.getByRole("toolbar", { name: "Mobile formatting", exact: true })).toBeVisible();
   expect(
     await original!.evaluate(
       (el) => el === document.querySelector(".screenplay-editor"),
