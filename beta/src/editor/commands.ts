@@ -3,6 +3,7 @@ import { TextSelection } from "prosemirror-state";
 import { closeHistory } from "./history";
 import type { BlockKind } from "../core/model";
 import { newId } from "../core/model";
+import { clearSelectedDualDialogue, setDualDialogue, speechKinds } from "./dualDialogue";
 
 export const cycleKinds: BlockKind[] = [
   "action",
@@ -33,7 +34,13 @@ export const isCharacterCue = (text: string): boolean => {
 };
 
 export function setBlockKind(kind: BlockKind, dual = false): Command {
-  return (state, dispatch) => {
+  return (state, dispatch, view) => {
+    const currentKind = state.selection.$from.parent.attrs.kind;
+    // On existing speech text this is a mode, not a conversion of dialogue to a cue.
+    if (dual && (currentKind === "character" || speechKinds.has(currentKind)))
+      return setDualDialogue(true)(state, dispatch, view);
+    // Retain the explicit low-level operation used when creating a new character cue.
+    if (dual && kind !== "character") return false;
     const { from, to, $from } = state.selection;
     const positions: number[] = [];
     if (state.selection.empty && $from.depth) positions.push($from.before(1));
@@ -47,6 +54,7 @@ export function setBlockKind(kind: BlockKind, dual = false): Command {
     if (!positions.length) return false;
     if (dispatch) {
       const tr = closeHistory(state.tr);
+      if (!dual) clearSelectedDualDialogue(state, tr);
       for (const pos of positions) {
         const node = tr.doc.nodeAt(pos)!;
         tr.setNodeMarkup(pos, undefined, {
@@ -96,6 +104,7 @@ export function screenplayEnter(
         .setNodeMarkup($from.before(), undefined, {
           ...node.attrs,
           kind: "action",
+          dual: false,
           manual: false,
           automatic: false,
         })
