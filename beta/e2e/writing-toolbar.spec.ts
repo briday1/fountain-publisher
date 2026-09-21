@@ -66,6 +66,58 @@ test("one writing toolbar preserves selection, editor identity and undo through 
   ).toBeFocused();
 });
 
+test("element picker stays themed and exposes dual dialogue", async ({ page }) => {
+  await page.goto("/");
+  const toolbar = page.getByRole("toolbar", {
+    name: "Writing controls",
+    exact: true,
+  });
+  const element = toolbar.getByRole("combobox", {
+    name: "Screenplay element",
+    exact: true,
+  });
+  const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page
+    .getByRole("button", { name: "New screenplay", exact: true })
+    .click();
+  await editor.click();
+  await page.keyboard.type("MARA");
+
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = "solarized-dark";
+  });
+  const colors = await element
+    .locator('option[value="dual-dialogue"]')
+    .evaluate((option) => {
+      const probe = document.createElement("div");
+      probe.style.backgroundColor = "var(--raised)";
+      probe.style.color = "var(--ink)";
+      document.body.append(probe);
+      const result = {
+        optionBackground: getComputedStyle(option).backgroundColor,
+        optionColor: getComputedStyle(option).color,
+        themeBackground: getComputedStyle(probe).backgroundColor,
+        themeColor: getComputedStyle(probe).color,
+      };
+      probe.remove();
+      return result;
+    });
+  expect(colors.optionBackground).toBe(colors.themeBackground);
+  expect(colors.optionColor).toBe(colors.themeColor);
+
+  await element.selectOption("dual-dialogue");
+  await expect(element).toHaveValue("dual-dialogue");
+  await expect(
+    editor.locator('p[data-kind="character"][data-dual="true"]'),
+  ).toHaveText("MARA");
+  await expect(page.locator(".statusbar")).toContainText("Dual dialogue");
+
+  await element.selectOption("character");
+  await expect(element).toHaveValue("character");
+  await expect(editor.locator('p[data-dual="true"]')).toHaveCount(0);
+});
+
 test("writing controls stay in one compact row, respond to panel width, and remain reachable on mobile", async ({
   page,
 }, testInfo) => {
