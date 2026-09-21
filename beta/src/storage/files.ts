@@ -70,12 +70,12 @@ export function supportsFileAccess() {
 export async function readLocalFile(
   file: File,
 ): Promise<{ name: string; content: string }> {
+  if (file.size > MAX_FILE_BYTES)
+    throw new Error("This file exceeds the 10 MB screenplay limit.");
   if (!/\.(?:fountain|txt|fdx)$/i.test(file.name))
     throw new Error(
       "Choose a Fountain (.fountain or .txt) or Final Draft (.fdx) screenplay.",
     );
-  if (file.size > MAX_FILE_BYTES)
-    throw new Error("This file exceeds the 10 MB screenplay limit.");
   const bytes = new Uint8Array(await file.arrayBuffer());
   const encoding =
     bytes[0] === 0xff && bytes[1] === 0xfe
