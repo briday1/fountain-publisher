@@ -451,6 +451,67 @@ export default function App() {
     if (mobile)
       setPreferences((p) => ({ ...p, outline: false, insights: false }));
   }, [mobile]);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const root = document.documentElement;
+    let frame = 0;
+    let settleTimer = 0;
+
+    const applyViewport = () => {
+      frame = 0;
+      // iOS/WebKit can visually pan the page for the software keyboard without
+      // changing document scrollTop. pageTop sometimes updates more reliably
+      // than offsetTop during that transition, so use whichever reports the
+      // larger visual displacement from the layout viewport.
+      const top = Math.max(
+        0,
+        viewport.offsetTop,
+        viewport.pageTop - window.scrollY,
+      );
+      const left = Math.max(
+        0,
+        viewport.offsetLeft,
+        viewport.pageLeft - window.scrollX,
+      );
+      root.style.setProperty("--fp-visual-top", `${top}px`);
+      root.style.setProperty("--fp-visual-left", `${left}px`);
+      root.style.setProperty("--fp-visual-height", `${viewport.height}px`);
+      root.style.setProperty("--fp-visual-width", `${viewport.width}px`);
+    };
+
+    const scheduleViewport = () => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(applyViewport);
+      // Safari has shipped keyboard transitions where offsetTop is stale in the
+      // first viewport event and correct shortly afterward.
+      window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(applyViewport, 80);
+    };
+
+    scheduleViewport();
+    viewport.addEventListener("resize", scheduleViewport);
+    viewport.addEventListener("scroll", scheduleViewport);
+    window.addEventListener("resize", scheduleViewport);
+    window.addEventListener("orientationchange", scheduleViewport);
+    document.addEventListener("focusin", scheduleViewport);
+    document.addEventListener("focusout", scheduleViewport);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.clearTimeout(settleTimer);
+      viewport.removeEventListener("resize", scheduleViewport);
+      viewport.removeEventListener("scroll", scheduleViewport);
+      window.removeEventListener("resize", scheduleViewport);
+      window.removeEventListener("orientationchange", scheduleViewport);
+      document.removeEventListener("focusin", scheduleViewport);
+      document.removeEventListener("focusout", scheduleViewport);
+      root.style.removeProperty("--fp-visual-top");
+      root.style.removeProperty("--fp-visual-left");
+      root.style.removeProperty("--fp-visual-height");
+      root.style.removeProperty("--fp-visual-width");
+    };
+  }, []);
   useEffect(() => {
     const media = matchMedia("(prefers-color-scheme: dark)");
     const apply = () =>
