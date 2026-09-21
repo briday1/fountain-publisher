@@ -137,6 +137,16 @@ select {
   padding: 8px;
   min-width: 0;
 }
+select,
+select option,
+select optgroup {
+  color-scheme: inherit;
+}
+select option,
+select optgroup {
+  background-color: var(--raised);
+  color: var(--ink);
+}
 textarea {
   resize: vertical;
   line-height: 1.6;
