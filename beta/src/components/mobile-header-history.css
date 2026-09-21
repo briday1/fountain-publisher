@@ -1,0 +1,52 @@
+/* Reuse the editor's existing history buttons; no second undo stack or commands. */
+@media (max-width: 950px) {
+  .app .app-header > .header-history {
+    display: flex;
+    order: 2;
+    flex: 0 0 auto;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .app .app-header > .header-history .icon-button {
+    flex: 0 0 30px;
+    width: 30px;
+    min-width: 30px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    touch-action: manipulation;
+  }
+  .app .mobile-header-format .writing-tool {
+    flex-basis: 30px;
+    width: 30px;
+    min-width: 30px;
+  }
+  /* Keep menu commands unambiguous and background controls out of keyboard /
+     accessibility navigation while the mobile command panel is open. */
+  .app-header:has(.mobile-command-panel) > .header-history,
+  .app-header:has(.mobile-command-panel) > .mobile-header-format {
+    visibility: hidden;
+  }
+}
+@media (max-width: 380px) {
+  .app .app-header {
+    padding-inline: 6px;
+    gap: 3px;
+  }
+  .app .app-header > .brand {
+    min-width: 36px;
+    width: 36px;
+    padding-inline: 0;
+  }
+  .app .mobile-file-trigger {
+    width: 36px;
+  }
+  .app .mobile-header-format .writing-tool,
+  .app .app-header > .header-history .icon-button {
+    flex-basis: 28px;
+    width: 28px;
+    min-width: 28px;
+  }
+}
