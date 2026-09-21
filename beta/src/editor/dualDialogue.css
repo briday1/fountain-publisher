@@ -1,0 +1,36 @@
+.screenplay-editor.screenplay-has-dual {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 2ch;
+  align-content: start;
+}
+.screenplay-editor.screenplay-has-dual > p {
+  min-width: 0;
+}
+/* Grid margins do not collapse. Preserve the ordinary gap after a scene. */
+.screenplay-editor.screenplay-has-dual > p[data-kind="scene"] + p:not(.dual-dialogue-block) {
+  margin-top: 0;
+}
+.screenplay-editor.screenplay-has-dual > p.dual-dialogue-block {
+  align-self: start;
+  margin-top: var(--dual-top, 0px);
+  margin-bottom: 0;
+  margin-left: 0;
+  margin-right: 0;
+  overflow-wrap: anywhere;
+}
+.screenplay-editor.screenplay-has-dual > p.dual-dialogue-block[data-kind="character"] {
+  margin-left: 18%;
+}
+.screenplay-editor.screenplay-has-dual > p.dual-dialogue-block[data-kind="parenthetical"] {
+  margin-left: 9%;
+  margin-right: 9%;
+}
+@media (max-width: 640px) {
+  .screenplay-editor.screenplay-has-dual {
+    column-gap: 1ch;
+  }
+  .screenplay-editor.screenplay-has-dual > p.dual-dialogue-block[data-kind="character"] {
+    margin-left: 8%;
+  }
+}
