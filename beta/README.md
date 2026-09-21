@@ -66,3 +66,11 @@ Set `TEST_BASE_URL=https://fountain-publisher.com` to run against the deployed a
 Tests exercise real editor transactions, native browser typing/selection/undo, PDF compilation, Fountain round trips, storage failures, concurrent saves, stale requests, OAuth boundaries, and provider conflict handling. Collaboration browser tests use isolated contexts and real Yjs updates over mocked authenticated HTTP/WebSocket boundaries; signed-in Drive acceptance remains a separate check. Run `npm run check` for unit/integration tests plus a production build.
 
 Automated tests do not establish all-device reliability. Real Google/GitHub acceptance with signed-in accounts, native Japanese/Chinese/Korean IMEs, Safari/iPad input, and sustained usage remain acceptance checks. See [release checks](docs/release-checks.md).
+
+## Dual dialogue and mobile formatting
+
+Place the caret in either adjacent character cue, dialogue, or parenthetical and choose **Dual dialogue** in the element picker. The command links whole speeches without changing the selected line's type or text. From a later speech it pairs with the preceding speech; from the first speech it uses the following one. Existing pairs cannot overlap, and scene/action boundaries are not crossed. Choose **Single dialogue** to unlink a pair from either column.
+
+Both columns remain directly editable and wrap independently in the writing surface. Enter continues a dual speech; Enter again on an empty line exits it. Fountain and Final Draft exports keep the existing standard second-cue marker.
+
+On mobile the header has the element picker and bold, italic, and underline controls in place of the filename. The File panel still displays the filename and provides **Rename screenplay…**.

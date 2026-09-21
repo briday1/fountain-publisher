@@ -83,6 +83,12 @@ test("element picker stays themed and exposes dual dialogue", async ({ page }) =
     .click();
   await editor.click();
   await page.keyboard.type("MARA");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("First speech.");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("ELI");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Second speech.");
 
   await page.evaluate(() => {
     document.documentElement.dataset.theme = "solarized-dark";
@@ -110,11 +116,11 @@ test("element picker stays themed and exposes dual dialogue", async ({ page }) =
   await expect(element).toHaveValue("dual-dialogue");
   await expect(
     editor.locator('p[data-kind="character"][data-dual="true"]'),
-  ).toHaveText("MARA");
+  ).toHaveText("ELI");
   await expect(page.locator(".statusbar")).toContainText("Dual dialogue");
 
-  await element.selectOption("character");
-  await expect(element).toHaveValue("character");
+  await element.selectOption("single-dialogue");
+  await expect(element).toHaveValue("dialogue");
   await expect(editor.locator('p[data-dual="true"]')).toHaveCount(0);
 });
 

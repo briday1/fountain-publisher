@@ -3,6 +3,7 @@ import { TextSelection } from "prosemirror-state";
 import { closeHistory } from "./history";
 import type { BlockKind } from "../core/model";
 import { newId } from "../core/model";
+import { dualDialogueAt, setDualDialogue } from "./dualDialogue";
 
 export const cycleKinds: BlockKind[] = [
   "action",
@@ -33,7 +34,9 @@ export const isCharacterCue = (text: string): boolean => {
 };
 
 export function setBlockKind(kind: BlockKind, dual = false): Command {
-  return (state, dispatch) => {
+  return (state, dispatch, view) => {
+    if (dual) return setDualDialogue(true)(state, dispatch, view);
+    const pair = dualDialogueAt(state);
     const { from, to, $from } = state.selection;
     const positions: number[] = [];
     if (state.selection.empty && $from.depth) positions.push($from.before(1));
@@ -47,6 +50,10 @@ export function setBlockKind(kind: BlockKind, dual = false): Command {
     if (!positions.length) return false;
     if (dispatch) {
       const tr = closeHistory(state.tr);
+      if (pair?.active && pair.pair) {
+        const cue = pair.pair.right.cue;
+        tr.setNodeMarkup(cue.pos, undefined, { ...cue.node.attrs, dual: false });
+      }
       for (const pos of positions) {
         const node = tr.doc.nodeAt(pos)!;
         tr.setNodeMarkup(pos, undefined, {
@@ -55,7 +62,7 @@ export function setBlockKind(kind: BlockKind, dual = false): Command {
           manual: true,
           automatic: false,
           ...(kind === "scene" ? {} : { sceneNumber: null }),
-          dual: kind === "character" ? dual : false,
+          dual: false,
         });
       }
       dispatch(tr.scrollIntoView());
@@ -84,6 +91,7 @@ export function screenplayEnter(
 ): boolean {
   if (view?.composing) return false;
   if (!dispatch) return true;
+  const inDual = dualDialogueAt(state)?.active ?? false;
   const tr = closeHistory(state.tr).deleteSelection();
   const { $from } = tr.selection;
   if (!$from.depth) return false;
@@ -126,6 +134,7 @@ export function screenplayEnter(
         {
           character: "dialogue",
           parenthetical: "dialogue",
+          dialogue: inDual ? "dialogue" : "action",
           transition: "scene",
         } as Partial<Record<BlockKind, BlockKind>>
       )[kind] ?? "action")
