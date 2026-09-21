@@ -61,6 +61,7 @@ import { CharacterDialog } from "./components/CharacterDialog";
 import { CharacterAnalytics } from "./components/CharacterAnalytics";
 import { BeatSheetDialog } from "./components/BeatSheetDialog";
 import { WritingToolbar } from "./components/WritingToolbar";
+import { FormatControls } from "./components/FormatControls";
 import { formatPageCount } from "./core/pageCount";
 import { BeatGuide } from "./components/BeatGuide";
 import { ZenExitButton } from "./components/ZenExitButton";
@@ -1045,11 +1046,16 @@ export default function App() {
   ) => {
     setCloudDialog({ provider, mode });
   };
+  const changeElement = (value: BlockKind, dual = false) => {
+    const changed = editor.current?.setKind(value, dual);
+    if (dual && !changed)
+      tell("Choose a character or dialogue next to another speech to create dual dialogue.");
+  };
   const writingControls = (
     <WritingToolbar
       kind={kind}
       dualDialogue={dualDialogue}
-      onKind={(value, dual = false) => editor.current?.setKind(value, dual)}
+      onKind={changeElement}
       onMark={(mark) => editor.current?.toggleMark(mark)}
       preferences={preferences}
       onPreferences={setPreferences}
@@ -1112,6 +1118,12 @@ export default function App() {
               shortcut={`⇧${mod}S`}
             >
               Save As…
+            </MenuItem>
+            <MenuItem onClick={() => {
+              setRename(snapshot.name);
+              setDialog("rename");
+            }}>
+              Rename screenplay…
             </MenuItem>
             <MenuItem onClick={() => void run(listWorkspace)}>
               Workspace…
@@ -1286,6 +1298,16 @@ export default function App() {
           </button>
         </div>
         <div className="spacer" />
+        {mobile ? (
+          <div className="mobile-header-format">
+            <FormatControls
+              kind={kind}
+              dualDialogue={dualDialogue}
+              onKind={changeElement}
+              onMark={(mark) => editor.current?.toggleMark(mark)}
+            />
+          </div>
+        ) : (
         <button
           className="document-name"
           onClick={() => {
@@ -1296,6 +1318,7 @@ export default function App() {
         >
           {snapshot.name}
         </button>
+        )}
         <button
           className="save-button"
           disabled={busy}

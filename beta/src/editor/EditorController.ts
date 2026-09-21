@@ -75,6 +75,7 @@ import {
 } from "./beatAnchors";
 import { characterCompletion } from "./characterCompletion";
 import { annotationPlugin } from "./annotations";
+import { dualDialogueAt, dualDialoguePlugin } from "./dualDialogue";
 import type { AnnotationTarget } from "./annotations";
 import "./editor.css";
 
@@ -491,6 +492,7 @@ export class EditorController {
           (id) => this.openAnnotation(id),
           () => this.writable,
         ),
+        dualDialoguePlugin(),
         characterCompletion(),
         beatAnchorPlugin(screenplay),
         ...(!this.live ? [history({ depth: 500, newGroupDelay: 500 })] : []),
@@ -667,9 +669,7 @@ export class EditorController {
     }
     const kind = (this.view.state.selection.$from.parent.attrs.kind ||
       "action") as BlockKind;
-    const dual =
-      kind === "character" &&
-      Boolean(this.view.state.selection.$from.parent.attrs.dual);
+    const dual = dualDialogueAt(this.view.state)?.active ?? false;
     if (kind !== this.selectedKind || dual !== this.selectedDual) {
       this.selectedKind = kind;
       this.selectedDual = dual;
@@ -679,6 +679,7 @@ export class EditorController {
 
   private run(command: Command): boolean {
     if (this.destroyed || this.view.composing || !this.writable) return false;
+    syncNativeSelection(this.view);
     const result = command(this.view.state, this.view.dispatch, this.view);
     this.view.focus();
     return result;

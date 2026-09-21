@@ -55,23 +55,18 @@ function select(editor: EditorController, from: number, to = from): void {
 function type(editor: EditorController, text: string): void {
   editor.view.dispatch(editor.view.state.tr.insertText(text));
 }
-it("sets and clears standard Fountain dual dialogue on a character cue", () => {
-  const editor = create([["action", "MARA"]]);
+it("sets and clears dual dialogue without changing the selected speech", () => {
+  const editor = create([
+    ["character", "MARA"], ["dialogue", "First speech."],
+    ["character", "ELI"], ["dialogue", "Second speech."],
+  ]);
   select(editor, 1);
   expect(editor.setKind("character", true)).toBe(true);
-  expect(editor.getBlocks()[0]).toMatchObject({
-    kind: "character",
-    text: "MARA",
-    dual: true,
-  });
-  expect(serializeFountain(editor.getDocument(emptyScreenplay()))).toContain(
-    "MARA ^",
-  );
+  expect(editor.getBlocks()[2]).toMatchObject({ kind: "character", text: "ELI", dual: true });
+  expect(serializeFountain(editor.getDocument(emptyScreenplay()))).toContain("ELI ^");
   expect(editor.setKind("character")).toBe(true);
-  expect(editor.getBlocks()[0].dual).toBeUndefined();
-  expect(serializeFountain(editor.getDocument(emptyScreenplay()))).not.toContain(
-    "MARA ^",
-  );
+  expect(editor.getBlocks()[2].dual).toBeUndefined();
+  expect(editor.getBlocks()[1]).toMatchObject({ kind: "dialogue", text: "First speech." });
 });
 
 it("excludes character cues from spellcheck while retaining typing corrections and prose settings", () => {
