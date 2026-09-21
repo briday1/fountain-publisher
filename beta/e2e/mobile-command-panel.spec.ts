@@ -23,15 +23,20 @@ test("mobile offers every desktop menu action except Zen through one File entry"
     await page.keyboard.press("Escape");
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator(".app-header button:visible")).toHaveCount(3); // F logo, title and hamburger.
   const logo = (await page.locator(".app-header > .brand").boundingBox())!;
-  const title = (await page
-    .locator(".app-header > .document-name")
-    .boundingBox())!;
+  const inline = page.getByRole("toolbar", {
+    name: "Mobile writing controls",
+    exact: true,
+  });
+  const inlineBounds = (await inline.boundingBox())!;
   const hamburger = (await page.locator(".mobile-file-trigger").boundingBox())!;
-  expect(logo.x + logo.width).toBeLessThanOrEqual(title.x);
-  expect(title.x + title.width).toBeLessThanOrEqual(hamburger.x);
+  expect(logo.x + logo.width).toBeLessThanOrEqual(inlineBounds.x);
+  expect(inlineBounds.x + inlineBounds.width).toBeLessThanOrEqual(hamburger.x);
   expect(hamburger.x + hamburger.width).toBeGreaterThan(360);
+  await expect(page.locator(".app-header > .document-name")).not.toBeVisible();
+  await expect(inline.getByRole("combobox", { name: "Screenplay element" })).toBeVisible();
+  for (const name of ["Bold", "Italic", "Underline", "Undo", "Redo", "Add annotation"])
+    await expect(inline.getByRole("button", { name, exact: true })).toBeVisible();
   await expect(page.locator(".mobile-file-trigger")).toHaveText("");
   await expect(page.locator(".app-header .brand-mark")).toHaveText("F");
   await expect(
@@ -83,27 +88,44 @@ test("mobile offers every desktop menu action except Zen through one File entry"
   await expect(page.locator(".mobile-file-trigger")).toBeFocused();
 });
 
-test("mobile formatting preserves the editor, selection and undo", async ({
+test("mobile header formatting, history and annotation preserve the editor", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  const controls = page.getByRole("toolbar", {
+    name: "Mobile writing controls",
+    exact: true,
+  });
   await expect(editor).toBeVisible();
   await editor.fill("Keep this sentence.");
   const original = await editor.elementHandle();
   await page.keyboard.press("ControlOrMeta+a");
-  await mobileSection(page, "Write");
-  await page.getByRole("button", { name: "Bold", exact: true }).click();
-  await page.getByRole("button", { name: "Back to writing" }).click();
+
+  await controls.getByRole("button", { name: "Bold", exact: true }).click();
   await expect(editor.locator("strong")).toHaveText("Keep this sentence.");
+  await controls.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(editor.locator("strong")).toHaveCount(0);
+  await controls.getByRole("button", { name: "Redo", exact: true }).click();
+  await expect(editor.locator("strong")).toHaveText("Keep this sentence.");
+  await expect(controls.getByRole("button", { name: "Italic" })).toBeVisible();
+  await expect(controls.getByRole("button", { name: "Underline" })).toBeVisible();
+
   expect(
     await original!.evaluate(
       (el) => el === document.querySelector(".screenplay-editor"),
     ),
   ).toBe(true);
-  await mobileSection(page, "Write");
-  await page.getByRole("button", { name: "Undo", exact: true }).click();
-  await expect(editor.locator("strong")).toHaveCount(0);
-  await expect(editor).toHaveText("Keep this sentence.");
+
+  await editor.click();
+  const annotation = controls.getByRole("button", {
+    name: "Add annotation",
+    exact: true,
+  });
+  await expect(annotation).toBeEnabled();
+  await annotation.click();
+  await expect(
+    page.getByRole("dialog", { name: "Add Annotation", exact: true }),
+  ).toBeVisible();
 });
