@@ -201,6 +201,7 @@ export class EditorController {
   private hardwareInputType?: string;
   private selectedKind?: BlockKind;
   private selectedDual?: boolean;
+  private selectedBlockId?: string;
   private live?: LiveBinding;
   private metadataNotification = false;
   get isComposing(): boolean {
@@ -702,6 +703,7 @@ export class EditorController {
       this.callbacks.onAnnotationState?.(annotationState);
     }
     const { $from } = this.view.state.selection;
+    this.selectedBlockId = $from.depth ? $from.parent.attrs.id : undefined;
     const kind = ($from.parent.attrs.kind || "action") as BlockKind;
     const dual =
       Boolean($from.depth) &&
@@ -1053,6 +1055,7 @@ export class EditorController {
     this.view.updateState(this.createState(screenplay));
     this.selectedKind = undefined;
     this.selectedDual = undefined;
+    this.selectedBlockId = undefined;
     this.notifySelection();
   }
 
@@ -1060,7 +1063,12 @@ export class EditorController {
     return this.run(setBlockKind(kind, dual));
   }
   setDualDialogue(enabled: boolean): boolean {
-    return this.run(setDualDialogueCommand(enabled));
+    let blockPos: number | undefined;
+    if (this.selectedBlockId)
+      this.view.state.doc.forEach((node, pos) => {
+        if (node.attrs.id === this.selectedBlockId) blockPos = pos;
+      });
+    return this.run(setDualDialogueCommand(enabled, blockPos));
   }
   toggleMark(mark: TextMark): boolean {
     return this.run(toggleMark(screenplaySchema.marks[mark]));
