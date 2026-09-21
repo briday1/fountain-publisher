@@ -6,6 +6,16 @@ test.use({ screenshot: "on" });
 const modifier = process.platform === "darwin" ? "Meta" : "Control";
 const source = `INT. STUDIO - DAY\n\nMARA\n${"The left speech wraps independently and remains editable. ".repeat(8)}\n(quietly)\nA final left sentence.\n\nELI\nRight begins.\n(shouting)\nA final right sentence.\n\n!After both speeches.`;
 async function open(page: Page, text: string) {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "showOpenFilePicker", {
+      value: undefined,
+      configurable: true,
+    });
+    Object.defineProperty(window, "showSaveFilePicker", {
+      value: undefined,
+      configurable: true,
+    });
+  });
   await page.goto("/");
   await expect(page.getByRole("textbox", { name: "Screenplay editor" })).toBeVisible();
   await page.getByRole("button", { name: "File", exact: true }).click();
