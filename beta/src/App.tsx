@@ -105,6 +105,7 @@ export default function App() {
     "add" | "edit" | "unavailable"
   >("unavailable");
   const [kind, setKind] = useState<BlockKind>("action");
+  const [dualDialogue, setDualDialogue] = useState(false);
   const [guideTarget, setGuideTarget] = useState<string>();
   const [beatGuide, setBeatGuide] = useState(() => {
     try {
@@ -1047,7 +1048,8 @@ export default function App() {
   const writingControls = (
     <WritingToolbar
       kind={kind}
-      onKind={(value) => editor.current?.setKind(value)}
+      dualDialogue={dualDialogue}
+      onKind={(value, dual = false) => editor.current?.setKind(value, dual)}
       onMark={(mark) => editor.current?.toggleMark(mark)}
       preferences={preferences}
       onPreferences={setPreferences}
@@ -1556,7 +1558,10 @@ export default function App() {
                     initial={doc}
                     onReady={onReady}
                     onChange={onEditorChange}
-                    onSelection={setKind}
+                    onSelection={(value, dual) => {
+                      setKind(value);
+                      setDualDialogue(dual);
+                    }}
                     onAnnotationState={setAnnotationState}
                   />
                 </article>
@@ -1769,7 +1774,7 @@ export default function App() {
           </button>
         )}
         <div className="spacer" />
-        <span>{blockLabels[kind]}</span>
+        <span>{dualDialogue ? "Dual dialogue" : blockLabels[kind]}</span>
         <span className="status-divider" />
         <span>{preferences.pageSize === "letter" ? "US Letter" : "A4"}</span>
         <span className="status-divider" />
