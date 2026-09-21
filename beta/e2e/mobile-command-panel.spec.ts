@@ -23,19 +23,18 @@ test("mobile offers every desktop menu action except Zen through one File entry"
     await page.keyboard.press("Escape");
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator(".app-header button:visible")).toHaveCount(3); // F logo, title and hamburger.
+  await expect(page.locator(".app-header button:visible")).toHaveCount(7);
+  await expect(page.locator(".app-header > .document-name")).not.toBeVisible();
   const logo = (await page.locator(".app-header > .brand").boundingBox())!;
-  const title = (await page
-    .locator(".app-header > .document-name")
-    .boundingBox())!;
+  const tools = (await page.locator(".mobile-writing-controls").boundingBox())!;
   const hamburger = (await page.locator(".mobile-file-trigger").boundingBox())!;
-  expect(logo.x + logo.width).toBeLessThanOrEqual(title.x);
-  expect(title.x + title.width).toBeLessThanOrEqual(hamburger.x);
+  expect(logo.x + logo.width).toBeLessThanOrEqual(tools.x);
+  expect(tools.x + tools.width).toBeLessThanOrEqual(hamburger.x);
   expect(hamburger.x + hamburger.width).toBeGreaterThan(360);
   await expect(page.locator(".mobile-file-trigger")).toHaveText("");
   await expect(page.locator(".app-header .brand-mark")).toHaveText("F");
   await expect(
-    page.getByRole("toolbar", { name: "Writing controls" }),
+    page.getByRole("toolbar", { name: "Writing controls", exact: true }),
   ).toHaveCount(0);
   const found: string[] = [];
   await mobileSection(page, "File");
