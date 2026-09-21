@@ -13,7 +13,7 @@ export const EditorSurface = memo(function EditorSurface({
   initial: Screenplay;
   onReady: (editor: EditorController | null) => void;
   onChange: (remote?: boolean) => void;
-  onSelection: (kind: BlockKind) => void;
+  onSelection: (kind: BlockKind, dual: boolean) => void;
   onAnnotationState?: (state: "add" | "edit" | "unavailable") => void;
 }) {
   const controller = useRef<EditorController | null>(null);
