@@ -1049,12 +1049,15 @@ export default function App() {
   ) => {
     setCloudDialog({ provider, mode });
   };
+  const changeDualDialogue = (enabled: boolean) => {
+    if (editor.current?.setDualDialogue(enabled)) setDualDialogue(enabled);
+  };
   const writingControls = (
     <WritingToolbar
       kind={kind}
       dualDialogue={dualDialogue}
       onKind={(value) => editor.current?.setKind(value)}
-      onDualDialogue={(enabled) => editor.current?.setDualDialogue(enabled)}
+      onDualDialogue={changeDualDialogue}
       onMark={(mark) => editor.current?.toggleMark(mark)}
       preferences={preferences}
       onPreferences={setPreferences}
@@ -1278,7 +1281,7 @@ export default function App() {
           <div
             className="mobile-writing-bar"
             role="toolbar"
-            aria-label="Mobile writing controls"
+            aria-label="Quick formatting"
           >
             <select
               aria-label="Screenplay element"
@@ -1287,9 +1290,9 @@ export default function App() {
               onChange={(event) => {
                 const value = event.target.value;
                 if (value === "dual-dialogue")
-                  editor.current?.setDualDialogue(true);
+                  changeDualDialogue(true);
                 else {
-                  if (dualDialogue) editor.current?.setDualDialogue(false);
+                  if (dualDialogue) changeDualDialogue(false);
                   editor.current?.setKind(value as BlockKind);
                 }
               }}
