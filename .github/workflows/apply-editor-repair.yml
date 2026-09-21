@@ -11,15 +11,24 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Apply exact integration changes
-        run: python .github/scripts/apply-dual-dialogue-update.py
-      - name: Commit repaired application and remove one-time patch script
+      - name: Finish plugin typing and enable visual regression evidence
         run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('beta/src/editor/dualDialogue.ts')
+          s = p.read_text()
+          old = 'attributes: (state) => layoutKey.getState(state)?.pairs.length'
+          assert s.count(old) == 1
+          p.write_text(s.replace(old, 'attributes: (state): Record<string, string> => layoutKey.getState(state)?.pairs.length'))
+          p = Path('beta/e2e/dual-dialogue-mobile-format.spec.ts')
+          s = p.read_text()
+          s = s.replace('const modifier =', 'test.use({ screenshot: "on" });\n\nconst modifier =', 1)
+          p.write_text(s)
+          PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add beta
-          git rm .github/scripts/apply-dual-dialogue-update.py
-          git commit -m "Wire speech-aware dual dialogue, live columns, and mobile header formatting"
+          git commit -m "Type layout attributes and retain dual-dialogue browser screenshots"
           git push origin HEAD:fix-dual-dialogue-layout-mobile-format
       - uses: actions/setup-node@v4
         with:
@@ -39,10 +48,10 @@ jobs:
         working-directory: beta
         run: |
           if command -v google-chrome > /dev/null; then
-            PLAYWRIGHT_CHROME_PATH="$(command -v google-chrome)" npx playwright test e2e/dual-dialogue-mobile-format.spec.ts e2e/writing-toolbar.spec.ts
+            PLAYWRIGHT_CHROME_PATH="$(command -v google-chrome)" npx playwright test e2e/dual-dialogue-mobile-format.spec.ts e2e/writing-toolbar.spec.ts e2e/mobile-command-panel.spec.ts
           else
             npx playwright install --with-deps chromium
-            npx playwright test e2e/dual-dialogue-mobile-format.spec.ts e2e/writing-toolbar.spec.ts
+            npx playwright test e2e/dual-dialogue-mobile-format.spec.ts e2e/writing-toolbar.spec.ts e2e/mobile-command-panel.spec.ts
           fi
       - name: Keep browser regression evidence
         if: always()
