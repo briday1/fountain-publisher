@@ -49,6 +49,46 @@
 .screenplay-editor p[data-kind="dialogue"]:has(+ p[data-kind="parenthetical"]) {
   margin-bottom: 0;
 }
+
+/* Dual dialogue is stored on the second character cue in Fountain. The editor
+ * decorates both adjacent speech groups so the live writing surface mirrors the
+ * two-column PDF layout instead of only preserving the ^ in the file. */
+.screenplay-editor > p:not(.dual-dialogue-block) {
+  clear: both;
+}
+.screenplay-editor p.dual-dialogue-block {
+  box-sizing: border-box;
+  width: 50%;
+}
+.screenplay-editor p.dual-dialogue-left {
+  float: left;
+  clear: left;
+}
+.screenplay-editor p.dual-dialogue-right {
+  float: right;
+  clear: right;
+}
+.screenplay-editor p.dual-dialogue-right.dual-dialogue-start {
+  margin-top: 0;
+}
+.screenplay-editor p[data-kind="character"].dual-dialogue-block {
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: 29%;
+}
+.screenplay-editor p[data-kind="dialogue"].dual-dialogue-block,
+.screenplay-editor p[data-kind="lyrics"].dual-dialogue-block {
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: 14%;
+  padding-right: 28%;
+}
+.screenplay-editor p[data-kind="parenthetical"].dual-dialogue-block {
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: 20%;
+  padding-right: 4%;
+}
 .screenplay-editor p[data-kind="transition"] {
   text-align: right;
   text-transform: uppercase;
