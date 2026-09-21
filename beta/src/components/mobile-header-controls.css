@@ -1,0 +1,77 @@
+@media (max-width: 950px) {
+  .app .app-header > .document-name,
+  .app .app-header > .spacer {
+    display: none;
+  }
+  .app-header > nav.mobile-command-nav {
+    order: 1;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .mobile-command-nav > .mobile-file-trigger {
+    flex: 0 0 44px;
+  }
+  .mobile-header-writing {
+    display: flex;
+    align-items: center;
+    flex: 1 1 0;
+    min-width: 0;
+    gap: 2px;
+  }
+  .mobile-header-writing .writing-format-group {
+    display: contents;
+  }
+  .mobile-header-writing .writing-group-rule {
+    display: none;
+  }
+  .mobile-header-writing .writing-element {
+    flex: 1 1 0;
+    width: 0;
+    min-width: 0;
+    height: 44px;
+    padding: 0 2px;
+    font-size: 11px;
+    color: var(--ink);
+    background: var(--raised);
+  }
+  .mobile-header-writing .writing-tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 30px;
+    width: 30px;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 5px;
+    color: var(--ink);
+    background: transparent;
+    touch-action: manipulation;
+  }
+  .mobile-header-writing .writing-tool:hover,
+  .mobile-header-writing .writing-tool:active {
+    background: var(--raised);
+  }
+}
+@media (max-width: 380px) {
+  .app .app-header {
+    gap: 4px;
+    padding-inline: 6px;
+  }
+  .app .app-header > .brand {
+    min-width: 32px;
+    width: 32px;
+    padding-inline: 0;
+  }
+  .mobile-command-nav > .mobile-file-trigger {
+    flex-basis: 34px;
+    width: 34px;
+  }
+  .mobile-header-writing .writing-tool {
+    flex-basis: 28px;
+    width: 28px;
+  }
+}
