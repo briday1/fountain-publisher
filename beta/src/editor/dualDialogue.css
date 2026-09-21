@@ -1,0 +1,36 @@
+/* No duplicate text, absolute-positioned overlay or second contenteditable surface. */
+.screenplay-editor.has-dual-dialogue {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 1.5em;
+  align-content: start;
+}
+.screenplay-editor.has-dual-dialogue > p {
+  align-self: start;
+  min-width: 0;
+}
+.screenplay-editor.has-dual-dialogue > p[data-dual-side] {
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 0;
+  margin-top: calc(1em + var(--dual-offset, 0px));
+}
+.screenplay-editor.has-dual-dialogue > p[data-dual-side][data-kind="character"] {
+  margin-left: 20%;
+}
+.screenplay-editor.has-dual-dialogue > p[data-dual-side][data-kind="parenthetical"] {
+  margin-left: 8%;
+  margin-right: 5%;
+}
+/* Grid items do not collapse margins. Preserve the usual scene-to-prose gap. */
+.screenplay-editor.has-dual-dialogue > p[data-kind="scene"] {
+  margin-bottom: 0;
+}
+.screenplay-editor.has-dual-dialogue > p[data-kind="scene"] + p:not([data-kind="scene"]):not([data-kind="section"]):not([data-dual-side]) {
+  margin-top: 1em;
+}
+@media (max-width: 640px) {
+  .screenplay-editor.has-dual-dialogue {
+    column-gap: 1em;
+  }
+}
