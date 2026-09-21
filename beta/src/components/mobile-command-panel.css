@@ -1,3 +1,6 @@
+.mobile-writing-bar {
+  display: none;
+}
 .mobile-file-trigger {
   display: inline-flex;
   align-items: center;
@@ -180,42 +183,78 @@
     display: none;
   }
   .app-header {
-    min-height: 56px;
-    padding: 6px 12px;
-    gap: 8px;
+    min-height: 52px;
+    padding: 6px;
+    gap: 4px;
   }
   .app-header > .brand {
     display: flex;
     order: 0;
     flex-shrink: 0;
-    min-height: 44px;
-    min-width: 44px;
+    min-height: 40px;
+    min-width: 40px;
     justify-content: center;
   }
   .app-header > .brand > span:last-child {
     display: none;
   }
   .app-header > .spacer {
-    order: 2;
+    display: none;
+  }
+  .app-header > .mobile-writing-bar {
+    order: 1;
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 2px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+  .mobile-writing-bar::-webkit-scrollbar {
+    display: none;
+  }
+  .mobile-writing-bar select {
+    flex: 1 1 82px;
+    min-width: 74px;
+    max-width: 100px;
+    height: 34px;
+    padding: 0 3px 0 6px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .mobile-writing-bar button {
+    flex: 0 0 31px;
+    width: 31px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+  }
+  .mobile-writing-bar button:hover,
+  .mobile-writing-bar button:focus-visible {
+    background: var(--raised);
+    color: var(--ink);
+  }
+  .mobile-writing-bar button:disabled {
+    opacity: 0.3;
   }
   .app-header > .mobile-command-nav {
     order: 3;
     flex-shrink: 0;
   }
   .mobile-file-trigger {
-    width: 44px;
+    width: 40px;
+    min-height: 40px;
     padding: 0;
     justify-content: center;
   }
   .app-header > .document-name {
-    display: block;
-    order: 1;
-    text-align: left;
-    min-width: 0;
-    max-width: 55vw;
-    font-size: 12px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: none;
   }
 }
