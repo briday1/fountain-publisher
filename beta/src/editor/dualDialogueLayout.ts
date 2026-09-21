@@ -1,7 +1,6 @@
 import { Plugin, PluginKey } from "prosemirror-state";
 import type { EditorState } from "prosemirror-state";
 import { Decoration, DecorationSet } from "prosemirror-view";
-import type { EditorView } from "prosemirror-view";
 import type { DialogueStructure } from "./dualDialogue";
 import { dialogueStructure } from "./dualDialogue";
 import "./dualDialogue.css";
@@ -55,7 +54,7 @@ export function dualDialogueLayout(): Plugin<Layout> {
     },
     props: {
       decorations: (state) => layoutKey.getState(state)?.decorations,
-      attributes: (state) => layoutKey.getState(state)?.structure.pairs.length
+      attributes: (state): Record<string, string> => layoutKey.getState(state)?.structure.pairs.length
         ? { class: "screenplay-has-dual", "data-dual-layout": id }
         : { "data-dual-layout": id },
     },
@@ -71,20 +70,25 @@ export function dualDialogueLayout(): Plugin<Layout> {
       let css = "";
       const measure = () => {
         if (destroyed) return;
-        const pairs = layoutKey.getState(view.state)?.structure.pairs ?? [];
+        const structure = layoutKey.getState(view.state)?.structure;
+        if (!structure?.pairs.length) {
+          if (css) { css = ""; sheet.textContent = ""; }
+          return;
+        }
         const line = parseFloat(win?.getComputedStyle(view.dom).lineHeight ?? "") || 16;
         const rules: string[] = [];
         // Complete reads before updating the stylesheet, and never mutate PM's DOM.
-        for (const pair of pairs) {
-          const gap = pair.left.cue.index === 0 ? 0 : line;
+        for (const pair of structure.pairs) {
+          const before = structure.blocks[pair.left.cue.index - 1];
+          const gap = !before || before.node.attrs.kind === "scene" ? 0 : line;
           for (const side of ["left", "right"] as const) {
             let top = gap;
             for (const block of pair[side].blocks) {
               const element = view.nodeDOM(block.pos);
-              if (!(element instanceof owner.defaultView!.HTMLElement)) continue;
+              if (!element || element.nodeType !== 1) continue;
               rules.push(`[data-dual-layout="${id}"] > [data-dual-slot="${block.index}"]{--dual-top:${top}px}`);
-              top += element.getBoundingClientRect().height /
-                (view.dom.getBoundingClientRect().width / (view.dom.clientWidth || 1) || 1);
+              // Layout pixels, not transformed screen pixels: zoom must not compound offsets.
+              top += (element as HTMLElement).offsetHeight;
             }
           }
         }
