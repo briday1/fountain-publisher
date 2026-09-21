@@ -65,15 +65,16 @@ export function setBlockKind(kind: BlockKind, dual = false): Command {
   };
 }
 
-export function setDualDialogue(enabled: boolean): Command {
+export function setDualDialogue(
+  enabled: boolean,
+  blockPos?: number,
+): Command {
   return (state, dispatch) => {
     const { $from } = state.selection;
-    if (!$from.depth) return false;
-    const target = dualDialogueTargetPosition(
-      state.doc,
-      $from.before(1),
-      enabled,
-    );
+    const source =
+      blockPos ?? ($from.depth ? $from.before(1) : undefined);
+    if (source === undefined) return false;
+    const target = dualDialogueTargetPosition(state.doc, source, enabled);
     if (target === undefined) return false;
     const node = state.doc.nodeAt(target);
     if (!node || node.attrs.kind !== "character") return false;
