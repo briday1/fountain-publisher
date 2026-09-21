@@ -22,6 +22,40 @@ const fileTypes = [
   },
 ];
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
+let localFileInput: HTMLInputElement | undefined;
+
+function prefersInputFilePicker(): boolean {
+  if (typeof window === "undefined") return false;
+  const mobileUserAgent = /Android|iPhone|iPad|iPod/i.test(
+    navigator.userAgent,
+  );
+  const coarsePointer =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(pointer: coarse)").matches;
+  return mobileUserAgent || coarsePointer;
+}
+
+function stableLocalFileInput(): HTMLInputElement {
+  localFileInput ??= document.createElement("input");
+  const input = localFileInput;
+  input.type = "file";
+  input.accept = ".fountain,.txt,.fdx,text/plain,application/xml";
+  input.tabIndex = -1;
+  input.setAttribute("aria-hidden", "true");
+  input.setAttribute("data-fp-local-file-picker", "true");
+  Object.assign(input.style, {
+    position: "fixed",
+    left: "-10000px",
+    top: "0",
+    width: "1px",
+    height: "1px",
+    opacity: "0",
+    pointerEvents: "none",
+  });
+  if (!input.isConnected) document.body.append(input);
+  return input;
+}
+
 export function supportsFileAccess() {
   return (
     typeof window !== "undefined" &&
@@ -60,7 +94,7 @@ export async function openLocalFile(): Promise<{
   handle?: FileHandle;
 } | null> {
   const access = window as FileAccessWindow;
-  if (access.showOpenFilePicker) {
+  if (access.showOpenFilePicker && !prefersInputFilePicker()) {
     try {
       const [handle] = await access.showOpenFilePicker({
         multiple: false,
@@ -73,23 +107,47 @@ export async function openLocalFile(): Promise<{
     }
   }
   return new Promise((resolve, reject) => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".fountain,.txt,.fdx,text/plain,application/xml";
-    input.style.display = "none";
-    document.body.append(input);
-    const finish = () => input.remove();
-    input.oncancel = () => {
-      finish();
-      resolve(null);
+    const input = stableLocalFileInput();
+    // Reset before every open so choosing the same Downloads file again still
+    // produces a selection event in Chrome.
+    input.value = "";
+    let settled = false;
+    const cleanup = () => {
+      input.removeEventListener("input", selected);
+      input.removeEventListener("change", selected);
+      input.removeEventListener("cancel", cancelled);
     };
-    input.onchange = () => {
+    const finish = <T,>(fn: (value: T) => void, value: T) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      fn(value);
+    };
+    const cancelled = () => finish(resolve, null);
+    const selected = () => {
+      if (settled) return;
       const file = input.files?.[0];
-      finish();
-      if (!file) resolve(null);
-      else readLocalFile(file).then(resolve, reject);
+      if (!file) {
+        finish(resolve, null);
+        return;
+      }
+      settled = true;
+      cleanup();
+      // Keep the input attached while Android's document provider finishes
+      // reading the selected File. Removing a transient input can lose the
+      // selection callback/file backing on mobile Chrome.
+      void readLocalFile(file).then(resolve, reject);
     };
-    input.click();
+    input.addEventListener("input", selected);
+    input.addEventListener("change", selected);
+    input.addEventListener("cancel", cancelled);
+    try {
+      input.click();
+    } catch (error) {
+      cleanup();
+      settled = true;
+      reject(error);
+    }
   });
 }
 export function downloadFile(
