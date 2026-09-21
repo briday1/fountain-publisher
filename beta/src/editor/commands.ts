@@ -32,7 +32,7 @@ export const isCharacterCue = (text: string): boolean => {
   );
 };
 
-export function setBlockKind(kind: BlockKind): Command {
+export function setBlockKind(kind: BlockKind, dual = false): Command {
   return (state, dispatch) => {
     const { from, to, $from } = state.selection;
     const positions: number[] = [];
@@ -55,7 +55,7 @@ export function setBlockKind(kind: BlockKind): Command {
           manual: true,
           automatic: false,
           ...(kind === "scene" ? {} : { sceneNumber: null }),
-          ...(kind === "character" ? {} : { dual: false }),
+          dual: kind === "character" ? dual : false,
         });
       }
       dispatch(tr.scrollIntoView());
