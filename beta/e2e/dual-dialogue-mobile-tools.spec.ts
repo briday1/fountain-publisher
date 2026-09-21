@@ -46,6 +46,7 @@ test("dual dialogue formats both editable speeches from a dialogue line and surv
   for (const text of ["One last thought.", "A second thought."]) {
     const paragraph = editor.locator('p[data-kind="dialogue"]').filter({ hasText: text });
     await paragraph.click();
+    await page.keyboard.press("End");
     await expect(element).toHaveValue("dual-dialogue");
     await page.keyboard.type("EDIT");
     await expect(paragraph).toContainText("EDIT");
