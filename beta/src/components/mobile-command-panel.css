@@ -241,7 +241,7 @@
     height: 44px;
     padding: 0;
     border: 0;
-    gap: 2px;
+    gap: 0;
     background: transparent;
   }
   .mobile-header-format .writing-group-rule {
@@ -272,5 +272,17 @@
   .mobile-header-format .writing-tool:hover,
   .mobile-header-format .writing-tool:active {
     background: var(--raised);
+  }
+  @media (max-width: 360px) {
+    .mobile-header-format .writing-element {
+      min-width: 52px;
+      font-size: 11px;
+      padding-inline: 2px;
+    }
+    .mobile-header-format .writing-tool {
+      flex-basis: 26px;
+      width: 26px;
+      min-width: 26px;
+    }
   }
 }
