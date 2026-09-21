@@ -9,6 +9,22 @@
   background: var(--raised);
   font-weight: 600;
 }
+.formatting-message {
+  position: fixed;
+  z-index: 100;
+  bottom: 62px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, calc(100vw - 24px));
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font: 13px/1.5 system-ui, sans-serif;
+  white-space: normal;
+}
 .mobile-command-panel {
   width: min(520px, 100%);
   max-width: 100%;
@@ -176,46 +192,91 @@
 }
 @media (max-width: 950px) {
   .app-header > .header-history,
-  .app-header > .save-button {
+  .app-header > .save-button,
+  .app-header > .document-name,
+  .app-header > .spacer {
     display: none;
   }
   .app-header {
     min-height: 56px;
-    padding: 6px 12px;
-    gap: 8px;
+    padding: 6px 8px;
+    gap: 4px;
   }
   .app-header > .brand {
     display: flex;
     order: 0;
-    flex-shrink: 0;
+    flex: 0 0 32px;
+    width: 32px;
     min-height: 44px;
-    min-width: 44px;
+    min-width: 32px;
+    padding: 0;
     justify-content: center;
   }
   .app-header > .brand > span:last-child {
     display: none;
   }
-  .app-header > .spacer {
-    order: 2;
-  }
   .app-header > .mobile-command-nav {
-    order: 3;
-    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    order: 1;
+    flex: 1 1 0;
+    min-width: 0;
+    gap: 4px;
   }
   .mobile-file-trigger {
-    width: 44px;
+    flex: 0 0 36px;
+    width: 36px;
     padding: 0;
     justify-content: center;
   }
-  .app-header > .document-name {
-    display: block;
-    order: 1;
-    text-align: left;
+  .mobile-writing-controls {
+    display: flex;
+    align-items: center;
+    flex: 1 1 0;
     min-width: 0;
-    max-width: 55vw;
+    gap: 0;
+  }
+  .mobile-format-controls {
+    display: flex;
+    align-items: center;
+    flex: 1 1 0;
+    min-width: 0;
+    gap: 0;
+  }
+  .mobile-history-controls {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 0;
+  }
+  .mobile-writing-controls .writing-tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 32px;
+    width: 32px;
+    min-width: 32px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--ink);
+    touch-action: manipulation;
+  }
+  .mobile-writing-controls select {
+    flex: 1 1 0;
+    min-width: 68px;
+    width: 68px;
+    height: 40px;
+    padding: 0 2px 0 5px;
+    border: 1px solid var(--border);
+    background: var(--raised);
+    color: var(--ink);
     font-size: 12px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  }
+  .mobile-writing-controls .writing-tool:hover,
+  .mobile-writing-controls .writing-tool:active {
+    background: var(--raised);
   }
 }
