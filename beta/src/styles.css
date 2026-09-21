@@ -1631,13 +1631,9 @@ hr {
     inset: auto;
     top: 0;
     left: 0;
-    width: var(--fp-visual-width, 100vw);
+    width: 100vw;
     height: var(--fp-visual-height, 100dvh);
-    transform: translate3d(
-      var(--fp-visual-left, 0px),
-      var(--fp-visual-top, 0px),
-      0
-    );
+    transform: translate3d(0, var(--fp-visual-top, 0px), 0);
   }
 }
 @media (prefers-reduced-motion: reduce) {
