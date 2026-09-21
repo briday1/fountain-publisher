@@ -23,7 +23,7 @@ test("mobile offers every desktop menu action except Zen through one File entry"
     await page.keyboard.press("Escape");
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator(".app-header button:visible")).toHaveCount(7); // F, B/I/U, undo/redo and hamburger.
+  await expect(page.locator(".app-header button:visible")).toHaveCount(8); // F, B/I/U, undo/redo, annotation and hamburger.
   await expect(page.locator(".app-header > .document-name")).toHaveCount(0);
   const logo = (await page.locator(".app-header > .brand").boundingBox())!;
   const format = (await page.locator(".app-header > .mobile-header-format").boundingBox())!;
@@ -146,7 +146,22 @@ test.describe("mobile header history", () => {
       await expect(editor.locator(tag)).toHaveText("Keep this sentence.");
       await expect(page.locator("dialog[open]")).toHaveCount(0);
     }
+    await editor.tap();
+    const annotation = history.getByRole("button", {
+      name: "Add annotation",
+      exact: true,
+    });
+    await expect(annotation).toBeEnabled();
+    await annotation.tap();
+    const annotationDialog = page.getByRole("dialog", {
+      name: "Add Annotation",
+      exact: true,
+    });
+    await expect(annotationDialog).toBeVisible();
+    await annotationDialog
+      .getByRole("button", { name: "Close dialog", exact: true })
+      .tap();
     expect(await original!.evaluate((node) => node === document.querySelector(".screenplay-editor"))).toBe(true);
-    await page.screenshot({ path: info.outputPath("mobile-header-with-history.png"), fullPage: true });
+    await page.screenshot({ path: info.outputPath("mobile-header-with-history-annotation.png"), fullPage: true });
   });
 });
