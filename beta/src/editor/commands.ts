@@ -3,6 +3,7 @@ import { TextSelection } from "prosemirror-state";
 import { closeHistory } from "./history";
 import type { BlockKind } from "../core/model";
 import { newId } from "../core/model";
+import { dualDialogueTargetPosition } from "./dualDialogue";
 
 export const cycleKinds: BlockKind[] = [
   "action",
@@ -60,6 +61,32 @@ export function setBlockKind(kind: BlockKind, dual = false): Command {
       }
       dispatch(tr.scrollIntoView());
     }
+    return true;
+  };
+}
+
+export function setDualDialogue(enabled: boolean): Command {
+  return (state, dispatch) => {
+    const { $from } = state.selection;
+    if (!$from.depth) return false;
+    const target = dualDialogueTargetPosition(
+      state.doc,
+      $from.before(1),
+      enabled,
+    );
+    if (target === undefined) return false;
+    const node = state.doc.nodeAt(target);
+    if (!node || node.attrs.kind !== "character") return false;
+    if (Boolean(node.attrs.dual) === enabled) return true;
+    if (dispatch)
+      dispatch(
+        closeHistory(state.tr)
+          .setNodeMarkup(target, undefined, {
+            ...node.attrs,
+            dual: enabled,
+          })
+          .scrollIntoView(),
+      );
     return true;
   };
 }
