@@ -62,6 +62,7 @@ import {
   screenplayEnter,
   selectText,
   setBlockKind,
+  setDualDialogue as setDualDialogueCommand,
 } from "./commands";
 import {
   anchorPosition,
@@ -74,6 +75,10 @@ import {
   updateBeatAnchors,
 } from "./beatAnchors";
 import { characterCompletion } from "./characterCompletion";
+import {
+  dualDialogueAtPosition,
+  dualDialogueRanges,
+} from "./dualDialogue";
 import { annotationPlugin } from "./annotations";
 import type { AnnotationTarget } from "./annotations";
 import "./editor.css";
@@ -100,6 +105,24 @@ interface Match {
 const searchKey = new PluginKey<DecorationSet>("screenplaySearch");
 const normalizeKey = new PluginKey("screenplayNormalize");
 const navigationKey = new PluginKey<DecorationSet>("screenplayNavigation");
+const dualDialogueKey = new PluginKey<DecorationSet>("dualDialogueLayout");
+
+function dualDialogueDecorationSet(doc: ProseMirrorNode): DecorationSet {
+  return DecorationSet.create(
+    doc,
+    dualDialogueRanges(doc).map((range) =>
+      Decoration.node(range.from, range.to, {
+        class: [
+          "dual-dialogue-block",
+          `dual-dialogue-${range.column}`,
+          ...(range.start ? ["dual-dialogue-start"] : []),
+          ...(range.end ? ["dual-dialogue-end"] : []),
+        ].join(" "),
+        "data-dual-column": range.column,
+      }),
+    ),
+  );
+}
 export interface EditorCollaboration {
   doc: Y.Doc;
   awareness: Awareness;
@@ -487,6 +510,19 @@ export class EditorController {
               yUndoPlugin({ undoManager: this.live.undoManager }),
             ]
           : []),
+        new Plugin<DecorationSet>({
+          key: dualDialogueKey,
+          state: {
+            init: (_, state) => dualDialogueDecorationSet(state.doc),
+            apply: (tr, value) =>
+              tr.docChanged
+                ? dualDialogueDecorationSet(tr.doc)
+                : value.map(tr.mapping, tr.doc),
+          },
+          props: {
+            decorations: (state) => dualDialogueKey.getState(state),
+          },
+        }),
         annotationPlugin(
           (id) => this.openAnnotation(id),
           () => this.writable,
@@ -665,11 +701,11 @@ export class EditorController {
       this.annotationState = annotationState;
       this.callbacks.onAnnotationState?.(annotationState);
     }
-    const kind = (this.view.state.selection.$from.parent.attrs.kind ||
-      "action") as BlockKind;
+    const { $from } = this.view.state.selection;
+    const kind = ($from.parent.attrs.kind || "action") as BlockKind;
     const dual =
-      kind === "character" &&
-      Boolean(this.view.state.selection.$from.parent.attrs.dual);
+      Boolean($from.depth) &&
+      dualDialogueAtPosition(this.view.state.doc, $from.before(1));
     if (kind !== this.selectedKind || dual !== this.selectedDual) {
       this.selectedKind = kind;
       this.selectedDual = dual;
@@ -1022,6 +1058,9 @@ export class EditorController {
 
   setKind(kind: BlockKind, dual = false): boolean {
     return this.run(setBlockKind(kind, dual));
+  }
+  setDualDialogue(enabled: boolean): boolean {
+    return this.run(setDualDialogueCommand(enabled));
   }
   toggleMark(mark: TextMark): boolean {
     return this.run(toggleMark(screenplaySchema.marks[mark]));
