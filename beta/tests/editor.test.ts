@@ -55,6 +55,25 @@ function select(editor: EditorController, from: number, to = from): void {
 function type(editor: EditorController, text: string): void {
   editor.view.dispatch(editor.view.state.tr.insertText(text));
 }
+it("sets and clears standard Fountain dual dialogue on a character cue", () => {
+  const editor = create([["action", "MARA"]]);
+  select(editor, 1);
+  expect(editor.setKind("character", true)).toBe(true);
+  expect(editor.getBlocks()[0]).toMatchObject({
+    kind: "character",
+    text: "MARA",
+    dual: true,
+  });
+  expect(serializeFountain(editor.getDocument(emptyScreenplay()))).toContain(
+    "MARA ^",
+  );
+  expect(editor.setKind("character")).toBe(true);
+  expect(editor.getBlocks()[0].dual).toBeUndefined();
+  expect(serializeFountain(editor.getDocument(emptyScreenplay()))).not.toContain(
+    "MARA ^",
+  );
+});
+
 it("excludes character cues from spellcheck while retaining typing corrections and prose settings", () => {
   const editor = create([
     ["character", "ZYLARA"],
