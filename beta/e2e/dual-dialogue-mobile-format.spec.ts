@@ -108,6 +108,27 @@ test.describe("always-visible mobile formatting", () => {
       await expect(editor.locator(tag)).toContainText("Mobile formatting");
       await expect(page.locator("dialog[open]")).toHaveCount(0);
     }
+    await format.getByRole("button", { name: "Undo", exact: true }).tap();
+    await expect(editor.locator("u")).toHaveCount(0);
+    await format.getByRole("button", { name: "Redo", exact: true }).tap();
+    await expect(editor.locator("u")).toContainText("Mobile formatting");
+
+    await editor.tap();
+    const annotation = format.getByRole("button", {
+      name: "Add annotation",
+      exact: true,
+    });
+    await expect(annotation).toBeEnabled();
+    await annotation.tap();
+    const annotationDialog = page.getByRole("dialog", {
+      name: "Add Annotation",
+      exact: true,
+    });
+    await expect(annotationDialog).toBeVisible();
+    await annotationDialog
+      .getByRole("button", { name: "Close dialog", exact: true })
+      .tap();
+
     expect(await original!.evaluate((node) => node === document.querySelector(".screenplay-editor"))).toBe(true);
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 844 });
@@ -117,6 +138,10 @@ test.describe("always-visible mobile formatting", () => {
         expect(box.x + box.width).toBeLessThanOrEqual(width);
         expect(box.height).toBeGreaterThanOrEqual(40);
       }
+      for (const name of ["Undo", "Redo", "Add annotation"])
+        await expect(
+          format.getByRole("button", { name, exact: true }),
+        ).toBeVisible();
       expect(await header.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
     }
     await page.getByRole("button", { name: "File", exact: true }).tap();
