@@ -298,4 +298,15 @@
     width: 32px;
     min-width: 32px;
   }
+  .mobile-header-format .writing-element {
+    min-width: 52px;
+    padding-inline: 2px;
+    font-size: 11px;
+  }
+  .mobile-header-format .writing-tool,
+  .app-header > .header-history .icon-button {
+    flex-basis: 26px;
+    width: 26px;
+    min-width: 26px;
+  }
 }
