@@ -76,6 +76,8 @@ import {
 import { characterCompletion } from "./characterCompletion";
 import { annotationPlugin } from "./annotations";
 import type { AnnotationTarget } from "./annotations";
+import { dualDialogueTarget, pairAtSelection, setDualDialogue } from "./dualDialogue";
+import { dualDialogueLayout, isDualDialogueSelection } from "./dualDialogueLayout";
 import "./editor.css";
 
 export interface EditorCallbacks {
@@ -491,6 +493,7 @@ export class EditorController {
           (id) => this.openAnnotation(id),
           () => this.writable,
         ),
+        dualDialogueLayout(),
         characterCompletion(),
         beatAnchorPlugin(screenplay),
         ...(!this.live ? [history({ depth: 500, newGroupDelay: 500 })] : []),
@@ -667,9 +670,7 @@ export class EditorController {
     }
     const kind = (this.view.state.selection.$from.parent.attrs.kind ||
       "action") as BlockKind;
-    const dual =
-      kind === "character" &&
-      Boolean(this.view.state.selection.$from.parent.attrs.dual);
+    const dual = isDualDialogueSelection(this.view.state);
     if (kind !== this.selectedKind || dual !== this.selectedDual) {
       this.selectedKind = kind;
       this.selectedDual = dual;
@@ -679,6 +680,7 @@ export class EditorController {
 
   private run(command: Command): boolean {
     if (this.destroyed || this.view.composing || !this.writable) return false;
+    syncNativeSelection(this.view);
     const result = command(this.view.state, this.view.dispatch, this.view);
     this.view.focus();
     return result;
@@ -1021,7 +1023,16 @@ export class EditorController {
   }
 
   setKind(kind: BlockKind, dual = false): boolean {
-    return this.run(setBlockKind(kind, dual));
+    return this.run((state, dispatch, view) => {
+      if (dual && dualDialogueTarget(state))
+        return setDualDialogue(true)(state, dispatch, view);
+      if (!dual && state.selection.$from.parent.attrs.kind === kind && pairAtSelection(state))
+        return setDualDialogue(false)(state, dispatch, view);
+      // A speech without an available neighbour must not turn its dialogue into a cue.
+      if (dual && ["character", "dialogue", "parenthetical", "lyrics"].includes(state.selection.$from.parent.attrs.kind))
+        return false;
+      return setBlockKind(kind, dual)(state, dispatch, view);
+    });
   }
   toggleMark(mark: TextMark): boolean {
     return this.run(toggleMark(screenplaySchema.marks[mark]));
