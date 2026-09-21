@@ -12,6 +12,7 @@ import {
   ArrowDown,
   ArrowUp,
   BarChart3,
+  Bold,
   BookOpen,
   Check,
   Cloud,
@@ -20,9 +21,12 @@ import {
   FolderOpen,
   Github,
   Link,
+  MessageSquarePlus,
   Plus,
   Redo2,
   Search,
+  Italic,
+  Underline,
   Undo2,
   X,
 } from "lucide-react";
@@ -1049,7 +1053,8 @@ export default function App() {
     <WritingToolbar
       kind={kind}
       dualDialogue={dualDialogue}
-      onKind={(value, dual = false) => editor.current?.setKind(value, dual)}
+      onKind={(value) => editor.current?.setKind(value)}
+      onDualDialogue={(enabled) => editor.current?.setDualDialogue(enabled)}
       onMark={(mark) => editor.current?.toggleMark(mark)}
       preferences={preferences}
       onPreferences={setPreferences}
@@ -1269,6 +1274,90 @@ export default function App() {
             Help
           </button>
         </ApplicationMenu>
+        {mobile && (
+          <div
+            className="mobile-writing-bar"
+            role="toolbar"
+            aria-label="Mobile writing controls"
+          >
+            <select
+              aria-label="Screenplay element"
+              title="Screenplay element"
+              value={dualDialogue ? "dual-dialogue" : kind}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (value === "dual-dialogue")
+                  editor.current?.setDualDialogue(true);
+                else {
+                  if (dualDialogue) editor.current?.setDualDialogue(false);
+                  editor.current?.setKind(value as BlockKind);
+                }
+              }}
+            >
+              {Object.entries(blockLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+              <option value="dual-dialogue">Dual dialogue</option>
+            </select>
+            <button
+              type="button"
+              aria-label="Bold"
+              title="Bold"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => editor.current?.toggleMark("bold")}
+            >
+              <Bold size={14} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              aria-label="Italic"
+              title="Italic"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => editor.current?.toggleMark("italic")}
+            >
+              <Italic size={14} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              aria-label="Underline"
+              title="Underline"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => editor.current?.toggleMark("underline")}
+            >
+              <Underline size={14} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              aria-label="Undo"
+              title="Undo"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => editor.current?.undo()}
+            >
+              <Undo2 size={14} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              aria-label="Redo"
+              title="Redo"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => editor.current?.redo()}
+            >
+              <Redo2 size={14} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              aria-label="Add annotation"
+              title="Add annotation"
+              disabled={annotationState !== "add"}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => editor.current?.annotateSelection()}
+            >
+              <MessageSquarePlus size={14} aria-hidden="true" />
+            </button>
+          </div>
+        )}
         <div className="header-history">
           <button
             className="icon-button"
