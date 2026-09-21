@@ -477,8 +477,14 @@ export default function App() {
       );
       root.style.setProperty("--fp-visual-top", `${top}px`);
       root.style.setProperty("--fp-visual-left", `${left}px`);
-      root.style.setProperty("--fp-visual-height", `${viewport.height}px`);
-      root.style.setProperty("--fp-visual-width", `${viewport.width}px`);
+      root.style.setProperty(
+        "--fp-visual-height",
+        `${viewport.height > 0 ? viewport.height : window.innerHeight}px`,
+      );
+      root.style.setProperty(
+        "--fp-visual-width",
+        `${viewport.width > 0 ? viewport.width : window.innerWidth}px`,
+      );
     };
 
     const scheduleViewport = () => {
