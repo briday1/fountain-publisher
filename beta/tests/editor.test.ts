@@ -55,23 +55,34 @@ function select(editor: EditorController, from: number, to = from): void {
 function type(editor: EditorController, text: string): void {
   editor.view.dispatch(editor.view.state.tr.insertText(text));
 }
-it("sets and clears standard Fountain dual dialogue on a character cue", () => {
-  const editor = create([["action", "MARA"]]);
-  select(editor, 1);
-  expect(editor.setKind("character", true)).toBe(true);
-  expect(editor.getBlocks()[0]).toMatchObject({
+it("sets dual dialogue from either cue or speech without changing the speech kind", () => {
+  const editor = create([
+    ["character", "MARA"],
+    ["dialogue", "Left line."],
+    ["character", "ELI"],
+    ["dialogue", "Right line."],
+  ]);
+  const positions: number[] = [];
+  editor.view.state.doc.forEach((_node, pos) => positions.push(pos));
+
+  select(editor, positions[3] + 1);
+  expect(editor.setDualDialogue(true)).toBe(true);
+  expect(editor.getBlocks()[2]).toMatchObject({
     kind: "character",
-    text: "MARA",
+    text: "ELI",
     dual: true,
   });
+  expect(editor.getBlocks()[3].kind).toBe("dialogue");
   expect(serializeFountain(editor.getDocument(emptyScreenplay()))).toContain(
-    "MARA ^",
+    "ELI ^",
   );
-  expect(editor.setKind("character")).toBe(true);
-  expect(editor.getBlocks()[0].dual).toBeUndefined();
-  expect(serializeFountain(editor.getDocument(emptyScreenplay()))).not.toContain(
-    "MARA ^",
-  );
+  expect(editor.view.dom.querySelectorAll(".dual-dialogue-left")).toHaveLength(2);
+  expect(editor.view.dom.querySelectorAll(".dual-dialogue-right")).toHaveLength(2);
+
+  select(editor, positions[1] + 1);
+  expect(editor.setDualDialogue(false)).toBe(true);
+  expect(editor.getBlocks()[2].dual).toBeUndefined();
+  expect(editor.view.dom.querySelectorAll(".dual-dialogue-block")).toHaveLength(0);
 });
 
 it("excludes character cues from spellcheck while retaining typing corrections and prose settings", () => {
