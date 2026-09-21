@@ -163,7 +163,7 @@ export function ApplicationMenu({
       <div
         className="mobile-writing-controls"
         role="toolbar"
-        aria-label="Mobile writing controls"
+        aria-label="Mobile formatting"
         aria-hidden={open || undefined}
       >
         <ScreenplayFormatControls {...controls.props} compact />
