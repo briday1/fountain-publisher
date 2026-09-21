@@ -470,20 +470,10 @@ export default function App() {
         viewport.offsetTop,
         viewport.pageTop - window.scrollY,
       );
-      const left = Math.max(
-        0,
-        viewport.offsetLeft,
-        viewport.pageLeft - window.scrollX,
-      );
       root.style.setProperty("--fp-visual-top", `${top}px`);
-      root.style.setProperty("--fp-visual-left", `${left}px`);
       root.style.setProperty(
         "--fp-visual-height",
         `${viewport.height > 0 ? viewport.height : window.innerHeight}px`,
-      );
-      root.style.setProperty(
-        "--fp-visual-width",
-        `${viewport.width > 0 ? viewport.width : window.innerWidth}px`,
       );
     };
 
@@ -513,9 +503,7 @@ export default function App() {
       document.removeEventListener("focusin", scheduleViewport);
       document.removeEventListener("focusout", scheduleViewport);
       root.style.removeProperty("--fp-visual-top");
-      root.style.removeProperty("--fp-visual-left");
       root.style.removeProperty("--fp-visual-height");
-      root.style.removeProperty("--fp-visual-width");
     };
   }, []);
   useEffect(() => {
