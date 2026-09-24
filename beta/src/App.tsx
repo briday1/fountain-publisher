@@ -1,9 +1,10 @@
+import { WriteShapeFiles } from "./components/WriteShapeFiles";
+import { WriteShapeMark } from "./components/WriteShapeMark";
+import { createFileProviders } from "./storage/fileProviders";
+import { destinationKey, destinationLabel } from "./storage/destinations";
+import { useDestinationSync } from "./hooks/useDestinationSync";
 import { captureWriteShapeSave } from "./core/writeShapeSave";
-import {
-  WriteShapeLibrary,
-  libraryRequest,
-  LibraryError,
-} from "./components/WriteShapeLibrary";
+import { libraryRequest } from "./components/WriteShapeLibrary";
 import type { LibraryFile } from "./components/WriteShapeLibrary";
 import { isWriteShape } from "./product";
 import {
@@ -113,6 +114,7 @@ export default function App() {
   const [plansOpen, setPlansOpen] = useState(false);
   const [cloudConflict, setCloudConflict] = useState<string>();
   const [libraryMode, setLibraryMode] = useState<"open" | "save" | null>(null);
+  const cloudCapturedContent = useRef("");
   const cloudFile = useRef<(LibraryFile & { localId: string }) | null>(null);
   const [session, setSession] = useState<DocumentSession>();
   const sessionRef = useRef<DocumentSession | undefined>(undefined);
@@ -123,13 +125,45 @@ export default function App() {
     cloudFile.current = null;
     setLibraryMode(null);
     setCloudConflict(undefined);
+    setFileTab(accountId ? "writeshape" : "local");
   }, [accountId]);
   const [snapshot, setSnapshot] = useState<SessionSnapshot>();
+  const destinationSync = useDestinationSync(
+    session,
+    snapshot?.id,
+    destinationKey(snapshot?.destination),
+    accountId,
+    account.state.premium,
+    isWriteShape,
+  );
+  const destinationEngineRef = destinationSync.engine;
+  const [fileTab, setFileTab] = useState<"writeshape" | "drive" | "local">(
+    "local",
+  );
+  const fileProviders = useMemo(
+    () =>
+      session
+        ? createFileProviders({
+            session,
+            accountId,
+            premium: account.state.premium,
+            mode: libraryMode || "open",
+            valid: () =>
+              sessionRef.current === session &&
+              accountIdRef.current === accountId,
+            opened: () => {
+              file.current = undefined;
+              setLibraryMode(null);
+            },
+          })
+        : undefined,
+    [session, accountId, account.state.premium, libraryMode],
+  );
   const liveClient = useRef<LiveClient | undefined>(undefined);
   const [liveStatus, setLiveStatus] = useState<LiveStatus>();
   const switchingLive = useRef<LiveClient | undefined>(undefined);
   const [pendingDrive, setPendingDrive] = useState(() =>
-    new URLSearchParams(location.search).get("drive"),
+    isWriteShape ? null : new URLSearchParams(location.search).get("drive"),
   );
   const cloudSaveToken = useRef<{ id: string; epoch: number } | undefined>(
     undefined,
@@ -384,13 +418,19 @@ export default function App() {
       let initial: WorkspaceDocument | SessionSnapshot | undefined;
       let warning = "";
       let migrated: WorkspaceDocument | undefined;
+      let tabDocumentId: string | null = null;
+      if (isWriteShape) {
+        try {
+          tabDocumentId = sessionStorage.getItem("writeshape.activeDraft");
+        } catch {}
+      }
       try {
         migrated = await migrateLegacyWorkspace();
       } catch (error) {
         warning = errorMessage(error);
       }
       try {
-        const id = workspace.getActiveId();
+        const id = tabDocumentId || workspace.getActiveId();
         if (id) initial = await workspace.load(id);
         if (!initial) initial = migrated;
         const drafts = await workspace.recoveries();
@@ -405,6 +445,21 @@ export default function App() {
           screenplay: emptyScreenplay(),
           epoch: 0,
         };
+      // Each WriteShape tab owns its recovery draft while sharing the remote file.
+      // Reload retains that tab's draft; a newly opened tab starts from the latest saved draft.
+      if (
+        isWriteShape &&
+        initial &&
+        (!tabDocumentId || initial.id !== tabDocumentId)
+      ) {
+        initial = {
+          id: newId(),
+          name: initial.name,
+          screenplay: initial.screenplay,
+          destination: initial.destination,
+          epoch: 0,
+        };
+      }
       let restoredLive: LiveClient | undefined;
       if (
         initial.remote?.provider === "google" &&
@@ -439,8 +494,16 @@ export default function App() {
       s.onBeforeOpen = prepareLiveSwitch;
       s.onOpenAborted = abortLiveSwitch;
       s.onOpenComplete = completeLiveSwitch;
-      s.onSnapshot = (value) => setSnapshot({ ...value });
+      s.onSnapshot = (value) => {
+        if (isWriteShape) {
+          try {
+            sessionStorage.setItem("writeshape.activeDraft", value.id);
+          } catch {}
+        }
+        setSnapshot({ ...value });
+      };
       s.onStatus = (state, message) => {
+        destinationEngineRef.current?.changed();
         setStatus(
           state === "saving"
             ? "Saving on this device…"
@@ -465,6 +528,15 @@ export default function App() {
       if (params.has("connected")) {
         tell(`Connected to ${params.get("connected")}.`);
         params.delete("connected");
+        window.history.replaceState(
+          {},
+          "",
+          `${location.pathname}${params.size ? `?${params}` : ""}`,
+        );
+      }
+      if (params.has("driveConnected")) {
+        tell("Google Drive connected. Open Files to choose a screenplay.");
+        params.delete("driveConnected");
         window.history.replaceState(
           {},
           "",
@@ -572,7 +644,7 @@ export default function App() {
     window.addEventListener("beforeunload", before);
     document.addEventListener("visibilitychange", visibility);
     const unsubscribe = workspace.subscribe((id) => {
-      if (id === session.current.id && !liveClient.current)
+      if (!isWriteShape && id === session.current.id && !liveClient.current)
         tell(
           "This screenplay was saved in another tab. Open Workspace to load that version, or save your writing as a copy.",
         );
@@ -643,10 +715,13 @@ export default function App() {
     }
   }
   async function openLocal() {
-    if (isWriteShape && !isWriteShapeFree) {
+    if (isWriteShape) {
       setLibraryMode("open");
       return;
     }
+    await openLocalFallback();
+  }
+  async function openLocalFallback() {
     if (!session) return;
     const token = session.token();
     const result = await openLocalFile();
@@ -656,6 +731,7 @@ export default function App() {
     await session.open(imported.screenplay, imported.name);
     file.current = imported.converted ? undefined : result.handle;
     setDialog(null);
+    setLibraryMode(null);
   }
   async function saveLocal(as = false) {
     if (!session) return;
@@ -671,38 +747,13 @@ export default function App() {
     tell(`Saved ${captured.name}.`);
   }
   async function save() {
-    if (isWriteShape && !isWriteShapeFree && session) {
-      const snap = session.capture();
-      const current = cloudFile.current;
-      if (!current || current.localId !== snap.id) {
+    if (isWriteShape && session) {
+      await session.flush();
+      if (!session.current.destination || !destinationSync.engine.current) {
         setLibraryMode("save");
         return;
       }
-      let result;
-      try {
-        result = await libraryRequest("", {
-          ...current,
-          kind: "file",
-          content: serializeFountain(snap.screenplay),
-        });
-      } catch (error) {
-        if (
-          error instanceof LibraryError &&
-          error.code === "REVISION_CONFLICT"
-        ) {
-          setCloudConflict(error.message);
-          return;
-        }
-        throw error;
-      }
-      if (
-        sessionRef.current === session &&
-        session.current.id === snap.id &&
-        cloudFile.current === current
-      ) {
-        cloudFile.current = { ...current, ...result };
-      }
-      tell("Saved to WriteShape cloud.");
+      await destinationSync.engine.current.flush();
       return;
     }
     if (!session) return;
@@ -1131,7 +1182,9 @@ export default function App() {
         if (e.key.toLowerCase() === "s")
           void run(() =>
             e.shiftKey
-              ? actions.current.saveLocal(true)
+              ? isWriteShape
+                ? Promise.resolve(setLibraryMode("save"))
+                : actions.current.saveLocal(true)
               : actions.current.save(),
           );
         if (e.key.toLowerCase() === "o") void run(actions.current.openLocal);
@@ -1156,7 +1209,11 @@ export default function App() {
   if (!snapshot || !session || !insights)
     return (
       <main className="loading">
-        <span className="brand-mark">{isWriteShape ? "WS" : "F"}</span>
+        {isWriteShape ? (
+          <WriteShapeMark size={28} />
+        ) : (
+          <span className="brand-mark">F</span>
+        )}
         <p>Opening your writing room…</p>
       </main>
     );
@@ -1245,8 +1302,18 @@ export default function App() {
         Skip to screenplay
       </a>
       <header className="app-header">
-        <button className="brand" onClick={() => setDialog("help")}>
-          <span className="brand-mark">{isWriteShape ? "WS" : "F"}</span>
+        <button
+          className="brand"
+          aria-label={
+            isWriteShape ? "WriteShape help" : "Fountain Publisher help"
+          }
+          onClick={() => setDialog("help")}
+        >
+          {isWriteShape ? (
+            <WriteShapeMark size={28} />
+          ) : (
+            <span className="brand-mark">F</span>
+          )}
           <span>{isWriteShape ? "WriteShape" : "Fountain Publisher"}</span>
         </button>
         {isWriteShape && !mobile && (
@@ -1259,15 +1326,7 @@ export default function App() {
           </button>
         )}
         {isWriteShape && !mobile && (
-          <button
-            onClick={() =>
-              account.state.account
-                ? setLibraryMode("open")
-                : setAccountOpen(true)
-            }
-          >
-            Library
-          </button>
+          <button onClick={() => setLibraryMode("open")}>Files</button>
         )}
         {isWriteShape && !mobile && (
           <button onClick={() => setAccountOpen(true)}>Account</button>
@@ -1300,7 +1359,7 @@ export default function App() {
             </MenuItem>
             <MenuItem
               onClick={() =>
-                isWriteShape && !isWriteShapeFree
+                isWriteShape
                   ? setLibraryMode("save")
                   : void run(() => saveLocal(true))
               }
@@ -1325,26 +1384,14 @@ export default function App() {
             <hr />
             {isWriteShape ? (
               <>
-                <small>WRITESHAPE STORAGE</small>
                 <MenuItem
-                  onClick={() =>
-                    account.state.account
-                      ? setLibraryMode("open")
-                      : setAccountOpen(true)
-                  }
+                  onClick={() => {
+                    downloadFile(
+                      serializeFountain(session.capture().screenplay),
+                      snapshot.name,
+                    );
+                  }}
                 >
-                  Browse library…
-                </MenuItem>
-                <MenuItem
-                  onClick={() =>
-                    isWriteShapeFree
-                      ? setPlansOpen(true)
-                      : setLibraryMode("save")
-                  }
-                >
-                  Save to WriteShape…
-                </MenuItem>
-                <MenuItem onClick={() => void run(() => saveLocal(true))}>
                   Download local copy…
                 </MenuItem>
               </>
@@ -2042,6 +2089,24 @@ export default function App() {
         <span className={storageFailed ? "save-status failed" : "save-status"}>
           {storageFailed ? <Cloud size={12} /> : <Check size={12} />}
           <span>{status}</span>
+          {isWriteShape && (
+            <button
+              className="destination-status"
+              onClick={() =>
+                setLibraryMode(
+                  destinationSync.status?.phase === "conflict"
+                    ? "save"
+                    : "open",
+                )
+              }
+              title={destinationSync.status?.message}
+            >
+              {destinationLabel(snapshot.destination)}
+              {snapshot.destination
+                ? ` · ${destinationSync.status?.phase || "checking"}`
+                : " · Choose save location"}
+            </button>
+          )}
         </span>
         {storageFailed && (
           <button onClick={() => void run(() => session.fork())}>
@@ -2113,9 +2178,33 @@ export default function App() {
             onClose={() => setDialog(null)}
           />
         ))}
-      {libraryMode && (
-        <WriteShapeLibrary
+      {libraryMode && fileProviders && (
+        <WriteShapeFiles
           key={accountId}
+          account={{
+            authenticated: !!accountId,
+            premium: account.state.premium,
+            email: account.state.account?.email,
+          }}
+          initialDestination={snapshot.destination?.provider || fileTab}
+          onDestination={setFileTab}
+          providers={fileProviders}
+          onSignIn={() => {
+            setLibraryMode(null);
+            setAccountOpen(true);
+          }}
+          onUpgrade={() => {
+            setLibraryMode(null);
+            setPlansOpen(true);
+          }}
+          onOpenLocalFile={openLocalFallback}
+          onDownloadLocal={() => {
+            downloadFile(
+              serializeFountain(session.capture().screenplay),
+              session.current.name,
+            );
+            setLibraryMode(null);
+          }}
           mode={libraryMode}
           name={snapshot.name}
           initialFile={
@@ -2123,18 +2212,32 @@ export default function App() {
               ? cloudFile.current
               : undefined
           }
-          captureSave={() =>
-            captureWriteShapeSave(
+          captureSave={() => {
+            cloudCapturedContent.current = serializeFountain(
+              session.capture().screenplay,
+            );
+            return captureWriteShapeSave(
               session,
               (item: LibraryFile, localId) => {
                 cloudFile.current = { ...item, localId };
-                tell("Saved to WriteShape cloud.");
+                session.setDestination({
+                  provider: "writeshape",
+                  id: item.id,
+                  parent: item.parent,
+                  accountId,
+                  name: item.name,
+                  revision: String(item.revision),
+                  baseContent: item.content || cloudCapturedContent.current,
+                  canWrite: true,
+                });
+                void session.flush().catch(report);
+                tell("Saved to WriteShape.");
               },
               () =>
                 sessionRef.current === session &&
                 accountIdRef.current === accountId,
-            )
-          }
+            );
+          }}
           onOpen={async (item) => {
             if (
               sessionRef.current !== session ||
@@ -2145,7 +2248,31 @@ export default function App() {
                 "Your account or open draft changed. Open the library again to continue.",
               );
             const imported = importScreenplay(item.content || "", item.name);
-            await session.open(imported.screenplay, imported.name);
+            await session.open(
+              imported.screenplay,
+              imported.name,
+              undefined,
+              undefined,
+              {
+                provider: "writeshape",
+                id: item.id,
+                parent: item.parent,
+                accountId,
+                name: imported.name,
+                revision: String(item.revision),
+                baseContent: serializeFountain(imported.screenplay),
+                canWrite: true,
+              },
+              () => {
+                if (
+                  sessionRef.current !== session ||
+                  accountIdRef.current !== accountId
+                )
+                  throw new Error(
+                    "The account changed. Your draft is preserved.",
+                  );
+              },
+            );
             if (
               sessionRef.current !== session ||
               accountIdRef.current !== accountId
@@ -2157,6 +2284,41 @@ export default function App() {
           onClose={() => setLibraryMode(null)}
         />
       )}
+      {isWriteShape &&
+        destinationSync.status &&
+        ["conflict", "offline", "error", "readonly"].includes(
+          destinationSync.status.phase,
+        ) && (
+          <div className="destination-notice" role="status">
+            <span>{destinationSync.status.message}</span>
+            <button
+              onClick={() => void destinationSync.engine.current?.refresh()}
+            >
+              Check latest
+            </button>
+            <button
+              onClick={() =>
+                void run(async () => {
+                  await session.fork();
+                  setLibraryMode("save");
+                })
+              }
+            >
+              Save a copy…
+            </button>
+            <button
+              onClick={() =>
+                void run(async () => {
+                  if (destinationSync.status?.phase === "conflict")
+                    await session.fork();
+                  setLibraryMode("open");
+                })
+              }
+            >
+              Open latest…
+            </button>
+          </div>
+        )}
       {cloudConflict && (
         <Modal
           title="The cloud file has a newer version"

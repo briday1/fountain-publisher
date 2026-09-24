@@ -1,3 +1,4 @@
+import { driveRoutes } from "./drive.mjs";
 import { sharingRoutes } from "./sharing.mjs";
 import { libraryRoutes } from "./library.mjs";
 export { identity } from "./access.mjs";
@@ -21,6 +22,8 @@ export function createHandler(authenticate = resolveAccount) {
       if (accountResponse) return accountResponse;
       const billingResponse = await billingRoutes(request, env, user);
       if (billingResponse) return billingResponse;
+      const driveResponse = await driveRoutes(request, env, user);
+      if (driveResponse) return driveResponse;
       const sharingResponse = await sharingRoutes(request, env, user);
       if (sharingResponse) return sharingResponse;
       if (!url.pathname.startsWith("/api/library"))

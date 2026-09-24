@@ -1,4 +1,5 @@
 import type { Screenplay } from "../core/model";
+import type { WriteShapeDestination } from "./destinations";
 import type { RemoteLocation } from "./cloud";
 export interface WorkspaceDocument {
   id: string;
@@ -8,6 +9,7 @@ export interface WorkspaceDocument {
   createdAt: number;
   updatedAt: number;
   remote?: RemoteLocation;
+  destination?: WriteShapeDestination;
 }
 export interface Snapshot {
   id: string;
@@ -26,7 +28,7 @@ export interface Recovery {
 }
 export type DocumentInput = Pick<
   WorkspaceDocument,
-  "id" | "name" | "screenplay" | "remote"
+  "id" | "name" | "screenplay" | "remote" | "destination"
 >;
 export class StorageError extends Error {
   constructor(

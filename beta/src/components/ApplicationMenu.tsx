@@ -1,5 +1,6 @@
 import {
   Children,
+  Fragment,
   cloneElement,
   isValidElement,
   useEffect,
@@ -34,6 +35,21 @@ const sections = [
   ["Share", Upload],
 ] as const;
 type Section = (typeof sections)[number][0];
+
+// React's Children helpers do not descend into Fragments. Conditional product
+// groups are transparent here so their headings, shortcuts and actions keep the
+// same mobile behavior as directly rendered desktop commands.
+function commandsIn(children: ReactNode): Command[] {
+  const commands: Command[] = [];
+  Children.forEach(children, (child) => {
+    if (!isValidElement(child)) return;
+    const command = child as Command;
+    if (command.type === Fragment)
+      commands.push(...commandsIn(command.props.children));
+    else commands.push(command);
+  });
+  return commands;
+}
 
 /** Render the same commands on desktop and mobile; no duplicate action registry. */
 export function ApplicationMenu({
@@ -80,7 +96,7 @@ export function ApplicationMenu({
         node.props.onClick?.();
       },
     });
-  Children.forEach(open ? children : null, (child, index) => {
+  commandsIn(open ? children : null).forEach((child, index) => {
     if (!isValidElement(child)) return;
     const menu = child as Command;
     if (menu.type !== Menu) {
@@ -93,7 +109,7 @@ export function ApplicationMenu({
         : menu.props.label === "View"
           ? "View"
           : "Write";
-    Children.forEach(menu.props.children, (item, i) => {
+    commandsIn(menu.props.children).forEach((item, i) => {
       if (!isValidElement(item)) return;
       const command = item as Command;
       if (command.type === "small") {
@@ -193,7 +209,7 @@ export function ApplicationMenu({
             className="mobile-command-content"
             aria-label={`${section} commands`}
           >
-            {section === "File" && (
+            {section === "File" && storageShortcuts.length > 0 && (
               <div
                 className="mobile-storage-shortcuts"
                 role="group"
