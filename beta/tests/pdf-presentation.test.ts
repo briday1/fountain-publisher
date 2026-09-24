@@ -468,6 +468,81 @@ describe("character-highlighted PDFs", () => {
         ),
     ).toBe(true);
   });
+  it("keeps margin scene numbers inline and scales screenplay indents from canonical geometry on mobile", async () => {
+    const document = parseFountain(
+      `INT. AN EXTREMELY LONG OBSERVATORY CORRIDOR WITH WINDOWS - NIGHT #42#\n\nA VERY LONG CHARACTER NAME FOR MOBILE LAYOUT (V.O.)\nThis line verifies the dialogue measure too.`,
+    );
+    const drawing = observeDrawing();
+    const rectangles = vi.spyOn(PDFPage.prototype, "drawRectangle");
+    const options = {
+      fontBytes,
+      highlightCharacters: ["A VERY LONG CHARACTER NAME FOR MOBILE LAYOUT"],
+    };
+    const canonical = await exportPdf(document, options);
+    const result = await exportPdf(document, {
+      ...options,
+      mobileLayout: true,
+    });
+    expect(await pdfPageContentSignatures(result.bytes)).toEqual(
+      await pdfPageContentSignatures(canonical.bytes),
+    );
+    const mobileRows = drawing().filter(
+      ({ page }) => (page as PDFPage).getWidth() === 336,
+    );
+    const number = mobileRows.find(({ text }) => text === "42  ")!;
+    const heading = mobileRows.find(({ text }) =>
+      text.startsWith("INT. AN EXTREMELY"),
+    )!;
+    expect(number).toBeDefined();
+    expect(heading).toBeDefined();
+    expect(number.y).toBe(heading.y);
+    expect(number.x).toBe(20);
+    expect(heading.x).toBeGreaterThan(number.x);
+
+    const cueRows = mobileRows.filter(({ text }) =>
+      /^(A VERY|LONG|CHARACTER|NAME|FOR|MOBILE|LAYOUT)/.test(text),
+    );
+    expect(cueRows.length).toBeGreaterThan(1);
+    const expectedCueX = 20 + (296 * 19) / 61;
+    for (const cue of cueRows) expect(cue.x).toBeCloseTo(expectedCueX);
+
+    const mobileHighlightBoxes = rectangles.mock.calls.flatMap(([box], i) =>
+      (rectangles.mock.contexts[i] as PDFPage).getWidth() === 336 ? [box!] : [],
+    );
+    expect(mobileHighlightBoxes).toHaveLength(cueRows.length);
+    for (const box of mobileHighlightBoxes)
+      expect(box.x).toBeCloseTo(expectedCueX - 2);
+
+    const pdf = await PDFDocument.load(result.bytes);
+    const records = pdf.getPages().flatMap((page) =>
+      JSON.parse(
+        (
+          page.node.get(PDFName.of("FPPageLayout")) as unknown as {
+            decodeText: () => string;
+          }
+        ).decodeText(),
+      ),
+    ) as Array<{
+      sourceId?: string;
+      sourceKind?: string;
+      sourceRole?: string;
+      baselineY?: number;
+      spans: Array<{ text: string }>;
+    }>;
+    const sceneRecords = records.filter(
+      ({ sourceKind }) => sourceKind === "scene",
+    );
+    expect(sceneRecords.some(({ sourceRole }) => sourceRole === "sceneNumber"))
+      .toBe(false);
+    expect(
+      sceneRecords[0].spans.map(({ text }) => text).join(""),
+    ).toContain("42  INT. AN EXTREMELY");
+    await mkdir("tmp/pdf-qa", { recursive: true });
+    await Promise.all([
+      writeFile("tmp/pdf-qa/mobile-layout-standard.pdf", canonical.bytes),
+      writeFile("tmp/pdf-qa/mobile-layout-mobile.pdf", result.bytes),
+    ]);
+  });
   it("keeps exact canonical page content on the corresponding mobile page while reflowing to narrow variable-height pages", async () => {
     const document = emptyScreenplay();
     // One source block crosses the canonical page boundary. This catches the
