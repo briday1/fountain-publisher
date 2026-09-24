@@ -63,7 +63,8 @@ interface Line {
   align?: "left" | "right" | "center";
   sourceId?: string;
   sourceKind?: string;
-  sourceRole?: "content" | "pageNumber" | "sceneNumber" | "title" | "more" | "continued";
+  sourceRole?:
+    "content" | "pageNumber" | "sceneNumber" | "title" | "more" | "continued";
   sourceColumn?: number;
   breakAfter?: "space" | "none" | "hard";
 }
@@ -184,10 +185,12 @@ function sceneNumbers(
 }
 
 type PdfPageRecord = {
+  highlight?: [number, number, number];
   spans: TextSpan[];
   sourceId?: string;
   sourceKind?: string;
-  sourceRole: "content" | "pageNumber" | "sceneNumber" | "title" | "more" | "continued";
+  sourceRole:
+    "content" | "pageNumber" | "sceneNumber" | "title" | "more" | "continued";
   sourceColumn?: number;
   align?: Line["align"];
   breakAfter?: Line["breakAfter"];
@@ -233,7 +236,8 @@ function mergeCanonicalRecords(records: PdfPageRecord[]): PdfPageRecord[] {
       previous.sourceKind === record.sourceKind &&
       previous.sourceRole === record.sourceRole &&
       previous.sourceColumn === record.sourceColumn &&
-      previous.align === record.align;
+      previous.align === record.align &&
+      JSON.stringify(previous.highlight) === JSON.stringify(record.highlight);
     if (!sameSource) {
       merged.push({
         ...record,
@@ -378,8 +382,7 @@ async function mobilePdfFromCanonical(
   for (let index = 0; index < source.getPageCount(); index++) {
     const sourcePage = source.getPage(index);
     const raw = sourcePage.node.get(PDFName.of("FPPageLayout")) as
-      | { decodeText?: () => string }
-      | undefined;
+      { decodeText?: () => string } | undefined;
     if (!raw?.decodeText)
       throw new Error(
         `Mobile PDF conversion could not read canonical page ${index + 1}.`,
@@ -429,6 +432,15 @@ async function mobilePdfFromCanonical(
           : line.align === "center"
             ? (line.boxWidth - line.width) / 2
             : 0);
+      if (record.highlight && line.width > 0)
+        page.drawRectangle({
+          x: x - 2,
+          y: y - 2.5,
+          width: line.width + 4,
+          height: 13,
+          color: rgb(...record.highlight),
+          borderWidth: 0,
+        });
       const renderedSpans: TextSpan[] = [];
       let start = 0;
       while (start < line.glyphs.length) {
@@ -473,6 +485,7 @@ async function mobilePdfFromCanonical(
       }
       mobileRecords.push({
         spans: renderedSpans,
+        highlight: record.highlight,
         sourceId: record.sourceId,
         sourceKind: record.sourceKind,
         sourceRole: record.sourceRole,
@@ -523,8 +536,7 @@ export async function pdfPageContentSignatures(
   const pdf = await PDFDocument.load(bytes);
   return pdf.getPages().map((page, index) => {
     const raw = page.node.get(PDFName.of("FPPageText")) as
-      | { decodeText?: () => string }
-      | undefined;
+      { decodeText?: () => string } | undefined;
     if (!raw?.decodeText)
       throw new Error(`PDF page ${index + 1} has no content signature.`);
     return raw.decodeText();
@@ -537,8 +549,14 @@ export async function exportPdf(
   options: PdfOptions = {},
 ): Promise<PdfExport> {
   if (options.mobileLayout) {
-    const canonical = await exportPdf(document, { ...options, mobileLayout: false });
-    const mobile = await mobilePdfFromCanonical(canonical.bytes, options.fontBytes);
+    const canonical = await exportPdf(document, {
+      ...options,
+      mobileLayout: false,
+    });
+    const mobile = await mobilePdfFromCanonical(
+      canonical.bytes,
+      options.fontBytes,
+    );
     return {
       bytes: mobile.bytes,
       pageCount: canonical.pageCount,
@@ -547,8 +565,10 @@ export async function exportPdf(
       warnings: [...new Set([...canonical.warnings, ...mobile.warnings])],
     };
   }
-  const [{ PDFDocument, PDFHexString, PDFName, StandardFonts, rgb }, { default: fontkit }] =
-    await Promise.all([import("pdf-lib"), import("@pdf-lib/fontkit")]);
+  const [
+    { PDFDocument, PDFHexString, PDFName, StandardFonts, rgb },
+    { default: fontkit },
+  ] = await Promise.all([import("pdf-lib"), import("@pdf-lib/fontkit")]);
   const highlights = new Map(
     characterHighlights(options.highlightCharacters ?? []).map(
       ({ name, rgb }) => [name, rgb],
@@ -685,6 +705,7 @@ export async function exportPdf(
       const records = pageRecords.get(target) ?? [];
       records.push({
         spans: renderedSpans,
+        highlight: line.highlight,
         sourceId: line.sourceId,
         sourceKind: line.sourceKind,
         sourceRole: line.sourceRole ?? "content",

@@ -38,7 +38,11 @@ async function verifyDownloadedCount(
   ).toHaveCount(0);
   await page.getByRole("button", { name: "File", exact: true }).click();
   const downloading = page.waitForEvent("download");
-  await page.getByRole("button", { name: /^Export PDF/ }).click();
+  await page.getByRole("button", { name: "Export…", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Export", exact: true })
+    .getByRole("button", { name: "Export", exact: true })
+    .click();
   const download = await downloading;
   const path = testInfo.outputPath(`${filename}.pdf`);
   await download.saveAs(path);

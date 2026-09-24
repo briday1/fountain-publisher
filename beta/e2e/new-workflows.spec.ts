@@ -108,18 +108,16 @@ test("highlighted PDF chooser exports selected names and preserves the ordinary 
   await expect(
     page.getByRole("button", { name: /formatted HTML/i }),
   ).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "Export highlighted PDF…", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Export…", exact: true }).click();
   const dialog = page.getByRole("dialog", {
-    name: "Export highlighted PDF",
+    name: "Export",
     exact: true,
   });
   const exportButton = dialog.getByRole("button", {
-    name: "Export highlighted PDF",
+    name: "Export",
     exact: true,
   });
-  await expect(exportButton).toBeDisabled();
+  await expect(exportButton).toBeEnabled();
   await dialog.getByRole("checkbox", { name: "MARA", exact: true }).check();
   await dialog.getByRole("checkbox", { name: "ELI", exact: true }).check();
   const colors = await dialog

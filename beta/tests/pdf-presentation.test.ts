@@ -429,6 +429,45 @@ describe("character-highlighted PDFs", () => {
     await mkdir("tmp/pdf-qa", { recursive: true });
     await writeFile("tmp/pdf-qa/highlighted.pdf", highlighted.bytes);
   });
+  it("preserves character highlight colors through canonical-to-mobile conversion", async () => {
+    const doc = parseFountain(
+      `INT. ROOM - DAY\n\nMARA\nHello.\n\nELI ^\nHi.\n\nJUNE\nUnselected.\n\nMARA (V.O.)\n${"A long speech continues. ".repeat(250)}`,
+    );
+    const options = { fontBytes, highlightCharacters: ["MARA", "ELI"] };
+    const canonical = await exportPdf(doc, options);
+    const rectangles = vi.spyOn(PDFPage.prototype, "drawRectangle");
+    const mobile = await exportPdf(doc, { ...options, mobileLayout: true });
+    expect(await pdfPageContentSignatures(mobile.bytes)).toEqual(
+      await pdfPageContentSignatures(canonical.bytes),
+    );
+    const mobileCalls = rectangles.mock.calls.flatMap(([box], i) =>
+      (rectangles.mock.contexts[i] as PDFPage).getWidth() === 336 ? [box!] : [],
+    );
+    const canonicalCalls = rectangles.mock.calls.flatMap(([box], i) =>
+      (rectangles.mock.contexts[i] as PDFPage).getWidth() !== 336 ? [box!] : [],
+    );
+    expect(mobileCalls.length).toBeGreaterThan(2);
+    expect(mobileCalls.map((box) => box.color)).toEqual(
+      canonicalCalls.map((box) => box.color),
+    );
+    const pdf = await PDFDocument.load(mobile.bytes);
+    const records = pdf
+      .getPages()
+      .flatMap((page) =>
+        JSON.parse(
+          (page.node.get(PDFName.of("FPPageLayout")) as any).decodeText(),
+        ),
+      );
+    expect(
+      records
+        .filter((record) => record.highlight)
+        .every((record) =>
+          /^(MARA|ELI)/.test(
+            record.spans.map((span: any) => span.text).join(""),
+          ),
+        ),
+    ).toBe(true);
+  });
   it("keeps exact canonical page content on the corresponding mobile page while reflowing to narrow variable-height pages", async () => {
     const document = emptyScreenplay();
     // One source block crosses the canonical page boundary. This catches the
@@ -474,8 +513,7 @@ describe("character-highlighted PDFs", () => {
     // baselines with exactly 24pt top and bottom layout borders.
     for (const page of mobilePages) {
       const raw = page.node.get(PDFName.of("FPPageLayout")) as
-        | { decodeText?: () => string }
-        | undefined;
+        { decodeText?: () => string } | undefined;
       expect(raw?.decodeText).toBeTypeOf("function");
       const records = JSON.parse(raw!.decodeText!()) as Array<{
         baselineY?: number;
@@ -488,5 +526,4 @@ describe("character-highlighted PDFs", () => {
       expect(Math.max(...baselines) + 12).toBeCloseTo(page.getHeight() - 24);
     }
   });
-
 });

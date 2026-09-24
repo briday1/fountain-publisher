@@ -55,7 +55,8 @@ import {
   validateSharedDocument,
 } from "./collaboration/sharedDocument";
 import { EditorSurface } from "./components/EditorSurface";
-import { HighlightPdfDialog } from "./components/HighlightPdfDialog";
+import { ExportDialog } from "./components/ExportDialog";
+import type { ExportSelection } from "./components/ExportDialog";
 import { highlightedPdfFilename } from "./core/characterHighlights";
 import { AnnotationsDialog } from "./components/AnnotationsDialog";
 import { CharacterDialog } from "./components/CharacterDialog";
@@ -127,7 +128,7 @@ export default function App() {
     | "characters"
     | "beats"
     | "pdf"
-    | "highlight"
+    | "export"
     | null
   >(null);
   const [cloudDialog, setCloudDialog] = useState<{
@@ -904,21 +905,31 @@ export default function App() {
     await navigator.clipboard.writeText(url.href);
     tell("Collaboration link copied. Anyone with Drive access can join here.");
   }
-  async function exportHighlightedPdf(names: string[]) {
-    if (!session || !names.length) return;
-    const snap = session.capture();
-    const result = await publishPdf(snap.screenplay, {
-      ...pdfOptions,
-      highlightCharacters: [...names],
-    });
-    downloadFile(
-      new Blob([result.bytes as BlobPart], { type: "application/pdf" }),
-      highlightedPdfFilename(snap.name, names),
-    );
-    if (result.warnings.length) tell(result.warnings.join(" "));
-    setDialog((current) => (current === "highlight" ? null : current));
+  async function exportSelection(selection: ExportSelection) {
+    if (!session) return;
+    if (selection.format === "fdx") {
+      await exportFile("fdx");
+    } else {
+      const snap = session.capture();
+      const result = await publishPdf(snap.screenplay, {
+        ...pdfOptions,
+        mobileLayout: selection.mobile,
+        highlightCharacters: [...selection.characters],
+      });
+      const filename = selection.characters.length
+        ? highlightedPdfFilename(snap.name, selection.characters)
+        : `${snap.name.replace(/\.[^.]+$/, "")}.pdf`;
+      downloadFile(
+        new Blob([result.bytes as BlobPart], { type: "application/pdf" }),
+        selection.mobile ? filename.replace(/\.pdf$/, "-mobile.pdf") : filename,
+      );
+      if (result.warnings.length) tell(result.warnings.join(" "));
+    }
+    setDialog((current) => (current === "export" ? null : current));
   }
-  async function exportFile(format: "pdf" | "mobilePdf" | "beatPdf" | "fdx" | "beats") {
+  async function exportFile(
+    format: "pdf" | "mobilePdf" | "beatPdf" | "fdx" | "beats",
+  ) {
     if (!session) return;
     const snap = session.capture();
     const stem = snap.name.replace(/\.[^.]+$/, "");
@@ -956,7 +967,8 @@ export default function App() {
         format === "fdx" ? "application/xml" : "text/csv",
       );
     }
-    if (format !== "pdf" && format !== "mobilePdf" && format !== "beatPdf") tell("Export ready.");
+    if (format !== "pdf" && format !== "mobilePdf" && format !== "beatPdf")
+      tell("Export ready.");
   }
   useEffect(() => {
     if (!snapshot) return;
@@ -1105,7 +1117,9 @@ export default function App() {
   const changeElement = (value: BlockKind, dual = false) => {
     const changed = editor.current?.setKind(value, dual);
     if (dual && !changed)
-      tell("Choose a character or dialogue next to another speech to create dual dialogue.");
+      tell(
+        "Choose a character or dialogue next to another speech to create dual dialogue.",
+      );
   };
   const writingControls = (
     <WritingToolbar
@@ -1175,10 +1189,12 @@ export default function App() {
             >
               Save As…
             </MenuItem>
-            <MenuItem onClick={() => {
-              setRename(snapshot.name);
-              setDialog("rename");
-            }}>
+            <MenuItem
+              onClick={() => {
+                setRename(snapshot.name);
+                setDialog("rename");
+              }}
+            >
               Rename screenplay…
             </MenuItem>
             <MenuItem onClick={() => void run(listWorkspace)}>
@@ -1209,23 +1225,14 @@ export default function App() {
             </MenuItem>
             <hr />
             <small>PUBLISH</small>
-            <MenuItem onClick={() => void run(() => exportFile("pdf"))}>
-              Export PDF…
-            </MenuItem>
-            <MenuItem onClick={() => void run(() => exportFile("mobilePdf"))}>
-              Export mobile PDF…
-            </MenuItem>
             <MenuItem
               onClick={() => {
                 session.capture();
                 setSnapshot({ ...session.current });
-                setDialog("highlight");
+                setDialog("export");
               }}
             >
-              Export highlighted PDF…
-            </MenuItem>
-            <MenuItem onClick={() => void run(() => exportFile("fdx"))}>
-              Export Final Draft…
+              Export…
             </MenuItem>
           </Menu>
           <Menu label="Edit">
@@ -1379,16 +1386,16 @@ export default function App() {
             />
           </div>
         ) : (
-        <button
-          className="document-name"
-          onClick={() => {
-            setRename(snapshot.name);
-            setDialog("rename");
-          }}
-          title="Rename screenplay"
-        >
-          {snapshot.name}
-        </button>
+          <button
+            className="document-name"
+            onClick={() => {
+              setRename(snapshot.name);
+              setDialog("rename");
+            }}
+            title="Rename screenplay"
+          >
+            {snapshot.name}
+          </button>
         )}
         <button
           className="save-button"
@@ -1921,11 +1928,11 @@ export default function App() {
           onClose={() => setDialog(null)}
         />
       )}
-      {dialog === "highlight" && (
-        <HighlightPdfDialog
+      {dialog === "export" && (
+        <ExportDialog
           names={insights.characters.map((person) => person.name)}
           busy={busy}
-          onExport={(names) => void run(() => exportHighlightedPdf(names))}
+          onExport={(selection) => void run(() => exportSelection(selection))}
           onClose={() => setDialog(null)}
         />
       )}
