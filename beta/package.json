@@ -11,7 +11,9 @@
     "test:watch": "vitest",
     "check": "npm run test && npm run build",
     "build:beta": "tsc -b && vite build --mode beta",
+    "build:writeshape": "tsc -b && vite build --mode writeshape",
     "deploy:beta": "npm run check && npm run build:beta && wrangler deploy",
+    "deploy:writeshape": "npm run check && npm run build:writeshape && wrangler deploy --config wrangler.writeshape.jsonc",
     "test:browser": "playwright test",
     "format": "prettier --write src server cloudflare tests e2e *.json *.ts"
   },
