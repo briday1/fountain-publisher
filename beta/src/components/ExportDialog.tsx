@@ -9,11 +9,15 @@ export type ExportSelection = {
 };
 
 export function ExportDialog({
+  freeOnly = false,
+  onUpgrade,
   names,
   busy,
   onExport,
   onClose,
 }: {
+  freeOnly?: boolean;
+  onUpgrade?: () => void;
   names: string[];
   busy: boolean;
   onExport: (selection: ExportSelection) => void;
@@ -40,10 +44,11 @@ export function ExportDialog({
           onChange={(event) => setFormat(event.target.value as "pdf" | "fdx")}
         >
           <option value="pdf">PDF</option>
-          <option value="fdx">Final Draft (.fdx)</option>
+          {!freeOnly && <option value="fdx">Final Draft (.fdx)</option>}
         </select>
       </label>
-      {format === "pdf" && (
+      {freeOnly && <p>Standard PDF is included. <button onClick={onUpgrade}>Explore Premium mobile PDFs and highlighting</button></p>}
+      {format === "pdf" && !freeOnly && (
         <>
           <label>
             <input

@@ -1,0 +1,37 @@
+{
+  "name": "writeshape-private-test",
+  "account_id": "7d2c102e83d54e0c10abed8a3253dc20",
+  "compatibility_date": "2026-09-24",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "writeshape.com",
+      "custom_domain": true
+    }
+  ],
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*"
+    ]
+  },
+  "main": "cloudflare/writeshape/worker.mjs",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "writeshape-documents",
+      "database_id": "a9982175-df6d-46ad-bebd-f52e9fe650ad"
+    }
+  ],
+  "vars": {
+    "ACCESS_TEAM": "round-night-bed4",
+    "ACCESS_AUD": "5b994abbc43a74f2f4023fdcf11c340bd582ca7909f6f76869978ac3c9a0f1fa",
+    "TESTER_EMAIL": "brian.day1@gmail.com",
+    "APP_ORIGIN": "https://writeshape.com",
+    "STRIPE_MONTHLY_PRICE_ID": "price_1UJI3mCoZzTH3rR02FrxECSY",
+    "STRIPE_YEARLY_PRICE_ID": "price_1UJI3rCoZzTH3rR0fHBGdUzU"
+  }
+}

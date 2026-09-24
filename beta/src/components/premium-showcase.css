@@ -1,0 +1,167 @@
+.premium-example {
+  user-select: none;
+  pointer-events: none;
+  min-width: 0;
+}
+.premium-example .beat-board.beat-sheet-paper {
+  width: 100%;
+  margin: 0;
+  min-height: 0;
+  box-shadow: none;
+}
+.sample-insights {
+  max-width: 440px;
+  margin: auto;
+  padding: 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.sample-insights .character-row {
+  width: 100%;
+}
+.sample-guide {
+  border: 1px solid var(--border);
+  overflow: hidden;
+  border-radius: 8px;
+}
+.sample-guide .writing-beat-guide-row {
+  flex-wrap: wrap;
+}
+.sample-guide .writing-beat-prompt {
+  flex-basis: 230px;
+}
+.sample-script {
+  padding: 28px clamp(18px, 5vw, 58px);
+  background: var(--paper);
+  color: var(--paper-ink);
+  font:
+    14px/1.5 "Courier Prime",
+    monospace;
+  border-radius: 5px;
+}
+.sample-script p {
+  margin: 0 0 14px;
+}
+.sample-script .sample-line-scene {
+  font-weight: bold;
+}
+.sample-script .sample-line-character {
+  margin: 14px 0 0 40%;
+}
+.sample-script .sample-line-dialogue {
+  margin: 0 12% 12px 20%;
+}
+.sample-script mark {
+  background: #fff29b;
+  color: #232323;
+  padding: 2px 5px;
+  border-radius: 3px;
+}
+.sample-script-mobile {
+  padding: 24px 20px;
+  font-size: 15px;
+}
+.sample-script-mobile .sample-line-dialogue {
+  margin-left: 10%;
+  margin-right: 5%;
+}
+.writeshape-plans .showcase-intro {
+  font-size: clamp(22px, 4vw, 32px);
+  font-weight: 650;
+  line-height: 1.2;
+  max-width: 520px;
+}
+.writeshape-plans .sample-label {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 12px 0;
+}
+.showcase-feature {
+  padding: 30px 0;
+  border-top: 1px solid var(--border);
+}
+.showcase-feature > h3 {
+  margin: 8px 0;
+  font-size: 22px;
+}
+.showcase-feature > p {
+  line-height: 1.65;
+  max-width: 650px;
+}
+.showcase-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  font-weight: 700;
+}
+.showcase-feature figure {
+  margin: 22px 0 0;
+}
+.showcase-feature figcaption {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.showcase-feature .sample-phone {
+  max-width: 320px;
+  margin: 24px auto 0;
+  border: 8px solid var(--border);
+  padding: 6px;
+  border-radius: 26px;
+  background: var(--panel);
+}
+.sample-phone .sample-script {
+  border-radius: 12px;
+}
+.sample-phone figcaption {
+  padding: 5px;
+  text-align: center;
+}
+.premium-preview .premium-sample {
+  padding: 0;
+  line-height: normal;
+  opacity: 0.65;
+  filter: blur(4px);
+}
+.premium-preview {
+  isolation: isolate;
+  max-height: 540px;
+  background: var(--panel);
+}
+.premium-preview .premium-offer {
+  z-index: 1;
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
+}
+@media (max-width: 600px) {
+  .premium-example .beat-board.beat-sheet-paper {
+    padding: 14px;
+  }
+  .sample-insights {
+    padding: 12px;
+  }
+  .showcase-feature > h3 {
+    font-size: 20px;
+  }
+}
+
+.writeshape-account p {
+  line-height: 1.6;
+}
+.writeshape-account form {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+}
+.writeshape-account label {
+  display: grid;
+  gap: 8px;
+}
+.writeshape-account .modal-content > button {
+  margin: 6px 8px 6px 0;
+}
+.writeshape-account hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 24px 0;
+}

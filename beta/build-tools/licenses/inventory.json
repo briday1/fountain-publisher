@@ -1169,6 +1169,46 @@
           "sha256": "3f1189b28e3866e0d979968d466b78f813f76827cfdca1fbb124cc0a5c8841f8"
         }
       ]
+    },
+    "jose@6.2.12": {
+      "license": "MIT",
+      "packageJsonSha256": "faa28d9e4362c02c81ce4c7a3b62443495343830c53de2efcbd8c1088e4ba931",
+      "files": [
+        {
+          "path": "LICENSE.md",
+          "sha256": "8078b0829d6c3e9ecde2f003e1966e4cad3efc6e7a640efbab0313cc166b1af1"
+        }
+      ]
+    },
+    "stripe@22.6.2": {
+      "license": "MIT",
+      "packageJsonSha256": "d94dc30bc4744c1196c8eb4a8f25da11a0d3dc71694474e2f72d74ac76f39104",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "b36d54d51ac6f20b867c24264b9433f54372c3370d4984cf1c9884c5c6de1f7a"
+        }
+      ]
+    },
+    "@types/node@22.20.2": {
+      "license": "MIT",
+      "packageJsonSha256": "8721a336fe0d4f04a95c2c68a206ca0a9ddd718cb7e17b64176eaa0637edf548",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+        }
+      ]
+    },
+    "undici-types@6.21.0": {
+      "license": "MIT",
+      "packageJsonSha256": "11f873b423b96a5ad444a099685ca6b9de1379dcd83fd8d368e757ddb53658e4",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "a6db8096b2707bc0102d256917d4d33f298ba36d8c3f25de067a2b5bb379db27"
+        }
+      ]
     }
   },
   "supplements": {
