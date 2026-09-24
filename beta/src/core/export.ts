@@ -266,6 +266,47 @@ function mergeCanonicalRecords(records: PdfPageRecord[]): PdfPageRecord[] {
   return merged;
 }
 
+/**
+ * Margin scene numbers and their headings share a canonical baseline, but are
+ * separate drawing records because they occupy different horizontal boxes on
+ * the full-size page. Mobile pages put the number inline with the heading, so
+ * join that pair before narrow-page wrapping instead of laying each record on
+ * its own row.
+ */
+function inlineMobileSceneNumbers(records: PdfPageRecord[]): PdfPageRecord[] {
+  const result: PdfPageRecord[] = [];
+  for (let index = 0; index < records.length; index++) {
+    const record = records[index];
+    const heading = records[index + 1];
+    if (
+      record.sourceRole === "sceneNumber" &&
+      record.sourceId !== undefined &&
+      heading?.sourceRole === "content" &&
+      heading.sourceKind === "scene" &&
+      heading.sourceId === record.sourceId
+    ) {
+      result.push({
+        ...heading,
+        spans: [
+          ...record.spans.map((span) => ({
+            text: span.text,
+            ...(span.marks?.length ? { marks: [...span.marks] } : {}),
+          })),
+          { text: "  " },
+          ...heading.spans.map((span) => ({
+            text: span.text,
+            ...(span.marks?.length ? { marks: [...span.marks] } : {}),
+          })),
+        ],
+      });
+      index++;
+      continue;
+    }
+    result.push(record);
+  }
+  return result;
+}
+
 async function mobilePdfFromCanonical(
   bytes: Uint8Array,
   fontBytes?: PdfOptions["fontBytes"],
@@ -326,26 +367,30 @@ async function mobilePdfFromCanonical(
   const leading = 14;
   const fontSize = 12;
 
+  // The canonical screenplay body is 61 Courier characters wide. Preserve
+  // each standard indent and measure as a proportion of that usable width so
+  // the narrow page keeps the same relative screenplay geometry.
+  const canonicalColumns = 61;
+  const scaledColumns = (columns: number) =>
+    (bodyWidth * columns) / canonicalColumns;
+
   const layoutFor = (record: PdfPageRecord) => {
     let x = side;
     let width = bodyWidth;
     let align: Line["align"] = record.align ?? "left";
     if (record.sourceRole === "pageNumber") align = "right";
-    else if (record.sourceRole === "sceneNumber") {
-      width = bodyWidth;
-      align = "left";
-    } else if (record.sourceKind === "character") {
-      x += 72;
-      width -= 72;
+    else if (record.sourceKind === "character") {
+      x += scaledColumns(19);
+      width = scaledColumns(42);
     } else if (
       record.sourceKind === "dialogue" ||
       record.sourceKind === "lyrics"
     ) {
-      x += 28;
-      width -= 56;
+      x += scaledColumns(9);
+      width = scaledColumns(36);
     } else if (record.sourceKind === "parenthetical") {
-      x += 48;
-      width -= 80;
+      x += scaledColumns(13);
+      width = scaledColumns(48);
     } else if (record.sourceKind === "transition") align = "right";
     else if (record.sourceKind === "centered") align = "center";
     return { x, width, align };
@@ -388,7 +433,9 @@ async function mobilePdfFromCanonical(
         `Mobile PDF conversion could not read canonical page ${index + 1}.`,
       );
     const canonicalRecords = JSON.parse(raw.decodeText()) as PdfPageRecord[];
-    const groups = mergeCanonicalRecords(canonicalRecords);
+    const groups = inlineMobileSceneNumbers(
+      mergeCanonicalRecords(canonicalRecords),
+    );
     const planned = groups.map((record, groupIndex) => {
       const box = layoutFor(record);
       const lines = wrap(
