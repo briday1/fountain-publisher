@@ -724,7 +724,7 @@ export default function App() {
   async function openLocalFallback() {
     if (!session) return;
     const token = session.token();
-    const result = await openLocalFile();
+    const result = await openLocalFile({ useFileInput: isWriteShape });
     if (!result) return;
     session.assertCurrent(token);
     const imported = importScreenplay(result.content, result.name);

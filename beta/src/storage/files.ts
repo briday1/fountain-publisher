@@ -57,7 +57,12 @@ function stableLocalFileInput(): HTMLInputElement {
     opacity: "0",
     pointerEvents: "none",
   });
-  if (!input.isConnected) document.body.append(input);
+  // File dialogs make the rest of the document inert. Keep the picker inside
+  // the active dialog so the explicit local-file fallback remains usable.
+  const parent =
+    document.querySelector("dialog[open]:last-of-type .modal-content") ??
+    document.body;
+  if (input.parentElement !== parent) parent.append(input);
   return input;
 }
 
@@ -97,13 +102,13 @@ export async function readLocalFile(
     );
   return { name: file.name, content };
 }
-export async function openLocalFile(): Promise<{
+export async function openLocalFile(options: { useFileInput?: boolean } = {}): Promise<{
   name: string;
   content: string;
   handle?: FileHandle;
 } | null> {
   const access = window as FileAccessWindow;
-  if (access.showOpenFilePicker && !prefersInputFilePicker()) {
+  if (!options.useFileInput && access.showOpenFilePicker && !prefersInputFilePicker()) {
     try {
       const [handle] = await access.showOpenFilePicker({
         multiple: false,
