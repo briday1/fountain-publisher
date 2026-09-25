@@ -1,3 +1,17 @@
+import { captureWriteShapeSave } from "./core/writeShapeSave";
+import {
+  WriteShapeLibrary,
+  libraryRequest,
+  LibraryError,
+} from "./components/WriteShapeLibrary";
+import type { LibraryFile } from "./components/WriteShapeLibrary";
+import { isWriteShape } from "./product";
+import {
+  WriteShapeAccount,
+  useWriteShapeAccount,
+} from "./components/WriteShapeAccount";
+import { PremiumPreview } from "./components/PremiumPreview";
+import { PlanComparison } from "./components/PlanComparison";
 import {
   useCallback,
   useEffect,
@@ -91,8 +105,25 @@ const errorMessage = (e: unknown) =>
     ? e.message
     : "Something went wrong. Your current writing has been kept.";
 export default function App() {
+  const account = useWriteShapeAccount();
+  const isWriteShapeFree = isWriteShape && !account.state.premium;
+  const [accountOpen, setAccountOpen] = useState(
+    () => isWriteShape && new URLSearchParams(location.search).has("account"),
+  );
+  const [plansOpen, setPlansOpen] = useState(false);
+  const [cloudConflict, setCloudConflict] = useState<string>();
+  const [libraryMode, setLibraryMode] = useState<"open" | "save" | null>(null);
+  const cloudFile = useRef<(LibraryFile & { localId: string }) | null>(null);
   const [session, setSession] = useState<DocumentSession>();
   const sessionRef = useRef<DocumentSession | undefined>(undefined);
+  const accountId = account.state.account?.id;
+  const accountIdRef = useRef(accountId);
+  accountIdRef.current = accountId;
+  useEffect(() => {
+    cloudFile.current = null;
+    setLibraryMode(null);
+    setCloudConflict(undefined);
+  }, [accountId]);
   const [snapshot, setSnapshot] = useState<SessionSnapshot>();
   const liveClient = useRef<LiveClient | undefined>(undefined);
   const [liveStatus, setLiveStatus] = useState<LiveStatus>();
@@ -612,6 +643,10 @@ export default function App() {
     }
   }
   async function openLocal() {
+    if (isWriteShape && !isWriteShapeFree) {
+      setLibraryMode("open");
+      return;
+    }
     if (!session) return;
     const token = session.token();
     const result = await openLocalFile();
@@ -636,6 +671,40 @@ export default function App() {
     tell(`Saved ${captured.name}.`);
   }
   async function save() {
+    if (isWriteShape && !isWriteShapeFree && session) {
+      const snap = session.capture();
+      const current = cloudFile.current;
+      if (!current || current.localId !== snap.id) {
+        setLibraryMode("save");
+        return;
+      }
+      let result;
+      try {
+        result = await libraryRequest("", {
+          ...current,
+          kind: "file",
+          content: serializeFountain(snap.screenplay),
+        });
+      } catch (error) {
+        if (
+          error instanceof LibraryError &&
+          error.code === "REVISION_CONFLICT"
+        ) {
+          setCloudConflict(error.message);
+          return;
+        }
+        throw error;
+      }
+      if (
+        sessionRef.current === session &&
+        session.current.id === snap.id &&
+        cloudFile.current === current
+      ) {
+        cloudFile.current = { ...current, ...result };
+      }
+      tell("Saved to WriteShape cloud.");
+      return;
+    }
     if (!session) return;
     const activeLive = liveClient.current;
     if (activeLive) {
@@ -906,6 +975,15 @@ export default function App() {
     tell("Collaboration link copied. Anyone with Drive access can join here.");
   }
   async function exportSelection(selection: ExportSelection) {
+    if (
+      isWriteShapeFree &&
+      (selection.format !== "pdf" ||
+        selection.mobile ||
+        selection.characters.length)
+    ) {
+      setPlansOpen(true);
+      return;
+    }
     if (!session) return;
     if (selection.format === "fdx") {
       await exportFile("fdx");
@@ -931,6 +1009,10 @@ export default function App() {
     format: "pdf" | "mobilePdf" | "beatPdf" | "fdx" | "beats",
   ) {
     if (!session) return;
+    if (isWriteShapeFree && format !== "pdf") {
+      setPlansOpen(true);
+      return;
+    }
     const snap = session.capture();
     const stem = snap.name.replace(/\.[^.]+$/, "");
     if (format === "pdf" || format === "mobilePdf" || format === "beatPdf") {
@@ -1074,7 +1156,7 @@ export default function App() {
   if (!snapshot || !session || !insights)
     return (
       <main className="loading">
-        <span className="brand-mark">F</span>
+        <span className="brand-mark">{isWriteShape ? "WS" : "F"}</span>
         <p>Opening your writing room…</p>
       </main>
     );
@@ -1164,15 +1246,48 @@ export default function App() {
       </a>
       <header className="app-header">
         <button className="brand" onClick={() => setDialog("help")}>
-          <span className="brand-mark">F</span>
-          <span>Fountain Publisher</span>
+          <span className="brand-mark">{isWriteShape ? "WS" : "F"}</span>
+          <span>{isWriteShape ? "WriteShape" : "Fountain Publisher"}</span>
         </button>
+        {isWriteShape && !mobile && (
+          <button onClick={() => setPlansOpen(true)}>
+            {isWriteShapeFree
+              ? "Free · View plans"
+              : account.state.account?.privateTester
+                ? "Premium · Private tester"
+                : "Premium · View plans"}
+          </button>
+        )}
+        {isWriteShape && !mobile && (
+          <button
+            onClick={() =>
+              account.state.account
+                ? setLibraryMode("open")
+                : setAccountOpen(true)
+            }
+          >
+            Library
+          </button>
+        )}
+        {isWriteShape && !mobile && (
+          <button onClick={() => setAccountOpen(true)}>Account</button>
+        )}
         <ApplicationMenu
           mobile={mobile}
           controls={writingControls}
           filename={snapshot.name}
         >
           <Menu label="File">
+            {isWriteShape && (
+              <MenuItem onClick={() => setAccountOpen(true)}>
+                Account and subscription…
+              </MenuItem>
+            )}
+            {isWriteShape && (
+              <MenuItem onClick={() => setPlansOpen(true)}>
+                Explore Premium…
+              </MenuItem>
+            )}
             <small>SCREENPLAY</small>
             <MenuItem onClick={() => void run(newDocument)}>
               New screenplay
@@ -1184,7 +1299,11 @@ export default function App() {
               Save
             </MenuItem>
             <MenuItem
-              onClick={() => void run(() => saveLocal(true))}
+              onClick={() =>
+                isWriteShape && !isWriteShapeFree
+                  ? setLibraryMode("save")
+                  : void run(() => saveLocal(true))
+              }
               shortcut={`⇧${mod}S`}
             >
               Save As…
@@ -1204,26 +1323,55 @@ export default function App() {
               Version history…
             </MenuItem>
             <hr />
-            <small>CONNECTED STORAGE</small>
-            <MenuItem onClick={() => openIntegration("github")}>
-              Open from GitHub…
-            </MenuItem>
-            <MenuItem onClick={() => openIntegration("github", "save")}>
-              Save to GitHub…
-            </MenuItem>
-            <MenuItem onClick={() => openIntegration("google")}>
-              Open from Google Drive…
-            </MenuItem>
-            <MenuItem onClick={() => openIntegration("google", "save")}>
-              Save to Google Drive…
-            </MenuItem>
-            <MenuItem onClick={() => openIntegration("google", "share")}>
-              Share Drive document…
-            </MenuItem>
-            <MenuItem onClick={() => openIntegration("google", "history")}>
-              Drive version history…
-            </MenuItem>
-            <hr />
+            {isWriteShape ? (
+              <>
+                <small>WRITESHAPE STORAGE</small>
+                <MenuItem
+                  onClick={() =>
+                    account.state.account
+                      ? setLibraryMode("open")
+                      : setAccountOpen(true)
+                  }
+                >
+                  Browse library…
+                </MenuItem>
+                <MenuItem
+                  onClick={() =>
+                    isWriteShapeFree
+                      ? setPlansOpen(true)
+                      : setLibraryMode("save")
+                  }
+                >
+                  Save to WriteShape…
+                </MenuItem>
+                <MenuItem onClick={() => void run(() => saveLocal(true))}>
+                  Download local copy…
+                </MenuItem>
+              </>
+            ) : (
+              <>
+                <small>CONNECTED STORAGE</small>
+                <MenuItem onClick={() => openIntegration("github")}>
+                  Open from GitHub…
+                </MenuItem>
+                <MenuItem onClick={() => openIntegration("github", "save")}>
+                  Save to GitHub…
+                </MenuItem>
+                <MenuItem onClick={() => openIntegration("google")}>
+                  Open from Google Drive…
+                </MenuItem>
+                <MenuItem onClick={() => openIntegration("google", "save")}>
+                  Save to Google Drive…
+                </MenuItem>
+                <MenuItem onClick={() => openIntegration("google", "share")}>
+                  Share Drive document…
+                </MenuItem>
+                <MenuItem onClick={() => openIntegration("google", "history")}>
+                  Drive version history…
+                </MenuItem>
+                <hr />
+              </>
+            )}
             <small>PUBLISH</small>
             <MenuItem
               onClick={() => {
@@ -1500,20 +1648,24 @@ export default function App() {
                   <FolderOpen size={16} />
                   Workspace
                 </button>
-                <div>
-                  <button
-                    aria-label="Open GitHub"
-                    onClick={() => openIntegration("github")}
-                  >
-                    <Github size={17} />
-                  </button>
-                  <button
-                    aria-label="Open Google Drive"
-                    onClick={() => openIntegration("google")}
-                  >
-                    <Cloud size={17} />
-                  </button>
-                </div>
+                {!isWriteShape && (
+                  <div>
+                    <button
+                      hidden={isWriteShape}
+                      aria-label="Open GitHub"
+                      onClick={() => openIntegration("github")}
+                    >
+                      <Github size={17} />
+                    </button>
+                    <button
+                      hidden={isWriteShape}
+                      aria-label="Open Google Drive"
+                      onClick={() => openIntegration("google")}
+                    >
+                      <Cloud size={17} />
+                    </button>
+                  </div>
+                )}
               </div>
             </aside>
             <Resizable
@@ -1619,19 +1771,30 @@ export default function App() {
               </div>
             </div>
           )}
-          {beatGuide && (
-            <BeatGuide
-              key={snapshot.id}
-              doc={doc}
-              editor={editor.current}
-              targetBeatId={guideTarget}
-              onAssign={assignBeatRange}
-              onRange={showBeatRange}
-              onEdit={() => openView("beats")}
-              onClose={() => setBeatGuide(false)}
-              onExitZen={zen ? toggleZen : undefined}
-            />
-          )}
+          {beatGuide &&
+            (isWriteShapeFree ? (
+              <section>
+                <button onClick={() => setBeatGuide(false)}>
+                  Close Beat Guide
+                </button>
+                <PremiumPreview
+                  title="Beat Guide"
+                  onUpgrade={() => setPlansOpen(true)}
+                />
+              </section>
+            ) : (
+              <BeatGuide
+                key={snapshot.id}
+                doc={doc}
+                editor={editor.current}
+                targetBeatId={guideTarget}
+                onAssign={assignBeatRange}
+                onRange={showBeatRange}
+                onEdit={() => openView("beats")}
+                onClose={() => setBeatGuide(false)}
+                onExitZen={zen ? toggleZen : undefined}
+              />
+            ))}
           <div className="writing-viewport">
             {!mobile && (
               <WorkspaceBackground
@@ -1697,130 +1860,141 @@ export default function App() {
                   <X size={16} />
                 </button>
               </div>
-              <div className="metrics">
-                <div
-                  aria-label="PDF page count"
-                  aria-busy={!exact && !pdfError}
-                  title={
-                    pdfError ||
-                    (exact
-                      ? "Screenplay pages from the generated PDF, rounded up to an eighth; excludes title pages"
-                      : "Generating the PDF to count its pages")
-                  }
-                >
-                  <strong>{pages}</strong>
-                  <span>
-                    {pdfError && !exact ? "PDF unavailable" : "PDF pages"}
-                  </span>
-                </div>
-                <div>
-                  <strong>{insights.sceneCount}</strong>
-                  <span>scenes</span>
-                </div>
-                <div>
-                  <strong>{insights.wordCount.toLocaleString()}</strong>
-                  <span>words</span>
-                </div>
-              </div>
-              <section className="insight-section">
-                <div className="section-label">
-                  <h3>On the page</h3>
-                  <span>{Math.round(insights.dialoguePercent)}% dialogue</span>
-                </div>
-                <div className="balance-bar">
-                  <span style={{ width: `${insights.dialoguePercent}%` }} />
-                </div>
-                <div className="chart-key">
-                  <span>
-                    <i />
-                    Dialogue
-                  </span>
-                  <span>
-                    <i />
-                    Action
-                  </span>
-                </div>
-              </section>
-              <section className="insight-section">
-                <div className="section-label">
-                  <h3>Characters</h3>
-                  <span>{insights.characterCount}</span>
-                </div>
-                {!insights.characters.length && (
-                  <p className="muted">
-                    Your characters will find their voices here.
-                  </p>
-                )}
-                {insights.characters.map((c, i) => (
-                  <button
-                    className="character-row"
-                    key={c.name}
-                    onClick={() => setCharacter(c.name)}
-                  >
-                    <div>
-                      <span
-                        className="character-dot"
-                        style={{
-                          background: [
-                            "#76add9",
-                            "#c29ad0",
-                            "#91b378",
-                            "#d8b175",
-                            "#7cbdb4",
-                          ][i % 5],
-                        }}
-                      />
-                      <strong>{c.name}</strong>
-                      <span>{c.dialogueWords} words</span>
-                    </div>
-                    <div className="character-bar">
-                      <span
-                        style={{
-                          width: `${c.share}%`,
-                          background: [
-                            "#76add9",
-                            "#c29ad0",
-                            "#91b378",
-                            "#d8b175",
-                            "#7cbdb4",
-                          ][i % 5],
-                        }}
-                      />
-                    </div>
-                    <small>
-                      {c.speeches} speeches · {c.sceneCount} scenes ·{" "}
-                      {c.estimatedMinutes.toFixed(1)} min
-                    </small>
-                  </button>
-                ))}
-                <button
-                  className="pacing-link"
-                  onClick={() => setDialog("characters")}
-                >
-                  <BarChart3 size={15} />
-                  Character analytics<span aria-hidden="true">→</span>
-                </button>
-              </section>
-              <section className="insight-section notes-section">
-                <div className="section-label">
-                  <h3>Story notes</h3>
-                  <BookOpen size={14} />
-                </div>
-                <textarea
-                  aria-label="Story notes"
-                  readOnly={liveStatus?.canEdit === false}
-                  placeholder="A thought to come back to…"
-                  value={doc.metadata.notes}
-                  rows={5}
-                  onChange={(e) =>
-                    changeDoc({
-                      ...doc,
-                      metadata: { ...doc.metadata, notes: e.target.value },
-                    })
-                  }
+              {isWriteShapeFree ? (
+                <PremiumPreview
+                  title="Insights"
+                  onUpgrade={() => setPlansOpen(true)}
                 />
-                <small>Saved with your screenplay</small>
-              </section>
+              ) : (
+                <>
+                  <div className="metrics">
+                    <div
+                      aria-label="PDF page count"
+                      aria-busy={!exact && !pdfError}
+                      title={
+                        pdfError ||
+                        (exact
+                          ? "Screenplay pages from the generated PDF, rounded up to an eighth; excludes title pages"
+                          : "Generating the PDF to count its pages")
+                      }
+                    >
+                      <strong>{pages}</strong>
+                      <span>
+                        {pdfError && !exact ? "PDF unavailable" : "PDF pages"}
+                      </span>
+                    </div>
+                    <div>
+                      <strong>{insights.sceneCount}</strong>
+                      <span>scenes</span>
+                    </div>
+                    <div>
+                      <strong>{insights.wordCount.toLocaleString()}</strong>
+                      <span>words</span>
+                    </div>
+                  </div>
+                  <section className="insight-section">
+                    <div className="section-label">
+                      <h3>On the page</h3>
+                      <span>
+                        {Math.round(insights.dialoguePercent)}% dialogue
+                      </span>
+                    </div>
+                    <div className="balance-bar">
+                      <span style={{ width: `${insights.dialoguePercent}%` }} />
+                    </div>
+                    <div className="chart-key">
+                      <span>
+                        <i />
+                        Dialogue
+                      </span>
+                      <span>
+                        <i />
+                        Action
+                      </span>
+                    </div>
+                  </section>
+                  <section className="insight-section">
+                    <div className="section-label">
+                      <h3>Characters</h3>
+                      <span>{insights.characterCount}</span>
+                    </div>
+                    {!insights.characters.length && (
+                      <p className="muted">
+                        Your characters will find their voices here.
+                      </p>
+                    )}
+                    {insights.characters.map((c, i) => (
+                      <button
+                        className="character-row"
+                        key={c.name}
+                        onClick={() => setCharacter(c.name)}
+                      >
+                        <div>
+                          <span
+                            className="character-dot"
+                            style={{
+                              background: [
+                                "#76add9",
+                                "#c29ad0",
+                                "#91b378",
+                                "#d8b175",
+                                "#7cbdb4",
+                              ][i % 5],
+                            }}
+                          />
+                          <strong>{c.name}</strong>
+                          <span>{c.dialogueWords} words</span>
+                        </div>
+                        <div className="character-bar">
+                          <span
+                            style={{
+                              width: `${c.share}%`,
+                              background: [
+                                "#76add9",
+                                "#c29ad0",
+                                "#91b378",
+                                "#d8b175",
+                                "#7cbdb4",
+                              ][i % 5],
+                            }}
+                          />
+                        </div>
+                        <small>
+                          {c.speeches} speeches · {c.sceneCount} scenes ·{" "}
+                          {c.estimatedMinutes.toFixed(1)} min
+                        </small>
+                      </button>
+                    ))}
+                    <button
+                      className="pacing-link"
+                      onClick={() => setDialog("characters")}
+                    >
+                      <BarChart3 size={15} />
+                      Character analytics<span aria-hidden="true">→</span>
+                    </button>
+                  </section>
+                  <section className="insight-section notes-section">
+                    <div className="section-label">
+                      <h3>Story notes</h3>
+                      <BookOpen size={14} />
+                    </div>
+                    <textarea
+                      aria-label="Story notes"
+                      readOnly={liveStatus?.canEdit === false}
+                      placeholder="A thought to come back to…"
+                      value={doc.metadata.notes}
+                      rows={5}
+                      onChange={(e) =>
+                        changeDoc({
+                          ...doc,
+                          metadata: { ...doc.metadata, notes: e.target.value },
+                        })
+                      }
+                    />
+                    <small>Saved with your screenplay</small>
+                  </section>
+                </>
+              )}
             </aside>
           </>
         )}
@@ -1908,7 +2082,7 @@ export default function App() {
           onClose={() => setDialog(null)}
         />
       )}
-      {character && (
+      {character && !isWriteShapeFree && (
         <CharacterDialog
           name={character}
           doc={doc}
@@ -1917,19 +2091,129 @@ export default function App() {
           onClose={() => setCharacter(null)}
         />
       )}
-      {dialog === "beats" && (
-        <BeatSheetDialog
-          doc={doc}
-          onChange={changeDoc}
-          onAssign={startBeatAssignment}
-          onRange={showBeatRange}
-          onExport={() => void run(() => exportFile("beatPdf"))}
-          onExportCsv={() => void run(() => exportFile("beats"))}
-          onClose={() => setDialog(null)}
+      {dialog === "beats" &&
+        (isWriteShapeFree ? (
+          <Modal title="Beat Sheet" onClose={() => setDialog(null)}>
+            <PremiumPreview
+              title="Beat Sheet"
+              onUpgrade={() => {
+                setDialog(null);
+                setPlansOpen(true);
+              }}
+            />
+          </Modal>
+        ) : (
+          <BeatSheetDialog
+            doc={doc}
+            onChange={changeDoc}
+            onAssign={startBeatAssignment}
+            onRange={showBeatRange}
+            onExport={() => void run(() => exportFile("beatPdf"))}
+            onExportCsv={() => void run(() => exportFile("beats"))}
+            onClose={() => setDialog(null)}
+          />
+        ))}
+      {libraryMode && (
+        <WriteShapeLibrary
+          key={accountId}
+          mode={libraryMode}
+          name={snapshot.name}
+          initialFile={
+            cloudFile.current?.localId === snapshot.id
+              ? cloudFile.current
+              : undefined
+          }
+          captureSave={() =>
+            captureWriteShapeSave(
+              session,
+              (item: LibraryFile, localId) => {
+                cloudFile.current = { ...item, localId };
+                tell("Saved to WriteShape cloud.");
+              },
+              () =>
+                sessionRef.current === session &&
+                accountIdRef.current === accountId,
+            )
+          }
+          onOpen={async (item) => {
+            if (
+              sessionRef.current !== session ||
+              accountIdRef.current !== accountId ||
+              session.current.id !== snapshot.id
+            )
+              throw new Error(
+                "Your account or open draft changed. Open the library again to continue.",
+              );
+            const imported = importScreenplay(item.content || "", item.name);
+            await session.open(imported.screenplay, imported.name);
+            if (
+              sessionRef.current !== session ||
+              accountIdRef.current !== accountId
+            )
+              return;
+            file.current = undefined;
+            cloudFile.current = { ...item, localId: session.current.id };
+          }}
+          onClose={() => setLibraryMode(null)}
+        />
+      )}
+      {cloudConflict && (
+        <Modal
+          title="The cloud file has a newer version"
+          onClose={() => setCloudConflict(undefined)}
+        >
+          <p>{cloudConflict}</p>
+          <p>
+            Your current draft is unchanged and remains saved on this device.
+          </p>
+          <div className="dialog-actions">
+            <button
+              onClick={() => {
+                setCloudConflict(undefined);
+                setLibraryMode("open");
+              }}
+            >
+              Browse latest and history
+            </button>
+            <button
+              className="primary"
+              onClick={() => {
+                setCloudConflict(undefined);
+                setLibraryMode("save");
+              }}
+            >
+              Save as a new file
+            </button>
+          </div>
+        </Modal>
+      )}
+      {plansOpen && (
+        <PlanComparison
+          onClose={() => setPlansOpen(false)}
+          onAccount={() => {
+            setPlansOpen(false);
+            setAccountOpen(true);
+          }}
+        />
+      )}
+      {accountOpen && (
+        <WriteShapeAccount
+          state={account.state}
+          error={account.error}
+          refresh={account.refresh}
+          beforeNavigate={async () => {
+            await session.flush();
+          }}
+          onClose={() => setAccountOpen(false)}
         />
       )}
       {dialog === "export" && (
         <ExportDialog
+          freeOnly={isWriteShapeFree}
+          onUpgrade={() => {
+            setDialog(null);
+            setPlansOpen(true);
+          }}
           names={insights.characters.map((person) => person.name)}
           busy={busy}
           onExport={(selection) => void run(() => exportSelection(selection))}
@@ -1996,7 +2280,7 @@ export default function App() {
           </div>
         </Modal>
       )}
-      {dialog === "characters" && (
+      {dialog === "characters" && !isWriteShapeFree && (
         <CharacterAnalytics
           doc={doc}
           onCharacter={(name) => {
@@ -2201,7 +2485,22 @@ export default function App() {
           </div>
         </Modal>
       )}
-      {cloudDialog && (
+      {cloudDialog && isWriteShape && (
+        <Modal title="Cloud storage" onClose={() => setCloudDialog(null)}>
+          <p>
+            WriteShape Free saves locally. Cloud accounts are not available yet.
+          </p>
+          <button
+            onClick={() => {
+              setCloudDialog(null);
+              setPlansOpen(true);
+            }}
+          >
+            View plans
+          </button>
+        </Modal>
+      )}
+      {cloudDialog && !isWriteShape && (
         <CloudDialog
           {...cloudDialog}
           filename={snapshot.name}
