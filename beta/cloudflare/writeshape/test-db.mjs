@@ -10,6 +10,7 @@ export function testDB() {
   sql.exec(
     readFileSync(new URL("./library-sharing.sql", import.meta.url), "utf8"),
   );
+  sql.exec(readFileSync(new URL("./drive.sql", import.meta.url), "utf8"));
   const prepare = (q) => {
     let values = [];
     const statement = {

@@ -1,0 +1,37 @@
+{
+  "id": "/",
+  "name": "WriteShape",
+  "short_name": "WriteShape",
+  "description": "A focused screenplay studio. Write, organize your story, and publish Fountain screenplays.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F8F3E8",
+  "theme_color": "#243A35",
+  "icons": [
+    {
+      "src": "/writeshape-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/writeshape-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/writeshape-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/writeshape-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

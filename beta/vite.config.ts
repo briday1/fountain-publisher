@@ -1,9 +1,16 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+import { writeshapeBrand } from "./build-tools/writeshapeBrand";
 import { offlineShell } from "./build-tools/offline";
 import { dependencyNotices, licenseAttribution } from "./build-tools/notices";
 export default defineConfig({
-  plugins: [react(), licenseAttribution(), dependencyNotices(), offlineShell()],
+  plugins: [
+    react(),
+    licenseAttribution(),
+    dependencyNotices(),
+    writeshapeBrand(),
+    offlineShell(),
+  ],
   worker: { format: "es", plugins: () => [licenseAttribution()] },
   server: {
     port: 5173,

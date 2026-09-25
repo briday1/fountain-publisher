@@ -2,6 +2,7 @@ import type { Beat, Screenplay } from "./model";
 import { newId } from "./model";
 import { workspace } from "../storage/workspace";
 import type { WorkspaceDocument } from "../storage/workspace";
+import type { WriteShapeDestination } from "../storage/destinations";
 import type { RemoteLocation } from "../storage/cloud";
 export interface SessionEditor {
   getDocument(base: Screenplay): Screenplay;
@@ -18,6 +19,7 @@ export interface SessionSnapshot {
   name: string;
   screenplay: Screenplay;
   remote?: RemoteLocation;
+  destination?: WriteShapeDestination;
   epoch: number;
 }
 type Repository = Pick<
@@ -49,6 +51,7 @@ export class DocumentSession {
       name: initial.name,
       screenplay: initial.screenplay,
       remote: initial.remote,
+      destination: initial.destination,
       epoch: 0,
     };
     this.revisions.set(
@@ -124,6 +127,7 @@ export class DocumentSession {
               name: snapshot.name,
               screenplay: snapshot.screenplay,
               remote: snapshot.remote,
+              destination: snapshot.destination,
             },
             this.revisions.get(snapshot.id) ?? null,
           );
@@ -160,6 +164,8 @@ export class DocumentSession {
     name: string,
     remote?: RemoteLocation,
     saved?: WorkspaceDocument,
+    destination?: WriteShapeDestination,
+    validate?: () => void,
   ): Promise<void> {
     const token = this.token();
     let prepared = false;
@@ -169,6 +175,7 @@ export class DocumentSession {
       prepared = true;
       await this.flush();
       this.assertCurrent(token);
+      validate?.();
       this.epoch++;
       this.persistedEpoch = saved ? this.epoch : -1;
       this.current = {
@@ -176,6 +183,7 @@ export class DocumentSession {
         name,
         screenplay,
         remote: remote ?? saved?.remote,
+        destination: destination ?? saved?.destination,
         epoch: this.epoch,
       };
       switched = true;
@@ -206,6 +214,48 @@ export class DocumentSession {
     this.markChanged();
     this.onSnapshot(this.capture());
   }
+  setDestination(destination: WriteShapeDestination | undefined) {
+    this.current = { ...this.current, destination };
+    this.markChanged();
+    this.onSnapshot(this.capture());
+  }
+  /** Caller has verified the remote base; guard again after persisting the local draft. */
+  async applyExternal(
+    screenplay: Screenplay,
+    name: string,
+    expected: { id: string; epoch: number },
+    validate?: () => void,
+  ) {
+    await this.flush();
+    this.assertCurrent(expected);
+    validate?.();
+    this.current = { ...this.current, screenplay, name };
+    this.editor?.setDocument(screenplay);
+    this.markChanged();
+    this.onSnapshot(this.capture());
+  }
+  async adoptWorkspace(saved: WorkspaceDocument) {
+    if (
+      this.dirty ||
+      saved.id !== this.current.id ||
+      saved.revision <= (this.revisions.get(saved.id) ?? -1)
+    )
+      return false;
+    await this.tail;
+    if (
+      this.dirty ||
+      saved.id !== this.current.id ||
+      saved.revision <= (this.revisions.get(saved.id) ?? -1)
+    )
+      return false;
+    this.revisions.set(saved.id, saved.revision);
+    this.epoch++;
+    this.persistedEpoch = this.epoch;
+    this.current = { ...this.current, ...saved, epoch: this.epoch };
+    this.editor?.setDocument(saved.screenplay);
+    this.onSnapshot(this.capture());
+    return true;
+  }
   async fork(): Promise<void> {
     const token = this.token();
     let prepared = false;
@@ -224,6 +274,7 @@ export class DocumentSession {
         id: newId(),
         name: snapshot.name.replace(/\.fountain$/i, "") + " copy.fountain",
         remote: undefined,
+        destination: undefined,
       };
       switched = true;
       this.revisions.set(this.current.id, null);
