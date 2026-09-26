@@ -1,8 +1,13 @@
 import Stripe from "stripe";
+import {
+  accountBilling,
+  billingColumns,
+  billingMode,
+} from "./billing-mode.mjs";
 import { HttpError, bodyJson, json, now, sameOrigin } from "./http.mjs";
 import { randomToken } from "./accounts.mjs";
 
-// Approved sandbox catalog only. No live-mode or arbitrary-price fallback.
+// Explicit catalogs; live activation requires separate credentials and approval.
 export const TEST_PLANS = Object.freeze({
   monthly: Object.freeze({
     id: "price_1UJI3mCoZzTH3rR02FrxECSY",
@@ -16,18 +21,61 @@ export const TEST_PLANS = Object.freeze({
   }),
 });
 const TEST_PRODUCT = "prod_VJvvBIU1Uuy6RQ";
-export const billingConfigured = (env) =>
-  env.BILLING_MODE === "test" &&
-  /^sk_test_/.test(env.STRIPE_SECRET_KEY || "") &&
-  /^whsec_/.test(env.STRIPE_WEBHOOK_SECRET || "") &&
-  env.STRIPE_MONTHLY_PRICE_ID === TEST_PLANS.monthly.id &&
-  env.STRIPE_YEARLY_PRICE_ID === TEST_PLANS.yearly.id &&
-  env.APP_ORIGIN === "https://writeshape.com";
-export function approvedPrice(price, plan) {
+export function billingCatalog(env = {}) {
+  const live = billingMode(env) === "live";
+  return {
+    livemode: live,
+    product: live ? env.STRIPE_LIVE_PRODUCT_ID : TEST_PRODUCT,
+    plans: live
+      ? {
+          monthly: {
+            ...TEST_PLANS.monthly,
+            id: env.STRIPE_LIVE_MONTHLY_PRICE_ID,
+          },
+          yearly: { ...TEST_PLANS.yearly, id: env.STRIPE_LIVE_YEARLY_PRICE_ID },
+        }
+      : TEST_PLANS,
+  };
+}
+const billingSecret = (env) =>
+  billingMode(env) === "live"
+    ? env.STRIPE_LIVE_SECRET_KEY
+    : env.STRIPE_SECRET_KEY;
+const webhookSecret = (env) =>
+  billingMode(env) === "live"
+    ? env.STRIPE_LIVE_WEBHOOK_SECRET
+    : env.STRIPE_WEBHOOK_SECRET;
+export const billingConfigured = (env) => {
+  if (
+    env.APP_ORIGIN !== "https://writeshape.com" ||
+    !/^whsec_/.test(webhookSecret(env) || "")
+  )
+    return false;
+  if (env.BILLING_MODE === "test")
+    return (
+      /^sk_test_/.test(billingSecret(env) || "") &&
+      env.STRIPE_MONTHLY_PRICE_ID === TEST_PLANS.monthly.id &&
+      env.STRIPE_YEARLY_PRICE_ID === TEST_PLANS.yearly.id
+    );
+  const catalog = billingCatalog(env);
+  return (
+    env.BILLING_MODE === "live" &&
+    env.LIVE_BILLING_APPROVED === "true" &&
+    /^sk_live_/.test(billingSecret(env) || "") &&
+    /^prod_[A-Za-z0-9]+$/.test(catalog.product || "") &&
+    Object.values(catalog.plans).every(
+      (p) =>
+        /^price_[A-Za-z0-9]+$/.test(p.id || "") &&
+        !Object.values(TEST_PLANS).some((t) => t.id === p.id),
+    ) &&
+    catalog.plans.monthly.id !== catalog.plans.yearly.id
+  );
+};
+export function approvedPrice(price, plan, catalog = billingCatalog()) {
   return (
     !!plan &&
     price?.id === plan.id &&
-    price.livemode === false &&
+    price.livemode === catalog.livemode &&
     price.active === true &&
     price.currency === "usd" &&
     price.unit_amount === plan.amount &&
@@ -39,22 +87,22 @@ export function approvedPrice(price, plan) {
     price.recurring.usage_type === "licensed" &&
     !price.recurring.trial_period_days &&
     (typeof price.product === "string" ? price.product : price.product?.id) ===
-      TEST_PRODUCT
+      catalog.product
   );
 }
 export const stripeClient = (env) =>
-  new Stripe(env.STRIPE_SECRET_KEY, {
+  new Stripe(billingSecret(env), {
     apiVersion: "2026-08-26.dahlia",
     httpClient: Stripe.createFetchHttpClient(),
     maxNetworkRetries: 2,
   });
 const objectId = (value) => (typeof value === "string" ? value : value?.id);
-export function paidInvoiceFor(sub) {
+export function paidInvoiceFor(sub, catalog = billingCatalog()) {
   const invoice = sub.latest_invoice;
   return (
     !!invoice &&
     typeof invoice === "object" &&
-    invoice.livemode === false &&
+    invoice.livemode === catalog.livemode &&
     invoice.status === "paid" &&
     invoice.amount_remaining === 0 &&
     objectId(invoice.customer) === objectId(sub.customer) &&
@@ -66,12 +114,18 @@ export function paidInvoiceFor(sub) {
 }
 const cancellationScheduled = (sub) =>
   !!sub && (!!sub.cancel_at_period_end || Number(sub.cancel_at) > now());
-export function subscriptionState(sub, previousUntil = 0) {
+export function subscriptionState(
+  sub,
+  previousUntil = 0,
+  catalog = billingCatalog(),
+) {
   const allItems = sub.items?.data || [];
   const items = allItems.filter(
     (item) =>
       item.quantity === 1 &&
-      Object.values(TEST_PLANS).some((plan) => approvedPrice(item.price, plan)),
+      Object.values(catalog.plans).some((plan) =>
+        approvedPrice(item.price, plan, catalog),
+      ),
   );
   const end = Math.max(
     0,
@@ -80,7 +134,7 @@ export function subscriptionState(sub, previousUntil = 0) {
     ),
   );
   const enabled =
-    sub.livemode === false &&
+    sub.livemode === catalog.livemode &&
     !sub.pause_collection &&
     ["active", "past_due"].includes(sub.status) &&
     items.length === 1 &&
@@ -91,7 +145,9 @@ export function subscriptionState(sub, previousUntil = 0) {
   // A future subscription period alone is not evidence of payment. In particular,
   // a failed plan change must never extend the previously paid access window.
   const paidEnd =
-    sub.status === "active" && paidInvoiceFor(sub) && !sub.has_unpaid_invoices
+    sub.status === "active" &&
+    paidInvoiceFor(sub, catalog) &&
+    !sub.has_unpaid_invoices
       ? Math.max(
           0,
           ...(sub.latest_invoice.lines?.data || [])
@@ -101,7 +157,7 @@ export function subscriptionState(sub, previousUntil = 0) {
                   line.parent?.subscription_item_details?.subscription ||
                     line.subscription,
                 ) === sub.id &&
-                Object.values(TEST_PLANS).some(
+                Object.values(catalog.plans).some(
                   (p) =>
                     p.id ===
                     objectId(line.pricing?.price_details?.price || line.price),
@@ -120,15 +176,19 @@ export function subscriptionState(sub, previousUntil = 0) {
     until,
     plan:
       items.length === 1
-        ? Object.keys(TEST_PLANS).find(
-            (key) => TEST_PLANS[key].id === items[0].price.id,
+        ? Object.keys(catalog.plans).find(
+            (key) => catalog.plans[key].id === items[0].price.id,
           )
         : null,
     periodEnd: Number.isFinite(end) ? end : 0,
     cancel: cancellationScheduled(sub),
   };
 }
-export async function subscriptionsFor(customer, stripe) {
+export async function subscriptionsFor(
+  customer,
+  stripe,
+  catalog = billingCatalog(),
+) {
   const subscriptions = [];
   for await (const sub of stripe.subscriptions.list({
     customer,
@@ -136,8 +196,8 @@ export async function subscriptionsFor(customer, stripe) {
     limit: 100,
     expand: ["data.latest_invoice"],
   })) {
-    if (sub.livemode !== false)
-      throw new HttpError(503, "Only Stripe test subscriptions are supported.");
+    if (sub.livemode !== catalog.livemode)
+      throw new HttpError(503, "Unexpected Stripe subscription mode.");
     // Outstanding invoices must not fund a later change through unpaid credits.
     sub.has_unpaid_invoices = false;
     for await (const invoice of stripe.invoices.list({
@@ -145,8 +205,8 @@ export async function subscriptionsFor(customer, stripe) {
       subscription: sub.id,
       limit: 100,
     })) {
-      if (invoice.livemode !== false)
-        throw new HttpError(503, "Only Stripe test invoices are supported.");
+      if (invoice.livemode !== catalog.livemode)
+        throw new HttpError(503, "Unexpected Stripe invoice mode.");
       if (
         ["open", "uncollectible"].includes(invoice.status) &&
         invoice.amount_remaining > 0
@@ -158,15 +218,21 @@ export async function subscriptionsFor(customer, stripe) {
   return subscriptions;
 }
 export async function syncBilling(accountId, env, stripe) {
+  const catalog = billingCatalog(env),
+    columns = billingColumns(env);
   // Read version BEFORE remote state, then CAS. Overlapping events cannot apply an older fetch last.
   for (let retry = 0; retry < 4; retry++) {
-    const account = await env.DB.prepare("SELECT * FROM accounts WHERE id=?")
-      .bind(accountId)
-      .first();
+    const account = accountBilling(
+      await env.DB.prepare("SELECT * FROM accounts WHERE id=?")
+        .bind(accountId)
+        .first(),
+      env,
+    );
     if (!account?.stripe_customer) return [];
     const subscriptions = await subscriptionsFor(
       account.stripe_customer,
       stripe,
+      catalog,
     );
     const states = subscriptions.map((sub) =>
       subscriptionState(
@@ -174,6 +240,7 @@ export async function syncBilling(accountId, env, stripe) {
         ["active", "past_due"].includes(account.billing_status)
           ? account.premium_until
           : 0,
+        catalog,
       ),
     );
     const entitled = states
@@ -186,7 +253,7 @@ export async function syncBilling(accountId, env, stripe) {
       pending ||
       states[0] || { status: "none", until: 0, cancel: false };
     const result = await env.DB.prepare(
-      "UPDATE accounts SET billing_status=?,premium_until=?,cancel_at_period_end=?,billing_version=billing_version+1 WHERE id=? AND billing_version=?",
+      `UPDATE accounts SET ${columns.status}=?,${columns.until}=?,${columns.cancel}=?,${columns.version}=${columns.version}+1 WHERE id=? AND ${columns.version}=?`,
     )
       .bind(
         state.status,
@@ -202,8 +269,10 @@ export async function syncBilling(accountId, env, stripe) {
 }
 export async function stripeWebhook(request, env, stripe) {
   if (!billingConfigured(env))
-    throw new HttpError(503, "Stripe test billing is not configured yet.");
+    throw new HttpError(503, "Billing is not configured yet.");
   stripe ||= stripeClient(env);
+  const catalog = billingCatalog(env),
+    columns = billingColumns(env);
   if (request.method !== "POST") throw new HttpError(405, "Use POST.");
   const raw = await request.text();
   if (raw.length > 1000000) throw new HttpError(413, "Event too large.");
@@ -212,15 +281,15 @@ export async function stripeWebhook(request, env, stripe) {
     event = await stripe.webhooks.constructEventAsync(
       raw,
       request.headers.get("Stripe-Signature") || "",
-      env.STRIPE_WEBHOOK_SECRET,
+      webhookSecret(env),
       300,
       Stripe.createSubtleCryptoProvider(),
     );
   } catch {
     throw new HttpError(400, "Invalid Stripe signature.");
   }
-  if (event.livemode !== false || event.account)
-    throw new HttpError(400, "Only direct-account test events are accepted.");
+  if (event.livemode !== catalog.livemode || event.account)
+    throw new HttpError(400, "Unexpected Stripe event mode or account.");
   if (
     await env.DB.prepare("SELECT id FROM billing_events WHERE id=?")
       .bind(event.id)
@@ -241,7 +310,7 @@ export async function stripeWebhook(request, env, stripe) {
     const customerId = typeof customer === "string" ? customer : customer?.id;
     if (customerId) {
       const account = await env.DB.prepare(
-        "SELECT id FROM accounts WHERE stripe_customer=?",
+        `SELECT id FROM accounts WHERE ${columns.customer}=?`,
       )
         .bind(customerId)
         .first();
@@ -256,17 +325,17 @@ export async function stripeWebhook(request, env, stripe) {
     .run();
   return json({ received: true });
 }
-export function billingSummary(subscriptions) {
+export function billingSummary(subscriptions, catalog = billingCatalog()) {
   const current = subscriptions.filter(
     (s) => !["canceled", "incomplete_expired"].includes(s.status),
   );
   const sub = current[0] || subscriptions[0];
-  const state = sub ? subscriptionState(sub) : null;
+  const state = sub ? subscriptionState(sub, 0, catalog) : null;
   const canChange =
     current.length === 1 &&
     sub.status === "active" &&
     !!state.plan &&
-    paidInvoiceFor(sub) &&
+    paidInvoiceFor(sub, catalog) &&
     !sub.has_unpaid_invoices &&
     !sub.pending_update &&
     !sub.schedule &&
@@ -297,14 +366,21 @@ export function billingSummary(subscriptions) {
             : "Resolve any outstanding payment in billing before changing plans.",
   };
 }
-async function portalConfiguration(stripe, allowChange) {
+async function portalConfiguration(
+  stripe,
+  allowChange,
+  catalog = billingCatalog(),
+) {
   // Explicit per-session configuration; never inherit an unrelated default portal.
   // Versions are immutable. Concurrent calls use the same idempotency key.
   const version =
-    "writeshape-account-v3-" + (allowChange ? "change" : "manage");
-  for (const plan of Object.values(TEST_PLANS)) {
-    if (!approvedPrice(await stripe.prices.retrieve(plan.id), plan))
-      throw new HttpError(503, "The sandbox billing catalog needs attention.");
+    "writeshape-account-v4-" +
+    (catalog.livemode ? "live-" : "test-") +
+    (allowChange ? "change-" : "manage-") +
+    catalog.product;
+  for (const plan of Object.values(catalog.plans)) {
+    if (!approvedPrice(await stripe.prices.retrieve(plan.id), plan, catalog))
+      throw new HttpError(503, "The billing catalog needs attention.");
   }
   let config;
   for await (const item of stripe.billingPortal.configurations.list({
@@ -312,7 +388,7 @@ async function portalConfiguration(stripe, allowChange) {
     limit: 100,
   })) {
     if (
-      item.livemode === false &&
+      item.livemode === catalog.livemode &&
       item.metadata?.writeshape_version === version
     ) {
       config = item;
@@ -334,9 +410,9 @@ async function portalConfiguration(stripe, allowChange) {
       default_allowed_updates: ["price"],
       products: [
         {
-          product: TEST_PRODUCT,
+          product: catalog.product,
           adjustable_quantity: { enabled: false },
-          prices: Object.values(TEST_PLANS).map((p) => p.id),
+          prices: Object.values(catalog.plans).map((p) => p.id),
         },
       ],
       proration_behavior: "always_invoice",
@@ -346,10 +422,14 @@ async function portalConfiguration(stripe, allowChange) {
   if (!config)
     config = await stripe.billingPortal.configurations.create(
       {
-        name: "WriteShape sandbox account",
+        name: catalog.livemode
+          ? "WriteShape account"
+          : "WriteShape sandbox account",
         metadata: { writeshape_version: version },
         business_profile: {
-          headline: "Manage your WriteShape test subscription",
+          headline: catalog.livemode
+            ? "Manage your WriteShape subscription"
+            : "Manage your WriteShape test subscription",
         },
         default_return_url: "https://writeshape.com/?account=billing",
         login_page: { enabled: false },
@@ -364,10 +444,10 @@ async function portalConfiguration(stripe, allowChange) {
   const f = config.features;
   const prices =
     f?.subscription_update?.products?.flatMap((p) =>
-      p.product === TEST_PRODUCT ? p.prices : ["invalid"],
+      p.product === catalog.product ? p.prices : ["invalid"],
     ) || [];
   if (
-    config.livemode !== false ||
+    config.livemode !== catalog.livemode ||
     !config.active ||
     !f?.subscription_cancel?.enabled ||
     f.subscription_cancel.mode !== "at_period_end" ||
@@ -376,16 +456,22 @@ async function portalConfiguration(stripe, allowChange) {
     f.subscription_update?.proration_behavior !== "always_invoice" ||
     f.subscription_update?.default_allowed_updates?.join() !== "price" ||
     prices.length !== 2 ||
-    !Object.values(TEST_PLANS).every((p) => prices.includes(p.id))
+    !Object.values(catalog.plans).every((p) => prices.includes(p.id))
   )
     throw new HttpError(
       503,
-      "Sandbox subscription management needs configuration. Your subscription is unchanged.",
+      "Subscription management needs configuration. Your subscription is unchanged.",
     );
   return config.id;
 }
 export async function billingRoutes(request, env, account, stripe) {
   const path = new URL(request.url).pathname;
+  account = accountBilling(account, env);
+  const catalog = billingCatalog(env),
+    columns = billingColumns(env);
+  const attemptsTable = catalog.livemode
+    ? "live_checkout_attempts"
+    : "checkout_attempts";
   if (
     ![
       "/api/billing/checkout",
@@ -405,7 +491,7 @@ export async function billingRoutes(request, env, account, stripe) {
   if (!account)
     throw new HttpError(401, "Sign in before managing a subscription.");
   if (!billingConfigured(env))
-    throw new HttpError(503, "Stripe test billing is not configured yet.");
+    throw new HttpError(503, "Billing is not configured yet.");
   stripe ||= stripeClient(env);
   if (path === "/api/billing/refresh") {
     await syncBilling(account.id, env, stripe);
@@ -413,9 +499,9 @@ export async function billingRoutes(request, env, account, stripe) {
   }
   if (path === "/api/billing/status") {
     const subscriptions = account.stripe_customer
-      ? await subscriptionsFor(account.stripe_customer, stripe)
+      ? await subscriptionsFor(account.stripe_customer, stripe, catalog)
       : [];
-    return json(billingSummary(subscriptions));
+    return json(billingSummary(subscriptions, catalog));
   }
   if (path === "/api/billing/portal") {
     if (!account.stripe_customer)
@@ -425,7 +511,7 @@ export async function billingRoutes(request, env, account, stripe) {
     if (!["manage", "change", "cancel"].includes(intent))
       throw new HttpError(400, "Choose a billing action.");
     const subscriptions = await syncBilling(account.id, env, stripe);
-    const summary = billingSummary(subscriptions);
+    const summary = billingSummary(subscriptions, catalog);
     const current = subscriptions.find(
       (sub) => sub.id === summary.subscriptionId,
     );
@@ -436,7 +522,11 @@ export async function billingRoutes(request, env, account, stripe) {
         409,
         "There is no subscription to cancel. Refresh the account page.",
       );
-    const configuration = await portalConfiguration(stripe, summary.canChange);
+    const configuration = await portalConfiguration(
+      stripe,
+      summary.canChange,
+      catalog,
+    );
     const flow =
       intent === "change"
         ? {
@@ -466,40 +556,46 @@ export async function billingRoutes(request, env, account, stripe) {
         : {}),
     });
     if (
-      portal.livemode !== false ||
+      portal.livemode !== catalog.livemode ||
       portal.customer !== account.stripe_customer
     )
-      throw new HttpError(502, "Unexpected test portal response.");
+      throw new HttpError(502, "Unexpected portal response.");
     if (new URL(portal.url).origin !== "https://billing.stripe.com")
       throw new HttpError(502, "Unexpected billing URL.");
     return json({ url: portal.url });
   }
   const body = await bodyJson(request);
   const selection = body?.plan;
-  if (!Object.hasOwn(TEST_PLANS, selection))
+  if (!Object.hasOwn(catalog.plans, selection))
     throw new HttpError(400, "Choose monthly or yearly billing.");
-  const plan = TEST_PLANS[selection];
+  const plan = catalog.plans[selection];
   const price = await stripe.prices.retrieve(plan.id);
-  if (!approvedPrice(price, plan))
+  if (!approvedPrice(price, plan, catalog))
     throw new HttpError(
       503,
-      "The configured test price does not match the approved plan.",
+      "The configured price does not match the approved plan.",
     );
   if (!account.stripe_customer) {
     const customer = await stripe.customers.create(
       { email: account.email, metadata: { writeshape_account: account.id } },
-      { idempotencyKey: "writeshape-test-customer-" + account.id },
+      {
+        idempotencyKey:
+          "writeshape-" + billingMode(env) + "-customer-" + account.id,
+      },
     );
-    if (customer.livemode !== false)
-      throw new HttpError(503, "Only Stripe test customers are supported.");
+    if (customer.livemode !== catalog.livemode)
+      throw new HttpError(503, "Unexpected Stripe customer mode.");
     await env.DB.prepare(
-      "UPDATE accounts SET stripe_customer=? WHERE id=? AND stripe_customer IS NULL",
+      `UPDATE accounts SET ${columns.customer}=? WHERE id=? AND ${columns.customer} IS NULL`,
     )
       .bind(customer.id, account.id)
       .run();
-    account = await env.DB.prepare("SELECT * FROM accounts WHERE id=?")
-      .bind(account.id)
-      .first();
+    account = accountBilling(
+      await env.DB.prepare("SELECT * FROM accounts WHERE id=?")
+        .bind(account.id)
+        .first(),
+      env,
+    );
   }
   const subscriptions = await syncBilling(account.id, env, stripe);
   if (
@@ -517,28 +613,32 @@ export async function billingRoutes(request, env, account, stripe) {
   // No schema change is required; the existing token is opaque to other code.
   for (let retry = 0; retry < 5; retry++) {
     await env.DB.prepare(
-      "INSERT INTO checkout_attempts (account_id,token,expires) VALUES (?,?,?) ON CONFLICT(account_id) DO UPDATE SET token=excluded.token,expires=excluded.expires WHERE checkout_attempts.expires<=?",
+      `INSERT INTO ${attemptsTable} (account_id,token,expires) VALUES (?,?,?) ON CONFLICT(account_id) DO UPDATE SET token=excluded.token,expires=excluded.expires WHERE ${attemptsTable}.expires<=?`,
     )
       .bind(account.id, selection + ":" + randomToken(), now() + 3600, now())
       .run();
     const attempt = await env.DB.prepare(
-      "SELECT * FROM checkout_attempts WHERE account_id=?",
+      `SELECT * FROM ${attemptsTable} WHERE account_id=?`,
     )
       .bind(account.id)
       .first();
-    const priorPlan = TEST_PLANS[attempt.token.split(":")[0]];
+    const priorPlan = catalog.plans[attempt.token.split(":")[0]];
     if (!priorPlan)
       throw new HttpError(
         409,
-        "A previous test checkout is pending. Retry after it expires.",
+        "A previous checkout is pending. Retry after it expires.",
       );
     if (
       priorPlan.id !== plan.id &&
-      !approvedPrice(await stripe.prices.retrieve(priorPlan.id), priorPlan)
+      !approvedPrice(
+        await stripe.prices.retrieve(priorPlan.id),
+        priorPlan,
+        catalog,
+      )
     )
       throw new HttpError(
         503,
-        "The previous test price no longer matches the approved plan.",
+        "The previous price no longer matches the approved plan.",
       );
     // Reconcile again after reserving/reusing the attempt. An earlier Checkout
     // may have completed while this request was fetching price/customer data.
@@ -567,10 +667,13 @@ export async function billingRoutes(request, env, account, stripe) {
           env.APP_ORIGIN + "/?account=billing-cancelled&plan=" + selection,
         expires_at: attempt.expires,
       },
-      { idempotencyKey: "writeshape-test-checkout-" + attempt.token },
+      {
+        idempotencyKey:
+          "writeshape-" + billingMode(env) + "-checkout-" + attempt.token,
+      },
     );
     if (
-      checkout.livemode !== false ||
+      checkout.livemode !== catalog.livemode ||
       checkout.customer !== account.stripe_customer ||
       !checkout.id ||
       checkout.mode !== "subscription"
@@ -581,7 +684,7 @@ export async function billingRoutes(request, env, account, stripe) {
       // request expired/completed it. Always retrieve live status before rotate.
       let latest = await stripe.checkout.sessions.retrieve(checkout.id);
       if (
-        latest.livemode !== false ||
+        latest.livemode !== catalog.livemode ||
         latest.customer !== account.stripe_customer
       )
         throw new HttpError(502, "Unexpected checkout response.");
@@ -598,7 +701,7 @@ export async function billingRoutes(request, env, account, stripe) {
           "Checkout is completing. Refresh subscription status before starting another.",
         );
       await env.DB.prepare(
-        "UPDATE checkout_attempts SET token=?,expires=? WHERE account_id=? AND token=? AND expires=?",
+        `UPDATE ${attemptsTable} SET token=?,expires=? WHERE account_id=? AND token=? AND expires=?`,
       )
         .bind(
           selection + ":" + randomToken(),
@@ -612,7 +715,7 @@ export async function billingRoutes(request, env, account, stripe) {
     }
     const latest = await stripe.checkout.sessions.retrieve(checkout.id);
     if (
-      latest.livemode !== false ||
+      latest.livemode !== catalog.livemode ||
       latest.customer !== account.stripe_customer ||
       latest.status !== "open" ||
       !latest.url

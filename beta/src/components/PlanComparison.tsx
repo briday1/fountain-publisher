@@ -27,9 +27,13 @@ const features: { title: PremiumFeature; benefit: string; caption: string }[] =
 export function PlanComparison({
   onClose,
   onAccount,
+  billingMode = "test",
+  privateMode = true,
 }: {
   onClose: () => void;
   onAccount?: (plan?: BillingPlan) => void;
+  billingMode?: "test" | "live";
+  privateMode?: boolean;
 }) {
   const [plan, setPlan] = useState<BillingPlan>("monthly");
   return (
@@ -204,10 +208,14 @@ export function PlanComparison({
           ))}
         </tbody>
       </table>
-      <p>
-        Private pilot · Sandbox only. No real payments. Premium is included for
-        approved private testers.
-      </p>
+      {billingMode !== "live" && (
+        <p>
+          {privateMode ? "Private pilot · " : ""}Sandbox only. No real payments.
+          {privateMode
+            ? " Premium is included for approved private testers."
+            : ""}
+        </p>
+      )}
       {onAccount && (
         <section
           className="showcase-billing"

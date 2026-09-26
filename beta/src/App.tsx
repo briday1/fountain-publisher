@@ -2502,7 +2502,7 @@ export default function App() {
         <span className="status-divider" />
         <span>{preferences.pageSize === "letter" ? "US Letter" : "A4"}</span>
         <span className="status-divider" />
-        <span>{novel ? "Markdown · Novel" : "Fountain"}</span>
+        <span>{novel ? "Markdown · Book" : "Fountain"}</span>
       </footer>
       {notice && (
         <div className="toast" role="status">
@@ -2736,6 +2736,8 @@ export default function App() {
       )}
       {plansOpen && (
         <PlanComparison
+          billingMode={account.state.billingMode}
+          privateMode={account.state.privateMode}
           onClose={() => setPlansOpen(false)}
           onAccount={(plan) => {
             if (plan) setSelectedBillingPlan(plan);
@@ -2829,11 +2831,8 @@ export default function App() {
               <small>Scenes, dialogue and Fountain files.</small>
             </button>
             <button onClick={() => void run(() => newDocument("novel"))}>
-              <strong>Novel</strong>
-              <small>
-                Books, fiction or nonfiction. Chapters and prose, saved as
-                Markdown.
-              </small>
+              <strong>Book</strong>
+              <small>Fiction or nonfiction, saved as Markdown.</small>
             </button>
           </div>
         </Modal>

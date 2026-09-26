@@ -174,3 +174,12 @@
 .collaboration-page { position: relative; }
 .concept-cursor { position: absolute; left: 24%; top: 29%; padding: 4px 8px; border-left: 2px solid #39765e; background: #d3ede2; color: #225b46; font: 10px system-ui; }
 .concept-cursor.second { left: 64%; top: 62%; border-color: #87559c; background: #eee0f8; color: #6c3888; }
+
+.access-code-manager summary { cursor:pointer; padding:12px 0; font-weight:600; }
+.access-code-fields { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.access-code-fields input { min-width:0; width:100%; }
+.access-code-list { list-style:none; padding:0; }
+.access-code-list li { display:grid; gap:8px; padding:16px 0; border-top:1px solid var(--border); }
+.access-code-list li > span { font-size:13px; }
+.access-code-list button { justify-self:start; }
+.access-code-manager input { max-width:100%; box-sizing:border-box; }

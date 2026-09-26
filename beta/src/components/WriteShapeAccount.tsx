@@ -1,3 +1,4 @@
+import { AccessCodes } from "./AccessCodes";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isWriteShape } from "../product";
 import { Modal } from "./Modal";
@@ -12,7 +13,11 @@ export interface AccountState {
     billingStatus: string;
     cancelAtPeriodEnd: boolean;
     premiumUntil: number;
+    complimentaryUntil?: number;
   };
+  billingMode?: "test" | "live";
+  accessCodesAvailable?: boolean;
+  manageAccessCodes?: boolean;
   premium: boolean;
   googleAvailable: boolean;
   billingAvailable: boolean;
@@ -112,6 +117,7 @@ export function WriteShapeAccount({
   initialPlan?: BillingPlan;
 }) {
   const account = state.account;
+  const testBilling = state.billingMode !== "live";
   const [name, setName] = useState(account?.displayName || "");
   useEffect(
     () => setName(account?.displayName || ""),
@@ -225,6 +231,9 @@ export function WriteShapeAccount({
       <nav className="account-nav" aria-label="Account sections">
         <a href="#account-subscription">Plan & billing</a>
         <a href="#account-profile">Profile & sign-in</a>
+        {account && state.accessCodesAvailable && (
+          <a href="#account-access">Access codes</a>
+        )}
       </nav>
       {(error || notice) && (
         <p className="account-notice" role="status">
@@ -238,17 +247,21 @@ export function WriteShapeAccount({
       >
         <div className="account-section-title">
           <h3 id="account-plan-title">Plan & billing</h3>
-          <span className="account-badge">Test mode</span>
+          {testBilling && <span className="account-badge">Test mode</span>}
         </div>
-        <p>
-          No real payments. Only approved email addresses can access this
-          private pilot.
-        </p>
+        {testBilling && (
+          <p>
+            No real payments.{" "}
+            {state.privateMode
+              ? "Only approved email addresses can access this private pilot."
+              : "Billing is currently in test mode."}
+          </p>
+        )}
         {account?.privateTester && (
           <div className="account-included">
             <strong>Premium is included for you</strong>
             <p>
-              Your private-tester access does not require a subscription. A test
+              Your private-tester access does not require a subscription. A
               subscription is separate; canceling it will not remove your tester
               access.
             </p>
@@ -268,8 +281,8 @@ export function WriteShapeAccount({
         )}
         {!state.billingAvailable && (
           <p>
-            Test checkout is currently unavailable. Your writing and existing
-            account access are unchanged.
+            {testBilling ? "Test checkout" : "Checkout"} is currently
+            unavailable. Your writing and existing account access are unchanged.
           </p>
         )}
         {account && (
@@ -364,9 +377,11 @@ export function WriteShapeAccount({
         ) : (
           <>
             <h4>
-              {account?.privateTester
-                ? "Optional sandbox subscription"
-                : "Premium test subscription"}
+              {testBilling
+                ? account?.privateTester
+                  ? "Optional sandbox subscription"
+                  : "Premium test subscription"
+                : "Premium subscription"}
             </h4>
             <BillingPlanChoice
               value={billingPlan}
@@ -393,7 +408,8 @@ export function WriteShapeAccount({
                 )
               }
             >
-              Continue to {billingPlan} test checkout
+              Continue to {billingPlan}
+              {testBilling ? " test" : ""} checkout
             </button>
             {state.portalAvailable && (
               <button disabled={disabled} onClick={() => manage("manage")}>
@@ -418,6 +434,23 @@ export function WriteShapeAccount({
             Refresh billing status
           </button>
         )}
+      </section>
+      {account && state.accessCodesAvailable && (
+        <AccessCodes
+          owner={!!state.manageAccessCodes}
+          until={account.complimentaryUntil || 0}
+          refresh={refresh}
+        />
+      )}
+      <section className="account-section" aria-label="Support">
+        <h3>Support</h3>
+        <p>
+          <a href="mailto:support@writeshape.com">support@writeshape.com</a>
+        </p>
+        <p>
+          This support inbox is being set up. Delivery has not been verified
+          yet.
+        </p>
       </section>
       <section
         className="account-section"
