@@ -19,6 +19,7 @@ export interface AccountState {
   accessCodesAvailable?: boolean;
   manageAccessCodes?: boolean;
   premium: boolean;
+  collaborationAvailable?: boolean;
   googleAvailable: boolean;
   billingAvailable: boolean;
   portalAvailable: boolean;

@@ -101,6 +101,19 @@ async function body(request) {
   return result;
 }
 async function failedWrite(env, owner, input, policy) {
+  if (env.LIVE_WRITER_ACCOUNT && env.LIVE_WRITER_ACCOUNT !== owner) {
+    const active = await env.DB.prepare(
+      "SELECT id FROM file_edit_shares WHERE file_id=? AND owner=? AND recipient_id=? AND revoked_at IS NULL",
+    )
+      .bind(input.id, owner, env.LIVE_WRITER_ACCOUNT)
+      .first();
+    if (!active)
+      fail(
+        403,
+        "Your editing access was revoked. Your local draft is preserved.",
+        "LIVE_ACCESS",
+      );
+  }
   if (input.id) {
     const current = await env.DB.prepare(
       "SELECT revision,parent FROM items WHERE owner=? AND id=? AND kind='file'",
@@ -163,7 +176,7 @@ async function writeFile(env, owner, input) {
     // The BEFORE UPDATE trigger archives the old current content in that same transaction.
     // Net storage growth is the full NEW content, because the old content is retained as history.
     result = await env.DB.prepare(
-      `UPDATE items SET content=?,name=?,revision=revision+1,updated=? WHERE id=? AND owner=? AND revision=? AND kind='file' AND parent=? AND NOT EXISTS(SELECT 1 FROM items other WHERE other.owner=? AND other.parent=? AND other.name=? COLLATE NOCASE AND other.id!=?) AND (? IS NULL OR ${usageExpression}+?<=?) AND (? IS NULL OR (SELECT COUNT(*) FROM file_versions WHERE owner=? AND file_id=?)<?)`,
+      `UPDATE items SET content=?,name=?,revision=revision+1,updated=? WHERE id=? AND owner=? AND revision=? AND kind='file' AND parent=? AND (? IS NULL OR owner=? OR EXISTS(SELECT 1 FROM file_edit_shares live_grant WHERE live_grant.file_id=items.id AND live_grant.owner=items.owner AND live_grant.recipient_id=? AND live_grant.revoked_at IS NULL)) AND NOT EXISTS(SELECT 1 FROM items other WHERE other.owner=? AND other.parent=? AND other.name=? COLLATE NOCASE AND other.id!=?) AND (? IS NULL OR ${usageExpression}+?<=?) AND (? IS NULL OR (SELECT COUNT(*) FROM file_versions WHERE owner=? AND file_id=?)<?)`,
     )
       .bind(
         input.content,
@@ -173,6 +186,9 @@ async function writeFile(env, owner, input) {
         owner,
         input.revision,
         input.parent,
+        env.LIVE_WRITER_ACCOUNT || null,
+        env.LIVE_WRITER_ACCOUNT || null,
+        env.LIVE_WRITER_ACCOUNT || null,
         owner,
         input.parent,
         input.name,

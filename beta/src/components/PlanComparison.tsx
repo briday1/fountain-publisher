@@ -27,11 +27,13 @@ const features: { title: PremiumFeature; benefit: string; caption: string }[] =
 export function PlanComparison({
   onClose,
   onAccount,
+  collaborationAvailable = false,
   billingMode = "test",
   privateMode = true,
 }: {
   onClose: () => void;
   onAccount?: (plan?: BillingPlan) => void;
+  collaborationAvailable?: boolean;
   billingMode?: "test" | "live";
   privateMode?: boolean;
 }) {
@@ -48,7 +50,7 @@ export function PlanComparison({
       </p>
       <p>
         Writing, local saves, and standard PDF exports stay free without an
-        account. Explore the tools planned for Premium below.
+        account. Explore the Premium tools below.
       </p>
       <p className="sample-label">
         All illustrations use fictional sample content: The Last Light. Your
@@ -139,14 +141,14 @@ export function PlanComparison({
         </section>
         <section className="showcase-feature showcase-collaboration">
           <small className="showcase-kicker">
-            Live collaboration · Planned
+            Live collaboration ·{" "}
+            {collaborationAvailable ? "Available" : "Not enabled"}
           </small>
-          <h3>Two perspectives. One screenplay.</h3>
+          <h3>Two perspectives. One document.</h3>
           <p>
-            A shared writing room is planned for WriteShape: see a
-            collaborator’s presence and work on the same screenplay together.
-            Today, autosave and saved-file sync keep your own WriteShape
-            instances up to date; live co-editing is not available yet.
+            {collaborationAvailable
+              ? "Write together in a screenplay or Book, with live presence, shared edits, and saved recovery. Save to your cloud library or Google Drive, then choose Start live editing. Everyone needs access to the document and WriteShape. Local folders do not support live collaboration."
+              : "Live collaboration is not enabled for this deployment. Autosave and saved-file sync keep your own WriteShape instances up to date."}
           </p>
           <figure>
             <div
@@ -157,7 +159,7 @@ export function PlanComparison({
                 <span className="collaborator-avatar">M</span>
                 <span className="collaborator-avatar second">E</span>
                 <span>
-                  Mara & Eli <small>Concept · Planned</small>
+                  Mara & Eli <small>Fictional sample</small>
                 </span>
               </div>
               <div className="collaboration-page" inert aria-hidden="true">
@@ -167,8 +169,7 @@ export function PlanComparison({
               </div>
             </div>
             <figcaption>
-              Live collaboration · Planned concept · Fictional sample, not a
-              working session
+              Live collaboration · Fictional sample, not a working session
             </figcaption>
           </figure>
         </section>
@@ -179,7 +180,7 @@ export function PlanComparison({
           <tr>
             <th scope="col">Feature</th>
             <th scope="col">Free</th>
-            <th scope="col">Premium (planned)</th>
+            <th scope="col">Premium</th>
           </tr>
         </thead>
         <tbody>
@@ -194,14 +195,16 @@ export function PlanComparison({
             "Beat Guide",
             "Cloud library",
             "Writing goals",
-            "Live collaboration (planned)",
+            "Live collaboration",
           ].map((feature, i) => (
             <tr key={feature}>
               <th scope="row">{feature}</th>
               <td>{i < 3 ? "Included" : "—"}</td>
               <td>
-                {feature === "Live collaboration (planned)"
-                  ? "Planned"
+                {feature === "Live collaboration"
+                  ? collaborationAvailable
+                    ? "Included"
+                    : "Not enabled"
                   : "Included"}
               </td>
             </tr>

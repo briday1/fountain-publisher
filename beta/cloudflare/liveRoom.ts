@@ -1,6 +1,7 @@
 import * as Y from "yjs";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
+import type { Screenplay } from "../src/core/model";
 import { parseFountain, serializeFountain } from "../src/core/fountain";
 import {
   createSharedDocument,
@@ -133,11 +134,14 @@ function attachment(socket: LiveSocket): Attachment {
     );
   return value;
 }
-function documentContent(document: Y.Doc): string {
+function documentContent(
+  document: Y.Doc,
+  serialize: (doc: Screenplay) => string = serializeFountain,
+): string {
   let content: string;
   try {
     validateSharedDocument(document);
-    content = serializeFountain(readSharedDocument(document));
+    content = serialize(readSharedDocument(document));
   } catch {
     throw new LiveError(
       400,
@@ -221,7 +225,12 @@ function relativePosition(value: unknown): unknown {
 
 /** A separate structured room namespace. No old Y.Text room state is read or rewritten here. */
 export class LiveScreenplayRoom {
-  private drive: LiveDrive;
+  private drive: Pick<
+    LiveDrive,
+    "authorize" | "snapshot" | "save" | "verifyOriginalRoom"
+  >;
+  private parse: (content: string, name: string) => Screenplay;
+  private serialize: (doc: Screenplay, name?: string) => string;
   private document: Y.Doc | null = null;
   private meta: RoomMeta | null = null;
   private chunks = 0;
@@ -231,10 +240,24 @@ export class LiveScreenplayRoom {
   constructor(
     private context: LiveRoomContext,
     env: LiveEnvironment,
-    dependencies: { network?: typeof fetch } = {},
+    dependencies: {
+      network?: typeof fetch;
+      drive?: Pick<
+        LiveDrive,
+        "authorize" | "snapshot" | "save" | "verifyOriginalRoom"
+      >;
+      parse?: (content: string, name: string) => Screenplay;
+      serialize?: (doc: Screenplay, name?: string) => string;
+    } = {},
   ) {
-    this.drive = new LiveDrive(env, dependencies.network);
+    this.drive = dependencies.drive || new LiveDrive(env, dependencies.network);
+    this.parse = dependencies.parse || ((content) => parseFountain(content));
+    this.serialize = dependencies.serialize || serializeFountain;
     this.ready = this.restore();
+  }
+
+  private content(document: Y.Doc, name = this.meta?.name) {
+    return documentContent(document, (doc) => this.serialize(doc, name));
   }
 
   private async restore() {
@@ -285,7 +308,7 @@ export class LiveScreenplayRoom {
     const document = new Y.Doc();
     try {
       Y.applyUpdate(document, state);
-      documentContent(document);
+      this.content(document, meta.name);
     } catch (error) {
       document.destroy();
       throw error;
@@ -359,9 +382,11 @@ export class LiveScreenplayRoom {
       return;
     }
     await this.drive.verifyOriginalRoom(auth, snapshot.content);
-    const document = createSharedDocument(parseFountain(snapshot.content));
+    const document = createSharedDocument(
+      this.parse(snapshot.content, auth.file.name),
+    );
     try {
-      documentContent(document);
+      this.content(document, auth.file.name);
       const meta: RoomMeta = {
         version: 1,
         fileId: auth.file.id,
@@ -446,7 +471,7 @@ export class LiveScreenplayRoom {
           "You have view access to this screenplay.",
         );
       if (this.document && this.meta) {
-        if (input.expectedContent !== documentContent(this.document))
+        if (input.expectedContent !== this.content(this.document))
           throw new LiveError(
             409,
             "LIVE_NOT_SYNCED",
@@ -490,7 +515,7 @@ export class LiveScreenplayRoom {
         );
       const snapshot = await this.drive.snapshot(auth);
       return json({
-        content: documentContent(this.document),
+        content: this.content(this.document),
         driveContent: snapshot.content,
         name: auth.file.name,
       });
@@ -551,7 +576,7 @@ export class LiveScreenplayRoom {
       return json({
         state: encodeBytes(Y.encodeStateAsUpdate(this.document!)),
         vector: encodeBytes(Y.encodeStateVector(this.document!)),
-        content: documentContent(this.document!),
+        content: this.content(this.document!),
         name: this.meta!.name,
         remote: this.remote(),
         self: auth.self,
@@ -816,7 +841,7 @@ export class LiveScreenplayRoom {
           "This live update is invalid. Your local writing is preserved.",
         );
       }
-      documentContent(candidate);
+      this.content(candidate);
       const next: RoomMeta = {
         ...this.meta,
         revision: this.meta.revision + 1,
@@ -858,7 +883,7 @@ export class LiveScreenplayRoom {
         "LIVE_FILE_MISMATCH",
         "The live room belongs to another Drive file.",
       );
-    const content = documentContent(this.document);
+    const content = this.content(this.document);
     const snapshot = await this.drive.snapshot(auth);
     const hash = await contentHash(content);
     if (

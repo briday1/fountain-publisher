@@ -14,11 +14,9 @@
     "directory": "./dist",
     "not_found_handling": "single-page-application",
     "binding": "ASSETS",
-    "run_worker_first": [
-      "/api/*"
-    ]
+    "run_worker_first": ["/api/*"]
   },
-  "main": "cloudflare/writeshape/worker.mjs",
+  "main": "cloudflare/writeshape/worker-live.ts",
   "d1_databases": [
     {
       "binding": "DB",
@@ -33,6 +31,29 @@
     "APP_ORIGIN": "https://writeshape.com",
     "STRIPE_MONTHLY_PRICE_ID": "price_1UJI3mCoZzTH3rR02FrxECSY",
     "STRIPE_YEARLY_PRICE_ID": "price_1UJI3rCoZzTH3rR0fHBGdUzU",
-    "BILLING_MODE": "test"
-  }
+    "BILLING_MODE": "test",
+    "LIVE_COLLABORATION": "true"
+  },
+  "observability": {
+    "enabled": true,
+    "redact_query_string": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": false
+    }
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "LIVE_ROOMS",
+        "class_name": "WriteShapeLiveRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "writeshape-live-v1",
+      "new_sqlite_classes": ["WriteShapeLiveRoom"]
+    }
+  ]
 }

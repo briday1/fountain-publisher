@@ -1,3 +1,7 @@
+import { LiveClient, type LiveStatus } from "../collaboration/LiveClient";
+import { readSharedDocument } from "../collaboration/sharedDocument";
+import { cloud } from "../storage/cloud";
+import { serializeDocument } from "./documentFormat";
 import { workspace } from "../storage/workspace";
 import { type EditorState, Selection, TextSelection } from "prosemirror-state";
 import { DocumentSession, type SessionSnapshot } from "./session";
@@ -11,6 +15,9 @@ import { destinationKey } from "../storage/destinations";
 import type { FileHandle } from "../storage/files";
 
 export interface DocumentBuffer {
+  live?: LiveClient;
+  liveStatus?: LiveStatus;
+  joiningLive?: boolean;
   session: DocumentSession;
   snapshot: SessionSnapshot;
   views: Set<string>;
@@ -58,6 +65,154 @@ export class DocumentWorkspace {
   ) {
     this.addBuffer(initial);
     this.addView(initial.current.id, 0);
+  }
+  notifyChanged() {
+    this.options.changed();
+  }
+  async startLive(bufferId: string, resume = false) {
+    const buffer = this.buffers.get(bufferId);
+    const destination = buffer?.session.current.destination;
+    if (
+      !buffer ||
+      !destination ||
+      destination.provider === "local" ||
+      buffer.live ||
+      buffer.joiningLive
+    )
+      return;
+    if (
+      [...buffer.views].some((id) => this.views.get(id)?.controller.isComposing)
+    )
+      throw new Error(
+        "Finish the current text composition before joining live writing.",
+      );
+    buffer.joiningLive = true;
+    this.options.changed();
+    let client: LiveClient | undefined;
+    try {
+      await buffer.session.flush();
+      if (!resume) {
+        await buffer.sync.current?.flush();
+        if (buffer.sync.current?.dirty)
+          throw new Error(
+            "Resolve pending saves or conflicts before joining live writing. Your draft is preserved.",
+          );
+      }
+      const currentDestination = buffer.session.current.destination!;
+      if (
+        !resume &&
+        serializeDocument(buffer.session.capture().screenplay) !==
+          currentDestination.baseContent
+      )
+        throw new Error(
+          "Save your pending writing before joining live editing. Your draft is preserved.",
+        );
+      const roomId =
+        (destination.provider === "drive" ? "drive_" : "library_") +
+        destination.id;
+      if (resume)
+        client = await LiveClient.cached(roomId, destination.accountId || "");
+      if (!client) {
+        const bootstrap = await cloud.liveBootstrap(roomId);
+        if (bootstrap.self.id !== destination.accountId)
+          throw new Error(
+            "The signed-in account changed. Your draft is preserved.",
+          );
+        if (
+          resume &&
+          serializeDocument(buffer.session.capture().screenplay) !==
+            bootstrap.content &&
+          serializeDocument(buffer.session.capture().screenplay) !==
+            currentDestination.baseContent
+        )
+          throw new Error(
+            "Your local draft differs from the live room. Save a copy before joining to preserve both versions.",
+          );
+        client = await LiveClient.prepare(bootstrap);
+      }
+      if (
+        !this.buffers.has(bufferId) ||
+        buffer.session.current.destination?.accountId !== destination.accountId
+      )
+        throw new Error("The document changed while joining live writing.");
+      buffer.sync.current?.dispose();
+      buffer.sync.current = undefined;
+      buffer.live = client;
+      const bound = client;
+      client.onStatus = (status) => {
+        if (buffer.live === bound) {
+          buffer.liveStatus = status;
+          this.options.changed();
+        }
+      };
+      client.onPermission = (canEdit) => {
+        for (const id of buffer.views)
+          this.views.get(id)?.controller.setCollaborationEditable(canEdit);
+      };
+      client.isComposing = () =>
+        [...buffer.views].some(
+          (id) => !!this.views.get(id)?.controller.isComposing,
+        );
+      client.onSaved = (etag) => {
+        if (buffer.live !== bound || !buffer.session.current.destination)
+          return;
+        buffer.session.setDestination({
+          ...buffer.session.current.destination,
+          revision: etag,
+          baseContent: serializeDocument(readSharedDocument(bound.doc)),
+        });
+      };
+      client.doc.on("update", () => {
+        if (buffer.live !== bound) return;
+        if (!buffer.views.size)
+          buffer.session.current = {
+            ...buffer.session.current,
+            screenplay: readSharedDocument(bound.doc),
+          };
+        buffer.session.markChanged();
+        this.options.changed();
+      });
+      for (const id of buffer.views)
+        this.attachLiveView(buffer, this.views.get(id)!);
+      buffer.session.current = {
+        ...buffer.session.current,
+        screenplay: readSharedDocument(client.doc),
+      };
+      buffer.session.setDestination({ ...currentDestination, live: true });
+      await buffer.session.flush();
+      client.start();
+    } catch (error) {
+      if (client && buffer.live === client) this.stopLive(bufferId);
+      else client?.destroy();
+      throw error;
+    } finally {
+      buffer.joiningLive = false;
+      this.options.changed();
+    }
+  }
+  private attachLiveView(buffer: DocumentBuffer, view: DocumentView) {
+    const client = buffer.live!;
+    view.controller.attachCollaboration({
+      doc: client.doc,
+      awareness: client.awareness,
+      canEdit: client.self.canEdit,
+    });
+    if (view.sectionId) view.controller.setSectionFocus(view.sectionId);
+  }
+  stopLive(bufferId: string) {
+    const buffer = this.buffers.get(bufferId);
+    if (!buffer?.live) return;
+    const client = buffer.live;
+    buffer.session.capture();
+    for (const id of buffer.views)
+      this.views.get(id)?.controller.detachCollaboration();
+    buffer.live = undefined;
+    buffer.liveStatus = undefined;
+    void client
+      .stop()
+      .catch(() => {})
+      .finally(() => client.destroy());
+    this.options.changed();
   }
   get activeView() {
     return this.views.get(this.panes[this.activePane].selected || "");
@@ -178,6 +333,19 @@ export class DocumentWorkspace {
     };
     this.buffers.set(session.current.id, buffer);
     session.onSnapshot = (snapshot) => {
+      const destination = snapshot.destination;
+      const roomId =
+        destination && destination.provider !== "local"
+          ? (destination.provider === "drive" ? "drive_" : "library_") +
+            destination.id
+          : undefined;
+      if (
+        buffer.live &&
+        (buffer.live.fileId !== roomId ||
+          buffer.live.accountId !== destination?.accountId)
+      )
+        this.stopLive(snapshot.id);
+
       if (
         !buffer.views.size &&
         buffer.snapshot.screenplay.blocks !== snapshot.screenplay.blocks
@@ -287,7 +455,7 @@ export class DocumentWorkspace {
     const prior = [...buffer.views]
       .map((key) => this.views.get(key))
       .find(Boolean);
-    if (prior || buffer.state)
+    if (!buffer.live && (prior || buffer.state))
       controller.receiveSharedState(
         prior?.controller.view.state || buffer.state!,
         null,
@@ -303,6 +471,7 @@ export class DocumentWorkspace {
     };
     controller.onSharedUpdate = (state, transactions) => {
       buffer.state = state;
+      if (buffer.live) return;
       for (const key of buffer.views) {
         const peer = this.views.get(key);
         if (peer && peer.id !== id)
@@ -311,6 +480,7 @@ export class DocumentWorkspace {
     };
     buffer.views.add(id);
     this.views.set(id, view);
+    if (buffer.live) this.attachLiveView(buffer, view);
     this.panes[pane].tabs.push(id);
     // A session captures one linked view; all view document/history states agree.
     if (!buffer.session.editor) buffer.session.editor = controller;
@@ -413,6 +583,7 @@ export class DocumentWorkspace {
     for (const b of this.buffers.values())
       void b.session.flush().catch(() => {});
     this.panes = [{ tabs: [] }, { tabs: [] }];
+    for (const b of this.buffers.values()) this.stopLive(b.session.current.id);
     for (const view of this.views.values()) view.controller.destroy();
     for (const b of this.buffers.values()) b.session.dispose();
     this.views.clear();

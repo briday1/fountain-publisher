@@ -187,6 +187,7 @@ export async function accountRoutes(request, env, account, billingAvailable) {
           }
         : null,
       premium: premium(account),
+      collaborationAvailable: env.LIVE_COLLABORATION === "true",
       accessCodesAvailable: accessCodesAvailable(env),
       manageAccessCodes: accessCodeOwner(account, env),
       googleAvailable: googleConfigured(env),

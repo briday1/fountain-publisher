@@ -922,6 +922,11 @@ export default function App() {
     }
     if (isWriteShape && session) {
       await session.flush();
+      const shared = documentWorkspace.current?.activeBuffer?.live;
+      if (shared) {
+        await shared.checkpoint();
+        return;
+      }
       if (!session.current.destination || !destinationSync.engine.current) {
         setLibraryMode("save");
         return;
@@ -1076,6 +1081,70 @@ export default function App() {
     setHistory(await workspace.snapshots(session.current.id));
     setDialog("history");
   }
+  async function openWriteShapeLive(liveId: string) {
+    const model = documentWorkspace.current;
+    const current = sessionRef.current;
+    if (
+      !model ||
+      !current ||
+      !accountId ||
+      !/^(library|drive)_[A-Za-z0-9_-]{10,200}$/.test(liveId)
+    )
+      throw new Error("Sign in and choose a shared live document.");
+    const token = current.token();
+    const bootstrap = await cloud.liveBootstrap(liveId);
+    current.assertCurrent(token);
+    if (bootstrap.self.id !== accountIdRef.current)
+      throw new Error("The signed-in account changed.");
+    const prepared = await LiveClient.prepare(bootstrap);
+    const sharedDocument = readSharedDocument(prepared.doc);
+    prepared.destroy();
+    const drive = liveId.startsWith("drive_");
+    await current.open(
+      sharedDocument,
+      bootstrap.name,
+      undefined,
+      undefined,
+      {
+        provider: drive ? "drive" : "writeshape",
+        id: liveId.slice(drive ? 6 : 8),
+        accountId,
+        name: bootstrap.name,
+        revision: bootstrap.remote.etag,
+        baseContent: bootstrap.content,
+        canWrite: bootstrap.self.canEdit,
+        live: true,
+      },
+      () => {
+        if (accountIdRef.current !== accountId)
+          throw new Error("The signed-in account changed.");
+      },
+    );
+    setLibraryMode(null);
+    if (model.activeBuffer)
+      await model.startLive(model.activeBuffer.snapshot.id, true);
+  }
+  const openingWriteShapeLive = useRef(false);
+  useEffect(() => {
+    const liveId = new URLSearchParams(location.search).get("live");
+    if (
+      !isWriteShape ||
+      !session ||
+      !accountId ||
+      !account.state.collaborationAvailable ||
+      !liveId ||
+      openingWriteShapeLive.current
+    )
+      return;
+    openingWriteShapeLive.current = true;
+    void openWriteShapeLive(liveId)
+      .then(() => {
+        const url = new URL(location.href);
+        url.searchParams.delete("live");
+        window.history.replaceState({}, "", url);
+      })
+      .catch((error) => setNotice(String(error)));
+  }, [session, accountId, account.state.collaborationAvailable]);
   async function openCloudDocument(doc: CloudDocument) {
     if (!session) return;
     const imported = importScreenplay(doc.content, doc.name);
@@ -1888,7 +1957,7 @@ export default function App() {
               setRename(snapshot.name);
               setDialog("rename");
             }}
-            title="Rename screenplay"
+            title={novel ? "Rename document" : "Rename screenplay"}
           >
             {workspaceEmpty ? "No open document" : snapshot.name}
           </button>
@@ -2195,6 +2264,7 @@ export default function App() {
             {documentWorkspace.current ? (
               <DocumentPanes
                 mobile={mobile}
+                collaborationAvailable={account.state.collaborationAvailable}
                 model={documentWorkspace.current}
                 preferences={preferences}
                 onOpen={() => setLibraryMode("open")}
@@ -2481,7 +2551,7 @@ export default function App() {
             >
               {destinationLabel(snapshot.destination)}
               {snapshot.destination
-                ? ` · ${destinationSync.status?.phase || "checking"}`
+                ? ` · ${documentWorkspace.current?.activeBuffer?.liveStatus?.phase || destinationSync.status?.phase || "checking"}`
                 : " · Choose save location"}
             </button>
           )}
@@ -2623,6 +2693,7 @@ export default function App() {
                 accountIdRef.current === accountId,
             );
           }}
+          onOpenLive={openWriteShapeLive}
           onOpen={async (item) => {
             if (
               sessionRef.current !== session ||
@@ -2736,6 +2807,7 @@ export default function App() {
       )}
       {plansOpen && (
         <PlanComparison
+          collaborationAvailable={account.state.collaborationAvailable}
           billingMode={account.state.billingMode}
           privateMode={account.state.privateMode}
           onClose={() => setPlansOpen(false)}
@@ -2767,6 +2839,7 @@ export default function App() {
       {documentWorkspace.current &&
         [...documentWorkspace.current.buffers.values()].map((buffer) => (
           <BufferSync
+            model={documentWorkspace.current!}
             key={buffer.session.current.id}
             buffer={buffer}
             accountId={accountId}
@@ -2971,6 +3044,13 @@ export default function App() {
               e.preventDefault();
               const name = rename.trim();
               if (name) {
+                if (documentWorkspace.current?.activeBuffer?.live) {
+                  tell(
+                    "Use Save As to give a live document a new filename. The shared document keeps its current name.",
+                  );
+                  setDialog(null);
+                  return;
+                }
                 session.rename(documentFilename(name, snapshot.name));
                 file.current = undefined;
                 setDialog(null);

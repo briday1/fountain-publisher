@@ -12,11 +12,13 @@ import { Menu, MenuItem } from "./Menu";
 import "./document-panes.css";
 export function BufferSync({
   buffer,
+  model,
   accountId,
   premium,
   changed,
 }: {
   buffer: DocumentBuffer;
+  model: DocumentWorkspace;
   accountId?: string;
   premium: boolean;
   changed: () => void;
@@ -27,8 +29,28 @@ export function BufferSync({
     destinationKey(buffer.snapshot.destination),
     accountId,
     premium,
-    true,
+    !buffer.snapshot.destination?.live && !buffer.live,
   );
+  useEffect(() => {
+    const destination = buffer.session.current.destination;
+    if (buffer.live && accountId !== destination?.accountId)
+      model.stopLive(buffer.session.current.id);
+    if (
+      destination?.live &&
+      accountId === destination.accountId &&
+      !buffer.live &&
+      !buffer.joiningLive
+    )
+      void model.startLive(buffer.session.current.id, true).catch((error) => {
+        buffer.liveStatus = {
+          phase: "paused",
+          message: String(error),
+          members: [],
+          canEdit: false,
+        };
+        changed();
+      });
+  }, [accountId, buffer.snapshot.id]);
   useEffect(() => {
     buffer.sync.current = sync.engine.current;
     buffer.syncStatus = sync.status;
@@ -63,8 +85,10 @@ function DocumentCanvas({
   view,
   preferences,
   onTitle,
+  collaborationAvailable = false,
   mobile = false,
 }: {
+  collaborationAvailable?: boolean;
   mobile?: boolean;
   model: DocumentWorkspace;
   view: DocumentView;
@@ -97,6 +121,79 @@ function DocumentCanvas({
           {focus ? `Focus: ${heading?.text || "Section"}` : "Whole document"} ·{" "}
           {destinationLabel(buffer.snapshot.destination)}
         </span>
+        {collaborationAvailable &&
+          buffer.snapshot.destination &&
+          buffer.snapshot.destination.provider !== "local" &&
+          (buffer.live ? (
+            <div
+              className="live-status"
+              role="status"
+              aria-label="Live collaboration"
+              title={buffer.liveStatus?.message}
+            >
+              <span>
+                {buffer.liveStatus?.phase === "live"
+                  ? "Live editing"
+                  : buffer.liveStatus?.phase === "readonly"
+                    ? "View only · live"
+                    : buffer.liveStatus?.phase || "Connecting…"}
+              </span>
+              <button
+                onClick={() => {
+                  const url = new URL(location.origin);
+                  url.searchParams.set("live", buffer.live!.fileId);
+                  void navigator.clipboard
+                    .writeText(url.toString())
+                    .then(() => {
+                      buffer.liveStatus = {
+                        ...buffer.liveStatus!,
+                        message:
+                          "Link copied. The recipient must already have access to this file and WriteShape.",
+                      };
+                      model.notifyChanged();
+                    })
+                    .catch(() => {
+                      buffer.liveStatus = {
+                        ...buffer.liveStatus!,
+                        message: "Copy this link: " + url,
+                      };
+                      model.notifyChanged();
+                    });
+                }}
+              >
+                Copy live link
+              </button>
+              {buffer.liveStatus?.members.map((member, index) => (
+                <span key={member.id + index}>{member.name}</span>
+              ))}
+            </div>
+          ) : (
+            <button
+              disabled={buffer.joiningLive}
+              onClick={() =>
+                void model
+                  .startLive(
+                    buffer.snapshot.id,
+                    !!buffer.snapshot.destination?.live,
+                  )
+                  .catch((error) => {
+                    buffer.message = String(error);
+                    buffer.liveStatus = {
+                      phase: "paused",
+                      message: String(error),
+                      members: [],
+                      canEdit: false,
+                    };
+                    model.notifyChanged();
+                  })
+              }
+            >
+              {buffer.joiningLive ? "Joining…" : "Start live editing"}
+            </button>
+          ))}
+        {buffer.liveStatus?.message && (
+          <span role="status">{buffer.liveStatus.message}</span>
+        )}
         {focus && (
           <button onClick={() => model.focusSection(view.id)}>
             Show whole document
@@ -153,8 +250,10 @@ export function DocumentPanes({
   onOpen,
   onTitle,
   changed,
+  collaborationAvailable = false,
   mobile = false,
 }: {
+  collaborationAvailable?: boolean;
   mobile?: boolean;
   model: DocumentWorkspace;
   preferences: Preferences;
@@ -174,6 +273,7 @@ export function DocumentPanes({
               key={model.activeView.id}
               model={model}
               view={model.activeView}
+              collaborationAvailable={collaborationAvailable}
               preferences={preferences}
               onTitle={onTitle}
               mobile
@@ -373,6 +473,7 @@ export function DocumentPanes({
                   key={selected.id}
                   model={model}
                   view={selected}
+                  collaborationAvailable={collaborationAvailable}
                   preferences={preferences}
                   onTitle={onTitle}
                 />

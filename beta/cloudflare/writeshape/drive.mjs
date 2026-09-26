@@ -165,7 +165,10 @@ async function boundedText(response, maximum = MAX_BYTES) {
       if (text.includes("\0")) throw new Error();
       return text;
     } catch {
-      throw new HttpError(400, "Choose a UTF-8 Markdown, Fountain or text file.");
+      throw new HttpError(
+        400,
+        "Choose a UTF-8 Markdown, Fountain or text file.",
+      );
     }
   } finally {
     reader.releaseLock();
@@ -205,6 +208,7 @@ function fileResult(file, text, etag) {
     etag,
     modifiedTime: file.modifiedTime || null,
     canEdit: file.capabilities?.canEdit === true,
+    legacyLiveRoom: Boolean(file.appProperties?.fountainPublisherDocumentId),
   };
 }
 
@@ -398,7 +402,7 @@ export function createDriveRoutes({
       env,
       account,
       current,
-      `/drive/v3/files/${id}?fields=id,name,mimeType,size,modifiedTime,trashed,capabilities(canEdit,canAddChildren)&supportsAllDrives=true`,
+      `/drive/v3/files/${id}?fields=id,name,mimeType,size,modifiedTime,trashed,appProperties,capabilities(canEdit,canAddChildren)&supportsAllDrives=true`,
     );
   }
   async function open(env, account, current, id) {
@@ -756,7 +760,10 @@ export function createDriveRoutes({
       input.name.length > 200 ||
       !/^[^/\\\x00-\x1f]+\.(fountain|txt|md|markdown)$/i.test(input.name)
     )
-      throw new HttpError(400, "Choose a .md, .markdown, .fountain or .txt filename.");
+      throw new HttpError(
+        400,
+        "Choose a .md, .markdown, .fountain or .txt filename.",
+      );
     const parent = validId(input.parent || "root");
     const destination = await metadata(env, account, current, parent);
     if (

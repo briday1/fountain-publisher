@@ -1,3 +1,4 @@
+import { isWriteShape } from "../product";
 export type Provider = "github" | "google";
 export type RemoteLocation =
   | {
@@ -80,7 +81,7 @@ async function request<T>(
   body?: unknown,
   method = body === undefined ? "GET" : "POST",
 ): Promise<T> {
-  if (method !== "GET" && !csrfToken) await cloud.status();
+  if (!isWriteShape && method !== "GET" && !csrfToken) await cloud.status();
   let response: Response;
   try {
     response = await fetch(`${apiBase}${path}`, {

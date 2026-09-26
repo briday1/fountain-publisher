@@ -1,3 +1,4 @@
+import { liveRoutes } from "./live-routes.mjs";
 import { withComplimentaryAccess, accessCodeRoutes } from "./access-codes.mjs";
 import { accountBilling } from "./billing-mode.mjs";
 import { driveRoutes } from "./drive.mjs";
@@ -18,6 +19,8 @@ export function createHandler(authenticate = resolveAccount) {
         accountBilling(await authenticate(request, env), env),
         env,
       );
+      const liveResponse = await liveRoutes(request, env, user);
+      if (liveResponse) return liveResponse;
       const codeResponse = await accessCodeRoutes(request, env, user);
       if (codeResponse) return codeResponse;
       const accountResponse = await accountRoutes(
@@ -37,6 +40,35 @@ export function createHandler(authenticate = resolveAccount) {
         return json({ error: "Not found." }, 404);
       return await libraryRoutes(request, env, user);
     } catch (error) {
+      const status =
+        error instanceof HttpError
+          ? error.status
+          : error instanceof SyntaxError
+            ? 400
+            : 500;
+      const reference = crypto.randomUUID();
+      if (status >= 500) {
+        // Never log error text, URLs, query strings, headers, document data or account identifiers.
+        const segment = url.pathname.split("/")[2];
+        const area = [
+          "account",
+          "auth",
+          "billing",
+          "drive",
+          "library",
+          "access-codes",
+        ].includes(segment)
+          ? segment
+          : "other";
+        console.error(
+          JSON.stringify({
+            event: "writeshape_request_failed",
+            area,
+            status,
+            reference,
+          }),
+        );
+      }
       const callback =
         request.method === "GET" &&
         (url.pathname === "/api/drive/callback"
@@ -60,8 +92,9 @@ export function createHandler(authenticate = resolveAccount) {
           },
         });
       }
-      return json(
+      const response = json(
         {
+          reference,
           code: error instanceof HttpError ? error.code : undefined,
           error:
             error instanceof HttpError
@@ -70,12 +103,10 @@ export function createHandler(authenticate = resolveAccount) {
                 ? "Invalid request."
                 : "The request could not finish. Your local draft is unchanged.",
         },
-        error instanceof HttpError
-          ? error.status
-          : error instanceof SyntaxError
-            ? 400
-            : 500,
+        status,
       );
+      response.headers.set("X-WriteShape-Request-ID", reference);
+      return response;
     }
   };
 }
