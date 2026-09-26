@@ -32,6 +32,7 @@ export function WriteShapeLibrary({
   name,
   captureSave,
   onOpen,
+  onOpenLive,
   onClose,
   initialFile,
   embedded = false,
@@ -41,6 +42,7 @@ export function WriteShapeLibrary({
   name: string;
   captureSave: () => { content: string; onSaved: (item: LibraryFile) => void };
   onOpen: (item: LibraryFile) => Promise<void>;
+  onOpenLive?: (id: string) => Promise<void>;
   onClose: () => void;
   initialFile?: LibraryFile;
   embedded?: boolean;
@@ -241,7 +243,7 @@ export function WriteShapeLibrary({
       </aside>
       <div className="library-main">
         {shared ? (
-          <SharedWithMe />
+          <SharedWithMe onOpenLive={onOpenLive} />
         ) : sharing ? (
           <LibrarySharing file={sharing} onBack={() => setSharing(undefined)} />
         ) : history ? (

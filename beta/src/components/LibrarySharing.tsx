@@ -15,6 +15,7 @@ import type { LibraryFile } from "../storage/writeshapeLibrary";
 type Share = {
   id: string;
   recipientEmail: string;
+  role?: "read-only" | "read-write";
   createdAt: string;
   revokedAt: string | null;
 };
@@ -28,6 +29,8 @@ export function LibrarySharing({
   const [shares, setShares] = useState<Share[]>([]),
     [enabled, setEnabled] = useState(false),
     [reason, setReason] = useState("");
+  const [collaboration, setCollaboration] = useState(false);
+  const [role, setRole] = useState("read-only");
   const [email, setEmail] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -41,6 +44,7 @@ export function LibrarySharing({
       .then((data) => {
         if (active) {
           setShares(data.shares);
+          setCollaboration(!!data.canCollaborate);
           setEnabled(data.canShare);
           setReason(data.reason || "");
         }
@@ -86,11 +90,11 @@ export function LibrarySharing({
       <div className="library-sharing-content">
         <div className="library-sharing-intro">
           <LockKeyhole size={28} />
-          <h3>Share this screenplay</h3>
+          <h3>Share this document</h3>
           <p>
-            Give a verified WriteShape account read-only access to this file’s
-            current version. Your folders and version history stay private. You
-            can revoke access at any time.
+            Give a verified WriteShape account access to this document. Your
+            folders and version history stay private. You can revoke access at
+            any time. Live writers share the document owner’s Premium access.
           </p>
         </div>
         {error && (
@@ -107,7 +111,7 @@ export function LibrarySharing({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            void change("", { email: email.trim(), role: "read-only" });
+            void change("", { email: email.trim(), role });
           }}
         >
           <label>
@@ -123,7 +127,21 @@ export function LibrarySharing({
               placeholder="writer@example.com"
             />
           </label>
-          <span className="library-share-role">Read only</span>
+          {collaboration ? (
+            <label>
+              Access
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                disabled={busy || loading}
+              >
+                <option value="read-only">Read only</option>
+                <option value="read-write">Live editing</option>
+              </select>
+            </label>
+          ) : (
+            <span className="library-share-role">Read only</span>
+          )}
           <button
             className="primary"
             disabled={!enabled || busy || loading || !email.trim()}
@@ -146,7 +164,8 @@ export function LibrarySharing({
                 <div>
                   <strong>{s.recipientEmail}</strong>
                   <small>
-                    Read only · Shared {formatModified(s.createdAt)}
+                    {s.role === "read-write" ? "Live editing" : "Read only"} ·
+                    Shared {formatModified(s.createdAt)}
                   </small>
                 </div>
                 <button
@@ -166,7 +185,11 @@ export function LibrarySharing({
     </section>
   );
 }
-export function SharedWithMe() {
+export function SharedWithMe({
+  onOpenLive,
+}: {
+  onOpenLive?: (id: string) => Promise<void>;
+}) {
   const [data, setData] = useState<any>(),
     [preview, setPreview] = useState<any>(),
     [error, setError] = useState(""),
@@ -197,7 +220,7 @@ export function SharedWithMe() {
       <div className="library-history-heading">
         <div>
           <h3>Shared with me</h3>
-          <span>Read-only screenplays</span>
+          <span>Documents shared with your verified account</span>
         </div>
         <button
           className="icon-button"
@@ -221,9 +244,22 @@ export function SharedWithMe() {
           </button>
           <h3>{preview.name}</h3>
           <p>
-            Read only · Current version {preview.revision} ·{" "}
-            {formatModified(preview.updated)}
+            {preview.readOnly ? "Read only" : "Live editing"} · Current version{" "}
+            {preview.revision} · {formatModified(preview.updated)}
           </p>
+          {preview.liveId && onOpenLive && (
+            <button
+              disabled={busy}
+              onClick={() => {
+                setBusy(true);
+                void onOpenLive(preview.liveId)
+                  .catch((e) => setError(String(e)))
+                  .finally(() => setBusy(false));
+              }}
+            >
+              Open live document
+            </button>
+          )}
           <pre tabIndex={0} aria-label="Shared screenplay">
             {preview.content}
           </pre>
@@ -257,7 +293,10 @@ export function SharedWithMe() {
               <FileText size={23} />
               <span>
                 <strong>{s.name}</strong>
-                <small>Read only · Updated {formatModified(s.updated)}</small>
+                <small>
+                  {s.role === "read-write" ? "Live editing" : "Read only"} ·
+                  Updated {formatModified(s.updated)}
+                </small>
               </span>
             </button>
           ))}

@@ -10,6 +10,7 @@ import type { FileHandle } from "./localDirectory";
 export type DestinationProvider = "writeshape" | "drive" | "local";
 export interface WriteShapeDestination {
   provider: DestinationProvider;
+  live?: boolean;
   id: string;
   accountId?: string;
   parent?: string;

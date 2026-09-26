@@ -38,8 +38,19 @@ it("places all seven sample showcases before comparison and describes unavailabl
       Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
   expect(el.textContent).toContain("fictional sample content");
-  expect(el.textContent).toContain("not available yet");
-  expect(el.textContent).toContain("live co-editing is not available yet");
+  expect(el.textContent).toContain("Not enabled");
+  expect(el.textContent).toContain(
+    "Live collaboration is not enabled for this deployment",
+  );
   expect(el.querySelector(".collaboration-concept")).not.toBeNull();
   expect(el.querySelector("mark")?.textContent).toBe("MARA");
+});
+
+it("describes live writing only when the deployment enables it", () => {
+  const html = renderToStaticMarkup(
+    <PlanComparison collaborationAvailable onClose={() => {}} />,
+  );
+  expect(html).toContain("Live collaboration");
+  expect(html).toContain("Start live editing");
+  expect(html).not.toContain("Not enabled");
 });

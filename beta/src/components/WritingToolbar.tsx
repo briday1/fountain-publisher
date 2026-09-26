@@ -203,7 +203,11 @@ export function WritingToolbar({
             type="button"
             className="writing-tool"
             aria-label="Toggle outline"
-            title="Outline: navigate your screenplay scenes"
+            title={
+              novel
+                ? "Outline: navigate your book headings"
+                : "Outline: navigate your screenplay scenes"
+            }
             aria-pressed={preferences.outline}
             onClick={() =>
               patch({

@@ -4,13 +4,20 @@ export function testDB() {
   const sql = new DatabaseSync(":memory:");
   sql.exec(readFileSync(new URL("./schema.sql", import.meta.url), "utf8"));
   sql.exec(readFileSync(new URL("./accounts.sql", import.meta.url), "utf8"));
-  sql.exec(readFileSync(new URL("./launch-billing.sql", import.meta.url), "utf8"));
-  sql.exec(readFileSync(new URL("./access-codes.sql", import.meta.url), "utf8"));
+  sql.exec(
+    readFileSync(new URL("./launch-billing.sql", import.meta.url), "utf8"),
+  );
+  sql.exec(
+    readFileSync(new URL("./access-codes.sql", import.meta.url), "utf8"),
+  );
   sql.exec(
     readFileSync(new URL("./library-history.sql", import.meta.url), "utf8"),
   );
   sql.exec(
     readFileSync(new URL("./library-sharing.sql", import.meta.url), "utf8"),
+  );
+  sql.exec(
+    readFileSync(new URL("./live-sharing.sql", import.meta.url), "utf8"),
   );
   sql.exec(readFileSync(new URL("./drive.sql", import.meta.url), "utf8"));
   const prepare = (q) => {

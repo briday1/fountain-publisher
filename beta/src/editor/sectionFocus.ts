@@ -1,3 +1,4 @@
+import { ySyncPluginKey } from "y-prosemirror";
 import type { Node as PMNode } from "prosemirror-model";
 import { Plugin, TextSelection } from "prosemirror-state";
 import { Decoration, DecorationSet } from "prosemirror-view";
@@ -30,7 +31,10 @@ export function sectionBounds(doc: PMNode, id?: string) {
 export function sectionFocusPlugin(focused: () => string | undefined) {
   return new Plugin({
     filterTransaction(tr, state) {
-      if (!tr.docChanged) return true;
+      // Peer changes must update the whole document even when this view hides sections.
+      // Only local user edits are constrained to the focused section.
+      if (!tr.docChanged || tr.getMeta(ySyncPluginKey)?.isChangeOrigin)
+        return true;
       const before = sectionBounds(state.doc, focused());
       if (!before) return true;
       const after = sectionBounds(tr.doc, focused());

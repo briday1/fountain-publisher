@@ -257,3 +257,196 @@ it("closing the last view retains document undo when reopened from the buffer li
   reopened.controller.undo();
   expect(reopened.controller.getBlocks()[0].text).toBe("Book");
 });
+
+import * as Y from "yjs";
+import { LiveClient } from "../src/collaboration/LiveClient";
+import {
+  createSharedDocument,
+  readSharedDocument,
+} from "../src/collaboration/sharedDocument";
+import { encodeBytes } from "../cloudflare/liveRoom";
+import { cloud } from "../src/storage/cloud";
+import { serializeDocument } from "../src/core/documentFormat";
+import { parseFountain } from "../src/core/fountain";
+afterEach(() => vi.restoreAllMocks());
+async function liveSetup(book = true) {
+  const first = setup(),
+    second = setup();
+  if (!book) {
+    for (const s of [first.session, second.session]) {
+      s.current = {
+        ...s.current,
+        name: "Script.fountain",
+        screenplay: parseFountain(
+          "INT. ROOM - DAY\n\nFirst words.\n\nEXT. STREET - NIGHT\n\nKeep these words.\n",
+        ),
+      };
+      s.editor!.setDocument(s.current.screenplay);
+    }
+  }
+  const source = createSharedDocument(first.session.capture().screenplay),
+    id = crypto.randomUUID();
+  const content = serializeDocument(readSharedDocument(source));
+  vi.spyOn(LiveClient.prototype, "start").mockImplementation(() => {});
+  vi.spyOn(cloud, "liveBootstrap").mockImplementation(async (roomId) => ({
+    name: first.session.current.name,
+    content,
+    state: encodeBytes(Y.encodeStateAsUpdate(source)),
+    vector: encodeBytes(Y.encodeStateVector(source)),
+    self: {
+      id: roomId.endsWith("never") ? "unused" : "owner",
+      name: "Owner",
+      color: "#3875c7",
+      canEdit: true,
+    },
+    remote: { provider: "google", id: roomId, etag: "1", live: true },
+  }));
+  for (const s of [first, second]) {
+    s.session.setDestination({
+      provider: "writeshape",
+      id,
+      accountId: "owner",
+      name: s.session.current.name,
+      revision: "1",
+      baseContent: serializeDocument(s.session.capture().screenplay),
+      canWrite: true,
+    });
+    await s.model.startLive(s.session.current.id);
+  }
+  source.destroy();
+  const a = first.model.activeBuffer!.live!,
+    b = second.model.activeBuffer!.live!;
+  const sync = () => {
+    const one = Y.encodeStateAsUpdate(a.doc, Y.encodeStateVector(b.doc)),
+      two = Y.encodeStateAsUpdate(b.doc, Y.encodeStateVector(a.doc));
+    Y.applyUpdate(a.doc, two, "network");
+    Y.applyUpdate(b.doc, one, "network");
+  };
+  return { first, second, a, b, sync };
+}
+it.each([true, false])(
+  "live linked panes preserve peer edits through local undo and do not duplicate goal credit (Book=%s)",
+  async (book) => {
+    const { first, second, sync } = await liveSetup(book);
+    const left = first.model.activeView!,
+      right = first.model.duplicate(left.id, true)!;
+    const peer = second.model.activeView!;
+    const firstBlock = left.controller
+      .getBlocks()
+      .find((b) => b.text === "First words.")!.id;
+    const lastBlock = left.controller
+      .getBlocks()
+      .find((b) => b.text === "Keep these words.")!.id;
+    left.controller.focusBlock(firstBlock);
+    right.controller.focusBlock(lastBlock);
+    const leftPos = left.controller.view.state.selection.from;
+    right.controller.view.dispatch(
+      right.controller.view.state.tr.insertText(
+        "Mine ",
+        right.controller.view.state.selection.from,
+      ),
+    );
+    expect(left.controller.view.state.selection.from).toBe(leftPos);
+    expect(left.controller.getBlocks()).toEqual(right.controller.getBlocks());
+    expect(first.activity).toHaveBeenCalledTimes(1);
+    sync();
+    peer.controller.focusBlock(firstBlock);
+    peer.controller.view.dispatch(
+      peer.controller.view.state.tr.insertText(
+        "Peer ",
+        peer.controller.view.state.selection.from,
+      ),
+    );
+    sync();
+    right.controller.undo();
+    sync();
+    expect(
+      left.controller
+        .getBlocks()
+        .map((b) => b.text)
+        .join(" "),
+    ).toContain("Peer");
+    expect(
+      left.controller
+        .getBlocks()
+        .map((b) => b.text)
+        .join(" "),
+    ).not.toContain("Mine");
+    expect(first.activity).toHaveBeenCalledTimes(1);
+    expect(second.activity).toHaveBeenCalledTimes(1);
+  },
+);
+it("live focused section receives outside peer edits and closing all views retains the pending document", async () => {
+  const { first, second, sync, a } = await liveSetup();
+  const whole = first.model.activeView!,
+    section = whole.controller.getBlocks().find((b) => b.text === "One")!.id;
+  const focused = first.model.duplicate(whole.id, true, section, true)!;
+  const peer = second.model.activeView!;
+  peer.controller.focusBlock(
+    peer.controller.getBlocks().find((b) => b.text === "Keep these words.")!.id,
+  );
+  peer.controller.view.dispatch(
+    peer.controller.view.state.tr.insertText(
+      "Outside ",
+      peer.controller.view.state.selection.from,
+    ),
+  );
+  sync();
+  expect(
+    focused.controller.getBlocks().some((b) => b.text.includes("Outside")),
+  ).toBe(true);
+  expect(
+    focused.host.querySelectorAll("[aria-hidden=true]").length,
+  ).toBeGreaterThan(0);
+  first.model.close(whole.id);
+  first.model.close(focused.id);
+  expect(first.model.buffers.get(first.session.current.id)!.live).toBe(a);
+  const reopened = first.model.addView(first.session.current.id, 0);
+  expect(
+    reopened.controller.getBlocks().some((b) => b.text.includes("Outside")),
+  ).toBe(true);
+});
+it("Save As detaches the old live room before edits can cross into a different destination", async () => {
+  const { first, a } = await liveSetup();
+  const before = serializeDocument(readSharedDocument(a.doc));
+  first.session.setDestination({
+    provider: "writeshape",
+    id: crypto.randomUUID(),
+    accountId: "owner",
+    name: "Separate.md",
+    revision: "1",
+    baseContent: before,
+    canWrite: true,
+  });
+  expect(first.model.activeBuffer!.live).toBeUndefined();
+  const view = first.model.activeView!;
+  view.controller.focusBlock(
+    view.controller.getBlocks().find((b) => b.text === "First words.")!.id,
+  );
+  view.controller.view.dispatch(
+    view.controller.view.state.tr.insertText(
+      "Separate copy ",
+      view.controller.view.state.selection.from,
+    ),
+  );
+  expect(serializeDocument(readSharedDocument(a.doc))).toBe(before);
+  expect(serializeDocument(first.session.capture().screenplay)).toContain(
+    "Separate copy",
+  );
+});
+it("opening another tab keeps a live buffer when a peer update arrives during the device flush", async () => {
+  const { first, a } = await liveSetup();
+  const originalId = first.session.current.id;
+  const flush = first.session.flush.bind(first.session);
+  vi.spyOn(first.session, "flush").mockImplementationOnce(async () => {
+    await flush();
+    first.session.markChanged();
+  });
+  await first.session.open(
+    parseMarkdown("# Independent\n\nNew document."),
+    "Independent.md",
+  );
+  expect(first.model.activeBuffer!.snapshot.name).toBe("Independent.md");
+  expect(first.model.buffers.get(originalId)!.live).toBe(a);
+  expect(first.model.buffers.size).toBe(2);
+});

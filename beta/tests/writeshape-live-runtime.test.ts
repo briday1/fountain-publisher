@@ -1,0 +1,512 @@
+// @vitest-environment node
+import { expect, it } from "vitest";
+import { build } from "esbuild";
+import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { Miniflare, convertV4MiniflareOptions } from "miniflare";
+import * as Y from "yjs";
+import { encodeBytes, decodeBytes } from "../cloudflare/liveRoom";
+const origin = "https://writeshape.com";
+async function until<T>(
+  read: () => T | undefined | Promise<T | undefined>,
+): Promise<T> {
+  const end = Date.now() + 6000;
+  while (Date.now() < end) {
+    const result = await read();
+    if (result !== undefined) return result;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  throw new Error("WriteShape socket timed out");
+}
+function insert(doc: Y.Doc, text: string) {
+  const vector = Y.encodeStateVector(doc);
+  const paragraph = doc
+    .getXmlFragment("script")
+    .toArray()
+    .find(
+      (n) => n instanceof Y.XmlElement && n.getAttribute("kind") === "action",
+    ) as Y.XmlElement;
+  (paragraph.toArray()[0] as Y.XmlText).insert(0, text);
+  return encodeBytes(Y.encodeStateAsUpdate(doc, vector));
+}
+it("WriteShape accounts collaborate on a Book through real D1, Worker and durable sockets; revocation and readers fail closed", async () => {
+  const bundle = await build({
+    entryPoints: ["cloudflare/writeshape/worker-live.ts"],
+    bundle: true,
+    write: false,
+    platform: "browser",
+    format: "esm",
+  });
+  const runtime = new Miniflare(
+    convertV4MiniflareOptions({
+      script: bundle.outputFiles[0].text,
+      modules: true,
+      compatibilityDate: "2026-09-18",
+      d1Databases: ["DB"],
+      durableObjects: {
+        LIVE_ROOMS: { className: "WriteShapeLiveRoom", useSQLite: true },
+      },
+      bindings: {
+        APP_ORIGIN: origin,
+        PUBLIC_LAUNCH: "true",
+        LIVE_COLLABORATION: "true",
+        BILLING_MODE: "test",
+      },
+    }),
+  );
+  const sockets: any[] = [];
+  const docs: Y.Doc[] = [];
+  try {
+    const db = await runtime.getD1Database("DB");
+    // SQLite triggers need exec as a complete statement; D1 exec splits newlines.
+    for (const name of [
+      "schema",
+      "accounts",
+      "launch-billing",
+      "access-codes",
+      "library-history",
+      "library-sharing",
+      "live-sharing",
+    ]) {
+      const sql = await readFile(`cloudflare/writeshape/${name}.sql`, "utf8");
+      const clean = sql.replace(/--[^\n]*/g, "");
+      const triggers =
+        clean.match(/CREATE TRIGGER[\s\S]*?END;(?=\s*(?:CREATE|$))/gi) || [];
+      const statements = [
+        ...clean
+          .replace(/CREATE TRIGGER[\s\S]*?END;(?=\s*(?:CREATE|$))/gi, "")
+          .split(";")
+          .filter((s) => s.trim()),
+        ...triggers,
+      ];
+      for (const statement of statements)
+        await db.prepare(statement.trim()).run();
+    }
+    const tokens: Record<string, string> = {};
+    for (const [i, id] of ["owner", "writer", "viewer", "stranger"].entries()) {
+      tokens[id] = String(i + 1).repeat(64);
+      await db
+        .prepare(
+          "INSERT INTO accounts(id,email,display_name,private_tester,created) VALUES(?,?,?,?,0)",
+        )
+        .bind(id, id + "@example.test", id, id === "owner" ? 1 : 0)
+        .run();
+      await db
+        .prepare("INSERT INTO account_identities VALUES(?,?,?)")
+        .bind("google", id, id)
+        .run();
+      await db
+        .prepare("INSERT INTO account_sessions VALUES(?,?,?)")
+        .bind(
+          createHash("sha256").update(tokens[id]).digest("hex"),
+          id,
+          Math.floor(Date.now() / 1000) + 3600,
+        )
+        .run();
+    }
+    const id = crypto.randomUUID(),
+      other = crypto.randomUUID(),
+      room = "library_" + id;
+    for (const file of [id, other])
+      await db
+        .prepare("INSERT INTO items VALUES(?,?,?,?,?,?,?,?)")
+        .bind(
+          file,
+          "owner",
+          "",
+          file === id ? "Shared.md" : "Private.md",
+          "file",
+          "# Book\n\n## One\n\nOriginal paragraph.\n",
+          1,
+          new Date().toISOString(),
+        )
+        .run();
+    const headers = (user: string) => ({
+      Origin: origin,
+      Cookie: "__Host-writeshape_session=" + tokens[user],
+      "Content-Type": "application/json",
+    });
+    const call = (user: string, path: string, body?: unknown) =>
+      runtime.dispatchFetch(origin + path, {
+        method: body === undefined ? "GET" : "POST",
+        headers: headers(user),
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    const grants: Record<string, string> = {};
+    for (const [user, role] of [
+      ["writer", "read-write"],
+      ["viewer", "read-only"],
+    ]) {
+      const res = await call("owner", `/api/library/${id}/shares`, {
+        email: user + "@example.test",
+        role,
+      });
+      expect(res.status, await res.clone().text()).toBe(201);
+      grants[user] = ((await res.json()) as any).share.id;
+    }
+    const path = "/api/collaboration/" + room;
+    expect((await call("stranger", path + "/bootstrap", {})).status).toBe(404);
+    expect(
+      (
+        await call(
+          "writer",
+          "/api/collaboration/library_" + other + "/bootstrap",
+          {},
+        )
+      ).status,
+    ).toBe(404);
+    const boot = await call("owner", path + "/bootstrap", {});
+    expect(boot.status, await boot.clone().text()).toBe(200);
+    const initial = (await boot.json()) as any;
+    expect(initial.name).toBe("Shared.md");
+    const sessions: any[] = [];
+    for (const user of ["owner", "writer", "viewer"]) {
+      const doc = new Y.Doc();
+      docs.push(doc);
+      Y.applyUpdate(doc, decodeBytes(initial.state));
+      const response = await runtime.dispatchFetch(
+        origin + path + "/connect?clientId=" + doc.clientID,
+        { headers: { ...headers(user), Upgrade: "websocket" } },
+      );
+      expect(
+        response.status,
+        response.status === 101 ? "" : await response.text(),
+      ).toBe(101);
+      const ws = response.webSocket!;
+      sockets.push(ws);
+      const messages: any[] = [];
+      ws.addEventListener("message", (e) =>
+        messages.push(JSON.parse(String(e.data))),
+      );
+      ws.accept();
+      await until(() => messages.find((m) => m.type === "sync"));
+      sessions.push({ ws, messages, doc });
+    }
+    // Independently generated updates from the same starting state must both survive.
+    for (const [i, text] of [
+      "Owner concurrent. ",
+      "Writer concurrent. ",
+    ].entries())
+      sessions[i].ws.send(
+        JSON.stringify({
+          type: "update",
+          id: i + 1,
+          update: insert(docs[i], text),
+        }),
+      );
+    for (let i = 0; i < 2; i++)
+      await until(() =>
+        sessions[i].messages.find(
+          (m: any) => m.type === "ack" && m.id === i + 1,
+        ),
+      );
+    sessions[2].ws.send(
+      JSON.stringify({
+        type: "update",
+        id: 3,
+        update: insert(docs[2], "Forbidden viewer. "),
+      }),
+    );
+    await until(() =>
+      sessions[2].messages.find((m: any) => m.type === "error"),
+    );
+    const checkpoint = await call("writer", path + "/checkpoint", {});
+    expect(checkpoint.status, await checkpoint.clone().text()).toBe(200);
+    let stored = await db
+      .prepare("SELECT content FROM items WHERE id=?")
+      .bind(id)
+      .first<any>();
+    expect(stored.content).toContain("# Book");
+    expect(stored.content).toContain("Owner concurrent.");
+    expect(stored.content).toContain("Writer concurrent.");
+    expect(stored.content).not.toContain("Forbidden");
+    const revoked = await call(
+      "owner",
+      `/api/library/${id}/shares/${grants.writer}/revoke`,
+      {},
+    );
+    expect(revoked.status).toBe(200);
+    sessions[1].ws.send(
+      JSON.stringify({
+        type: "update",
+        id: 4,
+        update: insert(docs[1], "Forbidden revoked. "),
+      }),
+    );
+    await until(() =>
+      sessions[1].messages.find(
+        (m: any) => m.type === "error" && m.code === "LIVE_ACCESS",
+      ),
+    );
+    expect((await call("writer", path + "/checkpoint", {})).status).toBe(404);
+    const recovery = await call("owner", path + "/recovery");
+    expect(recovery.status).toBe(200);
+    expect(await recovery.text()).not.toContain("Forbidden");
+    sessions[0].ws.send(
+      JSON.stringify({
+        type: "update",
+        id: 5,
+        update: insert(docs[0], "Durable after close. "),
+      }),
+    );
+    await until(() =>
+      sessions[0].messages.find((m: any) => m.type === "ack" && m.id === 5),
+    );
+    sockets.forEach((ws) => ws.close());
+    stored = await until(async () => {
+      const row = await db
+        .prepare("SELECT content FROM items WHERE id=?")
+        .bind(id)
+        .first<any>();
+      return row.content.includes("Durable after close.") ? row : undefined;
+    });
+    expect(stored.content).toContain("Writer concurrent.");
+    const reopened = await call("owner", path + "/bootstrap", {});
+    expect(reopened.status).toBe(200);
+    expect(((await reopened.json()) as any).content).toContain(
+      "Durable after close.",
+    );
+  } finally {
+    sockets.forEach((ws) => {
+      try {
+        ws.close();
+      } catch {}
+    });
+    docs.forEach((doc) => doc.destroy());
+    await runtime.dispose();
+  }
+}, 40000);
+
+it("WriteShape Drive rooms use independent encrypted connections and provider permissions with conditional saves", async () => {
+  const fileId = "drive_writeshape_fixture_12345",
+    room = "drive_" + fileId;
+  const bundle = await build({
+    entryPoints: ["cloudflare/writeshape/worker-live.ts"],
+    bundle: true,
+    write: false,
+    platform: "browser",
+    format: "esm",
+  });
+  const provider = `let content='# Drive Book\\n\\nOriginal paragraph.\\n',version=1;const denied=new Set();export default {async fetch(request){const url=new URL(request.url);if(url.pathname==='/control/revoke'){denied.add(url.searchParams.get('user'));return Response.json({ok:true});}if(url.pathname==='/control/status')return Response.json({content,version});const user=request.headers.get('authorization')?.replace('Bearer fixture-','');if(!user||denied.has(user))return Response.json({}, {status:403});if(url.pathname.startsWith('/upload/')){if(request.headers.get('if-match')!=='"v'+version+'"')return Response.json({}, {status:412});content=await request.text();version++;return Response.json({id:'${fileId}',etag:'"v'+version+'"'});}if(url.pathname.startsWith('/drive/v2/'))return Response.json({id:'${fileId}',etag:'"v'+version+'"'});if(url.searchParams.get('alt')==='media')return new Response(content);return Response.json({id:'${fileId}',name:'DriveBook.md',mimeType:'text/markdown',capabilities:{canEdit:user!=='viewer'}});}}`;
+  const keyBytes = new Uint8Array(32).fill(107),
+    keyValue = Buffer.from(keyBytes).toString("base64");
+  const runtime = new Miniflare(
+    convertV4MiniflareOptions({
+      workers: [
+        {
+          name: "writeshape-drive",
+          script: bundle.outputFiles[0].text,
+          modules: true,
+          compatibilityDate: "2026-09-18",
+          d1Databases: ["DB"],
+          durableObjects: {
+            LIVE_ROOMS: { className: "WriteShapeLiveRoom", useSQLite: true },
+          },
+          outboundService: "google-fixture",
+          bindings: {
+            APP_ORIGIN: origin,
+            PUBLIC_LAUNCH: "true",
+            LIVE_COLLABORATION: "true",
+            BILLING_MODE: "test",
+            DRIVE_TOKEN_KEY: keyValue,
+            GOOGLE_CLIENT_ID: "fixture",
+            GOOGLE_CLIENT_SECRET: "fixture",
+          },
+        },
+        {
+          name: "google-fixture",
+          script: provider,
+          modules: true,
+          compatibilityDate: "2026-09-18",
+        },
+      ],
+    }),
+  );
+  const sockets: any[] = [];
+  const docs: Y.Doc[] = [];
+  try {
+    const db = await runtime.getD1Database("DB", "writeshape-drive");
+    for (const name of [
+      "schema",
+      "accounts",
+      "launch-billing",
+      "access-codes",
+      "drive",
+    ]) {
+      const sql = (
+        await readFile(`cloudflare/writeshape/${name}.sql`, "utf8")
+      ).replace(/--[^\n]*/g, "");
+      const triggers =
+        sql.match(/CREATE TRIGGER[\s\S]*?END;(?=\s*(?:CREATE|$))/gi) || [];
+      for (const statement of [
+        ...sql
+          .replace(/CREATE TRIGGER[\s\S]*?END;(?=\s*(?:CREATE|$))/gi, "")
+          .split(";")
+          .filter((s) => s.trim()),
+        ...triggers,
+      ])
+        await db.prepare(statement).run();
+    }
+    const tokens: Record<string, string> = {};
+    for (const [i, id] of ["owner", "writer", "viewer"].entries()) {
+      tokens[id] = String(i + 1).repeat(64);
+      await db
+        .prepare(
+          "INSERT INTO accounts(id,email,display_name,private_tester,created) VALUES(?,?,?,1,0)",
+        )
+        .bind(id, id + "@example.test", id)
+        .run();
+      await db
+        .prepare("INSERT INTO account_sessions VALUES(?,?,?)")
+        .bind(
+          createHash("sha256").update(tokens[id]).digest("hex"),
+          id,
+          Math.floor(Date.now() / 1000) + 3600,
+        )
+        .run();
+      const key = await crypto.subtle.importKey(
+          "raw",
+          keyBytes,
+          "AES-GCM",
+          false,
+          ["encrypt"],
+        ),
+        iv = crypto.getRandomValues(new Uint8Array(12));
+      const encrypted = await crypto.subtle.encrypt(
+        {
+          name: "AES-GCM",
+          iv,
+          additionalData: new TextEncoder().encode(
+            "writeshape:drive:tokens:" + id,
+          ),
+        },
+        key,
+        new TextEncoder().encode(
+          JSON.stringify({
+            accessToken: "fixture-" + id,
+            refreshToken: "refresh-fixture",
+          }),
+        ),
+      );
+      const cipher =
+        "v1." +
+        Buffer.from(iv).toString("base64") +
+        "." +
+        Buffer.from(encrypted).toString("base64");
+      await db
+        .prepare(
+          "INSERT INTO drive_connections(account_id,google_subject,email,token_cipher,expires,generation,updated) VALUES(?,?,?,?,?,?,0)",
+        )
+        .bind(
+          id,
+          id,
+          id + "@example.test",
+          cipher,
+          Math.floor(Date.now() / 1000) + 3600,
+          "fixture-generation",
+        )
+        .run();
+    }
+    const headers = (user: string) => ({
+      Origin: origin,
+      Cookie: "__Host-writeshape_session=" + tokens[user],
+      "Content-Type": "application/json",
+    });
+    const path = origin + "/api/collaboration/" + room;
+    const bootstrap = await runtime.dispatchFetch(path + "/bootstrap", {
+      method: "POST",
+      headers: headers("owner"),
+      body: "{}",
+    });
+    expect(bootstrap.status, await bootstrap.clone().text()).toBe(200);
+    const initial = (await bootstrap.json()) as any;
+    const sessions: any[] = [];
+    for (const user of ["owner", "writer", "viewer"]) {
+      const doc = new Y.Doc();
+      docs.push(doc);
+      Y.applyUpdate(doc, decodeBytes(initial.state));
+      const result = await runtime.dispatchFetch(
+        path + "/connect?clientId=" + doc.clientID,
+        { headers: { ...headers(user), Upgrade: "websocket" } },
+      );
+      expect(
+        result.status,
+        result.status === 101 ? "" : await result.text(),
+      ).toBe(101);
+      const ws = result.webSocket!,
+        messages: any[] = [];
+      sockets.push(ws);
+      ws.addEventListener("message", (e) =>
+        messages.push(JSON.parse(String(e.data))),
+      );
+      ws.accept();
+      await until(() => messages.find((m) => m.type === "sync"));
+      sessions.push({ ws, messages });
+    }
+    for (const [i, text] of ["Owner Drive. ", "Peer Drive. "].entries())
+      sessions[i].ws.send(
+        JSON.stringify({
+          type: "update",
+          id: i + 1,
+          update: insert(docs[i], text),
+        }),
+      );
+    for (let i = 0; i < 2; i++)
+      await until(() =>
+        sessions[i].messages.find(
+          (m: any) => m.type === "ack" && m.id === i + 1,
+        ),
+      );
+    const saved = await runtime.dispatchFetch(path + "/checkpoint", {
+      method: "POST",
+      headers: headers("writer"),
+      body: "{}",
+    });
+    expect(saved.status, await saved.clone().text()).toBe(200);
+    const remote = (await runtime.getWorker("google-fixture")) as unknown as {
+      fetch(input: string): Promise<Response>;
+    };
+    const status = (await (
+      await remote.fetch("https://provider/control/status")
+    ).json()) as any;
+    expect(status.content).toContain("# Drive Book");
+    expect(status.content).toContain("Owner Drive.");
+    expect(status.content).toContain("Peer Drive.");
+    sessions[2].ws.send(
+      JSON.stringify({
+        type: "update",
+        id: 3,
+        update: insert(docs[2], "Rejected reader. "),
+      }),
+    );
+    await until(() =>
+      sessions[2].messages.find((m: any) => m.type === "error"),
+    );
+    await remote.fetch("https://provider/control/revoke?user=writer");
+    sessions[1].ws.send(
+      JSON.stringify({
+        type: "update",
+        id: 4,
+        update: insert(docs[1], "Rejected revoked. "),
+      }),
+    );
+    await until(() =>
+      sessions[1].messages.find(
+        (m: any) => m.type === "error" && m.code === "LIVE_ACCESS",
+      ),
+    );
+    const recovery = await runtime.dispatchFetch(path + "/recovery", {
+      headers: headers("owner"),
+    });
+    expect(recovery.status).toBe(200);
+    expect(await recovery.text()).not.toContain("Rejected");
+  } finally {
+    sockets.forEach((ws) => {
+      try {
+        ws.close();
+      } catch {}
+    });
+    docs.forEach((doc) => doc.destroy());
+    await runtime.dispose();
+  }
+}, 40000);

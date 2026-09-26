@@ -293,7 +293,8 @@ function DestinationBrowser({
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("name");
   const [filename, setFilename] = useState(
-    name.replace(/\.[^.]+$/, "") + (/\.(md|markdown)$/i.test(name) ? ".md" : ".fountain"),
+    name.replace(/\.[^.]+$/, "") +
+      (/\.(md|markdown)$/i.test(name) ? ".md" : ".fountain"),
   );
   const [newFolder, setNewFolder] = useState(false);
   const [folderName, setFolderName] = useState("");
@@ -507,7 +508,7 @@ function DestinationBrowser({
           description={
             status?.message ||
             (drive
-              ? "Connect Google Drive to browse your folders and Fountain files here."
+              ? "Connect Google Drive to browse your folders, screenplays and Markdown books here."
               : status?.available
                 ? "Choose a folder once, then browse its screenplays and save directly from WriteShape."
                 : "Folder browsing is not supported in this browser. You can still open a file or download your screenplay.")
@@ -572,7 +573,7 @@ function DestinationBrowser({
             )}
             <p>
               {drive
-                ? "Fountain screenplays in your connected Drive. Files remain in Google Drive."
+                ? "Screenplays and Markdown books in your connected Drive. Files remain in Google Drive."
                 : "Files in your selected folder. Your browser may ask for permission when you save."}
             </p>
             <small>
@@ -732,7 +733,7 @@ function DestinationBrowser({
                       ? "Try another name or clear your search."
                       : mode === "save"
                         ? "Save your screenplay here, or choose another folder."
-                        : "Choose another folder to find a Fountain screenplay."}
+                        : "Choose another folder to find a screenplay or Markdown book."}
                   </p>
                 </div>
               ) : (
@@ -795,7 +796,9 @@ function DestinationBrowser({
                         <small>
                           {item.kind === "folder"
                             ? "Folder"
-                            : "Fountain screenplay"}
+                            : /\.(md|markdown)$/i.test(item.name)
+                              ? "Markdown book"
+                              : "Fountain screenplay"}
                           {(item.kind === "file" && item.canEdit === false) ||
                           (item.kind === "folder" &&
                             item.canAddChildren === false)
@@ -859,8 +862,8 @@ function DestinationBrowser({
                     <ArrowRight size={16} />
                   </button>
                   <small>
-                    Creates a new Fountain file in this folder. Existing files
-                    stay intact.
+                    Creates a new document in this folder. Existing files stay
+                    intact.
                   </small>
                 </form>
               ) : (
