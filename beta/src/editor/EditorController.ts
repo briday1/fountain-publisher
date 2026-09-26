@@ -1,3 +1,4 @@
+import { authoredWords } from "./authoredWords";
 import { Fragment, Slice } from "prosemirror-model";
 import type { Node as ProseMirrorNode, ResolvedPos } from "prosemirror-model";
 import { parseFountain } from "../core/fountain";
@@ -80,6 +81,7 @@ import type { AnnotationTarget } from "./annotations";
 import "./editor.css";
 
 export interface EditorCallbacks {
+  onWritingActivity?: (words: number, pasted?: boolean) => void;
   onAnnotationState?: (state: "add" | "edit" | "unavailable") => void;
   onAnnotation?: (target: AnnotationTarget) => void;
   /** A dirty signal, never a whole-document snapshot. Use getBlocks on idle/save. */
@@ -174,6 +176,8 @@ export class EditorController {
   readonly view: EditorView;
   private callbacks: EditorCallbacks;
   private destroyed = false;
+  private goalCompositionDoc?: ProseMirrorNode;
+  private seenWritingTransactions = new WeakSet<Transaction>();
   private compositionTimer?: ReturnType<typeof setTimeout>;
   private hardwareInputTimer?: ReturnType<typeof setTimeout>;
   private hardwareInputType?: string;
@@ -297,10 +301,17 @@ export class EditorController {
         compositionend: () => {
           clearTimeout(this.compositionTimer);
           this.compositionTimer = setTimeout(() => {
-            if (!this.destroyed && !this.view.composing)
+            if (!this.destroyed && !this.view.composing) {
+              if (this.goalCompositionDoc) {
+                this.callbacks.onWritingActivity?.(
+                  authoredWords(this.goalCompositionDoc, this.view.state.doc),
+                );
+                this.goalCompositionDoc = undefined;
+              }
               this.view.dispatch(
                 this.view.state.tr.setMeta(normalizeKey, true),
               );
+            }
           }, 30);
           return false;
         },
@@ -620,6 +631,7 @@ export class EditorController {
             ]),
           )
         : undefined;
+    const writingBefore = this.view.state.doc;
     const result = this.view.state.applyTransaction(transaction);
     const commit = () => {
       this.view.updateState(result.state);
@@ -651,6 +663,32 @@ export class EditorController {
         sharedOrigin &&
           !transaction.getMeta(ySyncPluginKey)?.isUndoRedoOperation,
       );
+    if (
+      this.callbacks.onWritingActivity &&
+      result.transactions.includes(transaction) &&
+      transaction.docChanged &&
+      !sharedOrigin &&
+      !isHistoryTransaction(transaction) &&
+      !this.seenWritingTransactions.has(transaction)
+    ) {
+      this.seenWritingTransactions.add(transaction);
+      const changedText =
+        writingBefore.content.findDiffStart(result.state.doc.content) != null;
+      if (changedText) {
+        if (
+          this.view.composing ||
+          transaction.getMeta("composition") != null ||
+          this.goalCompositionDoc
+        )
+          this.goalCompositionDoc ??= writingBefore;
+        else
+          this.callbacks.onWritingActivity?.(
+            authoredWords(writingBefore, result.state.doc),
+            !!transaction.getMeta("paste") ||
+              ["paste", "drop"].includes(transaction.getMeta("uiEvent")),
+          );
+      }
+    }
     this.notifySelection();
   }
 
@@ -1015,6 +1053,7 @@ export class EditorController {
     if (this.destroyed) return;
     this.detachCollaboration();
     clearTimeout(this.compositionTimer);
+    this.goalCompositionDoc = undefined;
     this.view.updateState(this.createState(screenplay));
     this.selectedKind = undefined;
     this.selectedDual = undefined;
@@ -1159,6 +1198,7 @@ export class EditorController {
     this.detachCollaboration();
     this.destroyed = true;
     clearTimeout(this.compositionTimer);
+    this.goalCompositionDoc = undefined;
     clearTimeout(this.hardwareInputTimer);
     this.view.destroy();
   }

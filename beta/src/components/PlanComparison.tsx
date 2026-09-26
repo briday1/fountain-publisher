@@ -91,6 +91,45 @@ export function PlanComparison({
             <figcaption>Mara highlighted · Sample PDF illustration</figcaption>
           </figure>
         </section>
+        <section className="showcase-feature">
+          <small className="showcase-kicker">Writing goals</small>
+          <h3>A little progress, made visible.</h3>
+          <p>
+            Set your own word and writing-time targets by day, week or month.
+            New writing still counts when you revise or delete it. Start an
+            activity-aware timer when you are ready to write.
+          </p>
+          <figure>
+            <div
+              className="writing-goals"
+              aria-label="Fictional writing goal illustration"
+            >
+              <div className="writing-goal">
+                <div>
+                  <span>500 words / day</span>
+                  <small>320 / 500</small>
+                </div>
+                <progress
+                  max={500}
+                  value={320}
+                  aria-label="Sample daily word goal"
+                />
+              </div>
+              <div className="writing-goal">
+                <div>
+                  <span>3 hours / week</span>
+                  <small>1.5 / 3</small>
+                </div>
+                <progress
+                  max={3}
+                  value={1.5}
+                  aria-label="Sample weekly writing time goal"
+                />
+              </div>
+            </div>
+            <figcaption>Writing goals · Fictional sample progress</figcaption>
+          </figure>
+        </section>
         <section className="showcase-feature showcase-collaboration">
           <small className="showcase-kicker">
             Live collaboration · Planned
@@ -147,6 +186,7 @@ export function PlanComparison({
             "Beat Sheet",
             "Beat Guide",
             "Cloud library",
+            "Writing goals",
             "Live collaboration (planned)",
           ].map((feature, i) => (
             <tr key={feature}>
