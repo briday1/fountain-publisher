@@ -1,3 +1,4 @@
+import { documentFilename } from "../core/documentFormat";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUp,
@@ -58,7 +59,7 @@ export function WriteShapeLibrary({
   const [query, setQuery] = useState(""),
     [sort, setSort] = useState("name");
   const [filename, setFilename] = useState(
-    name.replace(/\.[^.]+$/, "") + ".fountain",
+    name.replace(/\.[^.]+$/, "") + (/\.(md|markdown)$/i.test(name) ? ".md" : ".fountain"),
   );
   const [folder, setFolder] = useState(""),
     [newFolder, setNewFolder] = useState(false);
@@ -141,9 +142,7 @@ export function WriteShapeLibrary({
   }
   async function save() {
     await run(async () => {
-      const actual = filename.trim().toLowerCase().endsWith(".fountain")
-        ? filename.trim()
-        : filename.trim() + ".fountain";
+      const actual = documentFilename(filename, name);
       if (!filename.trim()) throw new Error("Choose a filename.");
       const captured = captureSave();
       const result = await libraryRequest("", {

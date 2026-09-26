@@ -209,7 +209,7 @@ export function LibraryHistory({
                 onClick={() =>
                   downloadFile(
                     preview.content || "",
-                    `${preview.name.replace(/\.fountain$/i, "")}-v${preview.revision}.fountain`,
+                    `${preview.name.replace(/\.(fountain|md|markdown)$/i, "")}-v${preview.revision}${/\.(md|markdown)$/i.test(preview.name) ? ".md" : ".fountain"}`,
                   )
                 }
               >
@@ -218,7 +218,7 @@ export function LibraryHistory({
             )}
           </div>
           {preview && !comparisonLoading ? (
-            <VersionComparison
+            <VersionComparison novel={/\.(md|markdown)$/i.test(preview.name)}
               key={`${preview.id}:${baseline?.id || "first"}`}
               older={baseline?.content ?? preview.content ?? ""}
               newer={preview.content ?? ""}

@@ -18,6 +18,8 @@ import type { Preferences } from "./Settings";
 import "./WritingToolbar.css";
 
 export interface WritingToolbarProps {
+  novel?: boolean;
+  onHeading?: (level: number) => void;
   kind: BlockKind;
   dualDialogue: boolean;
   onKind: (kind: BlockKind, dual?: boolean) => void;
@@ -39,6 +41,8 @@ export interface WritingToolbarProps {
 
 /** Compact controls around one persistent editor. It never observes document input. */
 export function WritingToolbar({
+  novel,
+  onHeading,
   kind,
   dualDialogue,
   onKind,
@@ -115,6 +119,8 @@ export function WritingToolbar({
         onKeyDown={navigate}
       >
         <FormatControls
+          novel={novel}
+          onHeading={onHeading}
           kind={kind}
           dualDialogue={dualDialogue}
           onKind={onKind}

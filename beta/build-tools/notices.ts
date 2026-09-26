@@ -68,11 +68,18 @@ export function validateLicenseText(
       /for any purpose with or without fee is hereby granted/i,
       /THE SOFTWARE IS PROVIDED ["']AS IS["']/i,
     ],
+    "PSF-2.0": [
+      /PYTHON SOFTWARE FOUNDATION LICENSE VERSION 2/i,
+      /royalty-free, world-wide license/i,
+      /notice of copyright/i,
+      /PSF MAKES NO REPRESENTATIONS OR WARRANTIES/i,
+      /PSF SHALL NOT BE LIABLE/i,
+    ],
     "BSD-2-Clause": [
       /Redistribution and use in source and binary forms/i,
       /Redistributions of source code must retain/i,
       /Redistributions in binary form must reproduce/i,
-      /THIS SOFTWARE IS PROVIDED/i,
+      /THIS (?:SOFTWARE )?IS PROVIDED/i,
     ],
     "BSD-3-Clause": [
       /Redistribution and use in source and binary forms/i,

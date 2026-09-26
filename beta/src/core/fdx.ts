@@ -1,3 +1,4 @@
+import { parseMarkdown } from "./markdown";
 import { emptyScreenplay, newId } from "./model";
 import type {
   BlockKind,
@@ -133,7 +134,7 @@ export function importScreenplay(
 ): { screenplay: Screenplay; name: string; converted: boolean } {
   const converted = /\.fdx$/i.test(name);
   return {
-    screenplay: converted ? parseFdx(content) : parseFountain(content),
+    screenplay: /\.(md|markdown)$/i.test(name) ? parseMarkdown(content) : converted ? parseFdx(content) : parseFountain(content),
     name: converted ? name.replace(/\.fdx$/i, ".fountain") : name,
     converted,
   };

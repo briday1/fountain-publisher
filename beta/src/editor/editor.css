@@ -231,3 +231,14 @@
     display: none !important;
   }
 }
+.screenplay-editor.novel-editor { font: 17px/1.8 Georgia, 'Times New Roman', serif; }
+.screenplay-editor.novel-editor p { margin:0 0 1em; width:auto; max-width:none; padding:0; text-transform:none; white-space:pre-wrap; text-align:left; color:var(--paper-ink); }
+.screenplay-editor.novel-editor p[data-kind=section] { font-family:inherit; font-size:1.35em; font-weight:600; background:none; border:0; margin:2em 0 1em; padding:0; }
+.screenplay-editor.novel-editor p[data-kind=section][data-level="1"] { font-size:1.75em; }
+.screenplay-editor.novel-editor p[data-kind=section][data-level="2"] { font-size:1.45em; }
+.screenplay-editor.novel-editor p[data-kind=section]:first-child { margin-top:0; }
+.screenplay-editor.novel-editor p[data-kind=dialogue] { margin:1em 7%; padding-left:18px; border-left:2px solid var(--border); }
+.screenplay-editor.novel-editor p[data-kind=centered] { margin:1.7em 10% .5em; font-style:italic; text-align:center; }
+.screenplay-editor.novel-editor p[data-kind=parenthetical] { margin:0 10% 2em; text-align:right; font-size:.88em; }
+.screenplay-editor.novel-editor p[data-kind=pageBreak] { font-size:inherit; border:0; text-align:center; margin:2em 0; }
+.screenplay-editor.novel-editor p[data-kind=pageBreak]::before { content:'*  *  *'; }

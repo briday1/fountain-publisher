@@ -272,7 +272,7 @@ export class DocumentSession {
       this.current = {
         ...snapshot,
         id: newId(),
-        name: snapshot.name.replace(/\.fountain$/i, "") + " copy.fountain",
+        name: snapshot.name.replace(/\.(fountain|md|markdown)$/i, "") + (snapshot.screenplay.metadata.format === "markdown" ? " copy.md" : " copy.fountain"),
         remote: undefined,
         destination: undefined,
       };

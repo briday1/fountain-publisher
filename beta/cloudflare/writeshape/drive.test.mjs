@@ -54,6 +54,7 @@ function fixture() {
       .run(id, `${id}@example.test`);
   const calls = [];
   const provider = {
+    name: "Scene.fountain",
     nonce: "",
     etag: '"one"',
     text: "INT. ROOM - DAY\n\nSynthetic writing.",
@@ -113,7 +114,7 @@ function fixture() {
             },
             {
               id: "file",
-              name: "Scene.fountain",
+              name: provider.name,
               mimeType: "text/plain",
               size: String(new TextEncoder().encode(provider.text).length),
               modifiedTime: "2026-09-24T12:00:00Z",
@@ -147,7 +148,7 @@ function fixture() {
           });
         return response({
           id,
-          name: "Scene.fountain",
+          name: provider.name,
           mimeType: "text/plain",
           size: String(new TextEncoder().encode(provider.text).length),
           modifiedTime: "2026-09-24T12:00:00Z",
@@ -784,4 +785,10 @@ test("token exchange does not follow a provider redirect or expose credentials",
     await result.text(),
     /untrusted|fixture-code|fixture-client-secret/,
   );
+});
+
+test("Markdown can be created and reopened with its format and content intact", async () => {
+ const f=fixture();await f.connect();f.provider.name="Book.md";f.provider.text="# Book\n\n## Chapter\n\nA **bold** start.";
+ const created=await f.call("/api/drive/create",{name:"Book.md",parent:"folder",content:f.provider.text});assert.equal(created.status,201);
+ const opened=await f.call("/api/drive/open?id=created");assert.equal(opened.status,200);const result=await opened.json();assert.equal(result.name,"Book.md");assert.equal(result.content,f.provider.text);
 });

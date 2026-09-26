@@ -127,11 +127,11 @@ function validFile(file) {
     !file ||
     file.trashed ||
     typeof file.name !== "string" ||
-    !/\.(fountain|txt)$/i.test(file.name) ||
+    !/\.(fountain|txt|md|markdown)$/i.test(file.name) ||
     typeof file.mimeType !== "string" ||
     file.mimeType.startsWith("application/vnd.google-apps.")
   )
-    throw new HttpError(400, "Choose a Fountain or text file.");
+    throw new HttpError(400, "Choose a Markdown, Fountain or text file.");
   if (file.size !== undefined && Number(file.size) > MAX_BYTES)
     throw new HttpError(413, "File too large (2 MB maximum).");
   return file;
@@ -165,7 +165,7 @@ async function boundedText(response, maximum = MAX_BYTES) {
       if (text.includes("\0")) throw new Error();
       return text;
     } catch {
-      throw new HttpError(400, "Choose a UTF-8 Fountain or text file.");
+      throw new HttpError(400, "Choose a UTF-8 Markdown, Fountain or text file.");
     }
   } finally {
     reader.releaseLock();
@@ -652,7 +652,7 @@ export function createDriveRoutes({
       )
         throw new HttpError(400, "Search or page token is too long.");
       const escaped = search.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-      const q = `trashed=false and '${parent}' in parents and (mimeType='${folderType}' or name contains '.fountain' or name contains '.txt')${search ? ` and name contains '${escaped}'` : ""}`;
+      const q = `trashed=false and '${parent}' in parents and (mimeType='${folderType}' or name contains '.fountain' or name contains '.txt' or name contains '.md' or name contains '.markdown')${search ? ` and name contains '${escaped}'` : ""}`;
       const params = new URLSearchParams({
         q,
         fields:
@@ -673,7 +673,7 @@ export function createDriveRoutes({
         .filter(
           (f) =>
             f.mimeType === folderType ||
-            (/\.(fountain|txt)$/i.test(f.name) &&
+            (/\.(fountain|txt|md|markdown)$/i.test(f.name) &&
               !f.mimeType?.startsWith("application/vnd.google-apps.")),
         )
         .map((f) => ({
@@ -754,9 +754,9 @@ export function createDriveRoutes({
     if (
       typeof input.name !== "string" ||
       input.name.length > 200 ||
-      !/^[^/\\\x00-\x1f]+\.(fountain|txt)$/i.test(input.name)
+      !/^[^/\\\x00-\x1f]+\.(fountain|txt|md|markdown)$/i.test(input.name)
     )
-      throw new HttpError(400, "Choose a .fountain or .txt filename.");
+      throw new HttpError(400, "Choose a .md, .markdown, .fountain or .txt filename.");
     const parent = validId(input.parent || "root");
     const destination = await metadata(env, account, current, parent);
     if (

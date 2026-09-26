@@ -1209,6 +1209,96 @@
           "sha256": "a6db8096b2707bc0102d256917d4d33f298ba36d8c3f25de067a2b5bb379db27"
         }
       ]
+    },
+    "markdown-it@15.0.2": {
+      "license": "MIT",
+      "packageJsonSha256": "8139a013848ea3354dad52d9e025646e85620fca02805d4db0bacd5c05472946",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "792c48c5a849a15fdf9e37e8bcf9e6d1dd13b32b46c642a748a0a46a9919d473"
+        }
+      ]
+    },
+    "argparse@3.0.2": {
+      "license": "PSF-2.0",
+      "packageJsonSha256": "80d9ff02e0cfd70c6984c0eba9cb1ef1a9ec1af3184e21ffedc72dec73a17df6",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "ab745c5061d1dea43a3885e5b4b6befc7e983954954775c5736debeefcdfd89b"
+        }
+      ]
+    },
+    "entities@6.0.1": {
+      "license": "BSD-2-Clause",
+      "packageJsonSha256": "2b110e5a5a7a7bcbc843b885105a952630299cb1a7817b4b321d69479cfa7086",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "cb992345949ccd6e8394b2cd6c465f7b897c864f845937dbf64e8997f389e164"
+        }
+      ]
+    },
+    "linkify-it@6.1.0": {
+      "license": "MIT",
+      "packageJsonSha256": "5dc14a32eb18ce1de17e257c9059162683d939cf74bcfdbbf7526ece1742f821",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "95e3f7f0e81e9b4940cdfaa1956aaff5e4dfd2fb1565041e7c78eb9a606f23e3"
+        }
+      ]
+    },
+    "uc.micro@3.0.0": {
+      "license": "MIT",
+      "packageJsonSha256": "93f983d24c5f48a75c80d0019fc14d522bbbefa049a45545bb7617eab82ec2f4",
+      "files": [
+        {
+          "path": "LICENSE.txt",
+          "sha256": "483acb265f182907d1caf6cff9c16c96f31325ed23792832cc5d8b12d5f88c8a"
+        }
+      ]
+    },
+    "mdurl@2.1.0": {
+      "license": "MIT",
+      "packageJsonSha256": "807e00f99605ba97f4953f8ceb6a65db877d23a9f5496ae367eb953c0e4e627d",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "6b6a356c4337e2446841f30f3cdf7e7023af8c5260b5e347c0f987b9f6aa2644"
+        }
+      ]
+    },
+    "punycode.js@2.3.1": {
+      "license": "MIT",
+      "packageJsonSha256": "ce0bcedcc3d00b235770a2c49af74712e10e5dac8d3dda5ed23c433b19720c3c",
+      "files": [
+        {
+          "path": "LICENSE-MIT.txt",
+          "sha256": "483acb265f182907d1caf6cff9c16c96f31325ed23792832cc5d8b12d5f88c8a"
+        }
+      ]
+    },
+    "fflate@0.8.3": {
+      "license": "MIT",
+      "packageJsonSha256": "5922d8150b307bc0e4e441491c779c45379e9913d348848fca8d5cf02db4d134",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "0a1df3a083d0c010560aa342e87959c8c1070e6fd54545741f083f22d0c8b551"
+        }
+      ]
+    },
+    "entities@8.1.0": {
+      "license": "BSD-2-Clause",
+      "packageJsonSha256": "b6ff1175be0fa103f032d52e42af95d95c674e3cba08d93670cc8944697bcc42",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "cb992345949ccd6e8394b2cd6c465f7b897c864f845937dbf64e8997f389e164"
+        }
+      ]
     }
   },
   "supplements": {

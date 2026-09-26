@@ -1,4 +1,4 @@
-import { serializeFountain } from "./fountain";
+import { serializeDocument } from "./documentFormat";
 import type { DocumentSession } from "./session";
 
 /** Bind the response to the draft captured at submission, not the draft open later. */
@@ -9,7 +9,7 @@ export function captureWriteShapeSave<T extends { name: string }>(
 ) {
   const snapshot = session.capture();
   return {
-    content: serializeFountain(snapshot.screenplay),
+    content: serializeDocument(snapshot.screenplay),
     onSaved(item: T) {
       if (!isCurrentSession() || session.current.id !== snapshot.id) return;
       session.rename(item.name);

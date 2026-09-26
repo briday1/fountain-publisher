@@ -44,15 +44,19 @@ const lineIndices = new WeakMap<
 export function screenplayLines(doc: Screenplay): ScreenplayLine[] {
   const cached = lineCache.get(doc.blocks)?.get(doc.titlePage);
   if (cached) return cached;
-  const titleValues = [
-    doc.titlePage.title,
-    doc.titlePage.credit,
-    doc.titlePage.author,
-    doc.titlePage.source,
-    doc.titlePage.draftDate,
-    doc.titlePage.contact,
-    ...Object.values(doc.titlePage.extra ?? {}),
-  ].filter(Boolean);
+  const titleValues = (
+    doc.metadata.format === "markdown"
+      ? []
+      : [
+          doc.titlePage.title,
+          doc.titlePage.credit,
+          doc.titlePage.author,
+          doc.titlePage.source,
+          doc.titlePage.draftDate,
+          doc.titlePage.contact,
+          ...Object.values(doc.titlePage.extra ?? {}),
+        ]
+  ).filter(Boolean);
   const titleLineCount = titleValues.reduce(
     (sum, value) =>
       sum + (value.includes("\n") ? value.split("\n").length + 1 : 1),
@@ -65,6 +69,7 @@ export function screenplayLines(doc: Screenplay): ScreenplayLine[] {
   const result: ScreenplayLine[] = [];
   for (const block of doc.blocks) {
     const continuous =
+      doc.metadata.format !== "markdown" &&
       (block.kind === "dialogue" || block.kind === "parenthetical") &&
       previous &&
       ["character", "dialogue", "parenthetical"].includes(previous.kind);
@@ -83,7 +88,12 @@ export function screenplayLines(doc: Screenplay): ScreenplayLine[] {
         wordsBefore,
         text,
       });
-      if (storyKinds.has(block.kind)) wordsBefore += countWords(text);
+      if (
+        storyKinds.has(block.kind) ||
+        (doc.metadata.format === "markdown" &&
+          ["section", "parenthetical"].includes(block.kind))
+      )
+        wordsBefore += countWords(text);
       start += text.length + 1;
     }
     if (block.kind === "boneyard") number++;
@@ -245,11 +255,20 @@ export function sceneBeatRange(
   sceneId: string,
 ): BeatRange | undefined {
   const start = doc.blocks.findIndex(
-    (block) => block.id === sceneId && block.kind === "scene",
+    (block) =>
+      block.id === sceneId &&
+      block.kind === (doc.metadata.format === "markdown" ? "section" : "scene"),
   );
   if (start < 0) return;
   let end = start + 1;
-  while (end < doc.blocks.length && doc.blocks[end].kind !== "scene") end++;
+  while (
+    end < doc.blocks.length &&
+    (doc.metadata.format === "markdown"
+      ? doc.blocks[end].kind !== "section" ||
+        (doc.blocks[end].level || 2) > (doc.blocks[start].level || 2)
+      : doc.blocks[end].kind !== "scene")
+  )
+    end++;
   while (end > start + 1 && !doc.blocks[end - 1].text.length) end--;
   const last = doc.blocks[end - 1];
   const range = {

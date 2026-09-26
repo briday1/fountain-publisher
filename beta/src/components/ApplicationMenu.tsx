@@ -53,11 +53,17 @@ function commandsIn(children: ReactNode): Command[] {
 
 /** Render the same commands on desktop and mobile; no duplicate action registry. */
 export function ApplicationMenu({
+  simpleMobile = false,
+  onSettings,
+  onHelp,
   children,
   mobile,
   controls,
   filename,
 }: {
+  simpleMobile?: boolean;
+  onSettings?: () => void;
+  onHelp?: () => void;
   children: ReactNode;
   mobile: boolean;
   controls: ReactElement<WritingToolbarProps>;
@@ -184,43 +190,148 @@ export function ApplicationMenu({
       </button>
       {open && (
         <Modal
-          title={filename.replace(/\.fountain$/i, "")}
+          title={filename.replace(/\.(fountain|md|markdown)$/i, "")}
           eyebrow="YOUR WORKSPACE"
           onClose={close}
           className="mobile-command-panel"
         >
-          <div
-            className="mobile-command-sections"
-            role="group"
-            aria-label="Command categories"
-          >
-            {sections.map(([label, Icon]) => (
-              <button
-                key={label}
-                aria-pressed={section === label}
-                onClick={() => setSection(label)}
-              >
-                <Icon size={19} aria-hidden="true" />
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
-          <section
-            className="mobile-command-content"
-            aria-label={`${section} commands`}
-          >
-            {section === "File" && storageShortcuts.length > 0 && (
-              <div
-                className="mobile-storage-shortcuts"
-                role="group"
-                aria-label="Connected storage"
-              >
-                {storageShortcuts}
+          {simpleMobile ? (
+            <section
+              className="mobile-command-content"
+              aria-label="File commands"
+            >
+              <div className="mobile-command-grid">
+                {groups.File.filter(
+                  (node) =>
+                    isValidElement(node) &&
+                    ["Open…", "Save"].includes(
+                      String((node as Command).props.children),
+                    ),
+                )}
+                <button
+                  onClick={dismissThen(() =>
+                    controls.props.onPreferences({
+                      ...controls.props.preferences,
+                      outline: !controls.props.preferences.outline,
+                      insights: false,
+                    }),
+                  )}
+                >
+                  Outline
+                </button>
+                <button
+                  onClick={dismissThen(() =>
+                    controls.props.onPreferences({
+                      ...controls.props.preferences,
+                      insights: !controls.props.preferences.insights,
+                      outline: false,
+                    }),
+                  )}
+                >
+                  Insights
+                </button>
+                <button onClick={dismissThen(controls.props.onSearch)}>
+                  Find and replace
+                </button>
+                {groups.Share}
+                <button onClick={dismissThen(() => onSettings?.())}>
+                  Settings
+                </button>
               </div>
-            )}
-            {section === "Write" && mobileControls}
-            <div className="mobile-command-grid">{groups[section]}</div>
-          </section>
+              <label className="mobile-zoom-control">
+                Zoom
+                <select
+                  aria-label="Zoom"
+                  value={controls.props.preferences.zoom}
+                  onChange={(event) =>
+                    controls.props.onPreferences({
+                      ...controls.props.preferences,
+                      zoom: Number(event.target.value),
+                    })
+                  }
+                >
+                  {[
+                    ...new Set([
+                      60,
+                      70,
+                      80,
+                      90,
+                      100,
+                      110,
+                      120,
+                      125,
+                      130,
+                      140,
+                      150,
+                      175,
+                      200,
+                      controls.props.preferences.zoom,
+                    ]),
+                  ]
+                    .sort((a, b) => a - b)
+                    .map((zoom) => (
+                      <option key={zoom} value={zoom}>
+                        {zoom}%
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <details className="mobile-curated-tools">
+                <summary>More actions</summary>
+                <div className="mobile-command-grid">
+                  {groups.File.filter(
+                    (node) =>
+                      isValidElement(node) &&
+                      !["Open…", "Save"].includes(
+                        String((node as Command).props.children),
+                      ),
+                  )}
+                  <button onClick={dismissThen(controls.props.onBeatSheet)}>
+                    Beat sheet
+                  </button>
+                  <button onClick={dismissThen(controls.props.onBeatGuide)}>
+                    Beat guide
+                  </button>
+                  <button onClick={dismissThen(() => onHelp?.())}>Help</button>
+                </div>
+              </details>
+            </section>
+          ) : (
+            <>
+              <div
+                className="mobile-command-sections"
+                role="group"
+                aria-label="Command categories"
+              >
+                {sections.map(([label, Icon]) => (
+                  <button
+                    key={label}
+                    aria-pressed={section === label}
+                    onClick={() => setSection(label)}
+                  >
+                    <Icon size={19} aria-hidden="true" />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+              <section
+                className="mobile-command-content"
+                aria-label={`${section} commands`}
+              >
+                {section === "File" && storageShortcuts.length > 0 && (
+                  <div
+                    className="mobile-storage-shortcuts"
+                    role="group"
+                    aria-label="Connected storage"
+                  >
+                    {storageShortcuts}
+                  </div>
+                )}
+                {section === "Write" && mobileControls}
+                <div className="mobile-command-grid">{groups[section]}</div>
+              </section>
+            </>
+          )}
           <button className="mobile-resume" onClick={close}>
             Back to writing
           </button>

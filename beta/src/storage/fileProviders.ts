@@ -1,6 +1,6 @@
 import type { FilesProvider } from "../components/WriteShapeFiles";
 import type { DocumentSession } from "../core/session";
-import { serializeFountain } from "../core/fountain";
+import { serializeDocument } from "../core/documentFormat";
 import { importScreenplay } from "../core/fdx";
 import { cloudRequest } from "./writeshapeLibrary";
 import {
@@ -48,7 +48,7 @@ export function createFileProviders(options: {
       {
         ...destination,
         name: imported.name,
-        baseContent: serializeFountain(imported.screenplay),
+        baseContent: serializeDocument(imported.screenplay),
         canWrite: destination.canWrite && !imported.converted,
       },
       assertCurrent,
@@ -62,7 +62,7 @@ export function createFileProviders(options: {
   ) => {
     assertCurrent();
     const snapshot = session.capture();
-    const content = serializeFountain(snapshot.screenplay);
+    const content = serializeDocument(snapshot.screenplay);
     await session.flush();
     assertCurrent();
     const destination = await action(content);

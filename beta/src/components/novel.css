@@ -1,0 +1,91 @@
+.novel-outline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.novel-outline li > div {
+  display: flex;
+  align-items: center;
+}
+.novel-outline-jump {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 10px 5px;
+  font-size: 12px;
+}
+.novel-outline-jump small {
+  display: block;
+  opacity: 0.5;
+  margin-top: 4px;
+  font-size: 9px;
+}
+.novel-outline-spacer {
+  width: 26px;
+  flex-shrink: 0;
+}
+.novel-outline button[aria-expanded="false"] svg {
+  transform: rotate(-90deg);
+}
+.novel-outline-beats {
+  border: 0;
+  background: none;
+  margin-left: 28px;
+  padding: 0 5px 8px;
+  font-size: 10px;
+  color: var(--accent);
+}
+.novel-character {
+  width: 100%;
+  display: grid;
+  gap: 5px;
+  text-align: left;
+  padding: 10px;
+  margin: 6px 0;
+}
+.novel-character small {
+  opacity: 0.65;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.novel-character-fields {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
+  padding: 16px;
+  border-radius: 8px;
+}
+.novel-character-fields label {
+  display: grid;
+  gap: 6px;
+}
+.new-document-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 20px 0;
+}
+.new-document-options button {
+  padding: 26px 18px;
+  display: grid;
+  gap: 12px;
+  text-align: left;
+}
+.new-document-options strong {
+  font-size: 20px;
+  font-weight: 500;
+}
+.new-document-options small {
+  font-size: 12px;
+  line-height: 1.6;
+  opacity: 0.7;
+}
+@media (max-width: 500px) {
+  .new-document-options {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,5 +1,5 @@
 import { importScreenplay } from "../core/fdx";
-import { serializeFountain } from "../core/fountain";
+import { serializeDocument } from "../core/documentFormat";
 import type {
   DestinationSnapshot,
   DestinationAdapter,
@@ -20,7 +20,7 @@ export interface WriteShapeDestination {
   handle?: FileHandle;
 }
 export function canonicalContent(content: string, name: string) {
-  return serializeFountain(importScreenplay(content, name).screenplay);
+  return serializeDocument(importScreenplay(content, name).screenplay);
 }
 export function destinationKey(value?: WriteShapeDestination) {
   return value ? `${value.provider}:${value.accountId || ""}:${value.id}` : "";
