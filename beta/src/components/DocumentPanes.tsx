@@ -63,7 +63,9 @@ function DocumentCanvas({
   view,
   preferences,
   onTitle,
+  mobile = false,
 }: {
+  mobile?: boolean;
   model: DocumentWorkspace;
   view: DocumentView;
   preferences: Preferences;
@@ -104,9 +106,10 @@ function DocumentCanvas({
       <div
         ref={scroll}
         className="writing-scroll"
-        role="tabpanel"
+        role={mobile ? "region" : "tabpanel"}
+        aria-label={mobile ? "Current document" : undefined}
         id={`document-panel-${view.id}`}
-        aria-labelledby={`document-tab-${view.id}`}
+        aria-labelledby={mobile ? undefined : `document-tab-${view.id}`}
         onScroll={(event) => {
           view.scrollTop = event.currentTarget.scrollTop;
           model.saveLayout();
@@ -150,7 +153,9 @@ export function DocumentPanes({
   onOpen,
   onTitle,
   changed,
+  mobile = false,
 }: {
+  mobile?: boolean;
   model: DocumentWorkspace;
   preferences: Preferences;
   onOpen: () => void;
@@ -159,6 +164,29 @@ export function DocumentPanes({
 }) {
   const root = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<string>();
+  // Rendering a single active view does not collapse, reorder or close the desktop workspace.
+  if (mobile)
+    return (
+      <div className="document-workspace mobile-single-document">
+        <section className="document-pane" aria-label="Document">
+          {model.activeView ? (
+            <DocumentCanvas
+              key={model.activeView.id}
+              model={model}
+              view={model.activeView}
+              preferences={preferences}
+              onTitle={onTitle}
+              mobile
+            />
+          ) : (
+            <div className="empty-document-pane">
+              <p>Open a document to start writing.</p>
+              <button onClick={onOpen}>Open a document</button>
+            </div>
+          )}
+        </section>
+      </div>
+    );
   return (
     <div
       className={`document-workspace ${model.split ? "is-split" : ""} active-pane-${model.activePane}`}
@@ -187,36 +215,6 @@ export function DocumentPanes({
         </Menu>
         {model.split && (
           <button onClick={() => model.swapPanes()}>Swap panes</button>
-        )}
-        {model.split && (
-          <div className="mobile-pane-switch">
-            <button
-              aria-pressed={model.activePane === 0}
-              onClick={() => {
-                const id = model.panes[0].selected;
-                if (id) model.activate(id);
-                else {
-                  model.activePane = 0;
-                  changed();
-                }
-              }}
-            >
-              Left pane
-            </button>
-            <button
-              aria-pressed={model.activePane === 1}
-              onClick={() => {
-                const id = model.panes[1].selected;
-                if (id) model.activate(id);
-                else {
-                  model.activePane = 1;
-                  changed();
-                }
-              }}
-            >
-              Right pane
-            </button>
-          </div>
         )}
       </div>
       <div className="document-pane-row">

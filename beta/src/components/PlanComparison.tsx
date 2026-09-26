@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { BillingPlanChoice, type BillingPlan } from "./BillingPlanChoice";
 import { Modal } from "./Modal";
 import { PremiumSample, SampleScript } from "./PremiumSample";
 import type { PremiumFeature } from "./PremiumSample";
@@ -27,8 +29,9 @@ export function PlanComparison({
   onAccount,
 }: {
   onClose: () => void;
-  onAccount?: () => void;
+  onAccount?: (plan?: BillingPlan) => void;
 }) {
+  const [plan, setPlan] = useState<BillingPlan>("monthly");
   return (
     <Modal
       title="Explore WriteShape Premium"
@@ -202,11 +205,22 @@ export function PlanComparison({
         </tbody>
       </table>
       <p>
-        Premium purchases are not available yet. Pricing will be announced
-        before purchase. Your local writing remains available.
+        Private pilot · Sandbox only. No real payments. Premium is included for
+        approved private testers.
       </p>
       {onAccount && (
-        <button onClick={onAccount}>Account and subscription status</button>
+        <section
+          className="showcase-billing"
+          aria-label="Premium billing options"
+        >
+          <BillingPlanChoice value={plan} onChange={setPlan} />
+          <button className="primary" onClick={() => onAccount(plan)}>
+            Review {plan} plan in Account
+          </button>
+          <button onClick={() => onAccount()}>
+            Manage existing subscription
+          </button>
+        </section>
       )}
       <button onClick={onClose}>Keep writing</button>
     </Modal>
