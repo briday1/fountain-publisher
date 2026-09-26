@@ -1,3 +1,5 @@
+import { WritingGoals } from "./components/WritingGoals";
+import { useWritingGoals } from "./components/useWritingGoals";
 import { WriteShapeFiles } from "./components/WriteShapeFiles";
 import { WriteShapeMark } from "./components/WriteShapeMark";
 import { createFileProviders } from "./storage/fileProviders";
@@ -119,6 +121,7 @@ export default function App() {
   const [session, setSession] = useState<DocumentSession>();
   const sessionRef = useRef<DocumentSession | undefined>(undefined);
   const accountId = account.state.account?.id;
+  const goals = useWritingGoals(accountId, isWriteShape && account.state.premium);
   const accountIdRef = useRef(accountId);
   accountIdRef.current = accountId;
   useEffect(() => {
@@ -2011,6 +2014,7 @@ export default function App() {
                     initial={doc}
                     onReady={onReady}
                     onChange={onEditorChange}
+                    onWritingActivity={goals.onActivity}
                     onSelection={(value, dual) => {
                       setKind(value);
                       setDualDialogue(dual);
@@ -2049,6 +2053,7 @@ export default function App() {
                   <X size={16} />
                 </button>
               </div>
+              {isWriteShape && <WritingGoals state={goals} premium={account.state.premium} onUpgrade={() => setPlansOpen(true)} />}
               {isWriteShapeFree ? (
                 <PremiumPreview
                   title="Insights"

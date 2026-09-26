@@ -1,0 +1,15 @@
+.writing-goals { padding:20px 0; border-top:1px solid var(--border); }
+.writing-goals header,.writing-goal > div { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.writing-goals header h3 { margin:0; font-weight:500; }
+.writing-goals header button { font-size:10px; padding:4px 7px; }
+.writing-goals p,.writing-goals > small { font-size:11px; line-height:1.6; opacity:.75; }
+.writing-goals > small { display:block; margin-top:8px; }
+.writing-goal { margin:18px 0; font-size:11px; }
+.writing-goal small { opacity:.65; }
+.writing-goal progress { display:block; width:100%; height:5px; margin-top:9px; accent-color:var(--accent); border:0; border-radius:6px; overflow:hidden; }
+.writing-goal progress::-webkit-progress-bar { background:var(--border); }
+.writing-goal progress::-webkit-progress-value { background:var(--accent); }
+.goal-editor fieldset { display:flex; flex-wrap:wrap; gap:12px; border:1px solid var(--border); border-radius:8px; margin:16px 0; padding:14px; }
+.goal-editor label { display:grid; gap:6px; font-size:12px; flex:1; min-width:100px; }
+.goal-editor input,.goal-editor select { width:100%; }
+.goal-counting { font-size:12px; line-height:1.7; margin:20px 0; }
