@@ -37,7 +37,7 @@ export function premium(account) {
   return (
     !!account &&
     (account.private_tester === 1 ||
-      (account.premium_until > now() && account.billing_status === "active"))
+      (account.premium_until > now() && ["active", "past_due"].includes(account.billing_status)))
   );
 }
 export async function accessAccount(user, env) {

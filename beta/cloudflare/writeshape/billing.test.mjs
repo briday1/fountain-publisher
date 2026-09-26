@@ -4,6 +4,7 @@ import Stripe from "stripe";
 import { testDB, request } from "./test-db.mjs";
 import {
   TEST_PLANS,
+  billingSummary,
   approvedPrice,
   billingConfigured,
   billingRoutes,
@@ -34,10 +35,50 @@ const sub = (status = "active", extra = {}) => ({
   customer: "cus_alice",
   status,
   livemode: false,
+  latest_invoice: {
+    id: "in_paid",
+    livemode: false,
+    status: "paid",
+    amount_remaining: 0,
+    customer: "cus_alice",
+    subscription: "sub_test",
+    lines: {
+      data: [
+        {
+          subscription: "sub_test",
+          price: TEST_PLANS.monthly.id,
+          amount: 800,
+          period: { end: future() },
+        },
+      ],
+    },
+  },
   items: {
     data: [{ price: price(), quantity: 1, current_period_end: future() }],
   },
   ...extra,
+  ...(extra.id && !extra.latest_invoice
+    ? {
+        latest_invoice: {
+          id: "in_" + extra.id,
+          livemode: false,
+          status: "paid",
+          amount_remaining: 0,
+          customer: "cus_alice",
+          subscription: extra.id,
+          lines: {
+            data: [
+              {
+                subscription: extra.id,
+                price: TEST_PLANS.monthly.id,
+                amount: 800,
+                period: { end: future() },
+              },
+            ],
+          },
+        },
+      }
+    : {}),
 });
 function setup() {
   const env = {
@@ -60,6 +101,8 @@ function setup() {
     )
     .run("bob", "bob@example.test", "cus_bob", 1);
   let subscriptions = [];
+  let invoices = [];
+  const configs = new Map();
   const calls = [];
   let listCalls = 0;
   const sessions = new Map();
@@ -73,6 +116,12 @@ function setup() {
           for (const s of subscriptions) if (s.customer === customer) yield s;
         })();
       },
+    },
+    invoices: {
+      list: () =>
+        (async function* () {
+          for (const invoice of invoices) yield invoice;
+        })(),
     },
     prices: {
       retrieve: async (id) =>
@@ -113,10 +162,32 @@ function setup() {
       },
     },
     billingPortal: {
+      configurations: {
+        retrieve: async (id) => [...configs.values()].find((c) => c.id === id),
+        list: () =>
+          (async function* () {
+            for (const c of configs.values()) yield c;
+          })(),
+        create: async (params, options) => {
+          calls.push(["configuration", params, options]);
+          if (!configs.has(options.idempotencyKey))
+            configs.set(options.idempotencyKey, {
+              ...params,
+              id: "bpc_" + configs.size,
+              active: true,
+              livemode: false,
+            });
+          return configs.get(options.idempotencyKey);
+        },
+      },
       sessions: {
         create: async (...args) => {
           calls.push(["portal", ...args]);
-          return { url: "https://billing.stripe.com/p/session/test" };
+          return {
+            url: "https://billing.stripe.com/p/session/test",
+            livemode: false,
+            customer: args[0].customer,
+          };
         },
       },
     },
@@ -128,7 +199,9 @@ function setup() {
     stripe,
     calls,
     sessions,
+    configs,
     account,
+    setInvoices: (i) => (invoices = i),
     setSubscriptions: (s) => (subscriptions = s),
     listCalls: () => listCalls,
   };
@@ -355,7 +428,8 @@ test("renewal, cancellation, failed payment and recovery reconcile current Strip
     f.env,
     f.stripe,
   );
-  assert.equal(premium(f.account("alice")), false);
+  // Failed changes do not revoke the remaining already-paid period.
+  assert.equal(premium(f.account("alice")), true);
   f.setSubscriptions([sub("active")]);
   await stripeWebhook(
     await eventRequest(event("evt_renewed", "invoice.paid")),
@@ -661,4 +735,202 @@ test("old subscription events cannot revoke a newer active subscription", async 
     f.stripe,
   );
   assert.equal(premium(f.account("alice")), true);
+});
+
+test("active status without a paid invoice never grants a new period; failed changes preserve only paid time", async () => {
+  const f = setup();
+  const paidEnd = future();
+  f.setSubscriptions([
+    sub("active", {
+      items: {
+        data: [{ price: price(), quantity: 1, current_period_end: paidEnd }],
+      },
+    }),
+  ]);
+  await syncBilling("alice", f.env, f.stripe);
+  const before = f.account("alice").premium_until;
+  assert.ok(before > 0);
+  f.setSubscriptions([
+    sub("active", {
+      latest_invoice: {
+        livemode: false,
+        status: "open",
+        amount_remaining: 8000,
+      },
+      items: {
+        data: [
+          {
+            price: price("yearly"),
+            quantity: 1,
+            current_period_end: paidEnd + 31536000,
+          },
+        ],
+      },
+    }),
+  ]);
+  await syncBilling("alice", f.env, f.stripe);
+  assert.equal(f.account("alice").premium_until, before);
+  assert.equal(
+    subscriptionState(sub("active", { latest_invoice: null })).until,
+    0,
+  );
+  assert.equal(
+    subscriptionState(
+      sub("active", {
+        latest_invoice: { ...sub().latest_invoice, customer: "cus_bob" },
+      }),
+    ).until,
+    0,
+  );
+  assert.equal(
+    subscriptionState(
+      sub("active", {
+        latest_invoice: { ...sub().latest_invoice, subscription: "sub_other" },
+      }),
+    ).until,
+    0,
+  );
+});
+test("unpaid credits cannot extend access or enable plan changes; cancel stays available", async () => {
+  const f = setup();
+  f.setSubscriptions([sub()]);
+  f.setInvoices([{ livemode: false, status: "open", amount_remaining: 800 }]);
+  await syncBilling("alice", f.env, f.stripe);
+  assert.equal(f.account("alice").premium_until, 0);
+  const summary = await (
+    await billingRoutes(
+      request("/api/billing/status"),
+      f.env,
+      f.account("alice"),
+      f.stripe,
+    )
+  ).json();
+  assert.equal(summary.canChange, false);
+  assert.equal(summary.canCancel, true);
+  await assert.rejects(
+    () =>
+      billingRoutes(
+        request("/api/billing/portal", { intent: "change" }),
+        f.env,
+        f.account("alice"),
+        f.stripe,
+      ),
+    /outstanding payment/,
+  );
+  await billingRoutes(
+    request("/api/billing/portal", {
+      intent: "cancel",
+      subscription: "sub_bob",
+    }),
+    f.env,
+    f.account("alice"),
+    f.stripe,
+  );
+  const portal = f.calls.find((c) => c[0] === "portal")[1];
+  assert.equal(portal.flow_data.subscription_cancel.subscription, "sub_test");
+  const config = [...f.configs.values()][0];
+  assert.equal(config.features.subscription_update.enabled, false);
+  assert.equal(config.features.subscription_cancel.mode, "at_period_end");
+  assert.equal(
+    config.features.subscription_cancel.cancellation_reason.enabled,
+    false,
+  );
+});
+test("paid subscription status reports authoritative yearly cadence and uses an explicit allowlisted change portal", async () => {
+  const f = setup();
+  f.setSubscriptions([
+    sub("active", {
+      items: {
+        data: [
+          {
+            id: "si_test",
+            price: price("yearly"),
+            quantity: 1,
+            current_period_end: future(),
+          },
+        ],
+      },
+    }),
+  ]);
+  const summary = await (
+    await billingRoutes(
+      request("/api/billing/status"),
+      f.env,
+      f.account("alice"),
+      f.stripe,
+    )
+  ).json();
+  assert.equal(summary.plan, "yearly");
+  assert.equal(summary.canChange, true);
+  await billingRoutes(
+    request("/api/billing/portal", { intent: "change" }),
+    f.env,
+    f.account("alice"),
+    f.stripe,
+  );
+  const call = f.calls.at(-1)[1];
+  assert.equal(call.customer, "cus_alice");
+  assert.ok(call.configuration);
+  assert.equal(call.flow_data.subscription_update.subscription, "sub_test");
+  const config = [...f.configs.values()][0];
+  assert.deepEqual(
+    config.features.subscription_update.products[0].prices,
+    Object.values(TEST_PLANS).map((p) => p.id),
+  );
+  assert.deepEqual(
+    config.features.subscription_update.default_allowed_updates,
+    ["price"],
+  );
+  assert.equal(
+    config.features.subscription_update.proration_behavior,
+    "always_invoice",
+  );
+});
+test("cancel/reactivate retains paid expiry; canceled subscription can resubscribe without inheriting unpaid extension", async () => {
+  const f = setup();
+  const active = sub();
+  f.setSubscriptions([active]);
+  await syncBilling("alice", f.env, f.stripe);
+  const until = f.account("alice").premium_until;
+  active.cancel_at_period_end = true;
+  await syncBilling("alice", f.env, f.stripe);
+  assert.equal(f.account("alice").premium_until, until);
+  assert.equal(billingSummary([active]).canChange, false);
+  active.cancel_at_period_end = false;
+  await syncBilling("alice", f.env, f.stripe);
+  assert.equal(f.account("alice").premium_until, until);
+  active.status = "canceled";
+  await syncBilling("alice", f.env, f.stripe);
+  assert.equal(premium(f.account("alice")), false);
+  await billingRoutes(
+    request("/api/billing/checkout", { plan: "yearly" }),
+    f.env,
+    f.account("alice"),
+    f.stripe,
+  );
+  assert.equal(f.calls.at(-1)[0], "checkout");
+  assert.equal(premium(f.account("alice")), false);
+});
+test("portal configuration drift or a live response fails closed", async () => {
+  const f = setup();
+  f.setSubscriptions([sub()]);
+  await billingRoutes(
+    request("/api/billing/portal", { intent: "change" }),
+    f.env,
+    f.account("alice"),
+    f.stripe,
+  );
+  [
+    ...f.configs.values(),
+  ][0].features.subscription_update.default_allowed_updates.push("quantity");
+  await assert.rejects(
+    () =>
+      billingRoutes(
+        request("/api/billing/portal", { intent: "change" }),
+        f.env,
+        f.account("alice"),
+        f.stripe,
+      ),
+    /configuration/,
+  );
 });

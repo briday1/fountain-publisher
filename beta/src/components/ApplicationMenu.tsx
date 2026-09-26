@@ -204,7 +204,7 @@ export function ApplicationMenu({
                 {groups.File.filter(
                   (node) =>
                     isValidElement(node) &&
-                    ["Open…", "Save"].includes(
+                    ["Open…", "Save", "Account and subscription…"].includes(
                       String((node as Command).props.children),
                     ),
                 )}
@@ -282,7 +282,7 @@ export function ApplicationMenu({
                   {groups.File.filter(
                     (node) =>
                       isValidElement(node) &&
-                      !["Open…", "Save"].includes(
+                      !["Open…", "Save", "Account and subscription…"].includes(
                         String((node as Command).props.children),
                       ),
                   )}

@@ -48,7 +48,23 @@ export const stripeClient = (env) =>
     httpClient: Stripe.createFetchHttpClient(),
     maxNetworkRetries: 2,
   });
-export function subscriptionState(sub) {
+const objectId = (value) => (typeof value === "string" ? value : value?.id);
+export function paidInvoiceFor(sub) {
+  const invoice = sub.latest_invoice;
+  return (
+    !!invoice &&
+    typeof invoice === "object" &&
+    invoice.livemode === false &&
+    invoice.status === "paid" &&
+    invoice.amount_remaining === 0 &&
+    objectId(invoice.customer) === objectId(sub.customer) &&
+    objectId(
+      invoice.parent?.subscription_details?.subscription ||
+        invoice.subscription,
+    ) === sub.id
+  );
+}
+export function subscriptionState(sub, previousUntil = 0) {
   const allItems = sub.items?.data || [];
   const items = allItems.filter(
     (item) =>
@@ -64,15 +80,49 @@ export function subscriptionState(sub) {
   const enabled =
     sub.livemode === false &&
     !sub.pause_collection &&
-    sub.status === "active" &&
+    ["active", "past_due"].includes(sub.status) &&
     items.length === 1 &&
     allItems.length === 1 &&
     !sub.items?.has_more &&
     Number.isFinite(end) &&
     end > now();
+  // A future subscription period alone is not evidence of payment. In particular,
+  // a failed plan change must never extend the previously paid access window.
+  const paidEnd =
+    sub.status === "active" && paidInvoiceFor(sub) && !sub.has_unpaid_invoices
+      ? Math.max(
+          0,
+          ...(sub.latest_invoice.lines?.data || [])
+            .filter(
+              (line) =>
+                objectId(
+                  line.parent?.subscription_item_details?.subscription ||
+                    line.subscription,
+                ) === sub.id &&
+                Object.values(TEST_PLANS).some(
+                  (p) =>
+                    p.id ===
+                    objectId(line.pricing?.price_details?.price || line.price),
+                ) &&
+                line.amount >= 0 &&
+                Number.isFinite(line.period?.end),
+            )
+            .map((line) => line.period.end),
+        )
+      : 0;
+  const until = enabled
+    ? Math.min(end, sub.cancel_at || end, Math.max(paidEnd, previousUntil))
+    : 0;
   return {
     status: sub.status || "none",
-    until: enabled ? Math.min(end, sub.cancel_at || end) : 0,
+    until,
+    plan:
+      items.length === 1
+        ? Object.keys(TEST_PLANS).find(
+            (key) => TEST_PLANS[key].id === items[0].price.id,
+          )
+        : null,
+    periodEnd: Number.isFinite(end) ? end : 0,
     cancel: !!sub.cancel_at_period_end,
   };
 }
@@ -82,9 +132,25 @@ export async function subscriptionsFor(customer, stripe) {
     customer,
     status: "all",
     limit: 100,
+    expand: ["data.latest_invoice"],
   })) {
     if (sub.livemode !== false)
       throw new HttpError(503, "Only Stripe test subscriptions are supported.");
+    // Outstanding invoices must not fund a later change through unpaid credits.
+    sub.has_unpaid_invoices = false;
+    for await (const invoice of stripe.invoices.list({
+      customer,
+      subscription: sub.id,
+      limit: 100,
+    })) {
+      if (invoice.livemode !== false)
+        throw new HttpError(503, "Only Stripe test invoices are supported.");
+      if (
+        ["open", "uncollectible"].includes(invoice.status) &&
+        invoice.amount_remaining > 0
+      )
+        sub.has_unpaid_invoices = true;
+    }
     subscriptions.push(sub);
   }
   return subscriptions;
@@ -100,7 +166,12 @@ export async function syncBilling(accountId, env, stripe) {
       account.stripe_customer,
       stripe,
     );
-    const states = subscriptions.map((sub) => subscriptionState(sub));
+    const states = subscriptions.map((sub) =>
+      subscriptionState(
+        sub,
+        ["active", "past_due"].includes(account.billing_status) ? account.premium_until : 0,
+      ),
+    );
     const entitled = states
       .filter((s) => s.until > now())
       .sort((a, b) => b.until - a.until)[0];
@@ -181,6 +252,134 @@ export async function stripeWebhook(request, env, stripe) {
     .run();
   return json({ received: true });
 }
+export function billingSummary(subscriptions) {
+  const current = subscriptions.filter(
+    (s) => !["canceled", "incomplete_expired"].includes(s.status),
+  );
+  const sub = current[0] || subscriptions[0];
+  const state = sub ? subscriptionState(sub) : null;
+  const canChange =
+    current.length === 1 &&
+    sub.status === "active" &&
+    !!state.plan &&
+    paidInvoiceFor(sub) &&
+    !sub.has_unpaid_invoices &&
+    !sub.pending_update &&
+    !sub.schedule &&
+    !sub.cancel_at_period_end;
+  return {
+    subscriptionId: sub?.id || null,
+    status: sub?.status || "none",
+    plan: state?.plan || null,
+    periodEnd: state?.periodEnd || 0,
+    cancelAtPeriodEnd: !!sub?.cancel_at_period_end,
+    cancelAt:
+      sub?.cancel_at || (sub?.cancel_at_period_end ? state?.periodEnd : 0) || 0,
+    invoiceStatus:
+      typeof sub?.latest_invoice === "object"
+        ? sub.latest_invoice?.status
+        : null,
+    hasSubscription: current.length > 0,
+    canChange,
+    canCancel: current.length === 1 && !sub.cancel_at_period_end,
+    changeReason: canChange
+      ? ""
+      : sub?.cancel_at_period_end
+        ? "Cancellation is scheduled. Manage billing to keep your subscription before changing plans."
+        : sub?.schedule || sub?.pending_update
+          ? "A subscription change is already pending. Manage billing to review it."
+          : current.length > 1
+            ? "More than one subscription needs review in billing."
+            : "Resolve any outstanding payment in billing before changing plans.",
+  };
+}
+async function portalConfiguration(stripe, allowChange) {
+  // Explicit per-session configuration; never inherit an unrelated default portal.
+  // Versions are immutable. Concurrent calls use the same idempotency key.
+  const version =
+    "writeshape-account-v3-" + (allowChange ? "change" : "manage");
+  for (const plan of Object.values(TEST_PLANS)) {
+    if (!approvedPrice(await stripe.prices.retrieve(plan.id), plan))
+      throw new HttpError(503, "The sandbox billing catalog needs attention.");
+  }
+  let config;
+  for await (const item of stripe.billingPortal.configurations.list({
+    active: true,
+    limit: 100,
+  })) {
+    if (
+      item.livemode === false &&
+      item.metadata?.writeshape_version === version
+    ) {
+      config = item;
+      break;
+    }
+  }
+  const features = {
+    customer_update: { enabled: false },
+    invoice_history: { enabled: true },
+    payment_method_update: { enabled: true },
+    subscription_cancel: {
+      enabled: true,
+      mode: "at_period_end",
+      proration_behavior: "none",
+      cancellation_reason: { enabled: false, options: ["unused", "other"] },
+    },
+    subscription_update: {
+      enabled: allowChange,
+      default_allowed_updates: ["price"],
+      products: [
+        {
+          product: TEST_PRODUCT,
+          adjustable_quantity: { enabled: false },
+          prices: Object.values(TEST_PLANS).map((p) => p.id),
+        },
+      ],
+      proration_behavior: "always_invoice",
+      schedule_at_period_end: { conditions: [] },
+    },
+  };
+  if (!config)
+    config = await stripe.billingPortal.configurations.create(
+      {
+        name: "WriteShape sandbox account",
+        metadata: { writeshape_version: version },
+        business_profile: {
+          headline: "Manage your WriteShape test subscription",
+        },
+        default_return_url: "https://writeshape.com/?account=billing",
+        login_page: { enabled: false },
+        features,
+      },
+      { idempotencyKey: version },
+    );
+  config = await stripe.billingPortal.configurations.retrieve(config.id, {
+    expand: ["features.subscription_update.products"],
+  });
+  // Refuse a drifted configuration rather than silently expose additional prices.
+  const f = config.features;
+  const prices =
+    f?.subscription_update?.products?.flatMap((p) =>
+      p.product === TEST_PRODUCT ? p.prices : ["invalid"],
+    ) || [];
+  if (
+    config.livemode !== false ||
+    !config.active ||
+    !f?.subscription_cancel?.enabled ||
+    f.subscription_cancel.mode !== "at_period_end" ||
+    f.subscription_cancel.proration_behavior !== "none" ||
+    !!f.subscription_update?.enabled !== allowChange ||
+    f.subscription_update?.proration_behavior !== "always_invoice" ||
+    f.subscription_update?.default_allowed_updates?.join() !== "price" ||
+    prices.length !== 2 ||
+    !Object.values(TEST_PLANS).every((p) => prices.includes(p.id))
+  )
+    throw new HttpError(
+      503,
+      "Sandbox subscription management needs configuration. Your subscription is unchanged.",
+    );
+  return config.id;
+}
 export async function billingRoutes(request, env, account, stripe) {
   const path = new URL(request.url).pathname;
   if (
@@ -188,11 +387,17 @@ export async function billingRoutes(request, env, account, stripe) {
       "/api/billing/checkout",
       "/api/billing/portal",
       "/api/billing/refresh",
+      "/api/billing/status",
     ].includes(path)
   )
     return null;
-  if (request.method !== "POST") throw new HttpError(405, "Use POST.");
-  sameOrigin(request);
+  if (
+    path === "/api/billing/status"
+      ? request.method !== "GET"
+      : request.method !== "POST"
+  )
+    throw new HttpError(405, "Unsupported method.");
+  if (request.method === "POST") sameOrigin(request);
   if (!account)
     throw new HttpError(401, "Sign in before managing a subscription.");
   if (!billingConfigured(env))
@@ -202,13 +407,65 @@ export async function billingRoutes(request, env, account, stripe) {
     await syncBilling(account.id, env, stripe);
     return json({ ok: true });
   }
+  if (path === "/api/billing/status") {
+    const subscriptions = account.stripe_customer
+      ? await subscriptionsFor(account.stripe_customer, stripe)
+      : [];
+    return json(billingSummary(subscriptions));
+  }
   if (path === "/api/billing/portal") {
     if (!account.stripe_customer)
       throw new HttpError(409, "No billing account exists yet.");
+    const body = await bodyJson(request);
+    const intent = body.intent || "manage";
+    if (!["manage", "change", "cancel"].includes(intent))
+      throw new HttpError(400, "Choose a billing action.");
+    const subscriptions = await syncBilling(account.id, env, stripe);
+    const summary = billingSummary(subscriptions);
+    const current = subscriptions.find(
+      (sub) => sub.id === summary.subscriptionId,
+    );
+    if (intent === "change" && !summary.canChange)
+      throw new HttpError(409, summary.changeReason);
+    if (intent === "cancel" && !summary.canCancel)
+      throw new HttpError(
+        409,
+        "There is no subscription to cancel. Refresh the account page.",
+      );
+    const configuration = await portalConfiguration(stripe, summary.canChange);
+    const flow =
+      intent === "change"
+        ? {
+            type: "subscription_update",
+            subscription_update: { subscription: current.id },
+          }
+        : intent === "cancel"
+          ? {
+              type: "subscription_cancel",
+              subscription_cancel: { subscription: current.id },
+            }
+          : null;
     const portal = await stripe.billingPortal.sessions.create({
       customer: account.stripe_customer,
+      configuration,
       return_url: env.APP_ORIGIN + "/?account=billing",
+      ...(flow
+        ? {
+            flow_data: {
+              ...flow,
+              after_completion: {
+                type: "redirect",
+                redirect: { return_url: env.APP_ORIGIN + "/?account=billing" },
+              },
+            },
+          }
+        : {}),
     });
+    if (
+      portal.livemode !== false ||
+      portal.customer !== account.stripe_customer
+    )
+      throw new HttpError(502, "Unexpected test portal response.");
     if (new URL(portal.url).origin !== "https://billing.stripe.com")
       throw new HttpError(502, "Unexpected billing URL.");
     return json({ url: portal.url });
@@ -302,7 +559,8 @@ export async function billingRoutes(request, env, account, stripe) {
           metadata: { writeshape_account: account.id },
         },
         success_url: env.APP_ORIGIN + "/?account=billing",
-        cancel_url: env.APP_ORIGIN + "/?account=billing-cancelled",
+        cancel_url:
+          env.APP_ORIGIN + "/?account=billing-cancelled&plan=" + selection,
         expires_at: attempt.expires,
       },
       { idempotencyKey: "writeshape-test-checkout-" + attempt.token },

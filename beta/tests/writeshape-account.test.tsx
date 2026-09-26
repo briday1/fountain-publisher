@@ -19,18 +19,17 @@ it("unconfigured signup and checkout remain disabled with approved sandbox prici
   );
   for (const label of [
     "Continue with Google",
-    "Try Premium checkout (test)",
-    "Manage subscription",
+    "Continue to monthly test checkout",
   ])
     expect(
       [...node.querySelectorAll("button")].find((b) => b.textContent === label)
         ?.disabled,
     ).toBe(true);
-  expect(node.textContent).toContain("Sandbox checkout is not connected yet");
-  expect(node.textContent).toContain("USD $8/month");
-  expect(node.textContent).toContain("USD $80/year");
+  expect(node.textContent).toContain("Test checkout is currently unavailable");
+  expect(node.textContent).toContain("$8 USD / month");
+  expect(node.textContent).toContain("$80 USD / year");
   expect(node.querySelector("fieldset")?.disabled).toBe(true);
-  expect(node.textContent).toContain("current draft stays on this device");
+  expect(node.textContent).toContain("drafts are saved on this device");
 });
 it("server account state enables only configured actions and exposes cancellation recovery", () => {
   const node = document.createElement("div");
@@ -58,17 +57,17 @@ it("server account state enables only configured actions and exposes cancellatio
       onClose={() => {}}
     />,
   );
-  expect(node.textContent).toContain("Billing status: canceled");
-  expect(node.textContent).toContain("open existing cloud files");
+  expect(node.textContent).toContain("Subscriptioncanceled");
+  expect(node.textContent).toContain("Free · local writing and saves");
   expect(
     [...node.querySelectorAll("button")].find(
-      (b) => b.textContent === "Manage subscription",
+      (b) => b.textContent === "Invoices & payment methods",
     )?.disabled,
   ).toBe(false);
-  expect(node.textContent).toContain("test billing only");
+  expect(node.textContent).toContain("No real payments");
 });
 
-it("private tester can use configured test Checkout while retaining included Premium", () => {
+it("private tester retains included Premium while checkout waits for authoritative billing state", () => {
   const node = document.createElement("div");
   node.innerHTML = renderToStaticMarkup(
     <WriteShapeAccount
@@ -95,9 +94,9 @@ it("private tester can use configured test Checkout while retaining included Pre
   );
   expect(
     [...node.querySelectorAll("button")].find(
-      (b) => b.textContent === "Try Premium checkout (test)",
+      (b) => b.textContent === "Continue to monthly test checkout",
     )?.disabled,
-  ).toBe(false);
+  ).toBe(true);
 });
 
 it("yearly choice sends only the plan after safeguarding the draft, without trusting client price IDs", async () => {
@@ -113,7 +112,12 @@ it("yearly choice sends only the plan after safeguarding the draft, without trus
     this.removeAttribute("open");
   };
   const sequence: string[] = [];
-  const fetchFixture = vi.fn(async () => {
+  const fetchFixture = vi.fn(async (path: string) => {
+    if (path.endsWith("status"))
+      return new Response(
+        JSON.stringify({ status: "none", hasSubscription: false }),
+        { headers: { "Content-Type": "application/json" } },
+      );
     sequence.push("request");
     return new Response(
       JSON.stringify({ url: "https://unexpected.example.test" }),
@@ -156,7 +160,7 @@ it("yearly choice sends only the plan after safeguarding the draft, without trus
     );
     await act(async () =>
       [...node.querySelectorAll("button")]
-        .find((b) => b.textContent === "Try Premium checkout (test)")!
+        .find((b) => b.textContent === "Continue to yearly test checkout")!
         .click(),
     );
     expect(sequence).toEqual(["draft", "request"]);

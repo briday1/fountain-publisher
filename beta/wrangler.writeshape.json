@@ -32,6 +32,7 @@
     "TESTER_EMAIL": "brian.day1@gmail.com",
     "APP_ORIGIN": "https://writeshape.com",
     "STRIPE_MONTHLY_PRICE_ID": "price_1UJI3mCoZzTH3rR02FrxECSY",
-    "STRIPE_YEARLY_PRICE_ID": "price_1UJI3rCoZzTH3rR0fHBGdUzU"
+    "STRIPE_YEARLY_PRICE_ID": "price_1UJI3rCoZzTH3rR0fHBGdUzU",
+    "BILLING_MODE": "test"
   }
 }

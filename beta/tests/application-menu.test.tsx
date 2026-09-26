@@ -202,6 +202,7 @@ it("WriteShape mobile exposes primary actions without categories or editing tool
       <MenuItem onClick={chosen}>New</MenuItem>
       <MenuItem onClick={chosen}>Open…</MenuItem>
       <MenuItem onClick={chosen}>Save</MenuItem>
+      <MenuItem onClick={chosen}>Account and subscription…</MenuItem>
       <small>PUBLISH</small>
       <MenuItem onClick={chosen}>Export…</MenuItem>
     </Menu>,
@@ -218,6 +219,7 @@ it("WriteShape mobile exposes primary actions without categories or editing tool
       "Find and replace",
       "Export…",
       "Settings",
+      "Account and subscription…",
     ])
       expect(button(node, name).closest("details")).toBeNull();
     expect(node.querySelector('[aria-label="Zoom"]')).not.toBeNull();

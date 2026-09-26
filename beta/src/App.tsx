@@ -124,6 +124,13 @@ export default function App() {
     () => isWriteShape && new URLSearchParams(location.search).has("account"),
   );
   const [plansOpen, setPlansOpen] = useState(false);
+  const [selectedBillingPlan, setSelectedBillingPlan] = useState<
+    "monthly" | "yearly"
+  >(() =>
+    new URLSearchParams(location.search).get("plan") === "yearly"
+      ? "yearly"
+      : "monthly",
+  );
   const [cloudConflict, setCloudConflict] = useState<string>();
   const [libraryMode, setLibraryMode] = useState<"open" | "save" | null>(null);
   const cloudCapturedContent = useRef("");
@@ -1958,7 +1965,7 @@ export default function App() {
                   doc={doc}
                   onJump={scene}
                   viewActions={
-                    documentWorkspace.current
+                    !mobile && documentWorkspace.current
                       ? (id) => (
                           <OutlineViewActions
                             model={documentWorkspace.current!}
@@ -1982,7 +1989,7 @@ export default function App() {
                   <ol className="scene-list">
                     {insights.scenes.map((s, i) => (
                       <li key={s.id}>
-                        {documentWorkspace.current && (
+                        {documentWorkspace.current && !mobile && (
                           <OutlineViewActions
                             model={documentWorkspace.current}
                             sectionId={s.id}
@@ -2187,6 +2194,7 @@ export default function App() {
             )}
             {documentWorkspace.current ? (
               <DocumentPanes
+                mobile={mobile}
                 model={documentWorkspace.current}
                 preferences={preferences}
                 onOpen={() => setLibraryMode("open")}
@@ -2729,7 +2737,8 @@ export default function App() {
       {plansOpen && (
         <PlanComparison
           onClose={() => setPlansOpen(false)}
-          onAccount={() => {
+          onAccount={(plan) => {
+            if (plan) setSelectedBillingPlan(plan);
             setPlansOpen(false);
             setAccountOpen(true);
           }}
@@ -2737,11 +2746,18 @@ export default function App() {
       )}
       {accountOpen && (
         <WriteShapeAccount
+          key={accountId || "signed-out"}
+          initialPlan={selectedBillingPlan}
           state={account.state}
           error={account.error}
           refresh={account.refresh}
           beforeNavigate={async () => {
-            await session.flush();
+            const buffers = documentWorkspace.current?.buffers;
+            if (buffers)
+              await Promise.all(
+                [...buffers.values()].map((buffer) => buffer.session.flush()),
+              );
+            else await session.flush();
           }}
           onClose={() => setAccountOpen(false)}
         />
