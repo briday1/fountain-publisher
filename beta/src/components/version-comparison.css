@@ -101,3 +101,8 @@
 .version-comparison del + ins {
   margin-left: 0.2em;
 }
+.novel-comparison .version-diff-paper { font-family:Georgia,serif; font-size:16px; line-height:1.8; }
+.novel-comparison .diff-section { font-size:1.4em; font-weight:600; margin:1.8em 0 1em; }
+.novel-comparison .diff-dialogue { margin:1em 7%; padding-left:16px; border-left:2px solid var(--border); }
+.novel-comparison .diff-parenthetical { margin:0 8% 1.8em; text-align:right; }
+.novel-comparison .diff-centered { font-style:italic; }

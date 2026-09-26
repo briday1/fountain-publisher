@@ -1,3 +1,4 @@
+import { isNovel, parseMarkdown } from "../core/markdown";
 import { authoredWords } from "./authoredWords";
 import { Fragment, Slice } from "prosemirror-model";
 import type { Node as ProseMirrorNode, ResolvedPos } from "prosemirror-model";
@@ -11,7 +12,7 @@ import {
 } from "prosemirror-state";
 import type { Command, Transaction } from "prosemirror-state";
 import { Decoration, DecorationSet, EditorView } from "prosemirror-view";
-import { baseKeymap, toggleMark } from "prosemirror-commands";
+import { baseKeymap, toggleMark, splitBlockAs } from "prosemirror-commands";
 import { history, isHistoryTransaction } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import * as Y from "yjs";
@@ -176,6 +177,21 @@ export class EditorController {
   readonly view: EditorView;
   private callbacks: EditorCallbacks;
   private destroyed = false;
+  private prose = false;
+  private enter: Command = (state, dispatch, view) =>
+    this.prose
+      ? splitBlockAs((node, atEnd) => ({
+          type: node.type,
+          attrs: {
+            ...node.attrs,
+            id: newId(),
+            kind: atEnd ? "action" : node.attrs.kind,
+            manual: true,
+            automatic: false,
+            dual: false,
+          },
+        }))(state, dispatch, view)
+      : screenplayEnter(state, dispatch, view);
   private goalCompositionDoc?: ProseMirrorNode;
   private seenWritingTransactions = new WeakSet<Transaction>();
   private compositionTimer?: ReturnType<typeof setTimeout>;
@@ -282,7 +298,7 @@ export class EditorController {
           }
           const command = (
             {
-              insertParagraph: screenplayEnter,
+              insertParagraph: this.enter,
               insertLineBreak,
               historyUndo: undo,
               historyRedo: redo,
@@ -341,7 +357,9 @@ export class EditorController {
         const html = event.clipboardData?.getData("text/html") || "";
         // Native editor copies carry their own block types, marks, and identity.
         if (!text || /data-pm-slice=/.test(html)) return false;
-        const slice = fountainClipboardSlice(text, view.state.selection.$from);
+        const slice = this.prose
+          ? new Slice(blocksToDoc(parseMarkdown(text).blocks).content, 0, 0)
+          : fountainClipboardSlice(text, view.state.selection.$from);
         if (!slice) return false;
         view.dispatch(
           view.state.tr
@@ -353,6 +371,12 @@ export class EditorController {
         return true;
       },
       clipboardTextParser: (text, $context) => {
+        if (this.prose)
+          return new Slice(
+            blocksToDoc(parseMarkdown(text).blocks).content,
+            0,
+            0,
+          );
         const fountain = fountainClipboardSlice(text, $context);
         if (fountain) return fountain;
         // A single-line paste stays in its current paragraph. Multiple lines retain
@@ -387,10 +411,20 @@ export class EditorController {
       clipboardTextSerializer: (slice) =>
         slice.content.textBetween(0, slice.content.size, "\n"),
     });
+    this.updateProseAttributes();
     this.notifySelection();
   }
 
+  private updateProseAttributes() {
+    this.view.dom.classList.toggle("novel-editor", this.prose);
+    this.view.dom.setAttribute(
+      "aria-label",
+      this.prose ? "Novel editor" : "Screenplay editor",
+    );
+  }
+
   private createState(screenplay: Screenplay): EditorState {
+    this.prose = isNovel(screenplay);
     const hardwareCommand =
       (inputType: string, command: Command): Command =>
       (state, dispatch, view) => {
@@ -408,6 +442,7 @@ export class EditorController {
       key: normalizeKey,
       appendTransaction: (transactions, _previous, state) => {
         if (
+          this.prose ||
           this.view?.composing ||
           !this.writable ||
           transactions.some(
@@ -503,15 +538,14 @@ export class EditorController {
           (id) => this.openAnnotation(id),
           () => this.writable,
         ),
-        dualDialoguePlugin(),
-        characterCompletion(),
+        ...(!this.prose ? [dualDialoguePlugin(), characterCompletion()] : []),
         beatAnchorPlugin(screenplay),
         ...(!this.live ? [history({ depth: 500, newGroupDelay: 500 })] : []),
         keymap({
-          Enter: hardwareCommand("insertParagraph", screenplayEnter),
+          Enter: hardwareCommand("insertParagraph", this.enter),
           "Shift-Enter": hardwareCommand("insertLineBreak", insertLineBreak),
-          Tab: cycleBlockKind(),
-          "Shift-Tab": cycleBlockKind(true),
+          Tab: this.prose ? () => false : cycleBlockKind(),
+          "Shift-Tab": this.prose ? () => false : cycleBlockKind(true),
           "Mod-z": hardwareCommand("historyUndo", undo),
           "Mod-Shift-z": hardwareCommand("historyRedo", redo),
           "Mod-y": hardwareCommand("historyRedo", redo),
@@ -527,12 +561,12 @@ export class EditorController {
             "formatUnderline",
             toggleMark(screenplaySchema.marks.underline),
           ),
-          "Mod-1": setBlockKind("scene"),
-          "Mod-2": setBlockKind("action"),
-          "Mod-3": setBlockKind("character"),
-          "Mod-4": setBlockKind("dialogue"),
-          "Mod-5": setBlockKind("parenthetical"),
-          "Mod-6": setBlockKind("transition"),
+          "Mod-1": setBlockKind(this.prose ? "section" : "scene"),
+          "Mod-2": setBlockKind(this.prose ? "action" : "action"),
+          "Mod-3": setBlockKind(this.prose ? "dialogue" : "character"),
+          "Mod-4": setBlockKind(this.prose ? "dialogue" : "dialogue"),
+          "Mod-5": setBlockKind(this.prose ? "parenthetical" : "parenthetical"),
+          "Mod-6": setBlockKind(this.prose ? "centered" : "transition"),
           // Escape provides a standard keyboard exit from the Tab-formatting surface.
           Escape: () => {
             this.view.dom.blur();
@@ -1055,6 +1089,7 @@ export class EditorController {
     clearTimeout(this.compositionTimer);
     this.goalCompositionDoc = undefined;
     this.view.updateState(this.createState(screenplay));
+    this.updateProseAttributes();
     this.selectedKind = undefined;
     this.selectedDual = undefined;
     this.notifySelection();
@@ -1062,6 +1097,18 @@ export class EditorController {
 
   setKind(kind: BlockKind, dual = false): boolean {
     return this.run(setBlockKind(kind, dual));
+  }
+  setHeadingLevel(level: number): void {
+    this.run(setBlockKind("section"));
+    const { state } = this.view;
+    const { $from } = state.selection;
+    if ($from.depth)
+      this.view.dispatch(
+        state.tr.setNodeMarkup($from.before(), undefined, {
+          ...$from.parent.attrs,
+          level: Math.max(1, Math.min(6, level)),
+        }),
+      );
   }
   toggleMark(mark: TextMark): boolean {
     return this.run(toggleMark(screenplaySchema.marks[mark]));

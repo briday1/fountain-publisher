@@ -1,3 +1,4 @@
+import { documentFilename } from "../core/documentFormat";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ComponentProps, ReactNode } from "react";
 import {
@@ -292,7 +293,7 @@ function DestinationBrowser({
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("name");
   const [filename, setFilename] = useState(
-    name.replace(/\.[^.]+$/, "") + ".fountain",
+    name.replace(/\.[^.]+$/, "") + (/\.(md|markdown)$/i.test(name) ? ".md" : ".fountain"),
   );
   const [newFolder, setNewFolder] = useState(false);
   const [folderName, setFolderName] = useState("");
@@ -833,13 +834,8 @@ function DestinationBrowser({
                     if (!writable || loading || busy || !filename.trim())
                       return;
                     void run(async () => {
-                      const name = filename
-                        .trim()
-                        .toLowerCase()
-                        .endsWith(".fountain")
-                        ? filename.trim()
-                        : filename.trim() + ".fountain";
-                      await latest.current.save({ name, parent });
+                      const savedName = documentFilename(filename, name);
+                      await latest.current.save({ name: savedName, parent });
                       if (active.current) onClose();
                     });
                   }}

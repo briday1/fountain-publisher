@@ -37,7 +37,7 @@ const controls = (
     onFullscreen={noop}
   />
 );
-async function mount(children: ReactNode, mobile = true) {
+async function mount(children: ReactNode, mobile = true, simpleMobile = false) {
   const node = document.createElement("div");
   document.body.append(node);
   const root = createRoot(node);
@@ -45,6 +45,7 @@ async function mount(children: ReactNode, mobile = true) {
     root.render(
       <ApplicationMenu
         mobile={mobile}
+        simpleMobile={simpleMobile}
         controls={controls}
         filename="Draft.fountain"
       >
@@ -191,5 +192,42 @@ it("leaves Fountain desktop provider commands in their original File menu", asyn
     expect(action).toHaveBeenCalledExactlyOnceWith("drive-save");
   } finally {
     await h.close();
+  }
+});
+
+it("WriteShape mobile exposes primary actions without categories or editing toolbar", async () => {
+  const chosen = vi.fn();
+  const { node, close } = await mount(
+    <Menu label="File">
+      <MenuItem onClick={chosen}>New</MenuItem>
+      <MenuItem onClick={chosen}>Open…</MenuItem>
+      <MenuItem onClick={chosen}>Save</MenuItem>
+      <small>PUBLISH</small>
+      <MenuItem onClick={chosen}>Export…</MenuItem>
+    </Menu>,
+    true,
+    true,
+  );
+  try {
+    await click(node, "File");
+    for (const name of [
+      "Open…",
+      "Save",
+      "Outline",
+      "Insights",
+      "Find and replace",
+      "Export…",
+      "Settings",
+    ])
+      expect(button(node, name).closest("details")).toBeNull();
+    expect(node.querySelector('[aria-label="Zoom"]')).not.toBeNull();
+    expect(node.querySelector('[aria-label="Command categories"]')).toBeNull();
+    expect(node.querySelector('[aria-label="Text formatting"]')).toBeNull();
+    expect(button(node, "New").closest("details")).not.toBeNull();
+    await click(node, "Open…");
+    expect(chosen).toHaveBeenCalledOnce();
+    expect(node.querySelector("dialog")).toBeNull();
+  } finally {
+    await close();
   }
 });

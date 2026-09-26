@@ -1,3 +1,4 @@
+import { parseMarkdown } from "./markdown";
 import { parseFountain } from "./fountain";
 import type { BlockKind } from "./model";
 export type DiffPart = { text: string; change?: "added" | "removed" };
@@ -59,9 +60,11 @@ export function sequenceDiff<T>(
     ...b.slice(b.length - end).map((value) => ({ value })),
   ];
 }
-function visible(source: string) {
-  const doc = parseFountain(source);
-  const title = Object.entries(doc.titlePage.title || doc.titlePage.author ? doc.titlePage : {})
+function visible(source: string, novel = false) {
+  const doc = novel ? parseMarkdown(source) : parseFountain(source);
+  const title = Object.entries(
+    doc.titlePage.title || doc.titlePage.author ? doc.titlePage : {},
+  )
     .filter(
       ([key, value]) =>
         key !== "extra" && typeof value === "string" && value.trim(),
@@ -70,14 +73,23 @@ function visible(source: string) {
   return [
     ...title,
     ...doc.blocks.filter(
-      (b) => !["boneyard", "note", "synopsis", "section"].includes(b.kind),
+      (b) =>
+        !(
+          novel
+            ? ["boneyard", "note"]
+            : ["boneyard", "note", "synopsis", "section"]
+        ).includes(b.kind),
     ),
   ];
 }
-export function versionDiff(older: string, newer: string): DiffBlock[] {
+export function versionDiff(
+  older: string,
+  newer: string,
+  novel = false,
+): DiffBlock[] {
   const edits = sequenceDiff(
-    visible(older),
-    visible(newer),
+    visible(older, novel),
+    visible(newer, novel),
     (a, b) => a.kind === b.kind && a.text === b.text,
   );
   const result: DiffBlock[] = [];

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { DocumentSession } from "../core/session";
 import { DestinationSync } from "../core/destinationSync";
 import type { DestinationStatus } from "../core/destinationSync";
-import { serializeFountain } from "../core/fountain";
+import { serializeDocument } from "../core/documentFormat";
 import { importScreenplay } from "../core/fdx";
 import { destinationAdapter, destinationKey } from "../storage/destinations";
 import { workspace } from "../storage/workspace";
@@ -46,7 +46,7 @@ export function useDestinationSync(
     };
     const capture = () => {
       const s = session.capture();
-      return { content: serializeFountain(s.screenplay), name: s.name };
+      return { content: serializeDocument(s.screenplay), name: s.name };
     };
     const adapter = destinationAdapter(() => {
       assertBinding();

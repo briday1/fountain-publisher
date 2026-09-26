@@ -2,17 +2,22 @@ import { useMemo, useRef, useState } from "react";
 import { versionDiff } from "../core/versionDiff";
 import "./version-comparison.css";
 export function VersionComparison({
+  novel = false,
   older,
   newer,
   olderLabel,
   newerLabel,
 }: {
+  novel?: boolean;
   older: string;
   newer: string;
   olderLabel: string;
   newerLabel: string;
 }) {
-  const blocks = useMemo(() => versionDiff(older, newer), [older, newer]);
+  const blocks = useMemo(
+    () => versionDiff(older, newer, novel),
+    [older, newer, novel],
+  );
   const changes = blocks.flatMap((b, i) => (b.changed ? [i] : []));
   const [active, setActive] = useState(-1);
   const nodes = useRef(new Map<number, HTMLParagraphElement>());
@@ -25,7 +30,7 @@ export function VersionComparison({
   };
   return (
     <section
-      className="version-comparison"
+      className={`version-comparison${novel ? " novel-comparison" : ""}`}
       aria-label="Formatted screenplay comparison"
     >
       <div className="version-diff-toolbar">

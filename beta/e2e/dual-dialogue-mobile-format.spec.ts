@@ -111,7 +111,7 @@ test.describe("always-visible mobile formatting", () => {
     expect(await original!.evaluate((node) => node === document.querySelector(".screenplay-editor"))).toBe(true);
     for (const width of [390, 320]) {
       await page.setViewportSize({ width, height: 844 });
-      for (const control of await format.locator("button, select").all()) {
+      for (const control of await format.locator("button, .writing-element-hit").all()) {
         const box = (await control.boundingBox())!;
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(width);

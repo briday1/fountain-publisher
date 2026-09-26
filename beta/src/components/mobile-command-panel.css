@@ -310,3 +310,37 @@
     min-width: 26px;
   }
 }
+.mobile-curated-tools {
+  margin: 12px 0;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.mobile-curated-tools summary {
+  font-weight: 500;
+  font-size: 13px;
+  padding: 3px 6px;
+  cursor: pointer;
+}
+.mobile-curated-tools[open] .mobile-command-grid {
+  margin-top: 12px;
+}
+
+.mobile-zoom-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0.25rem;
+}
+.mobile-zoom-control select {
+  min-height: 44px;
+  min-width: 7rem;
+}
+
+.writing-element-hit { display:contents; }
+@media (max-width:950px) {
+  .mobile-header-format .writing-element-hit { display:flex; align-items:center; flex:1 1 0; min-width:64px; height:44px; }
+  .mobile-header-format .writing-element { height:32px; min-height:32px; width:100%; padding-block:2px; }
+}
+@media (max-width:359px) { .mobile-header-format .writing-element-hit { min-width:52px; } }

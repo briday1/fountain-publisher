@@ -63,13 +63,13 @@ async function writable(handle: LocalPermissions): Promise<boolean> {
 }
 
 function textWritable(name: string): boolean {
-  return /\.(?:fountain|txt)$/i.test(name);
+  return /\.(?:fountain|txt|md|markdown)$/i.test(name);
 }
 
 function validName(name: string): void {
   if (!name || name === "." || name === ".." || /[/\\\0]/.test(name))
     throw new LocalDirectoryError("Choose a filename without folder separators.", "INVALID_NAME");
-  if (!textWritable(name)) throw new LocalDirectoryError("Save as a Fountain (.fountain) or text (.txt) file.", "UNSUPPORTED_FORMAT");
+  if (!textWritable(name)) throw new LocalDirectoryError("Save as Markdown (.md), Fountain (.fountain), or text (.txt).", "UNSUPPORTED_FORMAT");
 }
 
 async function requireWritable(handle: LocalPermissions): Promise<void> {

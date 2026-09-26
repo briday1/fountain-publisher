@@ -12,6 +12,7 @@ interface FileAccessWindow extends Window {
   showSaveFilePicker?: (options: unknown) => Promise<FileHandle>;
 }
 const fileTypes = [
+  { description: "Markdown document", accept: {"text/markdown": [".md", ".markdown"]}},
   {
     description: "Fountain screenplay",
     accept: { "text/plain": [".fountain", ".txt"] },
@@ -44,7 +45,7 @@ function stableLocalFileInput(): HTMLInputElement {
   // Fountain has no registered MIME type, so mobile must request */* and let
   // the app validate the filename/content after the user chooses it.
   if (prefersInputFilePicker()) input.removeAttribute("accept");
-  else input.accept = ".fountain,.txt,.fdx,text/plain,application/xml";
+  else input.accept = ".md,.markdown,.fountain,.txt,.fdx,text/plain,text/markdown,application/xml";
   input.tabIndex = -1;
   input.setAttribute("aria-hidden", "true");
   input.setAttribute("data-fp-local-file-picker", "true");
@@ -76,10 +77,10 @@ export async function readLocalFile(
   file: File,
 ): Promise<{ name: string; content: string }> {
   if (file.size > MAX_FILE_BYTES)
-    throw new Error("This file exceeds the 10 MB screenplay limit.");
-  if (!/\.(?:fountain|txt|fdx)$/i.test(file.name))
+    throw new Error("This file exceeds the 10 MB document limit.");
+  if (!/\.(?:fountain|txt|fdx|md|markdown)$/i.test(file.name))
     throw new Error(
-      "Choose a Fountain (.fountain or .txt) or Final Draft (.fdx) screenplay.",
+      "Choose a Markdown (.md), Fountain (.fountain or .txt), or Final Draft (.fdx) document.",
     );
   const bytes = new Uint8Array(await file.arrayBuffer());
   const encoding =
@@ -193,13 +194,13 @@ export async function saveLocalFile(
   let target = handle;
   if (!target && access.showSaveFilePicker)
     target = await access.showSaveFilePicker({
-      suggestedName: name.endsWith(".fountain") ? name : `${name}.fountain`,
-      types: [fileTypes[0]],
+      suggestedName: /\.(md|markdown|fountain|txt)$/i.test(name) ? name : `${name}.fountain`,
+      types: [/\.(md|markdown)$/i.test(name) ? fileTypes[0] : fileTypes[1]],
     });
   if (!target) {
     downloadFile(
       content,
-      name.endsWith(".fountain") ? name : `${name}.fountain`,
+      /\.(md|markdown|fountain|txt)$/i.test(name) ? name : `${name}.fountain`,
     );
     return undefined;
   }

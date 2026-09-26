@@ -1,3 +1,4 @@
+import { isNovel } from "../core/markdown";
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import {
@@ -161,7 +162,9 @@ export function BeatBoard({
       metadata: { ...doc.metadata, beatSheetCollapsed: [...next] },
     });
   };
-  const scenes = doc.blocks.filter((block) => block.kind === "scene");
+  const scenes = doc.blocks.filter(
+    (block) => block.kind === (isNovel(doc) ? "section" : "scene"),
+  );
   const assignments = new Map(
     beats.map((beat) => {
       const range =
@@ -619,7 +622,10 @@ export function BeatBoard({
                                       </select>
                                     </label>
                                     <label>
-                                      Organize under scene
+                                      Organize under{" "}
+                                      {isNovel(doc)
+                                        ? "chapter / section"
+                                        : "scene"}
                                       <select
                                         aria-label={`Beat ${index + 1} scene group`}
                                         disabled={!!beat.parentId}
@@ -669,7 +675,7 @@ export function BeatBoard({
                                     }
                                   />
                                   <label className="beat-whole-scene">
-                                    Assign a whole scene
+                                    Assign a whole {isNovel(doc) ? "chapter / section" : "scene"}
                                     <select
                                       aria-label={`Beat ${index + 1} scene`}
                                       value=""

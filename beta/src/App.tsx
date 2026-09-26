@@ -1,3 +1,8 @@
+import { NovelExportDialog } from "./components/NovelExportDialog";
+import { isNovel, createNovel, proseLabels } from "./core/markdown";
+import { NovelOutline } from "./components/NovelOutline";
+import { NovelCharacters } from "./components/NovelCharacters";
+import "./components/novel.css";
 import { WritingGoals } from "./components/WritingGoals";
 import { useWritingGoals } from "./components/useWritingGoals";
 import { WriteShapeFiles } from "./components/WriteShapeFiles";
@@ -48,7 +53,7 @@ import { emptyScreenplay, blockLabels, newId } from "./core/model";
 import type { BeatRange, BlockKind, Screenplay } from "./core/model";
 import { resolveBeatRange } from "./core/beatRanges";
 import { importScreenplay } from "./core/fdx";
-import { serializeFountain } from "./core/fountain";
+import { documentFilename, serializeDocument } from "./core/documentFormat";
 import { analyzeScreenplay } from "./core/insights";
 import { DocumentSession } from "./core/session";
 import type { SessionSnapshot } from "./core/session";
@@ -189,6 +194,7 @@ export default function App() {
     }
   });
   const [dialog, setDialog] = useState<
+    | "new"
     | "settings"
     | "title"
     | "help"
@@ -777,7 +783,7 @@ export default function App() {
     const captured = session.capture();
     const token = session.token();
     const handle = await saveLocalFile(
-      serializeFountain(captured.screenplay),
+      serializeDocument(captured.screenplay),
       captured.name,
       as ? undefined : file.current,
     );
@@ -818,7 +824,7 @@ export default function App() {
       throw new Error(
         "Reopen this Google Drive file to reconnect live writing before saving. Your writing is kept on this device; you can also download a copy.",
       );
-    const content = serializeFountain(snap.screenplay);
+    const content = serializeDocument(snap.screenplay);
     const result =
       remote.provider === "github"
         ? await cloud.githubSave({
@@ -833,9 +839,17 @@ export default function App() {
       `Saved to ${remote.provider === "github" ? "GitHub" : "Google Drive"}.`,
     );
   }
-  async function newDocument() {
+  async function newDocument(format?: "screenplay" | "novel") {
     if (!session) return;
-    await session.open(emptyScreenplay(), "Untitled.fountain");
+    if (isWriteShape && !format) {
+      setDialog("new");
+      setLibraryMode(null);
+      return;
+    }
+    await session.open(
+      format === "novel" ? createNovel() : emptyScreenplay(),
+      format === "novel" ? "Untitled.md" : "Untitled.fountain",
+    );
     file.current = undefined;
     setDialog(null);
     editor.current?.focus();
@@ -1267,7 +1281,7 @@ export default function App() {
           onClick={() =>
             void run(async () => {
               await newDocument();
-              setDialog(null);
+              if (!isWriteShape) setDialog(null);
               if (isWriteShape) setLibraryMode(null);
             })
           }
@@ -1298,7 +1312,9 @@ export default function App() {
                   void run(async () => {
                     await session.open(
                       r.screenplay,
-                      "Recovered screenplay.fountain",
+                      r.screenplay.metadata.format === "markdown"
+                        ? "Recovered document.md"
+                        : "Recovered screenplay.fountain",
                     );
                     await workspace.clearRecovery(r.recoveryId);
                     setRecoveries(await workspace.recoveries());
@@ -1313,8 +1329,10 @@ export default function App() {
               <button
                 onClick={() =>
                   downloadFile(
-                    serializeFountain(r.screenplay),
-                    "Recovery.fountain",
+                    serializeDocument(r.screenplay),
+                    r.screenplay.metadata.format === "markdown"
+                      ? "Recovery.md"
+                      : "Recovery.fountain",
                   )
                 }
               >
@@ -1357,6 +1375,7 @@ export default function App() {
     </>
   );
   const doc = snapshot.screenplay;
+  const novel = isWriteShape && isNovel(doc);
   const exact =
     pdfPages?.epoch === session.token().epoch &&
     pdfPages.id === snapshot.id &&
@@ -1401,6 +1420,8 @@ export default function App() {
   };
   const writingControls = (
     <WritingToolbar
+      novel={novel}
+      onHeading={(level) => editor.current?.setHeadingLevel(level)}
       kind={kind}
       dualDialogue={dualDialogue}
       onKind={changeElement}
@@ -1471,6 +1492,9 @@ export default function App() {
           <button onClick={() => setAccountOpen(true)}>Account</button>
         )}
         <ApplicationMenu
+          simpleMobile={isWriteShape}
+          onSettings={() => setDialog("settings")}
+          onHelp={() => setDialog("help")}
           mobile={mobile}
           controls={writingControls}
           filename={snapshot.name}
@@ -1486,9 +1510,9 @@ export default function App() {
                 Explore Premium…
               </MenuItem>
             )}
-            <small>SCREENPLAY</small>
+            <small>{novel ? "DOCUMENT" : "SCREENPLAY"}</small>
             <MenuItem onClick={() => void run(newDocument)}>
-              New screenplay
+              {isWriteShape ? "New" : "New screenplay"}
             </MenuItem>
             <MenuItem onClick={() => void run(openLocal)} shortcut={`${mod}O`}>
               {isWriteShape ? "Open…" : "Open screenplay…"}
@@ -1512,7 +1536,7 @@ export default function App() {
                 setDialog("rename");
               }}
             >
-              Rename screenplay…
+              {novel ? "Rename document…" : "Rename screenplay…"}
             </MenuItem>
             {!isWriteShape && (
               <MenuItem onClick={() => void run(listWorkspace)}>
@@ -1528,7 +1552,7 @@ export default function App() {
                 <MenuItem
                   onClick={() => {
                     downloadFile(
-                      serializeFountain(session.capture().screenplay),
+                      serializeDocument(session.capture().screenplay),
                       snapshot.name,
                     );
                   }}
@@ -1606,7 +1630,7 @@ export default function App() {
                 setDialog("rename");
               }}
             >
-              Rename screenplay…
+              {novel ? "Rename document…" : "Rename screenplay…"}
             </MenuItem>
           </Menu>
           <Menu label="View">
@@ -1649,24 +1673,27 @@ export default function App() {
           </Menu>
           <Menu label="Insert">
             <MenuItem onClick={() => setDialog("title")}>Title page…</MenuItem>
-            {(
-              [
-                "scene",
-                "action",
-                "character",
-                "dialogue",
-                "parenthetical",
-                "transition",
-                "section",
-                "synopsis",
-                "note",
-                "pageBreak",
-                "centered",
-                "lyrics",
-              ] as BlockKind[]
+            {(novel
+              ? (Object.keys(proseLabels) as BlockKind[])
+              : ([
+                  "scene",
+                  "action",
+                  "character",
+                  "dialogue",
+                  "parenthetical",
+                  "transition",
+                  "section",
+                  "synopsis",
+                  "note",
+                  "pageBreak",
+                  "centered",
+                  "lyrics",
+                ] as BlockKind[])
             ).map((k) => (
               <MenuItem key={k} onClick={() => insert(k)}>
-                {blockLabels[k]}
+                {novel
+                  ? proseLabels[k as keyof typeof proseLabels]
+                  : blockLabels[k]}
               </MenuItem>
             ))}
           </Menu>
@@ -1715,6 +1742,8 @@ export default function App() {
         {mobile ? (
           <div className="mobile-header-format">
             <FormatControls
+              novel={novel}
+              onHeading={(level) => editor.current?.setHeadingLevel(level)}
               kind={kind}
               dualDialogue={dualDialogue}
               onKind={changeElement}
@@ -1765,10 +1794,13 @@ export default function App() {
           )}
         </div>
       )}
-      <div className="workspace">
+      <div className={`workspace${novel ? " novel-mode" : ""}`}>
         {preferences.outline && !zen && (
           <>
-            <aside className="outline-panel" aria-label="Scene outline">
+            <aside
+              className="outline-panel"
+              aria-label={novel ? "Book outline" : "Scene outline"}
+            >
               <div className="panel-heading">
                 <div>
                   <small>YOUR STORY</small>
@@ -1797,40 +1829,54 @@ export default function App() {
                   </small>
                 </span>
               </button>
-              <div className="outline-section">
-                <small>SCENES</small>
-                <span>{insights.sceneCount}</span>
-              </div>
-              <ol className="scene-list">
-                {insights.scenes.map((s, i) => (
-                  <li key={s.id}>
-                    <button onClick={() => scene(s.id)}>
-                      <span className="scene-index">
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
-                      <span>
-                        {s.heading}
-                        <small>
-                          {s.synopsis ||
-                            `${s.wordCount} words · ${s.timeOfDay || "Scene"}`}
-                        </small>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ol>
-              {!insights.sceneCount && (
-                <p className="panel-empty">
-                  Your scenes will appear here as you write.
-                </p>
+              {novel ? (
+                <NovelOutline
+                  doc={doc}
+                  onJump={scene}
+                  onAdd={() => {
+                    insert("section");
+                    editor.current?.setHeadingLevel(2);
+                  }}
+                  onBeats={() => openView("beats")}
+                />
+              ) : (
+                <>
+                  <div className="outline-section">
+                    <small>SCENES</small>
+                    <span>{insights.sceneCount}</span>
+                  </div>
+                  <ol className="scene-list">
+                    {insights.scenes.map((s, i) => (
+                      <li key={s.id}>
+                        <button onClick={() => scene(s.id)}>
+                          <span className="scene-index">
+                            {String(i + 1).padStart(2, "0")}
+                          </span>
+                          <span>
+                            {s.heading}
+                            <small>
+                              {s.synopsis ||
+                                `${s.wordCount} words · ${s.timeOfDay || "Scene"}`}
+                            </small>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                  {!insights.sceneCount && (
+                    <p className="panel-empty">
+                      Your scenes will appear here as you write.
+                    </p>
+                  )}
+                  <button
+                    className="subtle-button add-scene"
+                    onClick={() => insert("scene")}
+                  >
+                    <Plus size={15} />
+                    Add scene
+                  </button>
+                </>
               )}
-              <button
-                className="subtle-button add-scene"
-                onClick={() => insert("scene")}
-              >
-                <Plus size={15} />
-                Add scene
-              </button>
               <div className="outline-bottom">
                 {!isWriteShape && (
                   <button onClick={() => void run(listWorkspace)}>
@@ -2007,7 +2053,7 @@ export default function App() {
                 <article
                   className={`screenplay-paper ${preferences.colors ? "element-colors" : ""} ${preferences.boldSceneHeadings ? "bold-scenes" : ""} numbers-${preferences.sceneNumbers}`}
                   data-number-format={preferences.sceneNumberFormat}
-                  aria-label="Screenplay page"
+                  aria-label={novel ? "Manuscript page" : "Screenplay page"}
                 >
                   <TitlePreview
                     value={doc.titlePage}
@@ -2041,7 +2087,10 @@ export default function App() {
                 setPreferences((p) => ({ ...p, rightWidth }))
               }
             />
-            <aside className="insights-panel" aria-label="Screenplay insights">
+            <aside
+              className="insights-panel"
+              aria-label={novel ? "Manuscript insights" : "Screenplay insights"}
+            >
               <div className="panel-heading">
                 <div>
                   <small>DOCUMENT</small>
@@ -2082,95 +2131,108 @@ export default function App() {
                       </span>
                     </div>
                     <div>
-                      <strong>{insights.sceneCount}</strong>
-                      <span>scenes</span>
+                      <strong>
+                        {novel
+                          ? doc.blocks.filter((b) => b.kind === "section")
+                              .length
+                          : insights.sceneCount}
+                      </strong>
+                      <span>{novel ? "headings" : "scenes"}</span>
                     </div>
                     <div>
                       <strong>{insights.wordCount.toLocaleString()}</strong>
                       <span>words</span>
                     </div>
                   </div>
-                  <section className="insight-section">
-                    <div className="section-label">
-                      <h3>On the page</h3>
-                      <span>
-                        {Math.round(insights.dialoguePercent)}% dialogue
-                      </span>
-                    </div>
-                    <div className="balance-bar">
-                      <span style={{ width: `${insights.dialoguePercent}%` }} />
-                    </div>
-                    <div className="chart-key">
-                      <span>
-                        <i />
-                        Dialogue
-                      </span>
-                      <span>
-                        <i />
-                        Action
-                      </span>
-                    </div>
-                  </section>
-                  <section className="insight-section">
-                    <div className="section-label">
-                      <h3>Characters</h3>
-                      <span>{insights.characterCount}</span>
-                    </div>
-                    {!insights.characters.length && (
-                      <p className="muted">
-                        Your characters will find their voices here.
-                      </p>
-                    )}
-                    {insights.characters.map((c, i) => (
-                      <button
-                        className="character-row"
-                        key={c.name}
-                        onClick={() => setCharacter(c.name)}
-                      >
-                        <div>
-                          <span
-                            className="character-dot"
-                            style={{
-                              background: [
-                                "#76add9",
-                                "#c29ad0",
-                                "#91b378",
-                                "#d8b175",
-                                "#7cbdb4",
-                              ][i % 5],
-                            }}
-                          />
-                          <strong>{c.name}</strong>
-                          <span>{c.dialogueWords} words</span>
+                  {novel ? (
+                    <NovelCharacters doc={doc} onChange={changeDoc} />
+                  ) : (
+                    <>
+                      <section className="insight-section">
+                        <div className="section-label">
+                          <h3>On the page</h3>
+                          <span>
+                            {Math.round(insights.dialoguePercent)}% dialogue
+                          </span>
                         </div>
-                        <div className="character-bar">
+                        <div className="balance-bar">
                           <span
-                            style={{
-                              width: `${c.share}%`,
-                              background: [
-                                "#76add9",
-                                "#c29ad0",
-                                "#91b378",
-                                "#d8b175",
-                                "#7cbdb4",
-                              ][i % 5],
-                            }}
+                            style={{ width: `${insights.dialoguePercent}%` }}
                           />
                         </div>
-                        <small>
-                          {c.speeches} speeches · {c.sceneCount} scenes ·{" "}
-                          {c.estimatedMinutes.toFixed(1)} min
-                        </small>
-                      </button>
-                    ))}
-                    <button
-                      className="pacing-link"
-                      onClick={() => setDialog("characters")}
-                    >
-                      <BarChart3 size={15} />
-                      Character analytics<span aria-hidden="true">→</span>
-                    </button>
-                  </section>
+                        <div className="chart-key">
+                          <span>
+                            <i />
+                            Dialogue
+                          </span>
+                          <span>
+                            <i />
+                            Action
+                          </span>
+                        </div>
+                      </section>
+                      <section className="insight-section">
+                        <div className="section-label">
+                          <h3>Characters</h3>
+                          <span>{insights.characterCount}</span>
+                        </div>
+                        {!insights.characters.length && (
+                          <p className="muted">
+                            Your characters will find their voices here.
+                          </p>
+                        )}
+                        {insights.characters.map((c, i) => (
+                          <button
+                            className="character-row"
+                            key={c.name}
+                            onClick={() => setCharacter(c.name)}
+                          >
+                            <div>
+                              <span
+                                className="character-dot"
+                                style={{
+                                  background: [
+                                    "#76add9",
+                                    "#c29ad0",
+                                    "#91b378",
+                                    "#d8b175",
+                                    "#7cbdb4",
+                                  ][i % 5],
+                                }}
+                              />
+                              <strong>{c.name}</strong>
+                              <span>{c.dialogueWords} words</span>
+                            </div>
+                            <div className="character-bar">
+                              <span
+                                style={{
+                                  width: `${c.share}%`,
+                                  background: [
+                                    "#76add9",
+                                    "#c29ad0",
+                                    "#91b378",
+                                    "#d8b175",
+                                    "#7cbdb4",
+                                  ][i % 5],
+                                }}
+                              />
+                            </div>
+                            <small>
+                              {c.speeches} speeches · {c.sceneCount} scenes ·{" "}
+                              {c.estimatedMinutes.toFixed(1)} min
+                            </small>
+                          </button>
+                        ))}
+                        <button
+                          className="pacing-link"
+                          onClick={() => setDialog("characters")}
+                        >
+                          <BarChart3 size={15} />
+                          Character analytics<span aria-hidden="true">→</span>
+                        </button>
+                      </section>
+                    </>
+                  )}
                   <section className="insight-section notes-section">
                     <div className="section-label">
                       <h3>Story notes</h3>
@@ -2189,7 +2251,7 @@ export default function App() {
                         })
                       }
                     />
-                    <small>Saved with your screenplay</small>
+                    <small>Saved with your document</small>
                   </section>
                 </>
               )}
@@ -2276,7 +2338,7 @@ export default function App() {
         <span className="status-divider" />
         <span>{preferences.pageSize === "letter" ? "US Letter" : "A4"}</span>
         <span className="status-divider" />
-        <span>Fountain</span>
+        <span>{novel ? "Markdown · Novel" : "Fountain"}</span>
       </footer>
       {notice && (
         <div className="toast" role="status">
@@ -2359,7 +2421,7 @@ export default function App() {
           onOpenLocalFile={openLocalFallback}
           onDownloadLocal={() => {
             downloadFile(
-              serializeFountain(session.capture().screenplay),
+              serializeDocument(session.capture().screenplay),
               session.current.name,
             );
             setLibraryMode(null);
@@ -2372,7 +2434,7 @@ export default function App() {
               : undefined
           }
           captureSave={() => {
-            cloudCapturedContent.current = serializeFountain(
+            cloudCapturedContent.current = serializeDocument(
               session.capture().screenplay,
             );
             return captureWriteShapeSave(
@@ -2419,7 +2481,7 @@ export default function App() {
                 accountId,
                 name: imported.name,
                 revision: String(item.revision),
-                baseContent: serializeFountain(imported.screenplay),
+                baseContent: serializeDocument(imported.screenplay),
                 canWrite: true,
               },
               () => {
@@ -2528,19 +2590,56 @@ export default function App() {
           onClose={() => setAccountOpen(false)}
         />
       )}
-      {dialog === "export" && (
-        <ExportDialog
-          freeOnly={isWriteShapeFree}
-          onUpgrade={() => {
-            setDialog(null);
-            setPlansOpen(true);
-          }}
-          names={insights.characters.map((person) => person.name)}
-          busy={busy}
-          onExport={(selection) => void run(() => exportSelection(selection))}
-          onClose={() => setDialog(null)}
-        />
+      {dialog === "new" && (
+        <Modal title="New document" onClose={() => setDialog(null)}>
+          <p>Choose the form for your next piece of writing.</p>
+          <div className="new-document-options">
+            <button onClick={() => void run(() => newDocument("screenplay"))}>
+              <strong>Screenplay</strong>
+              <small>Scenes, dialogue and Fountain files.</small>
+            </button>
+            <button onClick={() => void run(() => newDocument("novel"))}>
+              <strong>Novel</strong>
+              <small>
+                Books, fiction or nonfiction. Chapters and prose, saved as
+                Markdown.
+              </small>
+            </button>
+          </div>
+        </Modal>
       )}
+      {dialog === "export" &&
+        (novel ? (
+          <NovelExportDialog
+            busy={busy}
+            onClose={() => setDialog(null)}
+            onExport={(format) =>
+              void run(async () => {
+                const snap = session.capture();
+                const { exportNovel } = await import("./core/novelExport");
+                const result = await exportNovel(snap.screenplay, format);
+                downloadFile(
+                  result.blob,
+                  snap.name.replace(/\.[^.]+$/, "") + "." + format,
+                );
+                if (result.warnings.length) tell(result.warnings.join(" "));
+                setDialog(null);
+              })
+            }
+          />
+        ) : (
+          <ExportDialog
+            freeOnly={isWriteShapeFree}
+            onUpgrade={() => {
+              setDialog(null);
+              setPlansOpen(true);
+            }}
+            names={insights.characters.map((person) => person.name)}
+            busy={busy}
+            onExport={(selection) => void run(() => exportSelection(selection))}
+            onClose={() => setDialog(null)}
+          />
+        ))}
       {dialog === "pdf" && (
         <Modal
           title="PDF pages"
@@ -2634,14 +2733,14 @@ export default function App() {
       )}
       {dialog === "help" && <Help onClose={() => setDialog(null)} />}
       {dialog === "rename" && (
-        <Modal title="Name your screenplay" onClose={() => setDialog(null)}>
+        <Modal title={novel ? "Name your document" : "Name your screenplay"} onClose={() => setDialog(null)}>
           <form
             onSubmit={(e) => {
               e.preventDefault();
               const name = rename.trim();
               if (name) {
                 session.rename(
-                  /\.fountain$/i.test(name) ? name : `${name}.fountain`,
+                  documentFilename(name, snapshot.name),
                 );
                 file.current = undefined;
                 setDialog(null);
@@ -2740,7 +2839,7 @@ export default function App() {
           remote={snapshot.remote}
           getContent={() => {
             cloudSaveToken.current = session.token();
-            return serializeFountain(session.capture().screenplay);
+            return serializeDocument(session.capture().screenplay);
           }}
           onOpen={openCloudDocument}
           onSaveCurrent={save}
