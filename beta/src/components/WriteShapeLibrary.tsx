@@ -59,7 +59,8 @@ export function WriteShapeLibrary({
   const [query, setQuery] = useState(""),
     [sort, setSort] = useState("name");
   const [filename, setFilename] = useState(
-    name.replace(/\.[^.]+$/, "") + (/\.(md|markdown)$/i.test(name) ? ".md" : ".fountain"),
+    name.replace(/\.[^.]+$/, "") +
+      (/\.(md|markdown)$/i.test(name) ? ".md" : ".fountain"),
   );
   const [folder, setFolder] = useState(""),
     [newFolder, setNewFolder] = useState(false);
@@ -397,7 +398,7 @@ export function WriteShapeLibrary({
                     }}
                     role="option"
                     aria-selected={selected === item.id}
-                    aria-label={`${item.kind === "folder" ? "Folder" : "Fountain file"}: ${item.name}`}
+                    aria-label={`${item.kind === "folder" ? "Folder" : /\.(md|markdown)$/i.test(item.name) ? "Markdown file" : "Fountain file"}: ${item.name}`}
                     tabIndex={
                       selected === item.id || (!selected && index === 0)
                         ? 0
@@ -450,7 +451,7 @@ export function WriteShapeLibrary({
                         <small>
                           {item.kind === "folder"
                             ? "Folder"
-                            : `Fountain screenplay · v${item.revision}`}
+                            : `${/\.(md|markdown)$/i.test(item.name) ? "Markdown novel" : "Fountain screenplay"} · v${item.revision}`}
                         </small>
                       </span>
                     </div>
@@ -476,8 +477,8 @@ export function WriteShapeLibrary({
                     {query
                       ? "Try a different name in this folder."
                       : mode === "save"
-                        ? "Save your screenplay here, or create a folder to organize your work."
-                        : "This folder is empty. Save a screenplay here to start your library."}
+                        ? "Save your document here, or create a folder to organize your work."
+                        : "This folder is empty. Save a document here to start your library."}
                   </p>
                 </div>
               )}

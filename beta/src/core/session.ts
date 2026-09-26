@@ -28,6 +28,10 @@ type Repository = Pick<
 >;
 export class DocumentSession {
   editor: SessionEditor | null = null;
+  onOpenRequest?: (
+    ...args: Parameters<DocumentSession["open"]>
+  ) => Promise<void>;
+  onForkRequest?: () => Promise<void>;
   current: SessionSnapshot;
   private epoch = 0;
   private persistedEpoch = -1;
@@ -167,6 +171,15 @@ export class DocumentSession {
     destination?: WriteShapeDestination,
     validate?: () => void,
   ): Promise<void> {
+    if (this.onOpenRequest)
+      return this.onOpenRequest(
+        screenplay,
+        name,
+        remote,
+        saved,
+        destination,
+        validate,
+      );
     const token = this.token();
     let prepared = false;
     let switched = false;
@@ -257,6 +270,7 @@ export class DocumentSession {
     return true;
   }
   async fork(): Promise<void> {
+    if (this.onForkRequest) return this.onForkRequest();
     const token = this.token();
     let prepared = false;
     let switched = false;
@@ -272,7 +286,11 @@ export class DocumentSession {
       this.current = {
         ...snapshot,
         id: newId(),
-        name: snapshot.name.replace(/\.(fountain|md|markdown)$/i, "") + (snapshot.screenplay.metadata.format === "markdown" ? " copy.md" : " copy.fountain"),
+        name:
+          snapshot.name.replace(/\.(fountain|md|markdown)$/i, "") +
+          (snapshot.screenplay.metadata.format === "markdown"
+            ? " copy.md"
+            : " copy.fountain"),
         remote: undefined,
         destination: undefined,
       };

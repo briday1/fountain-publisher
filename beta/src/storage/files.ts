@@ -1,5 +1,6 @@
 export interface FileHandle {
   name: string;
+  isSameEntry?(other: FileHandle): Promise<boolean>;
   getFile(): Promise<File>;
   createWritable(): Promise<{
     write(data: string): Promise<void>;

@@ -1,3 +1,5 @@
+import { Mapping } from "prosemirror-transform";
+import { sectionBounds, sectionFocusPlugin } from "./sectionFocus";
 import { isNovel, parseMarkdown } from "../core/markdown";
 import { authoredWords } from "./authoredWords";
 import { Fragment, Slice } from "prosemirror-model";
@@ -175,6 +177,42 @@ function fountainClipboardSlice(
 /** All editing state belongs to ProseMirror. React mounts one persistent surface. */
 export class EditorController {
   readonly view: EditorView;
+  focusedSection?: string;
+  onSharedUpdate?: (
+    state: EditorState,
+    transactions: readonly Transaction[] | null,
+  ) => void;
+  setSectionFocus(id?: string) {
+    this.focusedSection = sectionBounds(this.view.state.doc, id)
+      ? id
+      : undefined;
+    const bounds = sectionBounds(this.view.state.doc, this.focusedSection);
+    const tr = this.view.state.tr;
+    if (bounds) tr.setSelection(TextSelection.create(tr.doc, bounds.from + 1));
+    this.view.dispatch(tr);
+  }
+  /** Keep this view's plugins/caret while sharing document and undo state. */
+  receiveSharedState(
+    state: EditorState,
+    transactions: readonly Transaction[] | null,
+  ) {
+    const previous = this.view.state;
+    let next = state.reconfigure({ plugins: previous.plugins });
+    const mapping = new Mapping();
+    transactions?.forEach((tr) => mapping.appendMapping(tr.mapping));
+    try {
+      const selection = transactions
+        ? previous.selection.map(next.doc, mapping)
+        : TextSelection.atStart(next.doc);
+      next = next.applyTransaction(next.tr.setSelection(selection)).state;
+    } catch {
+      next = next.apply(next.tr.setSelection(TextSelection.atStart(next.doc)));
+    }
+    if (!sectionBounds(next.doc, this.focusedSection))
+      this.focusedSection = undefined;
+    this.view.updateState(next);
+    this.notifySelection();
+  }
   private callbacks: EditorCallbacks;
   private destroyed = false;
   private prose = false;
@@ -507,6 +545,7 @@ export class EditorController {
       schema: screenplaySchema,
       doc: shared?.doc ?? blocksToDoc(screenplay.blocks),
       plugins: [
+        sectionFocusPlugin(() => this.focusedSection),
         ...(this.live && shared
           ? [
               ySyncPlugin(this.live.doc.getXmlFragment("script"), {
@@ -692,6 +731,12 @@ export class EditorController {
     if (live && !sharedOrigin && transaction.docChanged)
       live.doc.transact(commit, ySyncPluginKey);
     else commit();
+    if (
+      result.transactions.some(
+        (tr) => tr.docChanged || tr.getMeta("closeWritingHistory"),
+      )
+    )
+      this.onSharedUpdate?.(result.state, result.transactions);
     if (result.transactions.some((tr) => tr.docChanged))
       this.callbacks.onChange?.(
         sharedOrigin &&
@@ -726,6 +771,12 @@ export class EditorController {
     this.notifySelection();
   }
 
+  refreshSelection(): void {
+    this.annotationState = undefined;
+    this.selectedKind = undefined;
+    this.selectedDual = undefined;
+    this.notifySelection();
+  }
   private annotationState?: string;
   private notifySelection(): void {
     const target = this.annotationAtSelection();
@@ -1089,6 +1140,9 @@ export class EditorController {
     clearTimeout(this.compositionTimer);
     this.goalCompositionDoc = undefined;
     this.view.updateState(this.createState(screenplay));
+    if (!sectionBounds(this.view.state.doc, this.focusedSection))
+      this.focusedSection = undefined;
+    this.onSharedUpdate?.(this.view.state, null);
     this.updateProseAttributes();
     this.selectedKind = undefined;
     this.selectedDual = undefined;
@@ -1129,6 +1183,9 @@ export class EditorController {
       if (node.attrs.id === id) found = position + 1;
     });
     if (found < 0) return false;
+    const bounds = sectionBounds(this.view.state.doc, this.focusedSection);
+    if (bounds && (found < bounds.from + 1 || found >= bounds.to))
+      this.focusedSection = undefined;
     this.focus();
     this.view.dispatch(selectText(this.view.state, found, found));
     return true;
@@ -1158,7 +1215,9 @@ export class EditorController {
       query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
       options.caseSensitive ? "gu" : "giu",
     );
+    const bounds = sectionBounds(this.view.state.doc, this.focusedSection);
     this.view.state.doc.forEach((node, pos) => {
+      if (bounds && (pos < bounds.from || pos >= bounds.to)) return;
       for (const match of node.textContent.matchAll(pattern))
         matches.push({
           from: pos + 1 + match.index,

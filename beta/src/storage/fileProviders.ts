@@ -16,6 +16,7 @@ import type { WriteShapeDestination } from "./destinations";
 
 export function createFileProviders(options: {
   session: DocumentSession;
+  localRoot?: { current?: DirectoryHandle };
   accountId?: string;
   premium: boolean;
   mode: "open" | "save";
@@ -23,10 +24,11 @@ export function createFileProviders(options: {
   opened(): void;
 }) {
   const { session } = options;
-  let root: DirectoryHandle | undefined;
+  let root = options.localRoot?.current;
   const folders = new Map<string, DirectoryHandle>();
   const files = new Map<string, FileHandle>();
   const paths = new Map<string, { id: string; name: string }[]>();
+  if (root) folders.set("root", root);
   const assertCurrent = () => {
     if (!options.valid())
       throw new Error(
@@ -53,7 +55,7 @@ export function createFileProviders(options: {
       },
       assertCurrent,
     );
-    assertCurrent();
+    // open() may activate a new workspace buffer after its guarded commit.
     options.opened();
   };
   const create = async (
@@ -186,6 +188,7 @@ export function createFileProviders(options: {
       assertCurrent();
       if (!picked) return;
       root = picked;
+      if (options.localRoot) options.localRoot.current = picked;
       folders.clear();
       files.clear();
       paths.clear();
