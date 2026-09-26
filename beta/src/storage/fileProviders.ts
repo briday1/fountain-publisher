@@ -53,7 +53,7 @@ export function createFileProviders(options: {
       },
       assertCurrent,
     );
-    assertCurrent();
+    // open() may activate a new workspace buffer after its guarded commit.
     options.opened();
   };
   const create = async (

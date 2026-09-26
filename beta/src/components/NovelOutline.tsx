@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { ChevronDown, Plus } from "lucide-react";
 import type { Screenplay } from "../core/model";
 export function NovelOutline({
@@ -6,7 +6,9 @@ export function NovelOutline({
   onJump,
   onAdd,
   onBeats,
+  viewActions,
 }: {
+  viewActions?: (id: string) => ReactNode;
   doc: Screenplay;
   onJump: (id: string) => void;
   onAdd: () => void;
@@ -63,6 +65,7 @@ export function NovelOutline({
                   {heading.text || "Untitled heading"}
                   <small>Level {level}</small>
                 </button>
+                {viewActions?.(heading.id)}
               </div>
               {!!beats.length && (
                 <button className="novel-outline-beats" onClick={onBeats}>

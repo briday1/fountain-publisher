@@ -5,6 +5,7 @@ import "@fontsource/courier-prime/400-italic.css";
 import "@fontsource/courier-prime/700.css";
 import "@fontsource/courier-prime/700-italic.css";
 import App from "./App";
+import { isWriteShape } from "./product";
 import "./styles.css";
 import "./mobile-settings.css";
 class ErrorBoundary extends React.Component<
@@ -18,7 +19,7 @@ class ErrorBoundary extends React.Component<
   render() {
     return this.state.error ? (
       <main className="fatal">
-        <h1>Fountain Publisher</h1>
+        <h1>{isWriteShape ? "WriteShape" : "Fountain Publisher"}</h1>
         <p>
           The workspace could not open. Your saved recovery drafts have been
           kept.

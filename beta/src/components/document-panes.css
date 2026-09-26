@@ -1,0 +1,246 @@
+.document-workspace {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+}
+.document-workspace-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 10px;
+  min-height: 34px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+}
+.document-workspace-tools > button {
+  margin-left: auto;
+  padding: 4px 10px;
+  font-size: 11px;
+}
+.document-pane-row {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.document-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.is-split .pane-0 {
+  flex: 0 0 var(--pane-ratio);
+}
+.document-tabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  overflow-x: auto;
+  flex: 0 0 auto;
+  min-height: 39px;
+  padding: 3px;
+  background: var(--panel);
+  border-bottom: 2px solid var(--border);
+}
+.document-pane.active .document-tabs {
+  border-bottom-color: var(--accent);
+}
+.document-tab {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  max-width: 270px;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.document-tab > [role="tab"] {
+  font-size: 11px;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 0;
+  border-radius: 5px 0 0 5px;
+  padding: 7px;
+}
+.document-tab > [aria-selected="true"] {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.document-tab > button:last-child {
+  padding: 3px 6px;
+  border: 0;
+  background: transparent;
+  font-size: 16px;
+}
+.document-tab .menu-trigger {
+  font-size: 0;
+  width: 24px;
+  padding: 3px;
+  border: 0;
+  background: transparent;
+}
+.document-tab .menu-trigger:after {
+  content: "⋯";
+  font-size: 18px;
+}
+.document-tab .menu-popup {
+  position: fixed;
+  z-index: 50;
+}
+.document-tab-open {
+  min-width: 32px;
+  min-height: 30px;
+  padding: 3px;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.document-view-context {
+  display: flex;
+  gap: 6px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 9px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 10px;
+  flex: 0 0 auto;
+  min-height: 25px;
+}
+.document-view-context span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.document-view-context button {
+  font-size: 10px;
+  flex-shrink: 0;
+  padding: 2px 5px;
+}
+.document-pane .writing-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.document-pane .paper-wrap {
+  min-width: 0;
+}
+.is-split .screenplay-paper {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+.document-pane-divider {
+  position: absolute;
+  left: var(--pane-ratio);
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  transform: translateX(-3px);
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 3;
+  background: var(--border);
+}
+.document-pane-divider:hover,
+.document-pane-divider:focus {
+  background: var(--accent);
+}
+.empty-document-pane {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted);
+}
+.mobile-pane-switch {
+  display: none;
+}
+.outline-view-actions {
+  display: inline-block;
+  flex-shrink: 0;
+}
+.outline-view-actions .menu-trigger {
+  font-size: 0;
+  padding: 2px 6px;
+}
+.outline-view-actions .menu-trigger:after {
+  content: "⋯";
+  font-size: 17px;
+}
+@media (max-width: 720px) {
+  .document-workspace-tools {
+    font-size: 10px;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+  .mobile-pane-switch {
+    display: flex;
+    gap: 3px;
+  }
+  .mobile-pane-switch button {
+    font-size: 10px;
+    padding: 3px 8px;
+  }
+  .document-pane-divider {
+    display: none;
+  }
+  .is-split.active-pane-0 .pane-1,
+  .is-split.active-pane-1 .pane-0 {
+    display: none;
+  }
+  .is-split .document-pane {
+    flex: 1;
+  }
+  .document-tab {
+    max-width: 230px;
+  }
+  .document-tabs button {
+    min-height: 36px;
+  }
+  .document-view-context {
+    font-size: 9px;
+  }
+}
+.scene-list li {
+  position: relative;
+}
+.scene-list li > .outline-view-actions {
+  position: absolute;
+  right: 3px;
+  top: 8px;
+  z-index: 1;
+}
+.scene-list li > button {
+  padding-right: 30px;
+}
+.document-pane {
+  container-type: inline-size;
+  container-name: document-pane;
+}
+@container document-pane (max-width:600px) {
+  .document-pane .screenplay-paper {
+    padding: 40px 24px 40px 40px;
+  }
+  .document-pane .paper-wrap {
+    padding: 20px 12px;
+  }
+}
+@media (max-width: 720px) {
+  .document-workspace-tools button {
+    min-height: 36px;
+  }
+  .mobile-pane-switch button {
+    min-width: 70px;
+  }
+}
