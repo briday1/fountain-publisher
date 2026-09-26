@@ -64,6 +64,8 @@ export function paidInvoiceFor(sub) {
     ) === sub.id
   );
 }
+const cancellationScheduled = (sub) =>
+  !!sub && (!!sub.cancel_at_period_end || Number(sub.cancel_at) > now());
 export function subscriptionState(sub, previousUntil = 0) {
   const allItems = sub.items?.data || [];
   const items = allItems.filter(
@@ -123,7 +125,7 @@ export function subscriptionState(sub, previousUntil = 0) {
           )
         : null,
     periodEnd: Number.isFinite(end) ? end : 0,
-    cancel: !!sub.cancel_at_period_end,
+    cancel: cancellationScheduled(sub),
   };
 }
 export async function subscriptionsFor(customer, stripe) {
@@ -169,7 +171,9 @@ export async function syncBilling(accountId, env, stripe) {
     const states = subscriptions.map((sub) =>
       subscriptionState(
         sub,
-        ["active", "past_due"].includes(account.billing_status) ? account.premium_until : 0,
+        ["active", "past_due"].includes(account.billing_status)
+          ? account.premium_until
+          : 0,
       ),
     );
     const entitled = states
@@ -266,13 +270,13 @@ export function billingSummary(subscriptions) {
     !sub.has_unpaid_invoices &&
     !sub.pending_update &&
     !sub.schedule &&
-    !sub.cancel_at_period_end;
+    !cancellationScheduled(sub);
   return {
     subscriptionId: sub?.id || null,
     status: sub?.status || "none",
     plan: state?.plan || null,
     periodEnd: state?.periodEnd || 0,
-    cancelAtPeriodEnd: !!sub?.cancel_at_period_end,
+    cancelAtPeriodEnd: cancellationScheduled(sub),
     cancelAt:
       sub?.cancel_at || (sub?.cancel_at_period_end ? state?.periodEnd : 0) || 0,
     invoiceStatus:
@@ -281,10 +285,10 @@ export function billingSummary(subscriptions) {
         : null,
     hasSubscription: current.length > 0,
     canChange,
-    canCancel: current.length === 1 && !sub.cancel_at_period_end,
+    canCancel: current.length === 1 && !cancellationScheduled(sub),
     changeReason: canChange
       ? ""
-      : sub?.cancel_at_period_end
+      : cancellationScheduled(sub)
         ? "Cancellation is scheduled. Manage billing to keep your subscription before changing plans."
         : sub?.schedule || sub?.pending_update
           ? "A subscription change is already pending. Manage billing to review it."

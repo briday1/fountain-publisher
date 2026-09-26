@@ -934,3 +934,16 @@ test("portal configuration drift or a live response fails closed", async () => {
     /configuration/,
   );
 });
+
+test("flexible portal cancellation with cancel_at but no period-end flag is displayed and enforced", () => {
+  const ending = sub("active", {
+    cancel_at: future(),
+    cancel_at_period_end: false,
+  });
+  assert.equal(subscriptionState(ending).cancel, true);
+  const summary = billingSummary([ending]);
+  assert.equal(summary.cancelAtPeriodEnd, true);
+  assert.equal(summary.canChange, false);
+  assert.equal(summary.canCancel, false);
+  assert.match(summary.changeReason, /Cancellation is scheduled/);
+});
