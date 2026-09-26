@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { build } from "esbuild";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -220,6 +220,143 @@ it("WriteShape accounts collaborate on a Book through real D1, Worker and durabl
     expect(stored.content).toContain("Owner concurrent.");
     expect(stored.content).toContain("Writer concurrent.");
     expect(stored.content).not.toContain("Forbidden");
+    // Actual LiveClient + IndexedDB implementation over real workerd sockets.
+    // Only the browser transport and IndexedDB engine are adapted for Node.
+    const { indexedDB, IDBKeyRange } = await import("fake-indexeddb");
+    vi.stubGlobal("indexedDB", indexedDB);
+    vi.stubGlobal("IDBKeyRange", IDBKeyRange);
+    vi.stubGlobal("window", new EventTarget());
+    vi.stubGlobal("navigator", { onLine: true });
+    vi.stubGlobal("location", { origin });
+    let connectingUser = "owner";
+    const bridges: BrowserSocket[] = [];
+    class BrowserSocket {
+      static OPEN = 1;
+      static CONNECTING = 0;
+      readyState = 0;
+      onmessage?: (event: { data: string }) => void;
+      onclose?: (event: { code: number; reason: string }) => void;
+      onerror?: () => void;
+      peer?: any;
+      constructor(url: URL) {
+        bridges.push(this);
+        const user = connectingUser;
+        void runtime
+          .dispatchFetch(String(url).replace("wss:", "https:"), {
+            headers: { ...headers(user), Upgrade: "websocket" },
+          })
+          .then((response) => {
+            if (response.status !== 101)
+              throw new Error("Socket upgrade failed");
+            const peer = (this.peer = response.webSocket!);
+            sockets.push(peer);
+            if (this.readyState === 3) {
+              peer.accept();
+              peer.close();
+              return;
+            }
+            peer.addEventListener("message", (event: any) => {
+              if (this.readyState !== 3)
+                this.onmessage?.({ data: String(event.data) });
+            });
+            peer.addEventListener("close", (event: any) => {
+              if (this.readyState === 3) return;
+              this.readyState = 3;
+              this.onclose?.({ code: event.code, reason: event.reason });
+            });
+            this.readyState = 1;
+            peer.accept();
+          })
+          .catch(() => {
+            this.close();
+            this.onerror?.();
+          });
+      }
+      send(data: string) {
+        if (this.readyState !== 1) throw new Error("Transport disconnected");
+        this.peer.send(data);
+      }
+      close() {
+        if (this.readyState === 3) return;
+        this.readyState = 3;
+        this.peer?.close();
+        this.onclose?.({ code: 1000, reason: "Synthetic transport loss" });
+      }
+    }
+    vi.stubGlobal("WebSocket", BrowserSocket);
+    const { LiveClient } = await import("../src/collaboration/LiveClient");
+    const clients: InstanceType<typeof LiveClient>[] = [];
+    const phases = new Map<object, string>();
+    const connectClient = async (user: string) => {
+      const response = await call(user, path + "/bootstrap", {});
+      expect(response.status).toBe(200);
+      const client = await LiveClient.prepare((await response.json()) as any);
+      clients.push(client);
+      client.onStatus = (status) => phases.set(client, status.phase);
+      connectingUser = user;
+      client.start();
+      await until(() => (phases.get(client) === "live" ? true : undefined));
+      return client;
+    };
+    try {
+      const first = await connectClient("owner");
+      const second = await connectClient("writer");
+      bridges[0].close();
+      insert(first.doc, "Offline preserved. ");
+      // Persist and destroy before retry: this models closing the disconnected tab.
+      await first.stop();
+      first.destroy();
+      insert(second.doc, "Online peer continues. ");
+      await until(() => (phases.get(second) === "live" ? true : undefined));
+      const restored = await LiveClient.cached(room, "owner");
+      expect(restored).toBeDefined();
+      clients.push(restored!);
+      expect(restored!.doc.getXmlFragment("script").toString()).toContain(
+        "Offline preserved.",
+      );
+      restored!.onStatus = (status) => phases.set(restored!, status.phase);
+      connectingUser = "owner";
+      restored!.start();
+      await until(() =>
+        phases.get(restored!) === "live" &&
+        second.doc
+          .getXmlFragment("script")
+          .toString()
+          .includes("Offline preserved.") &&
+        restored!.doc
+          .getXmlFragment("script")
+          .toString()
+          .includes("Online peer continues.")
+          ? true
+          : undefined,
+      );
+      // A second reconnect must not duplicate the persisted outbox update.
+      await restored!.stop();
+      await restored!.resume();
+      await until(() => (phases.get(restored!) === "live" ? true : undefined));
+      const saved = await call("owner", path + "/checkpoint", {});
+      expect(saved.status).toBe(200);
+      const row = await db
+        .prepare("SELECT content FROM items WHERE id=?")
+        .bind(id)
+        .first<any>();
+      expect(
+        row.content
+          .split("<!-- WriteShape metadata")[0]
+          .match(/Offline preserved\./g),
+      ).toHaveLength(1);
+      expect(
+        row.content
+          .split("<!-- WriteShape metadata")[0]
+          .match(/Online peer continues\./g),
+      ).toHaveLength(1);
+    } finally {
+      for (const client of clients) {
+        await client.stop();
+        client.destroy();
+      }
+      vi.unstubAllGlobals();
+    }
     const revoked = await call(
       "owner",
       `/api/library/${id}/shares/${grants.writer}/revoke`,
@@ -252,7 +389,7 @@ it("WriteShape accounts collaborate on a Book through real D1, Worker and durabl
     await until(() =>
       sessions[0].messages.find((m: any) => m.type === "ack" && m.id === 5),
     );
-    sockets.forEach((ws) => ws.close());
+    sessions.forEach(({ ws }) => ws.close());
     stored = await until(async () => {
       const row = await db
         .prepare("SELECT content FROM items WHERE id=?")
