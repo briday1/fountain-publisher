@@ -355,7 +355,7 @@ test("existing subscriptions cannot create duplicate checkout; non-test prices a
         f.account("alice"),
         f.stripe,
       ),
-    /test price/,
+    /configured price/,
   );
 });
 test("verified webhook grants only mapped account; replay is idempotent and metadata is ignored", async () => {
@@ -398,7 +398,7 @@ test("invalid, stale, live and tampered webhook signatures fail without granting
       eventRequest({ ...event("evt_live"), livemode: true }).then((r) =>
         stripeWebhook(r, f.env, f.stripe),
       ),
-    /test events/,
+    /event mode/,
   );
   const signed = await eventRequest(event("evt_tampered"));
   const altered = new Request(signed.url, {

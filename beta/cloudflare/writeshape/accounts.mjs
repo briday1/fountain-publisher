@@ -1,4 +1,6 @@
+import { accessCodeOwner, accessCodesAvailable } from "./access-codes.mjs";
 import { createRemoteJWKSet, jwtVerify } from "jose";
+import { billingMode } from "./billing-mode.mjs";
 import { identity } from "./access.mjs";
 import { HttpError, json, now, sameOrigin, bodyJson } from "./http.mjs";
 const SESSION = "__Host-writeshape_session";
@@ -37,7 +39,9 @@ export function premium(account) {
   return (
     !!account &&
     (account.private_tester === 1 ||
-      (account.premium_until > now() && ["active", "past_due"].includes(account.billing_status)))
+      account.complimentary_until > now() ||
+      (account.premium_until > now() &&
+        ["active", "past_due"].includes(account.billing_status)))
   );
 }
 export async function accessAccount(user, env) {
@@ -179,11 +183,15 @@ export async function accountRoutes(request, env, account, billingAvailable) {
             billingStatus: account.billing_status,
             cancelAtPeriodEnd: !!account.cancel_at_period_end,
             premiumUntil: account.premium_until,
+            complimentaryUntil: account.complimentary_until || 0,
           }
         : null,
       premium: premium(account),
+      accessCodesAvailable: accessCodesAvailable(env),
+      manageAccessCodes: accessCodeOwner(account, env),
       googleAvailable: googleConfigured(env),
       billingAvailable,
+      billingMode: billingMode(env),
       portalAvailable: billingAvailable && !!account?.stripe_customer,
       privateMode: privateMode(env),
     });

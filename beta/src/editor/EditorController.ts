@@ -457,7 +457,7 @@ export class EditorController {
     this.view.dom.classList.toggle("novel-editor", this.prose);
     this.view.dom.setAttribute(
       "aria-label",
-      this.prose ? "Novel editor" : "Screenplay editor",
+      this.prose ? "Book editor" : "Screenplay editor",
     );
   }
 

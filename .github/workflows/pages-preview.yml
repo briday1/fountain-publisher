@@ -61,6 +61,27 @@ jobs:
           path: beta/dist
           if-no-files-found: error
 
+  writeshape_private:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: beta
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: beta/package-lock.json
+      - run: npm ci
+      - name: Test WriteShape account, billing, access, storage and isolation
+        run: node --test cloudflare/writeshape/*.test.mjs
+      - name: Build the private WriteShape artifact
+        run: npm run build:writeshape
+      - name: Validate WriteShape Worker without publishing
+        run: npx wrangler deploy --config wrangler.writeshape.json --dry-run
+
   account_worker:
     runs-on: ubuntu-latest
     timeout-minutes: 15

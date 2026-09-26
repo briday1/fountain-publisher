@@ -1,3 +1,5 @@
+import { withComplimentaryAccess, accessCodeRoutes } from "./access-codes.mjs";
+import { accountBilling } from "./billing-mode.mjs";
 import { driveRoutes } from "./drive.mjs";
 import { sharingRoutes } from "./sharing.mjs";
 import { libraryRoutes } from "./library.mjs";
@@ -12,7 +14,12 @@ export function createHandler(authenticate = resolveAccount) {
     try {
       if (url.pathname === "/api/billing/webhook")
         return await stripeWebhook(request, env);
-      const user = await authenticate(request, env);
+      const user = await withComplimentaryAccess(
+        accountBilling(await authenticate(request, env), env),
+        env,
+      );
+      const codeResponse = await accessCodeRoutes(request, env, user);
+      if (codeResponse) return codeResponse;
       const accountResponse = await accountRoutes(
         request,
         env,

@@ -451,7 +451,7 @@ export function WriteShapeLibrary({
                         <small>
                           {item.kind === "folder"
                             ? "Folder"
-                            : `${/\.(md|markdown)$/i.test(item.name) ? "Markdown novel" : "Fountain screenplay"} · v${item.revision}`}
+                            : `${/\.(md|markdown)$/i.test(item.name) ? "Markdown book" : "Fountain screenplay"} · v${item.revision}`}
                         </small>
                       </span>
                     </div>

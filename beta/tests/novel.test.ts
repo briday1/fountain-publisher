@@ -106,7 +106,7 @@ it("Novel Enter does not auto-convert prose", () => {
     expect(editor.getBlocks().map((b) => b.kind)).toEqual(["action", "action"]);
     view.dispatch(view.state.tr.insertText("MARA"));
     expect(editor.getBlocks()[1].kind).toBe("action");
-    expect(view.dom.getAttribute("aria-label")).toBe("Novel editor");
+    expect(view.dom.getAttribute("aria-label")).toBe("Book editor");
   } finally {
     editor.destroy();
     host.remove();
