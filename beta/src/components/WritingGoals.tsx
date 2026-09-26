@@ -41,7 +41,11 @@ export function WritingGoals({
       <header>
         <h3>Writing goals</h3>
         <button onClick={() => (premium ? setOpen(true) : onUpgrade())}>
-          {premium ? "Manage" : "Premium"}
+          {premium
+            ? state.goals.length
+              ? "Edit goals"
+              : "Set writing goal"
+            : "Premium"}
         </button>
       </header>
       {premium && state.goals.length ? (

@@ -2017,7 +2017,9 @@ export default function App() {
                     initial={doc}
                     onReady={onReady}
                     onChange={onEditorChange}
-                    onWritingActivity={isWriteShape ? goals.onActivity : undefined}
+                    onWritingActivity={
+                      isWriteShape ? goals.onActivity : undefined
+                    }
                     onSelection={(value, dual) => {
                       setKind(value);
                       setDualDialogue(dual);
@@ -2056,13 +2058,6 @@ export default function App() {
                   <X size={16} />
                 </button>
               </div>
-              {isWriteShape && (
-                <WritingGoals
-                  state={goals}
-                  premium={account.state.premium}
-                  onUpgrade={() => setPlansOpen(true)}
-                />
-              )}
               {isWriteShapeFree ? (
                 <PremiumPreview
                   title="Insights"
@@ -2197,6 +2192,13 @@ export default function App() {
                     <small>Saved with your screenplay</small>
                   </section>
                 </>
+              )}
+              {isWriteShape && (
+                <WritingGoals
+                  state={goals}
+                  premium={account.state.premium}
+                  onUpgrade={() => setPlansOpen(true)}
+                />
               )}
             </aside>
           </>
