@@ -1,3 +1,4 @@
+import type { DirectoryHandle } from "./storage/localDirectory";
 import { DocumentWorkspace } from "./core/documentWorkspace";
 import { DocumentPanes, BufferSync } from "./components/DocumentPanes";
 import { OutlineViewActions } from "./components/OutlineViewActions";
@@ -189,11 +190,13 @@ export default function App() {
   const [fileTab, setFileTab] = useState<"writeshape" | "drive" | "local">(
     "local",
   );
+  const localRoot = useRef<DirectoryHandle | undefined>(undefined);
   const fileProviders = useMemo(
     () =>
       session
         ? createFileProviders({
             session,
+            localRoot,
             accountId,
             premium: account.state.premium,
             mode: libraryMode || "open",
