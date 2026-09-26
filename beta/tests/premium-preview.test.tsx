@@ -27,10 +27,10 @@ for (const title of ["Insights", "Beat Sheet", "Beat Guide"] as const) {
     expect(el.querySelector(selector)).not.toBeNull();
   });
 }
-it("places all six sample showcases before comparison and describes unavailable purchases", () => {
+it("places all seven sample showcases before comparison and describes unavailable purchases", () => {
   const el = document.createElement("div");
   el.innerHTML = renderToStaticMarkup(<PlanComparison onClose={() => {}} />);
-  expect(el.querySelectorAll(".showcase-feature")).toHaveLength(6);
+  expect(el.querySelectorAll(".showcase-feature")).toHaveLength(7);
   expect(
     el
       .querySelector(".premium-showcase")!

@@ -303,10 +303,14 @@ export class EditorController {
           this.compositionTimer = setTimeout(() => {
             if (!this.destroyed && !this.view.composing) {
               if (this.goalCompositionDoc) {
-                this.callbacks.onWritingActivity?.(authoredWords(this.goalCompositionDoc, this.view.state.doc));
+                this.callbacks.onWritingActivity?.(
+                  authoredWords(this.goalCompositionDoc, this.view.state.doc),
+                );
                 this.goalCompositionDoc = undefined;
               }
-              this.view.dispatch(this.view.state.tr.setMeta(normalizeKey, true));
+              this.view.dispatch(
+                this.view.state.tr.setMeta(normalizeKey, true),
+              );
             }
           }, 30);
           return false;
@@ -659,12 +663,30 @@ export class EditorController {
         sharedOrigin &&
           !transaction.getMeta(ySyncPluginKey)?.isUndoRedoOperation,
       );
-    if (result.transactions.includes(transaction) && transaction.docChanged && !sharedOrigin && !isHistoryTransaction(transaction) && !this.seenWritingTransactions.has(transaction)) {
+    if (
+      this.callbacks.onWritingActivity &&
+      result.transactions.includes(transaction) &&
+      transaction.docChanged &&
+      !sharedOrigin &&
+      !isHistoryTransaction(transaction) &&
+      !this.seenWritingTransactions.has(transaction)
+    ) {
       this.seenWritingTransactions.add(transaction);
-      const changedText = writingBefore.textContent !== result.state.doc.textContent;
+      const changedText =
+        writingBefore.content.findDiffStart(result.state.doc.content) != null;
       if (changedText) {
-        if (this.view.composing || transaction.getMeta("composition") != null || this.goalCompositionDoc) this.goalCompositionDoc ??= writingBefore;
-        else this.callbacks.onWritingActivity?.(authoredWords(writingBefore,result.state.doc), !!transaction.getMeta("paste") || ["paste","drop"].includes(transaction.getMeta("uiEvent")));
+        if (
+          this.view.composing ||
+          transaction.getMeta("composition") != null ||
+          this.goalCompositionDoc
+        )
+          this.goalCompositionDoc ??= writingBefore;
+        else
+          this.callbacks.onWritingActivity?.(
+            authoredWords(writingBefore, result.state.doc),
+            !!transaction.getMeta("paste") ||
+              ["paste", "drop"].includes(transaction.getMeta("uiEvent")),
+          );
       }
     }
     this.notifySelection();

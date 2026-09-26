@@ -14,7 +14,7 @@ export const EditorSurface = memo(function EditorSurface({
   initial: Screenplay;
   onReady: (editor: EditorController | null) => void;
   onChange: (remote?: boolean) => void;
-  onWritingActivity?: (words:number, pasted?:boolean) => void;
+  onWritingActivity?: (words: number, pasted?: boolean) => void;
   onSelection: (kind: BlockKind, dual: boolean) => void;
   onAnnotationState?: (state: "add" | "edit" | "unavailable") => void;
 }) {
@@ -29,7 +29,7 @@ export const EditorSurface = memo(function EditorSurface({
     onChange,
     onSelection,
     onAnnotationState,
-  onWritingActivity,
+    onWritingActivity,
   });
   useEffect(() => {
     const p = props.current;
