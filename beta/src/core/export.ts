@@ -1,3 +1,4 @@
+import { outlineBeats, beatAncestors } from "./beatOutline";
 import type { PDFFont, PDFPage } from "pdf-lib";
 import { newId } from "./model";
 import type {
@@ -1215,9 +1216,11 @@ export function exportBeatSheetCsv(document: Screenplay): string {
       "Color",
       "Lines",
       "Words before first line",
+      "Parent beat",
+      "Scene group",
     ],
   ];
-  for (const beat of document.metadata.beats) {
+  for (const beat of outlineBeats(document.metadata.beats)) {
     const assignment = assignmentFor(beat);
     rows.push([
       beat.title,
@@ -1228,6 +1231,8 @@ export function exportBeatSheetCsv(document: Screenplay): string {
       beat.color,
       assignment ? `${assignment.startLine}–${assignment.endLine}` : "",
       assignment?.words ?? "",
+      beatAncestors(document.metadata.beats, beat.id).map(b => b.title).join(" / "),
+      document.blocks.find(b => b.id === beat.groupSceneId)?.text || "",
     ]);
   }
   return `\uFEFF${rows.map((row) => row.map(cell).join(",")).join("\r\n")}\r\n`;
@@ -1245,7 +1250,9 @@ export function beatSheetDocument(document: Screenplay): Screenplay {
     });
   add(`${document.titlePage.title || "Untitled"} — Beat sheet`, true);
   if (document.metadata.premise) add(String(document.metadata.premise));
-  document.metadata.beats.forEach((beat, index) => {
+  outlineBeats(document.metadata.beats).forEach((beat, index) => {
+    const parents = beatAncestors(document.metadata.beats, beat.id);
+    if (parents.length) add(`Within: ${parents.map(b => b.title || "Untitled beat").join(" / ")}`);
     add(`${index + 1}. ${beat.title || "Untitled beat"} · ${beat.act}`, true);
     if (beat.description) add(beat.description);
     const assignment = assignmentFor(beat);

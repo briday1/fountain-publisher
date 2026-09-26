@@ -27,10 +27,10 @@ for (const title of ["Insights", "Beat Sheet", "Beat Guide"] as const) {
     expect(el.querySelector(selector)).not.toBeNull();
   });
 }
-it("places all five sample showcases before comparison and describes unavailable purchases", () => {
+it("places all six sample showcases before comparison and describes unavailable purchases", () => {
   const el = document.createElement("div");
   el.innerHTML = renderToStaticMarkup(<PlanComparison onClose={() => {}} />);
-  expect(el.querySelectorAll(".showcase-feature")).toHaveLength(5);
+  expect(el.querySelectorAll(".showcase-feature")).toHaveLength(6);
   expect(
     el
       .querySelector(".premium-showcase")!
@@ -39,5 +39,7 @@ it("places all five sample showcases before comparison and describes unavailable
   ).toBeTruthy();
   expect(el.textContent).toContain("fictional sample content");
   expect(el.textContent).toContain("not available yet");
+  expect(el.textContent).toContain("live co-editing is not available yet");
+  expect(el.querySelector(".collaboration-concept")).not.toBeNull();
   expect(el.querySelector("mark")?.textContent).toBe("MARA");
 });

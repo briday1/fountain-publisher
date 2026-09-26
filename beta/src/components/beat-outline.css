@@ -1,0 +1,26 @@
+/* A quiet outline: structure is carried by typography, spacing and a fine rail. */
+.beat-sheet-paper { max-width: 960px; border: 0; box-shadow: none; background: var(--paper); }
+.beat-premise-field { padding-bottom: 24px; border-bottom: 0; }
+.beat-premise-field > span { letter-spacing: .16em; font-size: 10px; text-transform: uppercase; }
+.beat-premise-field textarea { font-family: Georgia, serif; font-size: 20px; line-height: 1.5; border: 0; background: transparent; resize: vertical; }
+.beat-flow-heading h1 { font-weight: 500; letter-spacing: -.035em; }
+.beat-act { margin: 28px 0 36px; }
+.beat-group-heading { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; background: transparent; color: inherit; }
+.beat-group-heading > span { flex: 1; }
+.beat-group-heading > small { font-size: 10px; font-weight: 400; opacity: .6; }
+.beat-group-heading[aria-expanded=false] > svg, .beat-children-toggle[aria-expanded=false] > svg { transform: rotate(-90deg); }
+.beat-act-heading { padding: 12px 0; font-size: 19px; font-weight: 500; letter-spacing: -.025em; border-bottom: 1px solid var(--border); }
+.beat-scene { margin: 16px 0 0 9px; padding-left: 16px; border-left: 1px solid var(--border); }
+.beat-scene-heading { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; padding: 9px 0 14px; }
+.beat-flow-row { margin-left: calc(var(--beat-depth, 0) * 22px); padding: 2px 0; }
+.beat-flow-body { border-bottom: 0; padding: 8px 0 12px; }
+.beat-flow-node-lane::after { display: none; }
+.beat-flow-number { border-radius: 7px; width: 26px; height: 26px; font-size: 10px; background: color-mix(in srgb, var(--beat-color) 12%, transparent); border-color: transparent; }
+.beat-flow-title { font-weight: 500; letter-spacing: -.015em; }
+.beat-flow-details { border-left: 2px solid var(--beat-color); margin: 12px 0; padding: 10px 16px; background: color-mix(in srgb, var(--beat-color) 3%, transparent); border-radius: 0 8px 8px 0; }
+.beat-organization { display: flex; gap: 14px; flex-wrap: wrap; }
+.beat-organization label { display: grid; gap: 5px; flex: 1; min-width: 160px; }
+.beat-organization select { max-width: 100%; }
+.beat-children-toggle { display: flex; gap: 3px; }
+.beat-children-toggle small { font-size: 9px; }
+@media(max-width:600px) { .beat-flow-row { margin-left: calc(var(--beat-depth, 0) * 10px); } .beat-scene { padding-left: 8px; margin-left: 0; } .beat-flow-main { flex-wrap: wrap; } .beat-flow-title { min-width: 120px; } }

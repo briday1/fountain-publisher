@@ -200,6 +200,26 @@ export default function App() {
     provider: Provider;
     mode: "open" | "save" | "share" | "history";
   } | null>(null);
+  useEffect(() => {
+    if (!isWriteShape || !libraryMode) return;
+    let active = true;
+    void (async () => {
+      await session?.flush();
+      const [drafts, recoveries] = await Promise.all([
+        workspace.list(),
+        workspace.recoveries(),
+      ]);
+      if (active) {
+        setLibrary(drafts);
+        setRecoveries(recoveries);
+      }
+    })().catch((e) => {
+      if (active) setNotice(errorMessage(e));
+    });
+    return () => {
+      active = false;
+    };
+  }, [libraryMode, session]);
   const [status, setStatus] = useState("Opening workspace…");
   const [storageFailed, setStorageFailed] = useState(false);
   const [notice, setNotice] = useState("");
@@ -897,7 +917,10 @@ export default function App() {
     await session?.flush();
     setLibrary(await workspace.list());
     setRecoveries(await workspace.recoveries());
-    setDialog("library");
+    if (isWriteShape) {
+      setFileTab("local");
+      setLibraryMode("open");
+    } else setDialog("library");
   }
   async function listHistory() {
     if (!session) return;
@@ -996,6 +1019,7 @@ export default function App() {
       if (restored) attachLive(restored);
       file.current = undefined;
       setDialog(null);
+      if (isWriteShape) setLibraryMode(null);
     } catch (error) {
       if (restored) {
         if (liveClient.current === restored) {
@@ -1230,6 +1254,102 @@ export default function App() {
         <p>Opening your writing room…</p>
       </main>
     );
+  const deviceDrafts = (
+    <>
+      <div className="library-actions">
+        <button
+          onClick={() =>
+            void run(async () => {
+              await newDocument();
+              setDialog(null);
+              if (isWriteShape) setLibraryMode(null);
+            })
+          }
+        >
+          <Plus size={16} />
+          New screenplay
+        </button>
+        <button
+          onClick={() =>
+            void run(async () => {
+              await session.fork();
+              setDialog(null);
+              if (isWriteShape) setLibraryMode(null);
+            })
+          }
+        >
+          Keep current as a copy
+        </button>
+      </div>
+      {recoveries.length > 0 && (
+        <div className="recovery-list">
+          <h3>Recovery drafts</h3>
+          {recoveries.map((r) => (
+            <div key={r.recoveryId}>
+              <span>{new Date(r.updatedAt).toLocaleString()}</span>
+              <button
+                onClick={() =>
+                  void run(async () => {
+                    await session.open(
+                      r.screenplay,
+                      "Recovered screenplay.fountain",
+                    );
+                    await workspace.clearRecovery(r.recoveryId);
+                    setRecoveries(await workspace.recoveries());
+                    file.current = undefined;
+                    setDialog(null);
+                    if (isWriteShape) setLibraryMode(null);
+                  })
+                }
+              >
+                Open as a new copy
+              </button>
+              <button
+                onClick={() =>
+                  downloadFile(
+                    serializeFountain(r.screenplay),
+                    "Recovery.fountain",
+                  )
+                }
+              >
+                Download
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="library-list">
+        {library.map((d) => (
+          <button
+            key={d.id}
+            onClick={() =>
+              void run(async () => {
+                await openWorkspaceDocument(d);
+              })
+            }
+          >
+            <FileText size={20} />
+            <span>
+              <strong>{d.name}</strong>
+              <small>
+                {new Date(d.updatedAt).toLocaleString()}
+                {d.remote
+                  ? ` · ${d.remote.provider === "github" ? "GitHub" : "Google Drive"}`
+                  : ""}
+              </small>
+            </span>
+            {d.id === snapshot.id && (
+              <span className="current-label">Current</span>
+            )}
+          </button>
+        ))}
+      </div>
+      <p className="muted">
+        Download or connect a storage account to keep a copy outside this
+        browser.
+      </p>
+    </>
+  );
   const doc = snapshot.screenplay;
   const exact =
     pdfPages?.epoch === session.token().epoch &&
@@ -1365,7 +1485,7 @@ export default function App() {
               New screenplay
             </MenuItem>
             <MenuItem onClick={() => void run(openLocal)} shortcut={`${mod}O`}>
-              Open screenplay…
+              {isWriteShape ? "Open…" : "Open screenplay…"}
             </MenuItem>
             <MenuItem onClick={() => void run(save)} shortcut={`${mod}S`}>
               Save
@@ -1388,9 +1508,11 @@ export default function App() {
             >
               Rename screenplay…
             </MenuItem>
-            <MenuItem onClick={() => void run(listWorkspace)}>
-              Workspace…
-            </MenuItem>
+            {!isWriteShape && (
+              <MenuItem onClick={() => void run(listWorkspace)}>
+                Workspace…
+              </MenuItem>
+            )}
             <MenuItem onClick={() => void run(listHistory)}>
               Version history…
             </MenuItem>
@@ -1704,10 +1826,12 @@ export default function App() {
                 Add scene
               </button>
               <div className="outline-bottom">
-                <button onClick={() => void run(listWorkspace)}>
-                  <FolderOpen size={16} />
-                  Workspace
-                </button>
+                {!isWriteShape && (
+                  <button onClick={() => void run(listWorkspace)}>
+                    <FolderOpen size={16} />
+                    Workspace
+                  </button>
+                )}
                 {!isWriteShape && (
                   <div>
                     <button
@@ -2155,7 +2279,7 @@ export default function App() {
           className="recovery-banner"
           onClick={() => void run(listWorkspace)}
         >
-          Recovered writing is available · Open workspace
+          Recovered writing is available · Open files
         </button>
       )}
       {dialog === "annotations" && (
@@ -2204,7 +2328,8 @@ export default function App() {
             premium: account.state.premium,
             email: account.state.account?.email,
           }}
-          initialDestination={snapshot.destination?.provider || fileTab}
+          initialDestination={fileTab}
+          deviceDrafts={deviceDrafts}
           onDestination={setFileTab}
           providers={fileProviders}
           onSignIn={() => {
@@ -2532,95 +2657,7 @@ export default function App() {
           onClose={() => setDialog(null)}
           wide
         >
-          <div className="library-actions">
-            <button
-              onClick={() =>
-                void run(async () => {
-                  await newDocument();
-                  setDialog(null);
-                })
-              }
-            >
-              <Plus size={16} />
-              New screenplay
-            </button>
-            <button
-              onClick={() =>
-                void run(async () => {
-                  await session.fork();
-                  setDialog(null);
-                })
-              }
-            >
-              Keep current as a copy
-            </button>
-          </div>
-          {recoveries.length > 0 && (
-            <div className="recovery-list">
-              <h3>Recovery drafts</h3>
-              {recoveries.map((r) => (
-                <div key={r.recoveryId}>
-                  <span>{new Date(r.updatedAt).toLocaleString()}</span>
-                  <button
-                    onClick={() =>
-                      void run(async () => {
-                        await session.open(
-                          r.screenplay,
-                          "Recovered screenplay.fountain",
-                        );
-                        await workspace.clearRecovery(r.recoveryId);
-                        setRecoveries(await workspace.recoveries());
-                        file.current = undefined;
-                        setDialog(null);
-                      })
-                    }
-                  >
-                    Open as a new copy
-                  </button>
-                  <button
-                    onClick={() =>
-                      downloadFile(
-                        serializeFountain(r.screenplay),
-                        "Recovery.fountain",
-                      )
-                    }
-                  >
-                    Download
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="library-list">
-            {library.map((d) => (
-              <button
-                key={d.id}
-                onClick={() =>
-                  void run(async () => {
-                    await openWorkspaceDocument(d);
-                  })
-                }
-              >
-                <FileText size={20} />
-                <span>
-                  <strong>{d.name}</strong>
-                  <small>
-                    {new Date(d.updatedAt).toLocaleString()}
-                    {d.remote
-                      ? ` · ${d.remote.provider === "github" ? "GitHub" : "Google Drive"}`
-                      : ""}
-                  </small>
-                </span>
-                {d.id === snapshot.id && (
-                  <span className="current-label">Current</span>
-                )}
-              </button>
-            ))}
-          </div>
-          <p className="muted">
-            Download or connect a storage account to keep a copy outside this
-            browser.
-          </p>
+          {deviceDrafts}
         </Modal>
       )}
       {dialog === "history" && (

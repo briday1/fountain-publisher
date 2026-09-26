@@ -51,7 +51,7 @@ test("beat flow retains editing and shows cumulative pacing with a PNG export", 
     .getByRole("button", { name: "Beat 1 details", exact: true })
     .click();
   await page
-    .getByRole("combobox", { name: "Beat 1 scene" })
+    .getByRole("combobox", { name: "Beat 1 scene", exact: true })
     .selectOption({ label: "1. INT. FIRST ROOM - DAY" });
   await page
     .getByRole("button", { name: "Beat 1 details", exact: true })
@@ -60,7 +60,7 @@ test("beat flow retains editing and shows cumulative pacing with a PNG export", 
     .getByRole("button", { name: "Beat 3 details", exact: true })
     .click();
   await page
-    .getByRole("combobox", { name: "Beat 3 scene" })
+    .getByRole("combobox", { name: "Beat 3 scene", exact: true })
     .selectOption({ label: "3. EXT. FINAL ROOM - NIGHT" });
   await page
     .getByRole("button", { name: "Beat 3 details", exact: true })
@@ -73,14 +73,14 @@ test("beat flow retains editing and shows cumulative pacing with a PNG export", 
     .fill("She must decide whether to answer.");
   await page
     .getByRole("combobox", { name: "Beat 2 act" })
-    .selectOption("Act II");
+    .selectOption("Act I");
   await page
     .getByRole("button", { name: "Beat 2 details", exact: true })
     .click();
   await expect(page.locator(".beat-flow-row")).toHaveCount(3);
   await expect(page.locator(".beat-flow-number").first()).toHaveCSS(
     "border-radius",
-    "50%",
+    "7px",
   );
   await page.screenshot({
     path: testInfo.outputPath("beat-sheet-presentation.png"),
@@ -139,7 +139,7 @@ test("beat flow retains editing and shows cumulative pacing with a PNG export", 
     page.getByRole("textbox", { name: "Beat 1 description" }),
   ).toHaveValue("She must decide whether to answer.");
   await expect(page.getByRole("combobox", { name: "Beat 1 act" })).toHaveValue(
-    "Act II",
+    "Act I",
   );
   await page
     .getByRole("dialog", { name: "Beat sheet", exact: true })

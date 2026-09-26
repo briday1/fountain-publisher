@@ -424,3 +424,6 @@
   border-bottom: 1px solid var(--border);
   overflow-wrap: anywhere;
 }
+.files-device-drafts { border-top: 1px solid var(--border); padding: 24px; }
+.files-device-drafts > h3 { font-weight: 500; margin: 0 0 8px; }
+.files-device-drafts > p { font-size: 12px; opacity: .7; }

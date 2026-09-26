@@ -46,6 +46,9 @@ export interface BeatRange {
   end: TextAnchor;
 }
 export interface Beat {
+  /** Organizational hierarchy; does not change screenplay range anchors. */
+  parentId?: string;
+  groupSceneId?: string;
   id: string;
   title: string;
   description: string;
