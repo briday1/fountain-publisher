@@ -771,6 +771,12 @@ export class EditorController {
     this.notifySelection();
   }
 
+  refreshSelection(): void {
+    this.annotationState = undefined;
+    this.selectedKind = undefined;
+    this.selectedDual = undefined;
+    this.notifySelection();
+  }
   private annotationState?: string;
   private notifySelection(): void {
     const target = this.annotationAtSelection();

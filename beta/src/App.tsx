@@ -590,6 +590,25 @@ export default function App() {
       if (isWriteShape && !restoredLive) {
         documentWorkspace.current = new DocumentWorkspace(s, {
           changed: refreshWorkspace,
+          edited: ({ controller }) => {
+            if (!latest.current.preferences.typewriter) return;
+            requestAnimationFrame(() => {
+              const view = controller.view;
+              if (!view.dom.isConnected || view.composing) return;
+              const pane = view.dom.closest(".writing-scroll");
+              if (!pane) return;
+              const coords = view.coordsAtPos(view.state.selection.head),
+                bounds = pane.getBoundingClientRect();
+              if (
+                coords.top > bounds.top + bounds.height * 0.65 ||
+                coords.top < bounds.top + bounds.height * 0.25
+              )
+                pane.scrollBy({
+                  top: coords.top - (bounds.top + bounds.height * 0.48),
+                  behavior: "instant",
+                });
+            });
+          },
           activated: (buffer, view) => {
             const previous = sessionRef.current;
             if (previous) {
@@ -1563,7 +1582,7 @@ export default function App() {
           editor.current?.focus();
         }}
       >
-        Skip to screenplay
+        {novel ? "Skip to document" : "Skip to screenplay"}
       </a>
       <header className="app-header">
         <button
@@ -2465,7 +2484,13 @@ export default function App() {
           </button>
         )}
         <div className="spacer" />
-        <span>{dualDialogue ? "Dual dialogue" : blockLabels[kind]}</span>
+        <span>
+          {novel
+            ? proseLabels[kind as keyof typeof proseLabels] || "Body text"
+            : dualDialogue
+              ? "Dual dialogue"
+              : blockLabels[kind]}
+        </span>
         <span className="status-divider" />
         <span>{preferences.pageSize === "letter" ? "US Letter" : "A4"}</span>
         <span className="status-divider" />
@@ -2754,7 +2779,27 @@ export default function App() {
               onChange={(e) => setWorkspaceAnnotationText(e.target.value)}
             />
             {workspaceAnnotation.target.canEdit && (
-              <button type="submit">Save annotation</button>
+              <>
+                {workspaceAnnotation.target.noteId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        workspaceAnnotation.controller.saveAnnotation(
+                          workspaceAnnotation.target,
+                          null,
+                        );
+                        setWorkspaceAnnotation(null);
+                      } catch (error) {
+                        report(error);
+                      }
+                    }}
+                  >
+                    Delete annotation
+                  </button>
+                )}
+                <button type="submit">Save annotation</button>
+              </>
             )}
           </form>
         </Modal>

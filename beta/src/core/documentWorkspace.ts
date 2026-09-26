@@ -35,6 +35,7 @@ export interface WorkspacePane {
 }
 interface WorkspaceOptions {
   changed(): void;
+  edited?(view: DocumentView): void;
   activated(buffer: DocumentBuffer, view: DocumentView): void;
   selection: NonNullable<EditorCallbacks["onSelection"]>;
   activity: NonNullable<EditorCallbacks["onWritingActivity"]>;
@@ -327,6 +328,7 @@ export class DocumentWorkspace {
     if (pane === 1) this.split = true;
     const buffer = this.buffers.get(view.bufferId)!;
     this.options.activated(buffer, view);
+    view.controller.refreshSelection();
     this.options.changed();
   }
   duplicate(id: string, other = false, sectionId?: string, focus = false) {
