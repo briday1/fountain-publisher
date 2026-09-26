@@ -119,7 +119,7 @@ test.describe("mobile header history", () => {
     for (const width of [390, 320, 640]) {
       await page.setViewportSize({ width, height: 844 });
       const bounds = (await header.boundingBox())!;
-      for (const control of await header.locator(".mobile-header-format button, .mobile-header-format select, .header-history button, .mobile-file-trigger").all()) {
+      for (const control of await header.locator(".mobile-header-format button, .mobile-header-format .writing-element-hit, .header-history button, .mobile-file-trigger").all()) {
         await expect(control).toBeVisible();
         const box = (await control.boundingBox())!;
         expect(box.x).toBeGreaterThanOrEqual(bounds.x);
