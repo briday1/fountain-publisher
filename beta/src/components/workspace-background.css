@@ -11,11 +11,13 @@
 
 .workspace-background-dots {
   position: absolute;
-  inset: -24px;
+  inset: calc(-1 * var(--workspace-dot-spacing, 24px));
   background-image: radial-gradient(currentColor 0.9px, transparent 1px);
-  background-size: 24px 24px;
+  background-size: var(--workspace-dot-spacing, 24px)
+    var(--workspace-dot-spacing, 24px);
   opacity: 0.3;
-  animation: workspace-dots-drift 28s linear infinite;
+  animation: workspace-dots-drift var(--workspace-dots-duration, 28s) linear
+    infinite;
 }
 
 .workspace-background-contours {
@@ -28,7 +30,8 @@
   stroke: currentColor;
   stroke-width: 1;
   opacity: 0.23;
-  animation: workspace-terrain-drift 48s ease-in-out infinite alternate;
+  animation: workspace-terrain-drift var(--workspace-terrain-duration, 48s)
+    ease-in-out infinite alternate;
 }
 
 .workspace-background-stars {
@@ -54,7 +57,11 @@
     transform: translate3d(0, 0, 0);
   }
   to {
-    transform: translate3d(24px, 24px, 0);
+    transform: translate3d(
+      var(--workspace-dot-spacing, 24px),
+      var(--workspace-dot-spacing, 24px),
+      0
+    );
   }
 }
 
@@ -79,4 +86,31 @@
   .workspace-background {
     display: none;
   }
+}
+
+.background-controls {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.background-controls legend {
+  padding: 0 4px;
+}
+
+.background-controls label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.background-controls p {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
 }

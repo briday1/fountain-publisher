@@ -1,4 +1,10 @@
 import { Modal } from "./Modal";
+import {
+  readBackgroundPreferences,
+  type BackgroundPreferences,
+  type BackgroundOptions,
+  type WorkspacePattern,
+} from "./backgroundPreferences";
 export interface Preferences {
   theme: string;
   zoom: number;
@@ -8,7 +14,8 @@ export interface Preferences {
   sceneNumbers: "margin" | "inline" | "off";
   sceneNumberFormat: "sequential" | "act";
   pageSize: "letter" | "a4";
-  background: "dots" | "topographic" | "hyperspace" | "plain";
+  background: WorkspacePattern;
+  backgroundOptions: BackgroundPreferences;
   typewriter: boolean;
   outline: boolean;
   insights: boolean;
@@ -25,6 +32,7 @@ export const defaults: Preferences = {
   sceneNumberFormat: "sequential",
   pageSize: "letter",
   background: "dots",
+  backgroundOptions: readBackgroundPreferences(undefined),
   typewriter: false,
   outline: true,
   insights: true,
@@ -37,6 +45,7 @@ export function readPreferences(): Preferences {
     return {
       ...defaults,
       ...saved,
+      backgroundOptions: readBackgroundPreferences(saved?.backgroundOptions),
       background: ["dots", "topographic", "hyperspace", "plain"].includes(
         saved?.background,
       )
@@ -59,6 +68,19 @@ export function Settings({
   onClose: () => void;
 }) {
   const patch = (p: Partial<Preferences>) => onChange({ ...value, ...p });
+  const options =
+    value.background === "plain"
+      ? null
+      : value.backgroundOptions[value.background];
+  const patchBackground = (change: Partial<BackgroundOptions>) => {
+    if (value.background === "plain" || !options) return;
+    patch({
+      backgroundOptions: {
+        ...value.backgroundOptions,
+        [value.background]: { ...options, ...change },
+      },
+    });
+  };
   return (
     <Modal title="Make yourself at home" eyebrow="SETTINGS" onClose={onClose}>
       <div className="settings-form">
@@ -132,12 +154,69 @@ export function Settings({
               patch({ background: e.target.value as Preferences["background"] })
             }
           >
-            <option value="dots">Animated dots</option>
+            <option value="dots">Dots</option>
             <option value="topographic">Topographic</option>
             <option value="hyperspace">Hyperspace</option>
             <option value="plain">None</option>
           </select>
         </label>
+        {options && (
+          <fieldset className="workspace-background-setting background-controls">
+            <legend>Background appearance</legend>
+            <label>
+              Animate background
+              <input
+                type="checkbox"
+                role="switch"
+                checked={options.animated}
+                aria-describedby="background-motion-note"
+                onChange={(e) =>
+                  patchBackground({ animated: e.target.checked })
+                }
+              />
+            </label>
+            {options.animated && (
+              <label>
+                Animation speed
+                <select
+                  value={options.speed}
+                  onChange={(e) =>
+                    patchBackground({
+                      speed: e.target.value as BackgroundOptions["speed"],
+                    })
+                  }
+                >
+                  <option value="slow">Slow</option>
+                  <option value="normal">Normal</option>
+                  <option value="fast">Fast</option>
+                </select>
+              </label>
+            )}
+            <label>
+              {value.background === "dots"
+                ? "Dot density"
+                : value.background === "hyperspace"
+                  ? "Star density"
+                  : "Contour density"}
+              <select
+                value={options.density}
+                onChange={(e) =>
+                  patchBackground({
+                    density: e.target.value as BackgroundOptions["density"],
+                  })
+                }
+              >
+                <option value="sparse">Sparse</option>
+                <option value="normal">Normal</option>
+                <option value="dense">Dense</option>
+              </select>
+            </label>
+            <p className="muted" id="background-motion-note">
+              Turn animation off for a still background. Your system’s
+              reduced-motion setting always keeps backgrounds still.
+            </p>
+          </fieldset>
+        )}
         <label>
           Spellcheck
           <input
