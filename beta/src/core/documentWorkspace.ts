@@ -367,7 +367,7 @@ export class DocumentWorkspace {
       const pane = this.activePane;
       const token = session.token();
       await session.flush();
-      session.assertCurrent(token);
+      if (!buffer.live) session.assertCurrent(token);
       validate?.();
       const key = destinationKey(destination || saved?.destination);
       let existing = [...this.buffers.values()].find(
@@ -392,7 +392,7 @@ export class DocumentWorkspace {
             break;
           }
         }
-        session.assertCurrent(token);
+        if (!buffer.live) session.assertCurrent(token);
         validate?.();
       }
       if (existing) {

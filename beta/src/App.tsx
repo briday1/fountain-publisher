@@ -1091,9 +1091,30 @@ export default function App() {
       !/^(library|drive)_[A-Za-z0-9_-]{10,200}$/.test(liveId)
     )
       throw new Error("Sign in and choose a shared live document.");
+    const existing = [...model.buffers.values()].find((buffer) => {
+      const d = buffer.session.current.destination;
+      return (
+        d &&
+        d.accountId === accountId &&
+        d.provider !== "local" &&
+        (d.provider === "drive" ? "drive_" : "library_") + d.id === liveId
+      );
+    });
+    if (existing) {
+      const view = [...existing.views][0];
+      if (view) model.activate(view);
+      else model.addView(existing.snapshot.id, model.activePane);
+      await model.startLive(
+        existing.snapshot.id,
+        !!existing.snapshot.destination?.live,
+      );
+      setLibraryMode(null);
+      return;
+    }
     const token = current.token();
     const bootstrap = await cloud.liveBootstrap(liveId);
-    current.assertCurrent(token);
+    if (sessionRef.current !== current || current.current.id !== token.id)
+      throw new Error("The active document changed while opening this link.");
     if (bootstrap.self.id !== accountIdRef.current)
       throw new Error("The signed-in account changed.");
     const prepared = await LiveClient.prepare(bootstrap);

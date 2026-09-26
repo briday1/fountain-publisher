@@ -434,3 +434,19 @@ it("Save As detaches the old live room before edits can cross into a different d
     "Separate copy",
   );
 });
+it("opening another tab keeps a live buffer when a peer update arrives during the device flush", async () => {
+  const { first, a } = await liveSetup();
+  const originalId = first.session.current.id;
+  const flush = first.session.flush.bind(first.session);
+  vi.spyOn(first.session, "flush").mockImplementationOnce(async () => {
+    await flush();
+    first.session.markChanged();
+  });
+  await first.session.open(
+    parseMarkdown("# Independent\n\nNew document."),
+    "Independent.md",
+  );
+  expect(first.model.activeBuffer!.snapshot.name).toBe("Independent.md");
+  expect(first.model.buffers.get(originalId)!.live).toBe(a);
+  expect(first.model.buffers.size).toBe(2);
+});
