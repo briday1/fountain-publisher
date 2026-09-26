@@ -543,6 +543,19 @@ export default function App() {
           `${location.pathname}${params.size ? `?${params}` : ""}`,
         );
       }
+      if (isWriteShape && params.has("connectionError")) {
+        tell(
+          params.get("connectionError") === "drive"
+            ? "Google Drive could not connect. Your local writing is unchanged. Open Files to reconnect."
+            : "Google sign-in could not finish. Your local writing is unchanged. Open Account to try again.",
+        );
+        params.delete("connectionError");
+        window.history.replaceState(
+          {},
+          "",
+          `${location.pathname}${params.size ? `?${params}` : ""}${location.hash}`,
+        );
+      }
       if (params.has("error")) tell(params.get("error")!);
     })();
     return () => {

@@ -154,3 +154,41 @@ test("JWT verifier rejects missing and forged tokens", async () => {
     ),
   );
 });
+
+for (const [path, kind, cookie] of [
+  ["/api/drive/callback", "drive", "__Host-writeshape_drive_oauth"],
+  ["/api/auth/google/callback", "google", "__Host-writeshape_oauth"],
+]) {
+  test(`${kind} callback failures return to editor without exposing OAuth details`, async () => {
+    const failed = createHandler(async () => {
+      throw new Error("private-token-diagnostic");
+    });
+    const result = await failed(
+      new Request(
+        `https://writeshape.com${path}?code=secret-code&state=secret-state&error_description=private-provider`,
+      ),
+      {},
+    );
+    assert.equal(result.status, 303);
+    assert.equal(
+      result.headers.get("Location"),
+      `https://writeshape.com/?connectionError=${kind}`,
+    );
+    assert.equal(result.headers.get("Cache-Control"), "no-store");
+    assert.equal(result.headers.get("Referrer-Policy"), "no-referrer");
+    assert.match(
+      result.headers.get("Set-Cookie"),
+      new RegExp(`^${cookie}=;.*Max-Age=0`),
+    );
+    assert.doesNotMatch(
+      JSON.stringify([...result.headers]) + (await result.text()),
+      /secret-code|secret-state|private-provider|private-token/,
+    );
+    const apiFailure = await failed(
+      new Request("https://writeshape.com/api/drive/status"),
+      {},
+    );
+    assert.equal(apiFailure.status, 500);
+    assert.equal(apiFailure.headers.get("Location"), null);
+  });
+}
