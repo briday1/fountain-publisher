@@ -1,13 +1,21 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { type CSSProperties, memo, useEffect, useRef, useState } from "react";
 import "./workspace-background.css";
 
-export type WorkspacePattern = "dots" | "topographic" | "hyperspace" | "plain";
+import {
+  defaultBackgroundOptions,
+  densityFactors,
+  speedFactors,
+  type BackgroundOptions,
+  type WorkspacePattern,
+} from "./backgroundPreferences";
+export type { WorkspacePattern } from "./backgroundPreferences";
 
 // The contour geometry is shared between mounts. Moving this one SVG layer
 // keeps terrain animation off the editing thread and avoids repainting paths.
-let contourPath: string | undefined;
-function getContours() {
-  if (contourPath !== undefined) return contourPath;
+const contourPaths = new Map<BackgroundOptions["density"], string>();
+function getContours(density: BackgroundOptions["density"]) {
+  const cached = contourPaths.get(density);
+  if (cached !== undefined) return cached;
   const step = 12;
   const columns = 84;
   const rows = 68;
@@ -19,7 +27,7 @@ function getContours() {
     Array.from({ length: columns + 1 }, (_, x) => height(x * step, y * step)),
   );
   const segments: string[] = [];
-  for (let level = -1.9; level < 2; level += 0.19) {
+  for (let level = -1.9; level < 2; level += 0.19 / densityFactors[density]) {
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < columns; x++) {
         const corners = [
@@ -55,8 +63,9 @@ function getContours() {
       }
     }
   }
-  contourPath = segments.join("");
-  return contourPath;
+  const path = segments.join("");
+  contourPaths.set(density, path);
+  return path;
 }
 
 interface Star {
@@ -65,7 +74,15 @@ interface Star {
   depth: number;
 }
 
-function Hyperspace({ running }: { running: boolean }) {
+function Hyperspace({
+  running,
+  options,
+}: {
+  running: boolean;
+  options: BackgroundOptions;
+}) {
+  const speed = useRef(speedFactors[options.speed]);
+  const setDensity = useRef<(density: number) => void>(() => {});
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const setRunning = useRef<(active: boolean) => void>(() => {});
 
@@ -81,6 +98,7 @@ function Hyperspace({ running }: { running: boolean }) {
     let lastPaint = 0;
     let color = getComputedStyle(canvas).color;
     let stars: Star[] = [];
+    let starDensity = 1;
     const seedStar = (depth = 1): Star => ({
       x: Math.random() * 2 - 1,
       y: Math.random() * 2 - 1,
@@ -98,7 +116,7 @@ function Hyperspace({ running }: { running: boolean }) {
       const centerX = width / 2;
       const centerY = height * 0.46;
       for (const star of stars) {
-        star.depth -= delta * 0.075;
+        star.depth -= delta * 0.075 * speed.current;
         let x = (star.x * width * 0.45) / Math.max(0.01, star.depth);
         let y = (star.y * height * 0.45) / Math.max(0.01, star.depth);
         if (
@@ -154,8 +172,13 @@ function Hyperspace({ running }: { running: boolean }) {
         0,
       );
       const count = Math.max(
-        48,
-        Math.min(150, Math.round((width * height) / 7000)),
+        24,
+        Math.min(
+          225,
+          Math.round(
+            Math.min(150, Math.max(48, (width * height) / 7000)) * starDensity,
+          ),
+        ),
       );
       stars = stars.slice(0, count);
       while (stars.length < count)
@@ -164,6 +187,10 @@ function Hyperspace({ running }: { running: boolean }) {
       resume();
     }
 
+    setDensity.current = (next) => {
+      starDensity = next;
+      resize();
+    };
     setRunning.current = (next) => {
       active = next;
       lastPaint = 0;
@@ -193,9 +220,17 @@ function Hyperspace({ running }: { running: boolean }) {
       themeObserver.disconnect();
       window.removeEventListener("resize", resize);
       setRunning.current = () => {};
+      setDensity.current = () => {};
     };
   }, []);
 
+  useEffect(() => {
+    speed.current = speedFactors[options.speed];
+  }, [options.speed]);
+  useEffect(
+    () => setDensity.current(densityFactors[options.density]),
+    [options.density],
+  );
   useEffect(() => setRunning.current(running), [running]);
 
   return <canvas ref={canvasRef} className="workspace-background-stars" />;
@@ -204,9 +239,11 @@ function Hyperspace({ running }: { running: boolean }) {
 export const WorkspaceBackground = memo(function WorkspaceBackground({
   pattern,
   paused = false,
+  options = defaultBackgroundOptions,
 }: {
   pattern: WorkspacePattern;
   paused?: boolean;
+  options?: BackgroundOptions;
 }) {
   const [motionAllowed, setMotionAllowed] = useState(false);
   useEffect(() => {
@@ -223,10 +260,17 @@ export const WorkspaceBackground = memo(function WorkspaceBackground({
   }, [pattern]);
 
   if (pattern === "plain") return null;
-  const running = motionAllowed && !paused;
+  const running = motionAllowed && !paused && options.animated;
+  const spacing = 24 / Math.sqrt(densityFactors[options.density]);
+  const style = {
+    "--workspace-dot-spacing": `${spacing}px`,
+    "--workspace-dots-duration": `${28 / speedFactors[options.speed]}s`,
+    "--workspace-terrain-duration": `${48 / speedFactors[options.speed]}s`,
+  } as CSSProperties;
   return (
     <div
       className="workspace-background"
+      style={style}
       data-pattern={pattern}
       data-running={running}
       aria-hidden="true"
@@ -239,10 +283,15 @@ export const WorkspaceBackground = memo(function WorkspaceBackground({
           preserveAspectRatio="xMidYMid slice"
           focusable="false"
         >
-          <path d={getContours()} vectorEffect="non-scaling-stroke" />
+          <path
+            d={getContours(options.density)}
+            vectorEffect="non-scaling-stroke"
+          />
         </svg>
       )}
-      {pattern === "hyperspace" && <Hyperspace running={running} />}
+      {pattern === "hyperspace" && (
+        <Hyperspace running={running} options={options} />
+      )}
     </div>
   );
 });

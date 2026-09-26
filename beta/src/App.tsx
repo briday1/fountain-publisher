@@ -1859,6 +1859,11 @@ export default function App() {
             {!mobile && (
               <WorkspaceBackground
                 pattern={preferences.background}
+                options={
+                  preferences.background === "plain"
+                    ? undefined
+                    : preferences.backgroundOptions[preferences.background]
+                }
                 paused={Boolean(
                   (dialog && dialog !== "settings") || cloudDialog || character,
                 )}
