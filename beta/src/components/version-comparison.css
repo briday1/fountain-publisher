@@ -1,0 +1,18 @@
+.version-diff-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:16px; border-bottom:1px solid var(--border); font-size:12px; }
+.version-diff-toolbar > strong { flex:1 1 100%; font-weight:500; }
+.version-diff-toolbar > small { flex:1 1 100%; opacity:.75; }
+.version-diff-toolbar button { font-size:11px; margin-right:8px; }
+.version-diff-legend { display:flex; gap:12px; margin-right:auto; }
+.version-comparison ins { color:#175d3d; background:#e0f1e6; text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:3px; }
+.version-comparison del { color:#923a40; background:#f9e6e8; text-decoration:line-through; }
+.version-diff-paper { background:var(--paper); color:var(--ink); padding:32px clamp(16px,5vw,56px); font:14px/1.65 'Courier Prime',monospace; min-height:300px; max-height:65vh; overflow:auto; }
+.diff-block { margin:0 0 1em; white-space:pre-wrap; overflow-wrap:anywhere; }
+.diff-scene,.diff-character,.diff-transition { text-transform:uppercase; }
+.diff-scene { font-weight:bold; margin-top:2em; }
+.diff-character { margin-left:36%; margin-bottom:0; }
+.diff-dialogue { margin-left:18%; margin-right:15%; }
+.diff-parenthetical { margin-left:27%; margin-right:20%; margin-bottom:0; }
+.diff-transition { text-align:right; }
+.diff-centered { text-align:center; }
+.diff-pageBreak { border-bottom:1px dashed var(--border); }
+.diff-changed:focus { outline:2px solid var(--accent); outline-offset:6px; }

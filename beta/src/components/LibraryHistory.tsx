@@ -14,6 +14,7 @@ import {
   LibraryError,
 } from "../storage/writeshapeLibrary";
 import type { LibraryFile, LibraryVersion } from "../storage/writeshapeLibrary";
+import { VersionComparison } from "./VersionComparison";
 import { downloadFile } from "../storage/files";
 export function LibraryHistory({
   file,
@@ -32,6 +33,8 @@ export function LibraryHistory({
   const [current, setCurrent] = useState(file);
   const [selected, setSelected] = useState<string>();
   const [preview, setPreview] = useState<LibraryVersion>();
+  const [baseline, setBaseline] = useState<LibraryVersion>();
+  const [comparisonLoading, setComparisonLoading] = useState(false);
   const [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -67,19 +70,34 @@ export function LibraryHistory({
   useEffect(() => {
     let active = true;
     setPreview(undefined);
+    setBaseline(undefined);
+    setComparisonLoading(!!selected);
     setConfirm(false);
     if (selected)
       libraryRequest(`/${file.id}/versions/${encodeURIComponent(selected)}`)
-        .then((data) => {
-          if (active) setPreview(data);
+        .then(async (data: LibraryVersion) => {
+          if (!active) return;
+          setPreview(data);
+          const previous = versions
+            .filter((v) => v.revision < data.revision)
+            .sort((a, b) => b.revision - a.revision)[0];
+          if (previous) {
+            const older = await libraryRequest(
+              `/${file.id}/versions/${encodeURIComponent(previous.id)}`,
+            );
+            if (active) setBaseline(older);
+          }
         })
         .catch((e) => {
           if (active) setError(e.message);
+        })
+        .finally(() => {
+          if (active) setComparisonLoading(false);
         });
     return () => {
       active = false;
     };
-  }, [file.id, selected]);
+  }, [file.id, selected, versions]);
   async function restore() {
     if (!preview) return;
     setBusy(true);
@@ -199,9 +217,21 @@ export function LibraryHistory({
               </button>
             )}
           </div>
-          <pre tabIndex={0} aria-label="Version content">
-            {preview?.content ?? "Loading saved content…"}
-          </pre>
+          {preview && !comparisonLoading ? (
+            <VersionComparison
+              key={`${preview.id}:${baseline?.id || "first"}`}
+              older={baseline?.content ?? preview.content ?? ""}
+              newer={preview.content ?? ""}
+              olderLabel={
+                baseline
+                  ? `Version ${baseline.revision} · ${formatModified(baseline.savedAt)}`
+                  : "First saved version"
+              }
+              newerLabel={`Version ${preview.revision} · ${formatModified(preview.savedAt)}`}
+            />
+          ) : (
+            <p role="status">Loading saved comparison…</p>
+          )}
           {preview && (
             <small className="library-version-id">
               Version ID: {preview.id}

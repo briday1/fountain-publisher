@@ -63,6 +63,7 @@ export interface WriteShapeFilesProps extends Omit<
   account: { authenticated: boolean; premium: boolean; email?: string };
   providers: { drive: FilesProvider; local: FilesProvider };
   initialDestination?: FileDestination;
+  deviceDrafts?: ReactNode;
   onDestination?: (destination: FileDestination) => void;
   onSignIn: () => void;
   onUpgrade: () => void;
@@ -92,7 +93,7 @@ export function WriteShapeFiles(props: WriteShapeFilesProps) {
   }
   return (
     <Modal
-      title={props.mode === "save" ? "Save screenplay" : "Open screenplay"}
+      title={props.mode === "save" ? "Save as…" : "Open…"}
       eyebrow="YOUR FILES"
       onClose={close}
       wide
@@ -200,6 +201,19 @@ export function WriteShapeFiles(props: WriteShapeFilesProps) {
                 : props.onDownloadLocal
             }
           />
+        )}
+        {destination === "local" && props.deviceDrafts && (
+          <section
+            className="files-device-drafts"
+            aria-label="Browser drafts and recovery"
+          >
+            <h3>Saved in this browser</h3>
+            <p>
+              Device drafts and recovered writing. These are separate from files
+              in a local folder.
+            </p>
+            {props.deviceDrafts}
+          </section>
         )}
       </div>
     </Modal>

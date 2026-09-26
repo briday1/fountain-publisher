@@ -259,7 +259,7 @@ it("history restore uses the current revision, creates a new version, and does n
       ...node.querySelectorAll(".library-version-list button"),
     ].find((b) => b.textContent?.startsWith("Version 1"))!;
     await act(async () => (oldButton as HTMLElement).click());
-    expect(node.querySelector("pre")?.textContent).toBe("Earlier draft");
+    expect(node.querySelector(".version-diff-paper")?.textContent).toBe("Earlier draft");
     await click(node, "Restore as new version");
     expect(node.textContent).toContain(
       "Current version 3 and all history will be kept",
@@ -307,7 +307,7 @@ it("history conflicts preserve the preview and require refreshing before a succe
     expect(node.querySelector("[role=alert]")?.textContent).toContain(
       "A newer version exists.",
     );
-    expect(node.querySelector("pre")?.textContent).toBe("Original");
+    expect(node.querySelector(".version-diff-paper")?.textContent).toBe("Original");
     expect(changed).not.toHaveBeenCalled();
   } finally {
     await close();

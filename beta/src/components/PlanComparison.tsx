@@ -91,6 +91,41 @@ export function PlanComparison({
             <figcaption>Mara highlighted · Sample PDF illustration</figcaption>
           </figure>
         </section>
+        <section className="showcase-feature showcase-collaboration">
+          <small className="showcase-kicker">
+            Live collaboration · Planned
+          </small>
+          <h3>Two perspectives. One screenplay.</h3>
+          <p>
+            A shared writing room is planned for WriteShape: see a
+            collaborator’s presence and work on the same screenplay together.
+            Today, autosave and saved-file sync keep your own WriteShape
+            instances up to date; live co-editing is not available yet.
+          </p>
+          <figure>
+            <div
+              className="collaboration-concept"
+              aria-label="Concept illustration of two fictional collaborators, not a live session"
+            >
+              <div className="collaboration-presence">
+                <span className="collaborator-avatar">M</span>
+                <span className="collaborator-avatar second">E</span>
+                <span>
+                  Mara & Eli <small>Concept · Planned</small>
+                </span>
+              </div>
+              <div className="collaboration-page" inert aria-hidden="true">
+                <SampleScript />
+                <span className="concept-cursor first">Mara</span>
+                <span className="concept-cursor second">Eli</span>
+              </div>
+            </div>
+            <figcaption>
+              Live collaboration · Planned concept · Fictional sample, not a
+              working session
+            </figcaption>
+          </figure>
+        </section>
       </div>
       <h3>Compare the plans</h3>
       <table className="plan-comparison">
@@ -112,11 +147,16 @@ export function PlanComparison({
             "Beat Sheet",
             "Beat Guide",
             "Cloud library",
+            "Live collaboration (planned)",
           ].map((feature, i) => (
             <tr key={feature}>
               <th scope="row">{feature}</th>
               <td>{i < 3 ? "Included" : "—"}</td>
-              <td>Included</td>
+              <td>
+                {feature === "Live collaboration (planned)"
+                  ? "Planned"
+                  : "Included"}
+              </td>
             </tr>
           ))}
         </tbody>
