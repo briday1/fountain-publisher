@@ -1,3 +1,8 @@
+import type { DirectoryHandle } from "./storage/localDirectory";
+import { DocumentWorkspace } from "./core/documentWorkspace";
+import { DocumentPanes, BufferSync } from "./components/DocumentPanes";
+import { OutlineViewActions } from "./components/OutlineViewActions";
+import type { AnnotationTarget } from "./editor/annotations";
 import { NovelExportDialog } from "./components/NovelExportDialog";
 import { isNovel, createNovel, proseLabels } from "./core/markdown";
 import { NovelOutline } from "./components/NovelOutline";
@@ -139,23 +144,59 @@ export default function App() {
     setFileTab(accountId ? "writeshape" : "local");
   }, [accountId]);
   const [snapshot, setSnapshot] = useState<SessionSnapshot>();
-  const destinationSync = useDestinationSync(
+  const documentWorkspace = useRef<DocumentWorkspace | null>(null);
+  const [workspaceReady, setWorkspaceReady] = useState(!isWriteShape);
+  const [, updateWorkspace] = useState(0);
+  const [workspaceAnnotation, setWorkspaceAnnotation] = useState<{
+    controller: EditorController;
+    target: AnnotationTarget;
+  } | null>(null);
+  const [workspaceAnnotationText, setWorkspaceAnnotationText] = useState("");
+  const goalActivity = useRef(goals.onActivity);
+  goalActivity.current = goals.onActivity;
+  const refreshWorkspace = () => {
+    updateWorkspace((value) => value + 1);
+    documentWorkspace.current?.saveLayout();
+    const active = documentWorkspace.current?.activeBuffer;
+    if (documentWorkspace.current && !documentWorkspace.current.activeView)
+      editor.current = null;
+    if (active) {
+      setSnapshot({ ...active.snapshot });
+      setStatus(
+        active.status === "saving"
+          ? "Saving on this device…"
+          : active.status === "error"
+            ? "Device save needs attention"
+            : "Saved on this device",
+      );
+      setStorageFailed(active.status === "error");
+    }
+  };
+  const fallbackDestinationSync = useDestinationSync(
     session,
     snapshot?.id,
     destinationKey(snapshot?.destination),
     accountId,
     account.state.premium,
-    isWriteShape,
+    isWriteShape && !documentWorkspace.current,
   );
+  const destinationSync = documentWorkspace.current?.activeBuffer
+    ? {
+        engine: documentWorkspace.current.activeBuffer.sync,
+        status: documentWorkspace.current.activeBuffer.syncStatus,
+      }
+    : fallbackDestinationSync;
   const destinationEngineRef = destinationSync.engine;
   const [fileTab, setFileTab] = useState<"writeshape" | "drive" | "local">(
     "local",
   );
+  const localRoot = useRef<DirectoryHandle | undefined>(undefined);
   const fileProviders = useMemo(
     () =>
       session
         ? createFileProviders({
             session,
+            localRoot,
             accountId,
             premium: account.state.premium,
             mode: libraryMode || "open",
@@ -546,11 +587,84 @@ export default function App() {
         setStorageFailed(state === "error");
         if (message) tell(message);
       };
-      sessionRef.current = s;
+      if (isWriteShape && !restoredLive) {
+        documentWorkspace.current = new DocumentWorkspace(s, {
+          changed: refreshWorkspace,
+          edited: ({ controller }) => {
+            if (!latest.current.preferences.typewriter) return;
+            requestAnimationFrame(() => {
+              const view = controller.view;
+              if (!view.dom.isConnected || view.composing) return;
+              const pane = view.dom.closest(".writing-scroll");
+              if (!pane) return;
+              const coords = view.coordsAtPos(view.state.selection.head),
+                bounds = pane.getBoundingClientRect();
+              if (
+                coords.top > bounds.top + bounds.height * 0.65 ||
+                coords.top < bounds.top + bounds.height * 0.25
+              )
+                pane.scrollBy({
+                  top: coords.top - (bounds.top + bounds.height * 0.48),
+                  behavior: "instant",
+                });
+            });
+          },
+          activated: (buffer, view) => {
+            const previous = sessionRef.current;
+            if (previous) {
+              const old = documentWorkspace.current?.buffers.get(
+                previous.current.id,
+              );
+              if (old) old.file = file.current;
+            }
+            sessionRef.current = buffer.session;
+            editor.current = view.controller;
+            file.current = buffer.file;
+            cloudFile.current = null;
+            setSession(buffer.session);
+            setSnapshot({ ...buffer.session.capture() });
+            try {
+              sessionStorage.setItem(
+                "writeshape.activeDraft",
+                buffer.session.current.id,
+              );
+            } catch {}
+            workspace.setActiveId(buffer.session.current.id);
+            const attrs =
+              view.controller.view.state.selection.$from.parent.attrs;
+            setKind(attrs.kind || "action");
+            setDualDialogue(!!attrs.dual);
+          },
+          selection: (value, dual) => {
+            setKind(value);
+            setDualDialogue(dual);
+          },
+          activity: (words, pasted) => goalActivity.current(words, pasted),
+          annotationState: setAnnotationState,
+          annotation: (target) => {
+            const controller = editor.current;
+            if (controller) {
+              setWorkspaceAnnotation({ controller, target });
+              setWorkspaceAnnotationText(target.text);
+            }
+          },
+          error: tell,
+        });
+      }
+      if (documentWorkspace.current)
+        await documentWorkspace.current.restoreLayout();
+      if (!live) {
+        documentWorkspace.current?.dispose();
+        return;
+      }
+      const activeSession =
+        documentWorkspace.current?.activeBuffer?.session || s;
+      sessionRef.current = activeSession;
+      setWorkspaceReady(true);
       if (restoredLive) attachLive(restoredLive);
-      setSession(s);
-      setSnapshot(s.current);
-      workspace.setActiveId(initial.id);
+      setSession(activeSession);
+      setSnapshot(activeSession.current);
+      workspace.setActiveId(activeSession.current.id);
       setStatus("Saved on this device");
       if (warning) {
         setStorageFailed(true);
@@ -592,6 +706,8 @@ export default function App() {
     })();
     return () => {
       live = false;
+      documentWorkspace.current?.dispose();
+      documentWorkspace.current = null;
       sessionRef.current?.dispose();
       void stopLive().catch(() => {});
     };
@@ -676,6 +792,7 @@ export default function App() {
   useEffect(() => {
     if (!session) return;
     const before = (e: BeforeUnloadEvent) => {
+      documentWorkspace.current?.saveLayout();
       if (session.dirty) {
         void session.flush().catch(() => {});
         e.preventDefault();
@@ -792,6 +909,10 @@ export default function App() {
     tell(`Saved ${captured.name}.`);
   }
   async function save() {
+    if (documentWorkspace.current && !documentWorkspace.current.activeView) {
+      tell("Open a document to save it.");
+      return;
+    }
     if (isWriteShape && session) {
       await session.flush();
       if (!session.current.destination || !destinationSync.engine.current) {
@@ -1263,7 +1384,7 @@ export default function App() {
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   }, []);
-  if (!snapshot || !session || !insights)
+  if (!workspaceReady || !snapshot || !session || !insights)
     return (
       <main className="loading">
         {isWriteShape ? (
@@ -1376,6 +1497,8 @@ export default function App() {
   );
   const doc = snapshot.screenplay;
   const novel = isWriteShape && isNovel(doc);
+  const workspaceEmpty =
+    !!documentWorkspace.current && !documentWorkspace.current.activeView;
   const exact =
     pdfPages?.epoch === session.token().epoch &&
     pdfPages.id === snapshot.id &&
@@ -1459,7 +1582,7 @@ export default function App() {
           editor.current?.focus();
         }}
       >
-        Skip to screenplay
+        {novel ? "Skip to document" : "Skip to screenplay"}
       </a>
       <header className="app-header">
         <button
@@ -1753,18 +1876,19 @@ export default function App() {
         ) : (
           <button
             className="document-name"
+            disabled={workspaceEmpty}
             onClick={() => {
               setRename(snapshot.name);
               setDialog("rename");
             }}
             title="Rename screenplay"
           >
-            {snapshot.name}
+            {workspaceEmpty ? "No open document" : snapshot.name}
           </button>
         )}
         <button
           className="save-button"
-          disabled={busy}
+          disabled={busy || workspaceEmpty}
           onClick={() => void run(save)}
         >
           <Download size={15} />
@@ -1795,7 +1919,7 @@ export default function App() {
         </div>
       )}
       <div className={`workspace${novel ? " novel-mode" : ""}`}>
-        {preferences.outline && !zen && (
+        {preferences.outline && !zen && !workspaceEmpty && (
           <>
             <aside
               className="outline-panel"
@@ -1833,6 +1957,16 @@ export default function App() {
                 <NovelOutline
                   doc={doc}
                   onJump={scene}
+                  viewActions={
+                    documentWorkspace.current
+                      ? (id) => (
+                          <OutlineViewActions
+                            model={documentWorkspace.current!}
+                            sectionId={id}
+                          />
+                        )
+                      : undefined
+                  }
                   onAdd={() => {
                     insert("section");
                     editor.current?.setHeadingLevel(2);
@@ -1848,6 +1982,12 @@ export default function App() {
                   <ol className="scene-list">
                     {insights.scenes.map((s, i) => (
                       <li key={s.id}>
+                        {documentWorkspace.current && (
+                          <OutlineViewActions
+                            model={documentWorkspace.current}
+                            sectionId={s.id}
+                          />
+                        )}
                         <button onClick={() => scene(s.id)}>
                           <span className="scene-index">
                             {String(i + 1).padStart(2, "0")}
@@ -1919,7 +2059,7 @@ export default function App() {
               <ZenExitButton onExit={toggleZen} />
             </div>
           )}
-          {!mobile && writingControls}
+          {!mobile && !workspaceEmpty && writingControls}
           {searchOpen && (
             <div className="search-panel">
               <form
@@ -2045,39 +2185,49 @@ export default function App() {
                 )}
               />
             )}
-            <div className="writing-scroll">
-              <div
-                className="paper-wrap"
-                style={{ zoom: preferences.zoom / 100 }}
-              >
-                <article
-                  className={`screenplay-paper ${preferences.colors ? "element-colors" : ""} ${preferences.boldSceneHeadings ? "bold-scenes" : ""} numbers-${preferences.sceneNumbers}`}
-                  data-number-format={preferences.sceneNumberFormat}
-                  aria-label={novel ? "Manuscript page" : "Screenplay page"}
+            {documentWorkspace.current ? (
+              <DocumentPanes
+                model={documentWorkspace.current}
+                preferences={preferences}
+                onOpen={() => setLibraryMode("open")}
+                onTitle={() => setDialog("title")}
+                changed={refreshWorkspace}
+              />
+            ) : (
+              <div className="writing-scroll">
+                <div
+                  className="paper-wrap"
+                  style={{ zoom: preferences.zoom / 100 }}
                 >
-                  <TitlePreview
-                    value={doc.titlePage}
-                    onEdit={() => setDialog("title")}
-                  />
-                  <EditorSurface
-                    initial={doc}
-                    onReady={onReady}
-                    onChange={onEditorChange}
-                    onWritingActivity={
-                      isWriteShape ? goals.onActivity : undefined
-                    }
-                    onSelection={(value, dual) => {
-                      setKind(value);
-                      setDualDialogue(dual);
-                    }}
-                    onAnnotationState={setAnnotationState}
-                  />
-                </article>
+                  <article
+                    className={`screenplay-paper ${preferences.colors ? "element-colors" : ""} ${preferences.boldSceneHeadings ? "bold-scenes" : ""} numbers-${preferences.sceneNumbers}`}
+                    data-number-format={preferences.sceneNumberFormat}
+                    aria-label={novel ? "Manuscript page" : "Screenplay page"}
+                  >
+                    <TitlePreview
+                      value={doc.titlePage}
+                      onEdit={() => setDialog("title")}
+                    />
+                    <EditorSurface
+                      initial={doc}
+                      onReady={onReady}
+                      onChange={onEditorChange}
+                      onWritingActivity={
+                        isWriteShape ? goals.onActivity : undefined
+                      }
+                      onSelection={(value, dual) => {
+                        setKind(value);
+                        setDualDialogue(dual);
+                      }}
+                      onAnnotationState={setAnnotationState}
+                    />
+                  </article>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </main>
-        {preferences.insights && !zen && (
+        {preferences.insights && !zen && !workspaceEmpty && (
           <>
             <Resizable
               label="Resize insights"
@@ -2334,7 +2484,13 @@ export default function App() {
           </button>
         )}
         <div className="spacer" />
-        <span>{dualDialogue ? "Dual dialogue" : blockLabels[kind]}</span>
+        <span>
+          {novel
+            ? proseLabels[kind as keyof typeof proseLabels] || "Body text"
+            : dualDialogue
+              ? "Dual dialogue"
+              : blockLabels[kind]}
+        </span>
         <span className="status-divider" />
         <span>{preferences.pageSize === "letter" ? "US Letter" : "A4"}</span>
         <span className="status-divider" />
@@ -2590,6 +2746,64 @@ export default function App() {
           onClose={() => setAccountOpen(false)}
         />
       )}
+      {documentWorkspace.current &&
+        [...documentWorkspace.current.buffers.values()].map((buffer) => (
+          <BufferSync
+            key={buffer.session.current.id}
+            buffer={buffer}
+            accountId={accountId}
+            premium={account.state.premium}
+            changed={refreshWorkspace}
+          />
+        ))}
+      {workspaceAnnotation && (
+        <Modal title="Annotation" onClose={() => setWorkspaceAnnotation(null)}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              try {
+                workspaceAnnotation.controller.saveAnnotation(
+                  workspaceAnnotation.target,
+                  workspaceAnnotationText,
+                );
+                setWorkspaceAnnotation(null);
+              } catch (error) {
+                report(error);
+              }
+            }}
+          >
+            <textarea
+              aria-label="Annotation"
+              value={workspaceAnnotationText}
+              readOnly={!workspaceAnnotation.target.canEdit}
+              onChange={(e) => setWorkspaceAnnotationText(e.target.value)}
+            />
+            {workspaceAnnotation.target.canEdit && (
+              <>
+                {workspaceAnnotation.target.noteId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        workspaceAnnotation.controller.saveAnnotation(
+                          workspaceAnnotation.target,
+                          null,
+                        );
+                        setWorkspaceAnnotation(null);
+                      } catch (error) {
+                        report(error);
+                      }
+                    }}
+                  >
+                    Delete annotation
+                  </button>
+                )}
+                <button type="submit">Save annotation</button>
+              </>
+            )}
+          </form>
+        </Modal>
+      )}
       {dialog === "new" && (
         <Modal title="New document" onClose={() => setDialog(null)}>
           <p>Choose the form for your next piece of writing.</p>
@@ -2733,15 +2947,16 @@ export default function App() {
       )}
       {dialog === "help" && <Help onClose={() => setDialog(null)} />}
       {dialog === "rename" && (
-        <Modal title={novel ? "Name your document" : "Name your screenplay"} onClose={() => setDialog(null)}>
+        <Modal
+          title={novel ? "Name your document" : "Name your screenplay"}
+          onClose={() => setDialog(null)}
+        >
           <form
             onSubmit={(e) => {
               e.preventDefault();
               const name = rename.trim();
               if (name) {
-                session.rename(
-                  documentFilename(name, snapshot.name),
-                );
+                session.rename(documentFilename(name, snapshot.name));
                 file.current = undefined;
                 setDialog(null);
               }
@@ -2797,8 +3012,10 @@ export default function App() {
                     void run(async () => {
                       await session.open(
                         h.screenplay,
-                        h.name.replace(/\.fountain$/i, "") +
-                          " restored.fountain",
+                        h.name.replace(/\.(fountain|md|markdown|txt)$/i, "") +
+                          (h.screenplay.metadata.format === "markdown"
+                            ? " restored.md"
+                            : " restored.fountain"),
                       );
                       file.current = undefined;
                       setDialog(null);
