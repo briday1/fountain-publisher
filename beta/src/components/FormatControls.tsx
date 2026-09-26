@@ -27,6 +27,7 @@ export function FormatControls({
       role="group"
       aria-label="Text formatting"
     >
+      <label className="writing-element-hit">
       <select
         className="writing-element"
         aria-label={novel ? "Prose element" : "Screenplay element"}
@@ -64,6 +65,7 @@ export function FormatControls({
           <option value="single-dialogue">Single dialogue</option>
         )}
       </select>
+      </label>
       <span className="writing-group-rule" aria-hidden="true" />
       {(
         [

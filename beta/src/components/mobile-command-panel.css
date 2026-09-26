@@ -337,3 +337,10 @@
   min-height: 44px;
   min-width: 7rem;
 }
+
+.writing-element-hit { display:contents; }
+@media (max-width:950px) {
+  .mobile-header-format .writing-element-hit { display:flex; align-items:center; flex:1 1 0; min-width:64px; height:44px; }
+  .mobile-header-format .writing-element { height:32px; min-height:32px; width:100%; padding-block:2px; }
+}
+@media (max-width:359px) { .mobile-header-format .writing-element-hit { min-width:52px; } }
