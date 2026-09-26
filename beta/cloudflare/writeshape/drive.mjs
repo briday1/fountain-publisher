@@ -218,7 +218,8 @@ export function createDriveRoutes({
     try {
       return await network(url, {
         ...init,
-        redirect: "error",
+        // Workerd supports manual/follow only. Never forward credentials through redirects.
+        redirect: "manual",
         signal: AbortSignal.timeout(30_000),
       });
     } catch {

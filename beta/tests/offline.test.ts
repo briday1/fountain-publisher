@@ -184,6 +184,29 @@ describe("offline release integrity", () => {
     h.network.mockResolvedValue(new Response("maintenance", { status: 503 }));
     expect(await (await h.request())!.text()).toBe(h.bundle.shell.source);
   });
+  it.each([false, true])(
+    "preserves Access login redirects with an installed shell: %s",
+    async (installed) => {
+      const h = harness();
+      if (installed) await h.lifecycle("install");
+      // Navigation requests use manual redirects. A cross-origin Access login
+      // becomes an opaque redirect: status 0 and ok=false, not a network error.
+      const redirect = Response.error();
+      Object.defineProperty(redirect, "type", { value: "opaqueredirect" });
+      h.network.mockResolvedValue(redirect);
+      expect(await h.request()).toBe(redirect);
+    },
+  );
+  it.each([401, 403])(
+    "preserves HTTP %s authentication failures instead of serving a cached app",
+    async (status) => {
+      const h = harness();
+      await h.lifecycle("install");
+      const denied = new Response("Sign in to continue", { status });
+      h.network.mockResolvedValue(denied);
+      expect(await h.request()).toBe(denied);
+    },
+  );
   it("does not delete an already usable release when a same-release update fails", async () => {
     const h = harness();
     await h.lifecycle("install");

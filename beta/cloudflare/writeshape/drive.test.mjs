@@ -72,7 +72,7 @@ function fixture() {
     fetch: async (url, init) => {
       const parsed = new URL(url);
       calls.push({ url: parsed, init });
-      assert.equal(init.redirect, "error");
+      assert.equal(init.redirect, "manual");
       if (parsed.origin === "https://oauth2.googleapis.com") {
         provider.tokenCount++;
         if (provider.tokenHook) {
@@ -763,4 +763,25 @@ test("ambiguous create response stops automatic retries and malformed UTF-8 inpu
   assert.equal(data.code, "DRIVE_REOPEN_REQUIRED");
   assert.match(data.error, /Browse Drive/);
   assert.doesNotMatch(data.error, /private network/);
+});
+
+test("token exchange does not follow a provider redirect or expose credentials", async () => {
+  const f = fixture();
+  const flow = await f.start();
+  f.provider.tokenHook = async () =>
+    Response.redirect("https://untrusted.example/token", 302);
+  const result = await f.call(flow.path, undefined, { cookie: flow.cookie });
+  assert.equal(result.status, 503);
+  assert.equal(f.calls.length, 1);
+  assert.equal(f.calls[0].url.origin, "https://oauth2.googleapis.com");
+  assert.equal(f.calls[0].init.redirect, "manual");
+  assert.equal(
+    f.env.sql.prepare("SELECT COUNT(*) AS count FROM drive_connections").get()
+      .count,
+    0,
+  );
+  assert.doesNotMatch(
+    await result.text(),
+    /untrusted|fixture-code|fixture-client-secret/,
+  );
 });

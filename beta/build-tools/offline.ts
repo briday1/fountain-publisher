@@ -69,7 +69,12 @@ self.addEventListener('fetch',event=>{
   if(request.method!=='GET'||url.origin!==self.location.origin||url.pathname.startsWith('/api/')||url.pathname.startsWith('/beta/api/'))return;
   if(request.mode==='navigate'){
     event.respondWith((async()=>{
-      try{const response=await fetch(request);if(response.ok)return response;}catch{}
+      try{
+        const response=await fetch(request);
+        // Access login redirects are opaque with status 0; preserve them so
+        // the browser can authenticate instead of receiving an offline error.
+        if(response.ok||response.type==='opaqueredirect'||response.status===401||response.status===403)return response;
+      }catch{}
       const cache=await caches.open(CACHE);
       if(FILES.includes(url.pathname))return (await cache.match(url.pathname,{ignoreVary:true}))||Response.error();
       return (await cache.match(SHELL,{ignoreVary:true}))||Response.error();

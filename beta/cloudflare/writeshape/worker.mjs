@@ -30,6 +30,29 @@ export function createHandler(authenticate = resolveAccount) {
         return json({ error: "Not found." }, 404);
       return await libraryRoutes(request, env, user);
     } catch (error) {
+      const callback =
+        request.method === "GET" &&
+        (url.pathname === "/api/drive/callback"
+          ? "drive"
+          : url.pathname === "/api/auth/google/callback"
+            ? "google"
+            : null);
+      if (callback) {
+        // Keep OAuth codes, state, and provider diagnostics out of the editor URL.
+        const stateCookie =
+          callback === "drive"
+            ? "__Host-writeshape_drive_oauth"
+            : "__Host-writeshape_oauth";
+        return new Response(null, {
+          status: 303,
+          headers: {
+            Location: `https://writeshape.com/?connectionError=${callback}`,
+            "Cache-Control": "no-store",
+            "Referrer-Policy": "no-referrer",
+            "Set-Cookie": `${stateCookie}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
+          },
+        });
+      }
       return json(
         {
           code: error instanceof HttpError ? error.code : undefined,
