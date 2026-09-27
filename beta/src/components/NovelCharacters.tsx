@@ -1,7 +1,38 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Modal } from "./Modal";
 import type { Screenplay } from "../core/model";
-type Profile = { id: string; name: string; description: string };
+import "./CharacterDialog.css";
+
+type Profile = {
+  id: string;
+  name: string;
+  description: string;
+  role?: string;
+  background?: string;
+  motivation?: string;
+  personality?: string;
+  relationships?: string;
+  notes?: string;
+};
+const details = [
+  ["background", "Background", "The experiences that shaped this person."],
+  [
+    "motivation",
+    "Motivation & conflict",
+    "What do they want, and what stands in their way?",
+  ],
+  [
+    "personality",
+    "Personality",
+    "Their strengths, flaws, habits, and contradictions.",
+  ],
+  [
+    "relationships",
+    "Relationships",
+    "Who matters to them, and how do those connections change?",
+  ],
+] as const;
+
 export function NovelCharacters({
   doc,
   onChange,
@@ -9,7 +40,11 @@ export function NovelCharacters({
   doc: Screenplay;
   onChange: (doc: Screenplay) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<string>();
+  const nameInput = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => {
+    if (selected) nameInput.current?.focus();
+  }, [selected]);
   const profiles: Profile[] = Array.isArray(doc.metadata.proseCharacters)
     ? doc.metadata.proseCharacters.filter(
         (p): p is Profile =>
@@ -19,8 +54,25 @@ export function NovelCharacters({
           typeof p.name === "string",
       )
     : [];
+  const profile = selected
+    ? (profiles.find((p) => p.id === selected) ?? {
+        id: selected,
+        name: "",
+        description: "",
+      })
+    : undefined;
   const update = (next: Profile[]) =>
     onChange({ ...doc, metadata: { ...doc.metadata, proseCharacters: next } });
+  const patch = (field: keyof Omit<Profile, "id">, value: string) => {
+    if (!profile) return;
+    const next = { ...profile, [field]: value };
+    update(
+      profiles.some((p) => p.id === profile.id)
+        ? profiles.map((p) => (p.id === profile.id ? next : p))
+        : [...profiles, next],
+    );
+  };
+  const text = (value: unknown) => (typeof value === "string" ? value : "");
   return (
     <section className="insight-section">
       <div className="section-label">
@@ -31,74 +83,94 @@ export function NovelCharacters({
         <button
           className="novel-character"
           key={p.id}
-          onClick={() => setOpen(true)}
+          onClick={() => setSelected(p.id)}
         >
           <strong>{p.name || "Unnamed character"}</strong>
-          <small>{p.description || "Add a short profile"}</small>
+          <small>
+            {text(p.description) || text(p.role) || "Open character profile"}
+          </small>
         </button>
       ))}
       <button
         className="character-analytics-button"
-        onClick={() => setOpen(true)}
+        onClick={() => setSelected(crypto.randomUUID())}
       >
-        {profiles.length ? "Edit character profiles" : "Add character"}
+        Add character
       </button>
-      {open && (
-        <Modal title="Character profiles" onClose={() => setOpen(false)}>
-          {profiles.map((p, i) => (
-            <fieldset className="novel-character-fields" key={p.id}>
-              <legend>Character {i + 1}</legend>
-              <label>
-                Name
-                <input
-                  value={p.name}
-                  onChange={(e) =>
-                    update(
-                      profiles.map((item) =>
-                        item.id === p.id
-                          ? { ...item, name: e.target.value }
-                          : item,
-                      ),
-                    )
-                  }
-                />
-              </label>
-              <label>
-                Profile
+      {profile && (
+        <Modal
+          title={profile.name.trim() || "New character"}
+          eyebrow="CHARACTER PROFILE"
+          className="character-dialog book-character-dialog"
+          wide
+          onClose={() => setSelected(undefined)}
+        >
+          <div className="book-character-profile">
+            <label className="field detail-label">
+              Name
+              <input
+                ref={nameInput}
+                value={profile.name}
+                placeholder="Character name"
+                onChange={(e) => patch("name", e.target.value)}
+              />
+            </label>
+            <label className="field detail-label">
+              Role in the story
+              <input
+                value={text(profile.role)}
+                placeholder="Protagonist, rival, confidant…"
+                onChange={(e) => patch("role", e.target.value)}
+              />
+            </label>
+            <label className="field detail-label book-character-full">
+              Short profile
+              <textarea
+                rows={3}
+                value={text(profile.description)}
+                placeholder="A few lines that capture who they are."
+                onChange={(e) => patch("description", e.target.value)}
+              />
+            </label>
+            {details.map(([field, label, placeholder]) => (
+              <label className="field detail-label" key={field}>
+                {label}
                 <textarea
-                  rows={3}
-                  value={p.description || ""}
-                  onChange={(e) =>
-                    update(
-                      profiles.map((item) =>
-                        item.id === p.id
-                          ? { ...item, description: e.target.value }
-                          : item,
-                      ),
-                    )
-                  }
+                  rows={4}
+                  value={text(profile[field])}
+                  placeholder={placeholder}
+                  onChange={(e) => patch(field, e.target.value)}
                 />
               </label>
+            ))}
+            <label className="field detail-label book-character-full">
+              Character notes
+              <textarea
+                rows={4}
+                value={text(profile.notes)}
+                placeholder="What does this person want? What are they hiding?"
+                onChange={(e) => patch("notes", e.target.value)}
+              />
+            </label>
+          </div>
+          <footer className="book-character-footer">
+            <span>
+              {profiles.some((p) => p.id === profile.id)
+                ? "Changes save with your document"
+                : "Start with a name or a few notes."}
+            </span>
+            {profiles.some((p) => p.id === profile.id) && (
               <button
-                onClick={() =>
-                  update(profiles.filter((item) => item.id !== p.id))
-                }
+                onClick={() => {
+                  update(profiles.filter((p) => p.id !== profile.id));
+                  setSelected(undefined);
+                }}
               >
-                Remove profile
+                Remove character
               </button>
-            </fieldset>
-          ))}
-          <button
-            onClick={() =>
-              update([
-                ...profiles,
-                { id: crypto.randomUUID(), name: "", description: "" },
-              ])
-            }
-          >
-            Add character
-          </button>
-          <button onClick={() => setOpen(false)}>Done</button>
+            )}
+            <button onClick={() => setSelected(undefined)}>Done</button>
+          </footer>
         </Modal>
       )}
     </section>

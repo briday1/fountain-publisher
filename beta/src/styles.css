@@ -613,7 +613,7 @@ hr {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 7px;
-  padding: 0 16px;
+  padding: 0 16px 16px;
 }
 .metrics > div {
   border-radius: 5px;
@@ -1458,7 +1458,7 @@ hr {
     width: 255px;
   }
   .metrics {
-    padding: 0 12px;
+    padding: 0 12px 16px;
   }
   .metrics strong {
     font-size: 19px;
