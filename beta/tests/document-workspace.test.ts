@@ -514,3 +514,92 @@ it("closing a live pane retains its room and propagates peer edits to the surviv
   expect(left.controller.getBlocks()[0].text).toContain("Peer after close");
   expect(first.model.split).toBe(false);
 });
+
+it("drop slots reorder in both directions without losing the selected view or caret", () => {
+  const { model } = setup();
+  const first = model.activeView!;
+  const second = model.duplicate(first.id)!;
+  const third = model.duplicate(first.id)!;
+  first.scrollTop = 137;
+  first.controller.view.dispatch(
+    first.controller.view.state.tr.insertText("Draft ", 1),
+  );
+  const selection = first.controller.view.state.selection;
+  model.moveToSlot(first.id, 0, 3);
+  expect(model.panes[0].tabs).toEqual([second.id, third.id, first.id]);
+  model.moveToSlot(first.id, 0, 2); // Slot immediately before itself is a no-op.
+  expect(model.panes[0].tabs).toEqual([second.id, third.id, first.id]);
+  model.moveToSlot(first.id, 0, 0);
+  expect(model.panes[0].tabs).toEqual([first.id, second.id, third.id]);
+  expect(model.activeView).toBe(first);
+  expect(first.controller.view.state.selection.eq(selection)).toBe(true);
+  expect(first.scrollTop).toBe(137);
+  first.controller.undo();
+  expect(first.controller.getBlocks()[0].text).toBe("Book");
+});
+
+it("edge splitting preserves section focus and only moves a tab when its source has a survivor", () => {
+  const { model, session } = setup();
+  const first = model.activeView!;
+  model.focusSection(first.id, session.current.screenplay.blocks[1].id);
+  model.splitWith(first.id, "left", true);
+  expect(model.split).toBe(true);
+  const copy = model.activeView!;
+  expect(model.activePane).toBe(0);
+  expect(copy.id).not.toBe(first.id);
+  expect(copy.controller.focusedSection).toBe(first.controller.focusedSection);
+  expect(model.panes[1].tabs).toEqual([first.id]);
+  model.toggleSplit();
+  model.splitWith(copy.id, "right", true);
+  expect(model.views.size).toBe(2);
+  expect(model.activeView).toBe(copy);
+  expect(model.panes[0].tabs).toEqual([first.id]);
+  expect(model.panes[1].tabs).toEqual([copy.id]);
+});
+
+it("bulk close snapshots its group before collapse and retains edited documents and undo", async () => {
+  const { model, session } = setup();
+  const first = model.activeView!;
+  const second = model.duplicate(first.id)!;
+  const third = model.duplicate(first.id)!;
+  model.splitWith(first.id);
+  const other = model.activeView!;
+  first.controller.view.dispatch(
+    first.controller.view.state.tr.insertText("Bulk retained ", 1),
+  );
+  model.closeTabs(0, second.id, second.id);
+  expect(model.panes[0].tabs).toEqual([first.id, second.id]);
+  expect(model.views.has(third.id)).toBe(false);
+  model.closeTabs(0, second.id);
+  expect(model.panes[0].tabs).toEqual([second.id]);
+  model.closeTabs(0);
+  expect(model.split).toBe(false);
+  expect(model.panes[0].tabs).toEqual([other.id]);
+  expect(model.activeView).toBe(other);
+  model.closeTabs(0);
+  await session.flush();
+  const reopened = model.addView(session.current.id, 0);
+  expect(reopened.controller.getBlocks()[0].text).toContain("Bulk retained");
+  reopened.controller.undo();
+  expect(reopened.controller.getBlocks()[0].text).toBe("Book");
+});
+
+it("bulk closing a live group retains peer updates in a reopened document", async () => {
+  const { first, second, sync } = await liveSetup();
+  const original = first.model.activeView!;
+  first.model.duplicate(original.id);
+  first.model.splitWith(original.id);
+  const live = first.model.activeBuffer!.live;
+  first.model.closeTabs(0);
+  first.model.closeTabs(0);
+  expect(first.model.buffers.get(first.session.current.id)!.live).toBe(live);
+  const peer = second.model.activeView!;
+  peer.controller.view.dispatch(
+    peer.controller.view.state.tr.insertText("Peer after bulk close ", 1),
+  );
+  sync();
+  const reopened = first.model.addView(first.session.current.id, 0);
+  expect(reopened.controller.getBlocks()[0].text).toContain(
+    "Peer after bulk close",
+  );
+});

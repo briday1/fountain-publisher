@@ -537,13 +537,64 @@ export class DocumentWorkspace {
     const oldPane = this.panes.findIndex((p) => p.tabs.includes(id));
     if (oldPane < 0) return;
     const source = this.panes[oldPane];
+    const oldIndex = source.tabs.indexOf(id);
     source.tabs = source.tabs.filter((key) => key !== id);
-    if (source.selected === id) source.selected = source.tabs[0];
+    if (source.selected === id)
+      source.selected = source.tabs[Math.min(oldIndex, source.tabs.length - 1)];
     const target = this.panes[pane];
     target.tabs.splice(index ?? target.tabs.length, 0, id);
     if (pane === 1) this.split = true;
     this.collapseEmptyPane();
     this.activate(id);
+  }
+  /** A drop slot is measured before removing the dragged tab. */
+  moveToSlot(id: string, pane: 0 | 1, slot: number) {
+    const index = this.panes[pane].tabs.indexOf(id);
+    this.move(
+      id,
+      pane,
+      Math.max(0, slot - (index >= 0 && index < slot ? 1 : 0)),
+    );
+  }
+  splitWith(id: string, side: "left" | "right" = "right", move = false) {
+    if (!this.views.has(id)) return;
+    this.activate(id);
+    if (this.split) {
+      if (move) this.move(id, (1 - this.activePane) as 0 | 1);
+      else {
+        const view = this.views.get(id)!;
+        this.duplicate(
+          id,
+          true,
+          view.sectionId,
+          !!view.controller.focusedSection,
+        );
+      }
+      return;
+    }
+    const view = this.views.get(id)!;
+    this.ratio = 50;
+    // A lone editor stays visible in the original group when split.
+    if (move && this.panes[0].tabs.length > 1) this.move(id, 1);
+    else
+      this.duplicate(
+        id,
+        true,
+        view.sectionId,
+        !!view.controller.focusedSection,
+      );
+    if (side === "left") this.swapPanes();
+  }
+  closeTabs(pane: 0 | 1, keep?: string, rightOf?: string) {
+    const tabs = [...this.panes[pane].tabs];
+    const start = rightOf ? tabs.indexOf(rightOf) + 1 : 0;
+    if (rightOf && start === 0) return;
+    for (const id of tabs.slice(start)) if (id !== keep) this.close(id);
+  }
+  resizePanes(ratio: number) {
+    this.ratio = Math.max(25, Math.min(75, ratio));
+    this.options.changed();
+    this.saveLayout();
   }
   private collapseEmptyPane() {
     if (!this.split || (this.panes[0].tabs.length && this.panes[1].tabs.length))

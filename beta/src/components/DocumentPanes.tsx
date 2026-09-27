@@ -1,4 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  ChevronDown,
+  Columns2,
+  FileText,
+  MoreHorizontal,
+  Plus,
+  X,
+} from "lucide-react";
 import type {
   DocumentWorkspace,
   DocumentBuffer,
@@ -244,6 +252,7 @@ function DocumentCanvas({
     </>
   );
 }
+type DropTarget = { pane: 0 | 1; slot?: number; edge?: "left" | "right" };
 export function DocumentPanes({
   model,
   preferences,
@@ -262,8 +271,72 @@ export function DocumentPanes({
   changed: () => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  const dragId = useRef<string | undefined>(undefined);
   const [drag, setDrag] = useState<string>();
-  // Rendering a single active view does not collapse, reorder or close the desktop workspace.
+  const [drop, setDrop] = useState<DropTarget>();
+  const [resizing, setResizing] = useState(false);
+  const [context, setContext] = useState<{
+    id: string;
+    x: number;
+    y: number;
+  }>();
+  const selectedIds = model.panes.map((p) => p.selected).join(":");
+  useLayoutEffect(() => {
+    if (mobile) return;
+    // Reveal selected tabs without scrolling the document or outer workspace.
+    root.current
+      ?.querySelectorAll<HTMLElement>(".document-tab.selected")
+      .forEach((tab) => {
+        const strip = tab.parentElement!;
+        const bounds = tab.getBoundingClientRect(),
+          viewport = strip.getBoundingClientRect();
+        if (bounds.left < viewport.left)
+          strip.scrollLeft -= viewport.left - bounds.left;
+        else if (bounds.right > viewport.right)
+          strip.scrollLeft += bounds.right - viewport.right;
+      });
+  }, [selectedIds, mobile, model.split]);
+  const focusSelected = () => {
+    requestAnimationFrame(() => {
+      const id = model.activeView?.id;
+      if (id) document.getElementById(`document-tab-${id}`)?.focus();
+      else
+        root.current
+          ?.querySelector<HTMLButtonElement>(".empty-document-pane button")
+          ?.focus();
+    });
+  };
+  const closeTab = (id: string) => {
+    model.close(id);
+    focusSelected();
+  };
+  const activatePane = (pane: 0 | 1) => {
+    const id = model.panes[pane].selected;
+    if (id) model.activate(id);
+    else {
+      model.activePane = pane;
+      changed();
+    }
+  };
+  const finishDrag = () => {
+    dragId.current = undefined;
+    setDrag(undefined);
+    setDrop(undefined);
+  };
+  const acceptDrop = (target: DropTarget) => {
+    const id = dragId.current;
+    if (!id) return;
+    if (target.edge) model.splitWith(id, target.edge, true);
+    else
+      model.moveToSlot(
+        id,
+        target.pane,
+        target.slot ?? model.panes[target.pane].tabs.length,
+      );
+    finishDrag();
+    focusSelected();
+  };
+  // Rendering one active view preserves the complete desktop group layout.
   if (mobile)
     return (
       <div className="document-workspace mobile-single-document">
@@ -289,55 +362,137 @@ export function DocumentPanes({
     );
   return (
     <div
-      className={`document-workspace ${model.split ? "is-split" : ""} active-pane-${model.activePane}`}
+      className={`document-workspace ${model.split ? "is-split" : ""} ${drag ? "dragging-tab" : ""} ${resizing ? "resizing-panes" : ""} active-pane-${model.activePane}`}
       ref={root}
       style={{ "--pane-ratio": `${model.ratio}%` } as React.CSSProperties}
+      onKeyDown={(event) => {
+        if (
+          event.nativeEvent.isComposing ||
+          !(event.metaKey || event.ctrlKey) ||
+          event.altKey
+        )
+          return;
+        if (event.key === "\\" && model.activeView) {
+          event.preventDefault();
+          model.splitWith(model.activeView.id);
+          focusSelected();
+        } else if (
+          event.shiftKey &&
+          ["PageUp", "PageDown"].includes(event.key)
+        ) {
+          event.preventDefault();
+          const pane = model.panes[model.activePane];
+          const step = event.key === "PageDown" ? 1 : -1;
+          const index = pane.tabs.indexOf(pane.selected || "");
+          if (pane.tabs.length)
+            model.activate(
+              pane.tabs[(index + step + pane.tabs.length) % pane.tabs.length],
+            );
+          focusSelected();
+        }
+      }}
     >
-      <div className="document-workspace-tools">
-        <span>Active pane: {model.activePane === 0 ? "Left" : "Right"}</span>
-        <button onClick={() => model.toggleSplit()}>
-          {model.split ? "Single pane" : "Split view"}
-        </button>
-        <Menu anchored label="Open documents">
-          {[...model.buffers.values()].map((buffer) => (
-            <MenuItem
-              key={buffer.session.current.id}
-              onClick={() => {
-                const first = [...buffer.views][0];
-                if (first) model.activate(first);
-                else model.addView(buffer.session.current.id, model.activePane);
-              }}
-            >
-              {buffer.snapshot.name} · {buffer.views.size}{" "}
-              {buffer.views.size === 1 ? "view" : "views"}
-            </MenuItem>
-          ))}
-        </Menu>
-        {model.split && (
-          <button onClick={() => model.swapPanes()}>Swap panes</button>
-        )}
-      </div>
       <div className="document-pane-row">
         {model.panes.map((pane, paneIndex) => {
           if (paneIndex === 1 && !model.split) return null;
+          const paneId = paneIndex as 0 | 1;
+          const side = paneId === 0 ? "left" : "right";
           const selected = model.views.get(pane.selected || "");
+          const target = drop?.pane === paneId ? drop : undefined;
           return (
             <section
-              className={`document-pane pane-${paneIndex} ${model.activePane === paneIndex ? "active" : ""}`}
-              key={paneIndex}
-              aria-label={`${paneIndex === 0 ? "Left" : "Right"} document pane`}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (drag) model.move(drag, paneIndex as 0 | 1);
-                setDrag(undefined);
+              className={`document-pane pane-${paneId} ${model.activePane === paneId ? "active" : ""}`}
+              key={paneId}
+              aria-label={`${paneId === 0 ? "Left" : "Right"} document pane`}
+              onDragOver={(event) => {
+                if (!dragId.current) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                const bounds = event.currentTarget.getBoundingClientRect();
+                const fraction = (event.clientX - bounds.left) / bounds.width;
+                setDrop({
+                  pane: paneId,
+                  edge:
+                    !model.split && fraction > 0.75
+                      ? "right"
+                      : !model.split && fraction < 0.25
+                        ? "left"
+                        : undefined,
+                });
+              }}
+              onDragLeave={(event) => {
+                const bounds = event.currentTarget.getBoundingClientRect();
+                if (
+                  event.clientX < bounds.left ||
+                  event.clientX >= bounds.right ||
+                  event.clientY < bounds.top ||
+                  event.clientY >= bounds.bottom
+                )
+                  setDrop(undefined);
+              }}
+              onDrop={(event) => {
+                if (dragId.current) {
+                  event.preventDefault();
+                  const bounds = event.currentTarget.getBoundingClientRect();
+                  const fraction = (event.clientX - bounds.left) / bounds.width;
+                  acceptDrop({
+                    pane: paneId,
+                    edge:
+                      !model.split && fraction > 0.75
+                        ? "right"
+                        : !model.split && fraction < 0.25
+                          ? "left"
+                          : undefined,
+                  });
+                }
               }}
             >
               <div className="document-pane-header">
                 <div
                   className="document-tabs"
                   role="tablist"
-                  aria-label={`${paneIndex === 0 ? "Left" : "Right"} document tabs`}
+                  aria-label={`${paneId === 0 ? "Left" : "Right"} document tabs`}
+                  onWheel={(event) => {
+                    if (Math.abs(event.deltaY) > Math.abs(event.deltaX))
+                      event.currentTarget.scrollLeft += event.deltaY;
+                  }}
+                  onDragOver={(event) => {
+                    if (!dragId.current) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    event.dataTransfer.dropEffect = "move";
+                    setDrop({ pane: paneId, slot: pane.tabs.length });
+                    const bounds = event.currentTarget.getBoundingClientRect();
+                    if (event.clientX > bounds.right - 35)
+                      event.currentTarget.scrollLeft += 18;
+                    if (event.clientX < bounds.left + 35)
+                      event.currentTarget.scrollLeft -= 18;
+                  }}
+                  onDrop={(event) => {
+                    if (dragId.current) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      // Derive the final slot from the drop itself: browsers may
+                      // dispatch a leave between the final hover and drop.
+                      const tab = (
+                        event.target as HTMLElement
+                      ).closest<HTMLElement>(".document-tab");
+                      const index = tab
+                        ? [...event.currentTarget.children].indexOf(tab)
+                        : -1;
+                      const bounds = tab?.getBoundingClientRect();
+                      acceptDrop({
+                        pane: paneId,
+                        slot:
+                          index >= 0 && bounds
+                            ? index +
+                              (event.clientX >= bounds.left + bounds.width / 2
+                                ? 1
+                                : 0)
+                            : pane.tabs.length,
+                      });
+                    }
+                  }}
                 >
                   {pane.tabs.map((id, index) => {
                     const view = model.views.get(id)!,
@@ -345,28 +500,94 @@ export function DocumentPanes({
                     const heading = buffer.snapshot.screenplay.blocks.find(
                       (b) => b.id === view.sectionId,
                     );
+                    const label = `${buffer.snapshot.name}${heading ? ` / ${heading.text || "Section"}` : ""}`;
+                    const attention =
+                      ["conflict", "error", "offline"].includes(
+                        buffer.syncStatus?.phase || "",
+                      ) || buffer.status === "error";
                     return (
                       <div
-                        className="document-tab"
+                        className={`document-tab ${pane.selected === id ? "selected" : ""} ${drag === id ? "drag-source" : ""} ${target?.slot === index ? "drop-before" : ""} ${index === pane.tabs.length - 1 && target?.slot === pane.tabs.length ? "drop-after" : ""}`}
                         key={id}
                         draggable
-                        onDragStart={() => setDrag(id)}
-                        onDragEnd={() => setDrag(undefined)}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (drag) model.move(drag, paneIndex as 0 | 1, index);
-                          setDrag(undefined);
+                        onDragStart={(event) => {
+                          setContext(undefined);
+                          dragId.current = id;
+                          setDrag(id);
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData(
+                            "application/x-writeshape-tab",
+                            id,
+                          );
+                        }}
+                        onDragEnd={finishDrag}
+                        onDragOver={(event) => {
+                          if (!dragId.current) return;
+                          event.preventDefault();
+                          event.stopPropagation();
+                          event.dataTransfer.dropEffect = "move";
+                          const bounds =
+                            event.currentTarget.getBoundingClientRect();
+                          setDrop({
+                            pane: paneId,
+                            slot:
+                              index +
+                              (event.clientX >= bounds.left + bounds.width / 2
+                                ? 1
+                                : 0),
+                          });
+                          const strip = event.currentTarget.parentElement!;
+                          const stripBounds = strip.getBoundingClientRect();
+                          if (event.clientX > stripBounds.right - 35)
+                            strip.scrollLeft += 18;
+                          if (event.clientX < stripBounds.left + 35)
+                            strip.scrollLeft -= 18;
+                        }}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          setContext({
+                            id,
+                            x: event.clientX,
+                            y: event.clientY,
+                          });
+                        }}
+                        onAuxClick={(event) => {
+                          if (event.button === 1) {
+                            event.preventDefault();
+                            closeTab(id);
+                          }
                         }}
                       >
                         <button
                           role="tab"
+                          draggable
                           id={`document-tab-${id}`}
                           aria-controls={`document-panel-${id}`}
                           tabIndex={pane.selected === id ? 0 : -1}
+                          aria-selected={pane.selected === id}
+                          title={`${label} · ${destinationLabel(buffer.snapshot.destination)}`}
+                          onClick={() => model.activate(id)}
                           onKeyDown={(event) => {
-                            const target =
+                            if (event.key === "Delete") {
+                              event.preventDefault();
+                              closeTab(id);
+                              return;
+                            }
+                            if (
+                              event.key === "ContextMenu" ||
+                              (event.shiftKey && event.key === "F10")
+                            ) {
+                              event.preventDefault();
+                              const bounds =
+                                event.currentTarget.getBoundingClientRect();
+                              setContext({
+                                id,
+                                x: bounds.left,
+                                y: bounds.bottom,
+                              });
+                              return;
+                            }
+                            const next =
                               event.key === "ArrowRight"
                                 ? (index + 1) % pane.tabs.length
                                 : event.key === "ArrowLeft"
@@ -377,113 +598,250 @@ export function DocumentPanes({
                                     : event.key === "End"
                                       ? pane.tabs.length - 1
                                       : -1;
-                            if (target >= 0) {
+                            if (next >= 0) {
                               event.preventDefault();
-                              model.activate(pane.tabs[target]);
-                              document
-                                .getElementById(
-                                  `document-tab-${pane.tabs[target]}`,
-                                )
-                                ?.focus();
+                              model.activate(pane.tabs[next]);
+                              focusSelected();
                             }
                           }}
-                          aria-selected={pane.selected === id}
-                          title={buffer.snapshot.name}
-                          onClick={() => model.activate(id)}
                         >
-                          {buffer.snapshot.name}
-                          {heading ? ` / ${heading.text || "Section"}` : ""}
-                          {buffer.status === "saving" ? " •" : ""}
-                          {["conflict", "error", "offline"].includes(
-                            buffer.syncStatus?.phase || "",
-                          )
-                            ? " !"
-                            : ""}
+                          <FileText
+                            size={14}
+                            aria-hidden="true"
+                            className="document-tab-icon"
+                          />
+                          <span className="document-tab-name">
+                            {buffer.snapshot.name}
+                          </span>
+                          {heading && (
+                            <span className="document-tab-section">
+                              {heading.text || "Section"}
+                            </span>
+                          )}
+                          {(attention || buffer.status === "saving") && (
+                            <span
+                              className={`document-tab-status ${attention ? "attention" : ""}`}
+                              role="status"
+                              aria-label={
+                                attention ? "Save needs attention" : "Saving"
+                              }
+                              title={
+                                attention ? "Save needs attention" : "Saving"
+                              }
+                            >
+                              {attention ? "!" : "•"}
+                            </span>
+                          )}
                         </button>
                         <Menu
                           anchored
-                          label={`Actions for ${buffer.snapshot.name}${heading ? ` / ${heading.text || "Section"}` : ""}`}
+                          label={`Actions for ${label}`}
+                          triggerContent={
+                            <MoreHorizontal size={14} aria-hidden="true" />
+                          }
+                          contextMenu={context?.id === id ? context : undefined}
+                          onDismiss={() => setContext(undefined)}
                         >
-                          <MenuItem
-                            onClick={() => {
-                              model.activate(id);
-                              model.duplicate(
-                                id,
-                                true,
-                                view.sectionId,
-                                !!view.controller.focusedSection,
-                              );
-                            }}
-                          >
-                            Open in other pane
+                          <MenuItem onClick={() => model.splitWith(id)}>
+                            {model.split ? "Open in other pane" : "Split right"}
                           </MenuItem>
+                          {!model.split && (
+                            <MenuItem
+                              onClick={() => model.splitWith(id, "left")}
+                            >
+                              Split left
+                            </MenuItem>
+                          )}
                           <MenuItem
-                            onClick={() =>
-                              model.move(id, (1 - paneIndex) as 0 | 1)
-                            }
+                            disabled={!model.split && pane.tabs.length < 2}
+                            onClick={() => model.splitWith(id, "right", true)}
                           >
                             Move to other pane
                           </MenuItem>
                           <MenuItem
                             disabled={index === 0}
-                            onClick={() =>
-                              model.move(
-                                id,
-                                paneIndex as 0 | 1,
-                                Math.max(0, index - 1),
-                              )
-                            }
+                            onClick={() => model.move(id, paneId, index - 1)}
                           >
                             Move tab left
                           </MenuItem>
                           <MenuItem
                             disabled={index === pane.tabs.length - 1}
-                            onClick={() =>
-                              model.move(
-                                id,
-                                paneIndex as 0 | 1,
-                                Math.min(pane.tabs.length - 1, index + 1),
-                              )
-                            }
+                            onClick={() => model.move(id, paneId, index + 1)}
                           >
                             Move tab right
                           </MenuItem>
-                          <MenuItem onClick={() => model.close(id)}>
+                          <hr />
+                          <MenuItem onClick={() => closeTab(id)}>
                             Close tab
+                          </MenuItem>
+                          <MenuItem
+                            disabled={pane.tabs.length < 2}
+                            onClick={() => {
+                              model.activate(id);
+                              model.closeTabs(paneId, id);
+                              focusSelected();
+                            }}
+                          >
+                            Close other tabs
+                          </MenuItem>
+                          <MenuItem
+                            disabled={index === pane.tabs.length - 1}
+                            onClick={() => {
+                              model.activate(id);
+                              model.closeTabs(paneId, id, id);
+                              focusSelected();
+                            }}
+                          >
+                            Close tabs to the right
+                          </MenuItem>
+                          <MenuItem
+                            onClick={() => {
+                              model.closeTabs(paneId);
+                              focusSelected();
+                            }}
+                          >
+                            Close all tabs in pane
                           </MenuItem>
                         </Menu>
                         <button
-                          aria-label={`Close ${buffer.snapshot.name}${heading ? ` / ${heading.text || "Section"}` : ""} view`}
-                          onClick={() => model.close(id)}
+                          className="document-tab-close"
+                          aria-label={`Close ${label} view`}
+                          title="Close tab"
+                          onClick={() => closeTab(id)}
                         >
-                          ×
+                          <X size={14} aria-hidden="true" />
                         </button>
                       </div>
                     );
                   })}
+                </div>
+                <div
+                  className="document-group-actions"
+                  role="group"
+                  aria-label={`${side} pane controls`}
+                >
+                  <Menu
+                    anchored
+                    label={`Open documents in ${side} pane`}
+                    triggerContent={
+                      <ChevronDown size={15} aria-hidden="true" />
+                    }
+                  >
+                    {[...model.buffers.values()].map((buffer) => (
+                      <MenuItem
+                        key={buffer.snapshot.id}
+                        onClick={() => {
+                          const existing = pane.tabs.find(
+                            (id) =>
+                              model.views.get(id)?.bufferId ===
+                              buffer.snapshot.id,
+                          );
+                          if (existing) model.activate(existing);
+                          else model.addView(buffer.snapshot.id, paneId);
+                        }}
+                      >
+                        {buffer.snapshot.name}
+                      </MenuItem>
+                    ))}
+                  </Menu>
                   <button
-                    className="document-tab-open"
-                    aria-label={`Open in ${paneIndex === 0 ? "left" : "right"} pane`}
+                    className="document-group-button"
+                    aria-label={`Open in ${side} pane`}
+                    title="Open a document"
                     onClick={() => {
-                      model.activePane = paneIndex as 0 | 1;
-                      if (pane.selected) model.activate(pane.selected);
-                      changed();
+                      activatePane(paneId);
                       onOpen();
                     }}
                   >
-                    +
+                    <Plus size={15} aria-hidden="true" />
                   </button>
-                </div>
-                {model.split && (
                   <button
-                    className="document-pane-close"
-                    aria-label={`Close ${paneIndex === 0 ? "left" : "right"} pane`}
-                    title="Close pane · documents remain saved"
-                    onClick={() => model.closePane(paneIndex as 0 | 1)}
+                    className="document-group-button"
+                    disabled={!selected}
+                    aria-label={
+                      model.split
+                        ? `Open ${side} editor in other pane`
+                        : "Split editor right"
+                    }
+                    title={
+                      model.split
+                        ? "Open editor in other pane"
+                        : "Split editor right"
+                    }
+                    onClick={() => {
+                      if (selected) model.splitWith(selected.id);
+                    }}
                   >
-                    ×
+                    <Columns2 size={15} aria-hidden="true" />
                   </button>
-                )}
+                  <Menu
+                    anchored
+                    label={`${paneId === 0 ? "Left" : "Right"} pane actions`}
+                    triggerContent={
+                      <MoreHorizontal size={15} aria-hidden="true" />
+                    }
+                  >
+                    <MenuItem
+                      disabled={!pane.tabs.length}
+                      onClick={() => {
+                        model.closeTabs(paneId);
+                        focusSelected();
+                      }}
+                    >
+                      Close all tabs in pane
+                    </MenuItem>
+                    <MenuItem
+                      disabled={pane.tabs.length < 2}
+                      onClick={() => {
+                        activatePane(paneId);
+                        model.closeTabs(paneId, pane.selected);
+                        focusSelected();
+                      }}
+                    >
+                      Close other tabs
+                    </MenuItem>
+                    {model.split && (
+                      <>
+                        <hr />
+                        <MenuItem onClick={() => model.resizePanes(50)}>
+                          Equalize pane widths
+                        </MenuItem>
+                        <MenuItem onClick={() => model.swapPanes()}>
+                          Swap panes
+                        </MenuItem>
+                        <MenuItem
+                          onClick={() => {
+                            model.toggleSplit();
+                            focusSelected();
+                          }}
+                        >
+                          Join all tabs into one pane
+                        </MenuItem>
+                        <MenuItem
+                          onClick={() => {
+                            model.closePane((1 - paneId) as 0 | 1);
+                            focusSelected();
+                          }}
+                        >
+                          Close other pane
+                        </MenuItem>
+                      </>
+                    )}
+                  </Menu>
+                  {model.split && (
+                    <button
+                      className="document-group-button document-pane-close"
+                      aria-label={`Close ${side} pane`}
+                      title="Close pane · documents remain saved"
+                      onClick={() => {
+                        model.closePane(paneId);
+                        focusSelected();
+                      }}
+                    >
+                      <X size={15} aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
               </div>
               {selected ? (
                 <DocumentCanvas
@@ -496,16 +854,27 @@ export function DocumentPanes({
                 />
               ) : (
                 <div className="empty-document-pane">
-                  <p>No open views. Your drafts are saved.</p>
+                  <FileText size={28} aria-hidden="true" />
+                  <p>No open documents</p>
+                  <span>Your drafts are saved in Files.</span>
                   <button
                     onClick={() => {
-                      model.activePane = paneIndex as 0 | 1;
-                      changed();
+                      activatePane(paneId);
                       onOpen();
                     }}
                   >
                     Open a document
                   </button>
+                </div>
+              )}
+              {drag && target && target.slot === undefined && (
+                <div
+                  className={`document-drop-overlay ${target.edge ? `split-${target.edge}` : ""}`}
+                  aria-hidden="true"
+                >
+                  <span>
+                    {target.edge ? `Split ${target.edge}` : "Move to this pane"}
+                  </span>
                 </div>
               )}
             </section>
@@ -520,36 +889,52 @@ export function DocumentPanes({
             tabIndex={0}
             aria-valuemin={25}
             aria-valuemax={75}
-            aria-valuenow={model.ratio}
-            onKeyDown={(e) => {
-              if (["ArrowLeft", "ArrowRight"].includes(e.key)) {
-                e.preventDefault();
-                model.ratio = Math.max(
-                  25,
-                  Math.min(75, model.ratio + (e.key === "ArrowRight" ? 2 : -2)),
+            aria-valuenow={Math.round(model.ratio)}
+            aria-valuetext={`Left pane ${Math.round(model.ratio)} percent`}
+            title="Drag to resize · double-click to equalize"
+            onDoubleClick={() => model.resizePanes(50)}
+            onKeyDown={(event) => {
+              if (
+                ["ArrowLeft", "ArrowRight", "Home", "End", "Enter"].includes(
+                  event.key,
+                )
+              ) {
+                event.preventDefault();
+                model.resizePanes(
+                  event.key === "Home"
+                    ? 25
+                    : event.key === "End"
+                      ? 75
+                      : event.key === "Enter"
+                        ? 50
+                        : model.ratio + (event.key === "ArrowRight" ? 2 : -2),
                 );
-                changed();
               }
             }}
-            onPointerDown={(e) => {
-              e.currentTarget.setPointerCapture(e.pointerId);
+            onPointerDown={(event) => {
+              if (event.button !== 0) return;
+              event.preventDefault();
+              event.currentTarget.setPointerCapture(event.pointerId);
+              setResizing(true);
             }}
-            onPointerMove={(e) => {
+            onPointerMove={(event) => {
               if (
-                !e.currentTarget.hasPointerCapture(e.pointerId) ||
+                !event.currentTarget.hasPointerCapture(event.pointerId) ||
                 !root.current
               )
                 return;
               const bounds = root.current.getBoundingClientRect();
-              model.ratio = Math.max(
-                25,
-                Math.min(75, ((e.clientX - bounds.left) / bounds.width) * 100),
+              model.resizePanes(
+                ((event.clientX - bounds.left) / bounds.width) * 100,
               );
-              changed();
             }}
-            onPointerUp={(e) =>
-              e.currentTarget.releasePointerCapture(e.pointerId)
-            }
+            onPointerUp={(event) => {
+              if (event.currentTarget.hasPointerCapture(event.pointerId))
+                event.currentTarget.releasePointerCapture(event.pointerId);
+              setResizing(false);
+            }}
+            onLostPointerCapture={() => setResizing(false)}
+            onPointerCancel={() => setResizing(false)}
           />
         )}
       </div>
