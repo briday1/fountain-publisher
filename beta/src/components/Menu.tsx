@@ -5,15 +5,32 @@ export function Menu({
   label,
   children,
   anchored = false,
+  triggerContent,
+  contextMenu,
 }: {
   label: string;
   children: ReactNode;
   anchored?: boolean;
+  triggerContent?: ReactNode;
+  contextMenu?: { x: number; y: number };
 }) {
   const [open, setOpen] = useState(false);
+  const [contextPosition, setContextPosition] = useState(contextMenu);
   const ref = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ left: 0, top: 0 });
+  useLayoutEffect(() => {
+    if (contextMenu) {
+      setContextPosition(contextMenu);
+      setOpen(true);
+    }
+  }, [contextMenu]);
+  useEffect(() => {
+    if (open && contextPosition)
+      popupRef.current
+        ?.querySelector<HTMLButtonElement>("button:not(:disabled)")
+        ?.focus();
+  }, [open, contextPosition]);
   useLayoutEffect(() => {
     if (!open || !anchored) return;
     const trigger = ref.current?.querySelector("button");
@@ -23,12 +40,17 @@ export function Menu({
       const anchor = trigger.getBoundingClientRect();
       const bounds = popup.getBoundingClientRect();
       const margin = 8;
-      const below = anchor.bottom + 4;
-      const above = anchor.top - bounds.height - 4;
+      const below = contextPosition?.y ?? anchor.bottom + 4;
+      const above = contextPosition
+        ? contextPosition.y - bounds.height
+        : anchor.top - bounds.height - 4;
       setPosition({
         left: Math.max(
           margin,
-          Math.min(anchor.left, window.innerWidth - bounds.width - margin),
+          Math.min(
+            contextPosition?.x ?? anchor.left,
+            window.innerWidth - bounds.width - margin,
+          ),
         ),
         top: Math.max(
           margin,
@@ -55,7 +77,7 @@ export function Menu({
       window.removeEventListener("resize", place);
       document.removeEventListener("scroll", scroll, true);
     };
-  }, [open, anchored]);
+  }, [open, anchored, contextPosition]);
   useEffect(() => {
     if (!open) return;
     const close = (e: PointerEvent) => {
@@ -121,13 +143,19 @@ export function Menu({
       }}
     >
       <button
+        aria-label={label}
+        title={label}
         aria-expanded={open}
         aria-haspopup="true"
         className={open ? "menu-trigger active" : "menu-trigger"}
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          setContextPosition(undefined);
+          setOpen(!open);
+        }}
         onKeyDown={(e) => {
           if (e.key === "ArrowDown") {
             e.preventDefault();
+            setContextPosition(undefined);
             setOpen(true);
             setTimeout(
               () =>
@@ -139,7 +167,7 @@ export function Menu({
           }
         }}
       >
-        {label}
+        {triggerContent ?? label}
       </button>
       {anchored && popup ? createPortal(popup, document.body) : popup}
     </div>
