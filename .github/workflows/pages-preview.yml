@@ -48,7 +48,8 @@ jobs:
           npx vite preview --host 127.0.0.1 --port 4175 > "$RUNNER_TEMP/writeshape-preview.log" 2>&1 &
           preview_pid=$!
           trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
-          WRITESHAPE_BUILD_SMOKE=1 TEST_BASE_URL=http://127.0.0.1:4175 npx playwright test e2e/writeshape-mobile-smoke.spec.ts
+          npx playwright install --with-deps webkit
+          WRITESHAPE_BUILD_SMOKE=1 TEST_BASE_URL=http://127.0.0.1:4175 npx playwright test e2e/writeshape-mobile-smoke.spec.ts --browser webkit
       - name: Keep WriteShape mobile screenshot
         if: always()
         uses: actions/upload-artifact@v4
