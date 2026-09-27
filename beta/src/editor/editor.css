@@ -97,7 +97,8 @@
 }
 @media (max-width: 640px) {
   .screenplay-editor {
-    font-size: 14px;
+    /* iOS zooms the visual viewport when a smaller editable field gains focus. */
+    font-size: 16px;
   }
   .screenplay-editor p[data-kind="character"] {
     margin-left: 28%;
