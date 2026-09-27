@@ -2387,7 +2387,11 @@ export default function App() {
                     </div>
                   </div>
                   {novel ? (
-                    <NovelCharacters doc={doc} onChange={changeDoc} />
+                    <NovelCharacters
+                      key={snapshot.id}
+                      doc={doc}
+                      onChange={changeDoc}
+                    />
                   ) : (
                     <>
                       <section className="insight-section">
