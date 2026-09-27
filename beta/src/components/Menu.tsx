@@ -7,18 +7,24 @@ export function Menu({
   anchored = false,
   triggerContent,
   contextMenu,
+  onDismiss,
 }: {
   label: string;
   children: ReactNode;
   anchored?: boolean;
   triggerContent?: ReactNode;
   contextMenu?: { x: number; y: number };
+  onDismiss?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [contextPosition, setContextPosition] = useState(contextMenu);
   const ref = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ left: 0, top: 0 });
+  const dismiss = () => {
+    setOpen(false);
+    onDismiss?.();
+  };
   useLayoutEffect(() => {
     if (contextMenu) {
       setContextPosition(contextMenu);
@@ -85,11 +91,11 @@ export function Menu({
         !ref.current?.contains(e.target as Node) &&
         !popupRef.current?.contains(e.target as Node)
       )
-        setOpen(false);
+        dismiss();
     };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
-  }, [open]);
+  }, [open, onDismiss]);
   const popup = open && (
     <div
       ref={popupRef}
@@ -108,7 +114,7 @@ export function Menu({
       onClick={(e) => {
         const button = (e.target as HTMLElement).closest("button");
         if (button && !button.disabled) {
-          setOpen(false);
+          dismiss();
           ref.current?.querySelector("button")?.focus();
         }
       }}
@@ -122,7 +128,9 @@ export function Menu({
       ref={ref}
       onKeyDown={(e) => {
         if (e.key === "Escape") {
-          setOpen(false);
+          e.preventDefault();
+          e.stopPropagation();
+          dismiss();
           ref.current?.querySelector("button")?.focus();
         }
         if (open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
@@ -150,6 +158,7 @@ export function Menu({
         className={open ? "menu-trigger active" : "menu-trigger"}
         onClick={() => {
           setContextPosition(undefined);
+          if (open) onDismiss?.();
           setOpen(!open);
         }}
         onKeyDown={(e) => {

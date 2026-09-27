@@ -151,6 +151,20 @@ it("split controls preserve section views and divider supports keyboard and equa
   await act(async () => button("Split editor right").click());
   expect(host.querySelectorAll(".document-pane")).toHaveLength(2);
   expect(model.panes[0].tabs).toEqual([first.id]);
+  await act(async () =>
+    host.querySelector(".pane-0 .document-tab")!.dispatchEvent(
+      new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 200,
+        clientY: 100,
+      }),
+    ),
+  );
+  await act(async () => button("Move to other pane").click());
+  expect(document.querySelector(".anchored-menu-popup")).toBeNull();
+  expect(model.split).toBe(false);
+  await act(async () => button("Split editor right").click());
   const divider = host.querySelector('[role="separator"]')!;
   await act(async () =>
     divider.dispatchEvent(
@@ -202,4 +216,25 @@ it("mobile renders one editor without discarding desktop tabs, widths or selecti
   expect(model.panes[0].tabs).toEqual([first.id]);
   expect(model.panes[1].tabs).toEqual([second.id]);
   expect(second.scrollTop).toBe(240);
+});
+it("uses the final drop coordinates even when the browser clears the hover marker", async () => {
+  const first = await setup();
+  let second = first,
+    third = first;
+  await act(async () => {
+    second = model.duplicate(first.id)!;
+    third = model.duplicate(first.id)!;
+  });
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(100, 0, 200, 36),
+  );
+  const tabs = host.querySelectorAll(".document-tab");
+  await act(async () => sendDrag(tabs[0], "dragstart", 110));
+  await act(async () => sendDrag(tabs[2], "dragover", 290));
+  await act(async () =>
+    sendDrag(host.querySelector(".document-pane")!, "dragleave", -1),
+  );
+  expect(host.querySelector(".drop-after")).toBeNull();
+  await act(async () => sendDrag(tabs[1], "drop", 110));
+  expect(model.panes[0].tabs).toEqual([first.id, second.id, third.id]);
 });

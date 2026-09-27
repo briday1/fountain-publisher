@@ -421,13 +421,29 @@ export function DocumentPanes({
                 });
               }}
               onDragLeave={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget as Node))
+                const bounds = event.currentTarget.getBoundingClientRect();
+                if (
+                  event.clientX < bounds.left ||
+                  event.clientX >= bounds.right ||
+                  event.clientY < bounds.top ||
+                  event.clientY >= bounds.bottom
+                )
                   setDrop(undefined);
               }}
               onDrop={(event) => {
                 if (dragId.current) {
                   event.preventDefault();
-                  acceptDrop(target ?? { pane: paneId });
+                  const bounds = event.currentTarget.getBoundingClientRect();
+                  const fraction = (event.clientX - bounds.left) / bounds.width;
+                  acceptDrop({
+                    pane: paneId,
+                    edge:
+                      !model.split && fraction > 0.75
+                        ? "right"
+                        : !model.split && fraction < 0.25
+                          ? "left"
+                          : undefined,
+                  });
                 }
               }}
             >
@@ -456,9 +472,25 @@ export function DocumentPanes({
                     if (dragId.current) {
                       event.preventDefault();
                       event.stopPropagation();
-                      acceptDrop(
-                        target ?? { pane: paneId, slot: pane.tabs.length },
-                      );
+                      // Derive the final slot from the drop itself: browsers may
+                      // dispatch a leave between the final hover and drop.
+                      const tab = (
+                        event.target as HTMLElement
+                      ).closest<HTMLElement>(".document-tab");
+                      const index = tab
+                        ? [...event.currentTarget.children].indexOf(tab)
+                        : -1;
+                      const bounds = tab?.getBoundingClientRect();
+                      acceptDrop({
+                        pane: paneId,
+                        slot:
+                          index >= 0 && bounds
+                            ? index +
+                              (event.clientX >= bounds.left + bounds.width / 2
+                                ? 1
+                                : 0)
+                            : pane.tabs.length,
+                      });
                     }
                   }}
                 >
@@ -479,6 +511,7 @@ export function DocumentPanes({
                         key={id}
                         draggable
                         onDragStart={(event) => {
+                          setContext(undefined);
                           dragId.current = id;
                           setDrag(id);
                           event.dataTransfer.effectAllowed = "move";
@@ -607,6 +640,7 @@ export function DocumentPanes({
                             <MoreHorizontal size={14} aria-hidden="true" />
                           }
                           contextMenu={context?.id === id ? context : undefined}
+                          onDismiss={() => setContext(undefined)}
                         >
                           <MenuItem onClick={() => model.splitWith(id)}>
                             {model.split ? "Open in other pane" : "Split right"}
