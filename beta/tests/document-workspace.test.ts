@@ -147,9 +147,8 @@ it("moving and reordering tabs retain controller, selection, scroll and draft id
   expect(model.views.get(first.id)).toBe(first);
   expect(first.scrollTop).toBe(320);
   expect(first.controller.view.state.selection.from).toBe(3);
-  expect(model.panes[1].tabs).toEqual([first.id, second.id]);
-  model.toggleSplit();
   expect(model.panes[0].tabs).toEqual([first.id, second.id]);
+  expect(model.panes[1].tabs).toEqual([]);
   expect(model.split).toBe(false);
 });
 it("restores distinct buffers, split tabs and view positions without cloning save ownership", async () => {
@@ -449,4 +448,69 @@ it("opening another tab keeps a live buffer when a peer update arrives during th
   expect(first.model.activeBuffer!.snapshot.name).toBe("Independent.md");
   expect(first.model.buffers.get(originalId)!.live).toBe(a);
   expect(first.model.buffers.size).toBe(2);
+});
+
+it.each([0, 1] as const)(
+  "closing pane %s preserves surviving views, pending edits and undo",
+  async (pane) => {
+    const { model, session } = setup();
+    const first = model.activeView!;
+    const second = model.duplicate(first.id, true)!;
+    model.duplicate(second.id);
+    const survivor = pane === 0 ? second : first;
+    first.controller.view.dispatch(
+      first.controller.view.state.tr.insertText("Pending ", 1),
+    );
+    survivor.scrollTop = 120;
+    const closed = [...model.panes[pane].tabs];
+    model.closePane(pane);
+    expect(model.split).toBe(false);
+    expect(model.activePane).toBe(0);
+    expect(closed.every((id) => !model.views.has(id))).toBe(true);
+    expect(model.views.get(survivor.id)).toBe(survivor);
+    expect(survivor.scrollTop).toBe(120);
+    await session.flush();
+    expect(
+      (await workspace.load(session.current.id))!.screenplay.blocks[0].text,
+    ).toContain("Pending");
+    survivor.controller.undo();
+    expect(survivor.controller.getBlocks()[0].text).toBe("Book");
+  },
+);
+it("closing the last split tab promotes the other group and selects the neighboring tab", () => {
+  const { model } = setup();
+  const first = model.activeView!;
+  const second = model.duplicate(first.id)!;
+  const third = model.duplicate(first.id)!;
+  model.activate(second.id);
+  model.close(second.id);
+  expect(model.activeView).toBe(third);
+  model.toggleSplit();
+  const right = model.activeView!;
+  model.close(right.id);
+  expect(model.split).toBe(false);
+  expect(model.activeView).toBe(third);
+  expect(model.panes[1].tabs).toEqual([]);
+});
+it("closing an empty pane collapses it without changing the retained document", () => {
+  const { model } = setup();
+  const view = model.activeView!;
+  model.split = true;
+  model.closePane(1);
+  expect(model.split).toBe(false);
+  expect(model.activeView).toBe(view);
+});
+it("closing a live pane retains its room and propagates peer edits to the surviving view", async () => {
+  const { first, second, sync, a } = await liveSetup();
+  const left = first.model.activeView!;
+  first.model.duplicate(left.id, true);
+  first.model.closePane(1);
+  expect(first.model.activeBuffer!.live).toBe(a);
+  const peer = second.model.activeView!;
+  peer.controller.view.dispatch(
+    peer.controller.view.state.tr.insertText("Peer after close ", 1),
+  );
+  sync();
+  expect(left.controller.getBlocks()[0].text).toContain("Peer after close");
+  expect(first.model.split).toBe(false);
 });

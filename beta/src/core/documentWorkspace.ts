@@ -542,7 +542,25 @@ export class DocumentWorkspace {
     const target = this.panes[pane];
     target.tabs.splice(index ?? target.tabs.length, 0, id);
     if (pane === 1) this.split = true;
+    this.collapseEmptyPane();
     this.activate(id);
+  }
+  private collapseEmptyPane() {
+    if (!this.split || (this.panes[0].tabs.length && this.panes[1].tabs.length))
+      return;
+    const remaining = this.panes[0].tabs.length ? this.panes[0] : this.panes[1];
+    this.panes = [remaining, { tabs: [] }];
+    this.activePane = 0;
+    this.split = false;
+  }
+  closePane(pane: 0 | 1) {
+    if (!this.split) return;
+    // Snapshot the IDs: closing the last tab may promote the surviving pane.
+    const tabs = [...this.panes[pane].tabs];
+    for (const id of tabs) this.close(id);
+    this.collapseEmptyPane();
+    if (this.activeView) this.activate(this.activeView.id);
+    else this.options.changed();
   }
   close(id: string) {
     const view = this.views.get(id);
@@ -558,9 +576,12 @@ export class DocumentWorkspace {
         this.views.get([...buffer.views][0])?.controller || null;
     view.controller.destroy();
     for (const pane of this.panes) {
+      const index = pane.tabs.indexOf(id);
       pane.tabs = pane.tabs.filter((key) => key !== id);
-      if (pane.selected === id) pane.selected = pane.tabs[0];
+      if (pane.selected === id)
+        pane.selected = pane.tabs[Math.min(index, pane.tabs.length - 1)];
     }
+    this.collapseEmptyPane();
     const next =
       this.panes[this.activePane].selected ||
       this.panes[1 - this.activePane].selected;
