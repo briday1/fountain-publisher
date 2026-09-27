@@ -96,10 +96,6 @@
   content: "⋯";
   font-size: 18px;
 }
-.document-tab .menu-popup {
-  position: fixed;
-  z-index: 50;
-}
 .document-tab-open {
   min-width: 32px;
   min-height: 30px;
@@ -243,4 +239,27 @@
   .mobile-pane-switch button {
     min-width: 70px;
   }
+}
+
+.document-pane-header {
+  display: flex;
+  align-items: stretch;
+  background: var(--panel);
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.document-pane-header .document-tabs {
+  flex: 1;
+  min-width: 0;
+}
+.document-pane-close {
+  flex: 0 0 34px;
+  border: 0;
+  border-bottom: 2px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  font-size: 20px;
+}
+.document-pane-close:hover {
+  background: var(--accent-soft);
 }

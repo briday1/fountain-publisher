@@ -6,7 +6,7 @@ import {
   WriteShapeAccount,
   emptyAccount,
 } from "../src/components/WriteShapeAccount";
-it("unconfigured signup and checkout remain disabled with approved sandbox pricing", () => {
+it("signed-out account shows only sign-in, with no billing or profile controls", () => {
   const node = document.createElement("div");
   node.innerHTML = renderToStaticMarkup(
     <WriteShapeAccount
@@ -17,18 +17,15 @@ it("unconfigured signup and checkout remain disabled with approved sandbox prici
       onClose={() => {}}
     />,
   );
-  for (const label of [
-    "Continue with Google",
-    "Continue to monthly test checkout",
-  ])
-    expect(
-      [...node.querySelectorAll("button")].find((b) => b.textContent === label)
-        ?.disabled,
-    ).toBe(true);
-  expect(node.textContent).toContain("Test checkout is currently unavailable");
-  expect(node.textContent).toContain("$8 USD / month");
-  expect(node.textContent).toContain("$80 USD / year");
-  expect(node.querySelector("fieldset")?.disabled).toBe(true);
+  expect(
+    [...node.querySelectorAll("button")].find(
+      (b) => b.textContent === "Continue with Google",
+    )?.disabled,
+  ).toBe(true);
+  expect(node.querySelector("fieldset")).toBeNull();
+  expect(node.querySelector("form")).toBeNull();
+  expect(node.textContent).not.toContain("checkout");
+  expect(node.textContent).not.toContain("Sign out");
   expect(node.textContent).toContain("drafts are saved on this device");
 });
 it("server account state enables only configured actions and exposes cancellation recovery", () => {
@@ -58,6 +55,13 @@ it("server account state enables only configured actions and exposes cancellatio
     />,
   );
   expect(node.textContent).toContain("Subscriptioncanceled");
+  expect(node.querySelector(".account-nav")).toBeNull();
+  expect(node.textContent).not.toContain("Profile & sign-in");
+  expect(node.textContent).not.toContain("Continue with Google");
+  expect(node.querySelector("details summary")?.textContent).toBe(
+    "Edit profile",
+  );
+  expect(node.textContent).toContain("Sign out");
   expect(node.textContent).toContain("Free · local writing and saves");
   expect(
     [...node.querySelectorAll("button")].find(

@@ -140,7 +140,7 @@ it("shows actual monthly subscription despite yearly prospective intent, with no
     expect(h.node.textContent).not.toContain(
       "Continue to yearly test checkout",
     );
-    await h.click("Change monthly / yearly");
+    await h.click("Change plan");
     expect(h.requests.at(-1)).toEqual({
       path: "/api/billing/portal",
       body: { intent: "change" },
@@ -154,21 +154,28 @@ it("shows actual monthly subscription despite yearly prospective intent, with no
     await h.close();
   }
 });
-it("a failed draft flush blocks external checkout and preserves the error", async () => {
-  const h = await mount(
-    empty,
-    vi.fn(async () => {
-      throw Error("Draft could not save");
-    }),
-  );
-  try {
-    await h.click("Continue to yearly test checkout");
-    expect(h.requests.some((r) => r.path.endsWith("checkout"))).toBe(false);
-    expect(h.node.textContent).toContain("Draft could not save");
-  } finally {
-    await h.close();
-  }
-});
+it.each(["Continue to yearly test checkout", "Sign out"])(
+  "a failed draft flush blocks %s and preserves the error",
+  async (action) => {
+    const h = await mount(
+      empty,
+      vi.fn(async () => {
+        throw Error("Draft could not save");
+      }),
+    );
+    try {
+      await h.click(action);
+      expect(
+        h.requests.some(
+          (r) => r.path.endsWith("checkout") || r.path.endsWith("logout"),
+        ),
+      ).toBe(false);
+      expect(h.node.textContent).toContain("Draft could not save");
+    } finally {
+      await h.close();
+    }
+  },
+);
 it("pending cancellation exposes its date and never offers a second checkout or cancellation", async () => {
   const h = await mount({
     ...empty,

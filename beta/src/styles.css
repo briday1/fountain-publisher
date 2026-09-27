@@ -2206,19 +2206,6 @@ hr {
   border-radius: 20px;
   background: var(--raised);
 }
-.account-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin: 12px 0 22px;
-}
-.account-nav a {
-  color: var(--ink);
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  text-decoration: none;
-}
 .account-section {
   border-top: 1px solid var(--border);
   padding: 22px 0;
@@ -2370,8 +2357,12 @@ hr {
   .account-actions {
     flex-direction: column;
   }
-  .account-nav a {
-    flex: 1;
-    text-align: center;
-  }
+}
+
+.account-profile summary {
+  cursor: pointer;
+  font-size: 13px;
+}
+.account-profile[open] summary {
+  margin-bottom: 16px;
 }

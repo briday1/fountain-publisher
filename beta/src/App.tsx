@@ -1697,19 +1697,12 @@ export default function App() {
           <span>{isWriteShape ? "WriteShape" : "Fountain Publisher"}</span>
         </button>
         {isWriteShape && !mobile && (
-          <button onClick={() => setPlansOpen(true)}>
-            {isWriteShapeFree
-              ? "Free · View plans"
-              : account.state.account?.privateTester
-                ? "Premium · Private tester"
-                : "Premium · View plans"}
-          </button>
-        )}
-        {isWriteShape && !mobile && (
           <button onClick={() => setLibraryMode("open")}>Files</button>
         )}
         {isWriteShape && !mobile && (
-          <button onClick={() => setAccountOpen(true)}>Account</button>
+          <button onClick={() => setAccountOpen(true)}>
+            {account.state.account ? "Account" : "Sign in"}
+          </button>
         )}
         <ApplicationMenu
           simpleMobile={isWriteShape}
@@ -1722,7 +1715,7 @@ export default function App() {
           <Menu label="File">
             {isWriteShape && (
               <MenuItem onClick={() => setAccountOpen(true)}>
-                Account and subscription…
+                {account.state.account ? "Account…" : "Sign in…"}
               </MenuItem>
             )}
             {isWriteShape && (

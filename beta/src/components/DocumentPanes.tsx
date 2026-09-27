@@ -298,7 +298,7 @@ export function DocumentPanes({
         <button onClick={() => model.toggleSplit()}>
           {model.split ? "Single pane" : "Split view"}
         </button>
-        <Menu label="Open documents">
+        <Menu anchored label="Open documents">
           {[...model.buffers.values()].map((buffer) => (
             <MenuItem
               key={buffer.session.current.id}
@@ -333,140 +333,157 @@ export function DocumentPanes({
                 setDrag(undefined);
               }}
             >
-              <div
-                className="document-tabs"
-                role="tablist"
-                aria-label={`${paneIndex === 0 ? "Left" : "Right"} document tabs`}
-              >
-                {pane.tabs.map((id, index) => {
-                  const view = model.views.get(id)!,
-                    buffer = model.buffers.get(view.bufferId)!;
-                  const heading = buffer.snapshot.screenplay.blocks.find(
-                    (b) => b.id === view.sectionId,
-                  );
-                  return (
-                    <div
-                      className="document-tab"
-                      key={id}
-                      draggable
-                      onDragStart={() => setDrag(id)}
-                      onDragEnd={() => setDrag(undefined)}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (drag) model.move(drag, paneIndex as 0 | 1, index);
-                        setDrag(undefined);
-                      }}
-                    >
-                      <button
-                        role="tab"
-                        id={`document-tab-${id}`}
-                        aria-controls={`document-panel-${id}`}
-                        tabIndex={pane.selected === id ? 0 : -1}
-                        onKeyDown={(event) => {
-                          const target =
-                            event.key === "ArrowRight"
-                              ? (index + 1) % pane.tabs.length
-                              : event.key === "ArrowLeft"
-                                ? (index - 1 + pane.tabs.length) %
-                                  pane.tabs.length
-                                : event.key === "Home"
-                                  ? 0
-                                  : event.key === "End"
-                                    ? pane.tabs.length - 1
-                                    : -1;
-                          if (target >= 0) {
-                            event.preventDefault();
-                            model.activate(pane.tabs[target]);
-                            document
-                              .getElementById(
-                                `document-tab-${pane.tabs[target]}`,
-                              )
-                              ?.focus();
-                          }
-                        }}
-                        aria-selected={pane.selected === id}
-                        title={buffer.snapshot.name}
-                        onClick={() => model.activate(id)}
-                      >
-                        {buffer.snapshot.name}
-                        {heading ? ` / ${heading.text || "Section"}` : ""}
-                        {buffer.status === "saving" ? " •" : ""}
-                        {["conflict", "error", "offline"].includes(
-                          buffer.syncStatus?.phase || "",
-                        )
-                          ? " !"
-                          : ""}
-                      </button>
-                      <Menu label={`Actions for ${buffer.snapshot.name}`}>
-                        <MenuItem
-                          onClick={() => {
-                            model.activate(id);
-                            model.duplicate(
-                              id,
-                              true,
-                              view.sectionId,
-                              !!view.controller.focusedSection,
-                            );
-                          }}
-                        >
-                          Open in other pane
-                        </MenuItem>
-                        <MenuItem
-                          onClick={() =>
-                            model.move(id, (1 - paneIndex) as 0 | 1)
-                          }
-                        >
-                          Move to other pane
-                        </MenuItem>
-                        <MenuItem
-                          onClick={() =>
-                            model.move(
-                              id,
-                              paneIndex as 0 | 1,
-                              Math.max(0, index - 1),
-                            )
-                          }
-                        >
-                          Move tab left
-                        </MenuItem>
-                        <MenuItem
-                          onClick={() =>
-                            model.move(
-                              id,
-                              paneIndex as 0 | 1,
-                              Math.min(pane.tabs.length - 1, index + 1),
-                            )
-                          }
-                        >
-                          Move tab right
-                        </MenuItem>
-                        <MenuItem onClick={() => model.close(id)}>
-                          Close view
-                        </MenuItem>
-                      </Menu>
-                      <button
-                        aria-label={`Close ${buffer.snapshot.name} view`}
-                        onClick={() => model.close(id)}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  );
-                })}
-                <button
-                  className="document-tab-open"
-                  aria-label={`Open in ${paneIndex === 0 ? "left" : "right"} pane`}
-                  onClick={() => {
-                    model.activePane = paneIndex as 0 | 1;
-                    if (pane.selected) model.activate(pane.selected);
-                    changed();
-                    onOpen();
-                  }}
+              <div className="document-pane-header">
+                <div
+                  className="document-tabs"
+                  role="tablist"
+                  aria-label={`${paneIndex === 0 ? "Left" : "Right"} document tabs`}
                 >
-                  +
-                </button>
+                  {pane.tabs.map((id, index) => {
+                    const view = model.views.get(id)!,
+                      buffer = model.buffers.get(view.bufferId)!;
+                    const heading = buffer.snapshot.screenplay.blocks.find(
+                      (b) => b.id === view.sectionId,
+                    );
+                    return (
+                      <div
+                        className="document-tab"
+                        key={id}
+                        draggable
+                        onDragStart={() => setDrag(id)}
+                        onDragEnd={() => setDrag(undefined)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (drag) model.move(drag, paneIndex as 0 | 1, index);
+                          setDrag(undefined);
+                        }}
+                      >
+                        <button
+                          role="tab"
+                          id={`document-tab-${id}`}
+                          aria-controls={`document-panel-${id}`}
+                          tabIndex={pane.selected === id ? 0 : -1}
+                          onKeyDown={(event) => {
+                            const target =
+                              event.key === "ArrowRight"
+                                ? (index + 1) % pane.tabs.length
+                                : event.key === "ArrowLeft"
+                                  ? (index - 1 + pane.tabs.length) %
+                                    pane.tabs.length
+                                  : event.key === "Home"
+                                    ? 0
+                                    : event.key === "End"
+                                      ? pane.tabs.length - 1
+                                      : -1;
+                            if (target >= 0) {
+                              event.preventDefault();
+                              model.activate(pane.tabs[target]);
+                              document
+                                .getElementById(
+                                  `document-tab-${pane.tabs[target]}`,
+                                )
+                                ?.focus();
+                            }
+                          }}
+                          aria-selected={pane.selected === id}
+                          title={buffer.snapshot.name}
+                          onClick={() => model.activate(id)}
+                        >
+                          {buffer.snapshot.name}
+                          {heading ? ` / ${heading.text || "Section"}` : ""}
+                          {buffer.status === "saving" ? " •" : ""}
+                          {["conflict", "error", "offline"].includes(
+                            buffer.syncStatus?.phase || "",
+                          )
+                            ? " !"
+                            : ""}
+                        </button>
+                        <Menu
+                          anchored
+                          label={`Actions for ${buffer.snapshot.name}${heading ? ` / ${heading.text || "Section"}` : ""}`}
+                        >
+                          <MenuItem
+                            onClick={() => {
+                              model.activate(id);
+                              model.duplicate(
+                                id,
+                                true,
+                                view.sectionId,
+                                !!view.controller.focusedSection,
+                              );
+                            }}
+                          >
+                            Open in other pane
+                          </MenuItem>
+                          <MenuItem
+                            onClick={() =>
+                              model.move(id, (1 - paneIndex) as 0 | 1)
+                            }
+                          >
+                            Move to other pane
+                          </MenuItem>
+                          <MenuItem
+                            disabled={index === 0}
+                            onClick={() =>
+                              model.move(
+                                id,
+                                paneIndex as 0 | 1,
+                                Math.max(0, index - 1),
+                              )
+                            }
+                          >
+                            Move tab left
+                          </MenuItem>
+                          <MenuItem
+                            disabled={index === pane.tabs.length - 1}
+                            onClick={() =>
+                              model.move(
+                                id,
+                                paneIndex as 0 | 1,
+                                Math.min(pane.tabs.length - 1, index + 1),
+                              )
+                            }
+                          >
+                            Move tab right
+                          </MenuItem>
+                          <MenuItem onClick={() => model.close(id)}>
+                            Close tab
+                          </MenuItem>
+                        </Menu>
+                        <button
+                          aria-label={`Close ${buffer.snapshot.name}${heading ? ` / ${heading.text || "Section"}` : ""} view`}
+                          onClick={() => model.close(id)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <button
+                    className="document-tab-open"
+                    aria-label={`Open in ${paneIndex === 0 ? "left" : "right"} pane`}
+                    onClick={() => {
+                      model.activePane = paneIndex as 0 | 1;
+                      if (pane.selected) model.activate(pane.selected);
+                      changed();
+                      onOpen();
+                    }}
+                  >
+                    +
+                  </button>
+                </div>
+                {model.split && (
+                  <button
+                    className="document-pane-close"
+                    aria-label={`Close ${paneIndex === 0 ? "left" : "right"} pane`}
+                    title="Close pane · documents remain saved"
+                    onClick={() => model.closePane(paneIndex as 0 | 1)}
+                  >
+                    ×
+                  </button>
+                )}
               </div>
               {selected ? (
                 <DocumentCanvas

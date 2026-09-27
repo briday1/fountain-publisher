@@ -13,7 +13,7 @@ export function OutlineViewActions({
   };
   return (
     <span className="outline-view-actions">
-      <Menu label="Section view actions">
+      <Menu anchored label="Section view actions">
         <MenuItem onClick={() => open(false, false)}>Open in new tab</MenuItem>
         <MenuItem onClick={() => open(true, false)}>
           Open in other pane

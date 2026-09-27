@@ -208,6 +208,36 @@ export function WriteShapeAccount({
     !["none", "canceled", "incomplete_expired"].includes(status);
   const end = billing?.cancelAt || billing?.periodEnd || 0;
   const disabled = busy || loading;
+  if (!account)
+    return (
+      <Modal
+        title="Sign in"
+        eyebrow="WRITESHAPE"
+        className="writeshape-account"
+        onClose={onClose}
+      >
+        <p>Sign in to see your plan and manage your account.</p>
+        {(error || notice) && (
+          <p className="account-notice" role="status">
+            {notice || error}
+          </p>
+        )}
+        <button
+          className="primary"
+          disabled={busy || !state.googleAvailable}
+          onClick={() => void run(() => navigate("/api/auth/google/start"))}
+        >
+          Continue with Google
+        </button>
+        {!state.googleAvailable && (
+          <p>Google sign-in is currently unavailable.</p>
+        )}
+        <footer className="account-footer">
+          <p>Your drafts are saved on this device before signing in.</p>
+          <button onClick={onClose}>Back to writing</button>
+        </footer>
+      </Modal>
+    );
   return (
     <Modal
       title="Account"
@@ -218,36 +248,73 @@ export function WriteShapeAccount({
     >
       <div className="account-heading">
         <div>
-          <h3>{account?.displayName || "Your writing, your account"}</h3>
-          <p>{account?.email || "Sign in to manage your account."}</p>
+          <h3>{account.displayName || "Your account"}</h3>
+          <p>{account.email}</p>
         </div>
-        <span className="account-badge">
-          {account?.privateTester
-            ? "Private tester"
-            : state.premium
-              ? "Premium"
-              : "Free"}
-        </span>
+        <button
+          disabled={busy}
+          onClick={() =>
+            void run(async () => {
+              await beforeNavigate();
+              await accountRequest("/api/auth/logout", {});
+              if (state.privateMode) location.assign("/cdn-cgi/access/logout");
+              else {
+                await refresh();
+                onClose();
+              }
+            })
+          }
+        >
+          Sign out
+        </button>
       </div>
-      <nav className="account-nav" aria-label="Account sections">
-        <a href="#account-subscription">Plan & billing</a>
-        <a href="#account-profile">Profile & sign-in</a>
-        {account && state.accessCodesAvailable && (
-          <a href="#account-access">Access codes</a>
-        )}
-      </nav>
       {(error || notice) && (
         <p className="account-notice" role="status">
           {notice || error}
         </p>
       )}
+      <details className="account-section account-profile" id="account-profile">
+        <summary>Edit profile</summary>
+        <form
+          className="account-profile-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void run(async () => {
+              await accountRequest("/api/account/profile", {
+                displayName: name,
+              });
+              await refresh();
+              setNotice("Profile saved.");
+            });
+          }}
+        >
+          <label>
+            Display name
+            <input
+              autoComplete="nickname"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={80}
+            />
+          </label>
+          <button disabled={busy}>Save profile</button>
+        </form>
+        {!account.googleLinked && state.googleAvailable && (
+          <button
+            disabled={busy}
+            onClick={() => void run(() => navigate("/api/auth/google/start"))}
+          >
+            Connect Google account
+          </button>
+        )}
+      </details>
       <section
         className="account-section"
         id="account-subscription"
         aria-labelledby="account-plan-title"
       >
         <div className="account-section-title">
-          <h3 id="account-plan-title">Plan & billing</h3>
+          <h3 id="account-plan-title">Your plan</h3>
           {testBilling && <span className="account-badge">Test mode</span>}
         </div>
         {testBilling && (
@@ -289,7 +356,7 @@ export function WriteShapeAccount({
         {account && (
           <dl className="account-facts">
             <div>
-              <dt>Access</dt>
+              <dt>Current plan</dt>
               <dd>
                 {account.privateTester
                   ? "Premium · included for private testing"
@@ -345,7 +412,7 @@ export function WriteShapeAccount({
                 disabled={disabled || !state.portalAvailable}
                 onClick={() => manage("manage")}
               >
-                Manage billing
+                Billing details
               </button>
               <button
                 disabled={
@@ -353,7 +420,7 @@ export function WriteShapeAccount({
                 }
                 onClick={() => manage("change")}
               >
-                Change monthly / yearly
+                Change plan
               </button>
               {billing?.canCancel && (
                 <button
@@ -452,93 +519,6 @@ export function WriteShapeAccount({
           This support inbox is being set up. Delivery has not been verified
           yet.
         </p>
-      </section>
-      <section
-        className="account-section"
-        id="account-profile"
-        aria-labelledby="account-profile-title"
-      >
-        <h3 id="account-profile-title">Profile & sign-in</h3>
-        {account ? (
-          <>
-            <form
-              className="account-profile-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void run(async () => {
-                  await accountRequest("/api/account/profile", {
-                    displayName: name,
-                  });
-                  await refresh();
-                  setNotice("Profile saved.");
-                });
-              }}
-            >
-              <label>
-                Display name
-                <input
-                  autoComplete="nickname"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  maxLength={80}
-                />
-              </label>
-              <button disabled={busy}>Save profile</button>
-            </form>
-            {account.googleLinked ? (
-              <p>Google sign-in is linked.</p>
-            ) : (
-              <>
-                <button
-                  disabled={busy || !state.googleAvailable}
-                  onClick={() =>
-                    void run(() => navigate("/api/auth/google/start"))
-                  }
-                >
-                  Link Google sign-in
-                </button>
-                <p>
-                  Use the Google account matching your verified email. Drive
-                  storage is connected separately in Files → Google Drive.
-                </p>
-              </>
-            )}
-            <button
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  await beforeNavigate();
-                  await accountRequest("/api/auth/logout", {});
-                  if (state.privateMode)
-                    location.assign("/cdn-cgi/access/logout");
-                  else {
-                    await refresh();
-                    onClose();
-                  }
-                })
-              }
-            >
-              Sign out
-            </button>
-          </>
-        ) : (
-          <>
-            <p>
-              Sign in with your approved email to manage your profile and test
-              subscription.
-            </p>
-            <button
-              className="primary"
-              disabled={busy || !state.googleAvailable}
-              onClick={() => void run(() => navigate("/api/auth/google/start"))}
-            >
-              Continue with Google
-            </button>
-          </>
-        )}
-        {!state.googleAvailable && (
-          <p>Google sign-in is currently unavailable.</p>
-        )}
       </section>
       <footer className="account-footer">
         <p>
