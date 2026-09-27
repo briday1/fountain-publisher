@@ -13,7 +13,7 @@ test.use({
     "Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
 });
 
-test("private build opens its editor without iPhone focus zoom", async ({ page }) => {
+test("private build keeps mobile editor text at 16px on focus", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveTitle(/WriteShape/);
   const editor = page.getByRole("textbox", { name: "Screenplay editor" });
