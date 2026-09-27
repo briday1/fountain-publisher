@@ -47,11 +47,34 @@ test("native editor tab drag reorders, splits at the edge and collapses an empty
     "id",
     firstId!,
   );
-  await page.reload();
-  await expect(page.locator('.pane-1 [role="tab"]')).toHaveAttribute(
-    "id",
-    firstId!,
+  await page
+    .getByRole("separator", { name: "Resize document panes" })
+    .press("End");
+  await page
+    .getByRole("textbox", { name: "Screenplay editor" })
+    .last()
+    .fill("Retained split draft.");
+  await expect(
+    page.getByRole("textbox", { name: "Screenplay editor" }).first(),
+  ).toContainText("Retained split draft.");
+  await expect(page.getByRole("contentinfo")).toContainText(
+    "Saved on this device",
   );
+  await page.reload();
+  // Restored views intentionally get new DOM IDs; assert the saved user state.
+  await expect(page.locator(".document-pane")).toHaveCount(2);
+  await expect(page.locator('.pane-1 [role="tab"]')).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.locator(".pane-1")).toHaveClass(/active/);
+  await expect(
+    page.getByRole("separator", { name: "Resize document panes" }),
+  ).toHaveAttribute("aria-valuenow", "75");
+  for (const editor of await page
+    .getByRole("textbox", { name: "Screenplay editor" })
+    .all())
+    await expect(editor).toContainText("Retained split draft.");
 });
 
 test("context menu, keyboard resizing and mobile transitions retain the workspace", async ({
