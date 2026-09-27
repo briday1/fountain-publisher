@@ -6,12 +6,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      publish_fountain:
-        description: Publish the tested Fountain site to production
-        type: boolean
-        required: true
-        default: false
 
 permissions:
   contents: read
@@ -103,7 +97,7 @@ jobs:
         run: npx wrangler deploy --dry-run
 
   deploy_production:
-    if: github.event_name == 'workflow_dispatch' && inputs.publish_fountain == true && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: [build, account_worker]
     runs-on: ubuntu-latest
     # Serialize reading gh-pages through Pages deployment.
