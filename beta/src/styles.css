@@ -1544,7 +1544,8 @@ hr {
   }
   .screenplay-editor {
     min-height: 700px;
-    font-size: 14px;
+    /* iOS magnifies contenteditable text below 16px when the keyboard opens. */
+    font-size: 16px;
   }
   .title-preview {
     margin-top: 0;

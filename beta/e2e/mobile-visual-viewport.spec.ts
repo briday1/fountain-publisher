@@ -8,6 +8,16 @@ test.use({
     "Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
 });
 
+test("screenplay editor stays at iOS's non-zooming font size on focus", async ({ page }) => {
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await expect(editor).toBeVisible();
+  await expect(editor).toHaveCSS("font-size", "16px");
+  await editor.click();
+  await expect(editor).toBeFocused();
+  await expect(editor).toHaveCSS("font-size", "16px");
+});
+
 test("mobile keyboard pan keeps the top app bar inside Safari's visual viewport", async ({
   page,
 }) => {
