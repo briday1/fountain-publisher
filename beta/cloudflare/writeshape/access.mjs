@@ -22,7 +22,8 @@ export async function identity(request, env) {
     (claims.nbf && claims.nbf > now + 30) ||
     typeof claims.sub !== "string" ||
     !claims.sub ||
-    claims.email !== env.TESTER_EMAIL
+    typeof claims.email !== "string" ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(claims.email)
   )
     throw new Error("Unauthorized");
   if (!cachedKeys || cachedKeys.expires < Date.now()) {
