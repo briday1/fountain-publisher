@@ -1,6 +1,13 @@
 /* The compact mobile header hides standalone desktop menu buttons by default.
    Keep Settings available while leaving the adjacent Help shortcut hidden. */
 @media (max-width: 950px) {
+  /* Keep focusable text at iOS's no-zoom threshold in both products. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+
   .menus > .menu-trigger:first-of-type {
     display: inline-flex;
     align-items: center;
