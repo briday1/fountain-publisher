@@ -1706,6 +1706,14 @@ export default function App() {
         )}
         <ApplicationMenu
           simpleMobile={isWriteShape}
+          accountAction={
+            isWriteShape
+              ? {
+                  label: account.state.account ? "Account" : "Sign in",
+                  onClick: () => setAccountOpen(true),
+                }
+              : undefined
+          }
           onSettings={() => setDialog("settings")}
           onHelp={() => setDialog("help")}
           mobile={mobile}
@@ -1713,11 +1721,6 @@ export default function App() {
           filename={snapshot.name}
         >
           <Menu label="File">
-            {isWriteShape && (
-              <MenuItem onClick={() => setAccountOpen(true)}>
-                {account.state.account ? "Account…" : "Sign in…"}
-              </MenuItem>
-            )}
             {isWriteShape && (
               <MenuItem onClick={() => setPlansOpen(true)}>
                 Explore Premium…
