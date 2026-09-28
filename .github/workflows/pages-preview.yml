@@ -42,6 +42,21 @@ jobs:
             npx playwright install --with-deps chromium
             npm run test:browser
           fi
+      - name: Check private WriteShape build in a mobile browser
+        run: |
+          npm run build:writeshape
+          npx vite preview --host 127.0.0.1 --port 4175 > "$RUNNER_TEMP/writeshape-preview.log" 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          npx playwright install --with-deps webkit
+          WRITESHAPE_BUILD_SMOKE=1 TEST_BASE_URL=http://127.0.0.1:4175 npx playwright test e2e/writeshape-mobile-smoke.spec.ts --browser webkit
+      - name: Keep WriteShape mobile screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: writeshape-mobile-smoke
+          path: beta/test-results/writeshape-mobile.png
+          if-no-files-found: ignore
       - name: Build writing app
         run: npm run build:beta
       - name: Validate the publishable artifact and required license files
