@@ -81,7 +81,14 @@ for (const signedIn of [false, true]) {
     await expect(
       menu.locator("details").getByRole("button", { name: label, exact: true }),
     ).toHaveCount(0);
+    await expect(menu).toHaveCSS("opacity", "1");
+    expect(
+      await menu.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    ).toBe(true);
     await page.screenshot({
+      animations: "disabled",
       path: `test-results/writeshape-menu-${signedIn ? "account" : "sign-in"}.png`,
     });
     await accountButton.click();
