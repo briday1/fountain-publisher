@@ -37,7 +37,12 @@ const controls = (
     onFullscreen={noop}
   />
 );
-async function mount(children: ReactNode, mobile = true, simpleMobile = false) {
+async function mount(
+  children: ReactNode,
+  mobile = true,
+  simpleMobile = false,
+  accountAction?: { label: string; onClick: () => void },
+) {
   const node = document.createElement("div");
   document.body.append(node);
   const root = createRoot(node);
@@ -46,6 +51,7 @@ async function mount(children: ReactNode, mobile = true, simpleMobile = false) {
       <ApplicationMenu
         mobile={mobile}
         simpleMobile={simpleMobile}
+        accountAction={accountAction}
         controls={controls}
         filename="Draft.fountain"
       >
@@ -195,41 +201,64 @@ it("leaves Fountain desktop provider commands in their original File menu", asyn
   }
 });
 
-it("WriteShape mobile exposes primary actions without categories or editing toolbar", async () => {
-  const chosen = vi.fn();
-  const { node, close } = await mount(
-    <Menu label="File">
-      <MenuItem onClick={chosen}>New</MenuItem>
-      <MenuItem onClick={chosen}>Open…</MenuItem>
-      <MenuItem onClick={chosen}>Save</MenuItem>
-      <MenuItem onClick={chosen}>Account and subscription…</MenuItem>
-      <small>PUBLISH</small>
-      <MenuItem onClick={chosen}>Export…</MenuItem>
-    </Menu>,
-    true,
-    true,
-  );
-  try {
-    await click(node, "File");
-    for (const name of [
-      "Open…",
-      "Save",
-      "Outline",
-      "Insights",
-      "Find and replace",
-      "Export…",
-      "Settings",
-      "Account and subscription…",
-    ])
-      expect(button(node, name).closest("details")).toBeNull();
-    expect(node.querySelector('[aria-label="Zoom"]')).not.toBeNull();
-    expect(node.querySelector('[aria-label="Command categories"]')).toBeNull();
-    expect(node.querySelector('[aria-label="Text formatting"]')).toBeNull();
-    expect(button(node, "New").closest("details")).not.toBeNull();
-    await click(node, "Open…");
-    expect(chosen).toHaveBeenCalledOnce();
-    expect(node.querySelector("dialog")).toBeNull();
-  } finally {
-    await close();
-  }
-});
+it.each(["Sign in", "Account"])(
+  "WriteShape mobile exposes %s and primary actions without nested categories",
+  async (accountLabel) => {
+    const chosen = vi.fn();
+    const openAccount = vi.fn(() =>
+      expect(document.querySelector(".mobile-command-panel")).toBeNull(),
+    );
+    const { node, close } = await mount(
+      <Menu label="File">
+        <MenuItem onClick={chosen}>New</MenuItem>
+        <MenuItem onClick={chosen}>Open…</MenuItem>
+        <MenuItem onClick={chosen}>Save</MenuItem>
+        <small>PUBLISH</small>
+        <MenuItem onClick={chosen}>Export…</MenuItem>
+      </Menu>,
+      true,
+      true,
+      { label: accountLabel, onClick: openAccount },
+    );
+    try {
+      await click(node, "File");
+      for (const name of [
+        "Open…",
+        "Save",
+        "Outline",
+        "Insights",
+        "Find and replace",
+        "Export…",
+        "Settings",
+        accountLabel,
+      ])
+        expect(button(node, name).closest("details")).toBeNull();
+      expect(node.querySelector('[aria-label="Zoom"]')).not.toBeNull();
+      expect(
+        node.querySelector('[aria-label="Command categories"]'),
+      ).toBeNull();
+      expect(node.querySelector('[aria-label="Text formatting"]')).toBeNull();
+      expect(button(node, "New").closest("details")).not.toBeNull();
+      expect(
+        [...node.querySelectorAll(".mobile-command-group h3")].map(
+          (heading) => heading.textContent,
+        ),
+      ).toEqual([
+        "File",
+        "Workspace",
+        "Share & export",
+        "Account",
+        "Preferences",
+      ]);
+      await click(node, accountLabel);
+      expect(openAccount).toHaveBeenCalledOnce();
+      expect(node.querySelector("dialog")).toBeNull();
+      await click(node, "File");
+      await click(node, "Open…");
+      expect(chosen).toHaveBeenCalledOnce();
+      expect(node.querySelector("dialog")).toBeNull();
+    } finally {
+      await close();
+    }
+  },
+);

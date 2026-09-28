@@ -218,7 +218,6 @@
     white-space: nowrap;
   }
 }
-
 @media (max-width: 950px) {
   .app-header {
     padding-inline: 8px;
@@ -287,7 +286,6 @@
     background: var(--raised);
   }
 }
-
 @media (max-width: 359px) {
   .app-header > .brand {
     width: 32px;
@@ -325,7 +323,6 @@
 .mobile-curated-tools[open] .mobile-command-grid {
   margin-top: 12px;
 }
-
 .mobile-zoom-control {
   display: flex;
   align-items: center;
@@ -337,10 +334,62 @@
   min-height: 44px;
   min-width: 7rem;
 }
-
-.writing-element-hit { display:contents; }
-@media (max-width:950px) {
-  .mobile-header-format .writing-element-hit { display:flex; align-items:center; flex:1 1 0; min-width:64px; height:44px; }
-  .mobile-header-format .writing-element { height:32px; min-height:32px; width:100%; padding-block:2px; }
+.writing-element-hit {
+  display: contents;
 }
-@media (max-width:359px) { .mobile-header-format .writing-element-hit { min-width:52px; } }
+@media (max-width: 950px) {
+  .mobile-header-format .writing-element-hit {
+    display: flex;
+    align-items: center;
+    flex: 1 1 0;
+    min-width: 64px;
+    height: 44px;
+  }
+  .mobile-header-format .writing-element {
+    height: 32px;
+    min-height: 32px;
+    width: 100%;
+    padding-block: 2px;
+  }
+}
+@media (max-width: 359px) {
+  .mobile-header-format .writing-element-hit {
+    min-width: 52px;
+  }
+}
+
+/* WriteShape simple menu: stronger hierarchy without nested navigation. */
+.mobile-simple-groups {
+  display: grid;
+  gap: 12px;
+}
+.mobile-command-group {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel);
+}
+.mobile-command-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.mobile-command-group h3 svg {
+  box-sizing: content-box;
+  flex-shrink: 0;
+  padding: 6px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.mobile-command-group .mobile-command-grid > button:only-child {
+  grid-column: 1 / -1;
+}
+.mobile-command-group .mobile-command-grid > button:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}

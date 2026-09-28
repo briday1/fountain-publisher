@@ -17,12 +17,16 @@ import {
   PanelsTopLeft,
   Upload,
   Menu as MenuIcon,
+  FolderOpen,
+  Eye,
+  Share2,
+  UserRound,
+  Settings,
 } from "lucide-react";
 import { Menu } from "./Menu";
 import { Modal } from "./Modal";
 import type { WritingToolbarProps } from "./WritingToolbar";
 import "./mobile-command-panel.css";
-
 type Command = ReactElement<{
   children?: ReactNode;
   onClick?: () => void;
@@ -35,10 +39,6 @@ const sections = [
   ["Share", Upload],
 ] as const;
 type Section = (typeof sections)[number][0];
-
-// React's Children helpers do not descend into Fragments. Conditional product
-// groups are transparent here so their headings, shortcuts and actions keep the
-// same mobile behavior as directly rendered desktop commands.
 function commandsIn(children: ReactNode): Command[] {
   const commands: Command[] = [];
   Children.forEach(children, (child) => {
@@ -50,10 +50,9 @@ function commandsIn(children: ReactNode): Command[] {
   });
   return commands;
 }
-
-/** Render the same commands on desktop and mobile; no duplicate action registry. */
 export function ApplicationMenu({
   simpleMobile = false,
+  accountAction,
   onSettings,
   onHelp,
   children,
@@ -62,6 +61,7 @@ export function ApplicationMenu({
   filename,
 }: {
   simpleMobile?: boolean;
+  accountAction?: { label: string; onClick: () => void };
   onSettings?: () => void;
   onHelp?: () => void;
   children: ReactNode;
@@ -85,7 +85,6 @@ export function ApplicationMenu({
         {children}
       </nav>
     );
-
   const groups: Record<Section, ReactNode[]> = {
     File: [],
     Write: [],
@@ -97,7 +96,6 @@ export function ApplicationMenu({
     cloneElement(node, {
       key,
       onClick: () => {
-        // Close the native dialog before another command opens a dialog or focuses the editor.
         flushSync(() => setOpen(false));
         node.props.onClick?.();
       },
@@ -133,7 +131,7 @@ export function ApplicationMenu({
           : command.props.children === "Open from Google Drive…"
             ? { name: "Google Drive", Icon: Cloud, detail: "Connect or browse" }
             : undefined;
-      if (provider) {
+      if (provider)
         storageShortcuts.push(
           action(
             <button aria-label={provider.name} onClick={command.props.onClick}>
@@ -146,10 +144,11 @@ export function ApplicationMenu({
             `storage-${provider.name}`,
           ),
         );
-      }
-      if (String(command.props.children).includes("Zen mode")) return;
-      // Settings has a standalone shortcut below the menus.
-      if (command.props.children === "Settings…") return;
+      if (
+        String(command.props.children).includes("Zen mode") ||
+        command.props.children === "Settings…"
+      )
+        return;
       groups[target].push(action(command, `${index}-${i}`));
     });
   });
@@ -157,6 +156,11 @@ export function ApplicationMenu({
     flushSync(() => setOpen(false));
     fn();
   };
+  const files = groups.File.filter(
+    (node) =>
+      isValidElement(node) &&
+      ["Open…", "Save"].includes(String((node as Command).props.children)),
+  );
   const mobileControls = cloneElement(controls, {
     showZen: false,
     onPreferences: (preferences) => {
@@ -200,43 +204,78 @@ export function ApplicationMenu({
               className="mobile-command-content"
               aria-label="File commands"
             >
-              <div className="mobile-command-grid">
-                {groups.File.filter(
-                  (node) =>
-                    isValidElement(node) &&
-                    ["Open…", "Save", "Account and subscription…"].includes(
-                      String((node as Command).props.children),
-                    ),
+              <div className="mobile-simple-groups">
+                <div className="mobile-command-group">
+                  <h3>
+                    <FolderOpen size={17} aria-hidden="true" />
+                    File
+                  </h3>
+                  <div className="mobile-command-grid">{files}</div>
+                </div>
+                <div className="mobile-command-group">
+                  <h3>
+                    <Eye size={17} aria-hidden="true" />
+                    Workspace
+                  </h3>
+                  <div className="mobile-command-grid">
+                    <button
+                      onClick={dismissThen(() =>
+                        controls.props.onPreferences({
+                          ...controls.props.preferences,
+                          outline: !controls.props.preferences.outline,
+                          insights: false,
+                        }),
+                      )}
+                    >
+                      Outline
+                    </button>
+                    <button
+                      onClick={dismissThen(() =>
+                        controls.props.onPreferences({
+                          ...controls.props.preferences,
+                          insights: !controls.props.preferences.insights,
+                          outline: false,
+                        }),
+                      )}
+                    >
+                      Insights
+                    </button>
+                    <button onClick={dismissThen(controls.props.onSearch)}>
+                      Find and replace
+                    </button>
+                  </div>
+                </div>
+                <div className="mobile-command-group">
+                  <h3>
+                    <Share2 size={17} aria-hidden="true" />
+                    Share & export
+                  </h3>
+                  <div className="mobile-command-grid">{groups.Share}</div>
+                </div>
+                {accountAction && (
+                  <div className="mobile-command-group">
+                    <h3>
+                      <UserRound size={17} aria-hidden="true" />
+                      Account
+                    </h3>
+                    <div className="mobile-command-grid">
+                      <button onClick={dismissThen(accountAction.onClick)}>
+                        {accountAction.label}
+                      </button>
+                    </div>
+                  </div>
                 )}
-                <button
-                  onClick={dismissThen(() =>
-                    controls.props.onPreferences({
-                      ...controls.props.preferences,
-                      outline: !controls.props.preferences.outline,
-                      insights: false,
-                    }),
-                  )}
-                >
-                  Outline
-                </button>
-                <button
-                  onClick={dismissThen(() =>
-                    controls.props.onPreferences({
-                      ...controls.props.preferences,
-                      insights: !controls.props.preferences.insights,
-                      outline: false,
-                    }),
-                  )}
-                >
-                  Insights
-                </button>
-                <button onClick={dismissThen(controls.props.onSearch)}>
-                  Find and replace
-                </button>
-                {groups.Share}
-                <button onClick={dismissThen(() => onSettings?.())}>
-                  Settings
-                </button>
+                <div className="mobile-command-group">
+                  <h3>
+                    <Settings size={17} aria-hidden="true" />
+                    Preferences
+                  </h3>
+                  <div className="mobile-command-grid">
+                    <button onClick={dismissThen(() => onSettings?.())}>
+                      Settings
+                    </button>
+                  </div>
+                </div>
               </div>
               <label className="mobile-zoom-control">
                 Zoom
@@ -282,7 +321,7 @@ export function ApplicationMenu({
                   {groups.File.filter(
                     (node) =>
                       isValidElement(node) &&
-                      !["Open…", "Save", "Account and subscription…"].includes(
+                      !["Open…", "Save"].includes(
                         String((node as Command).props.children),
                       ),
                   )}
