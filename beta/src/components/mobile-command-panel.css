@@ -19,77 +19,75 @@
   padding: 0;
   animation: command-arrive 140ms ease-out;
 }
-.mobile-command-panel .modal-content { padding: 20px 16px max(16px, env(safe-area-inset-bottom)); }
+.mobile-command-panel .modal-content {
+  padding: 20px 16px max(16px, env(safe-area-inset-bottom));
+}
 .mobile-command-panel .modal-header { margin-bottom: 18px; }
 .mobile-command-panel h2 { font-size: 19px; overflow-wrap: anywhere; }
-.mobile-command-content { min-height: 180px; }
-.mobile-command-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+.mobile-command-sections { display:grid; grid-template-columns:repeat(4,1fr); gap:5px; padding:5px; border-radius:15px; background:var(--panel); margin-bottom:16px; }
+.mobile-command-sections button { min-height:58px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; border:0; border-radius:11px; background:transparent; font-size:11px; }
+.mobile-command-sections button[aria-pressed="true"] { background:var(--accent-soft); color:var(--ink); box-shadow:0 1px 3px #0001; }
+.mobile-command-content { min-height:180px; }
+.mobile-storage-shortcuts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-bottom:14px; }
+.mobile-storage-shortcuts button { display:flex; align-items:center; gap:10px; min-height:72px; padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--accent-soft); color:var(--ink); text-align:left; font-size:13px; font-weight:600; }
+.mobile-storage-shortcuts svg { flex-shrink:0; }
+.mobile-storage-shortcuts small { display:block; margin-top:4px; font-size:10px; font-weight:400; color:var(--muted); }
+.mobile-command-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.mobile-command-grid > button { min-height:54px; text-align:left; white-space:normal; padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--raised); font-size:13px; line-height:1.35; }
+.mobile-command-grid kbd { display:none; }
+.mobile-command-panel button:active { transform:scale(.98); }
+.mobile-command-panel button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.mobile-resume { width:100%; min-height:46px; border-radius:12px; margin-top:16px; background:var(--accent); color:var(--panel); border:0; font-weight:600; }
+.mobile-command-panel .writing-toolbar-shell { display:block; border:0; margin-bottom:14px; }
+.mobile-command-panel .writing-toolbar { display:flex; flex-wrap:wrap; height:auto; max-height:none; overflow:visible; padding:0; gap:8px; }
+.mobile-command-panel .writing-control-group { display:flex; flex-wrap:wrap; height:auto; max-width:100%; padding:6px; border:1px solid var(--border); border-radius:12px; gap:4px; }
+.mobile-command-panel .writing-tool,.mobile-command-panel select { min-height:44px; min-width:44px; }
+.mobile-command-panel .writing-tool[aria-label*="Zen mode"] { display:none; }
+@keyframes command-arrive { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+@media (prefers-reduced-motion:reduce) { .mobile-command-panel { animation:none; } .mobile-command-panel button:active { transform:none; } }
+@media (max-width:950px) {
+  .app-header > .save-button { display:none; }
+  .app-header { min-height:56px; padding:6px 12px; gap:8px; }
+  .app-header > .brand { display:flex; order:0; flex-shrink:0; min-height:44px; min-width:44px; justify-content:center; }
+  .app-header > .brand > span:last-child { display:none; }
+  .app-header > .spacer { order:2; }
+  .app-header > .mobile-command-nav { order:3; flex-shrink:0; }
+  .mobile-file-trigger { width:44px; padding:0; justify-content:center; }
+  .app-header > .document-name { display:block; order:1; text-align:left; min-width:0; max-width:55vw; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 }
-.mobile-command-grid > button {
-  min-height: 54px;
-  text-align: left;
-  white-space: normal;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--raised);
-  font-size: 13px;
-  line-height: 1.35;
+@media (max-width:950px) {
+  .app-header { padding-inline:8px; gap:4px; }
+  .app-header > .spacer { display:none; }
+  .app-header > .mobile-header-format { display:flex; order:1; flex:1 1 auto; min-width:0; }
+  .mobile-header-format .writing-format-group { flex:1 1 auto; width:100%; min-width:0; height:44px; padding:0; border:0; gap:0; background:transparent; }
+  .mobile-header-format .writing-group-rule { display:none; }
+  .mobile-header-format .writing-element { flex:1 1 0; width:0; min-width:64px; min-height:44px; height:44px; padding:4px; font-size:12px; background:var(--raised); color:var(--ink); }
+  .app-header > .header-history { display:flex; align-items:center; order:2; flex:0 0 auto; gap:0; margin:0; padding:0; border:0; }
+  .mobile-header-format .writing-tool,.app-header > .header-history .icon-button { flex:0 0 32px; width:32px; min-width:32px; height:44px; min-height:44px; padding:0; border:0; background:transparent; color:var(--ink); touch-action:manipulation; }
+  .mobile-header-format .writing-tool:hover,.mobile-header-format .writing-tool:active,.app-header > .header-history .icon-button:hover,.app-header > .header-history .icon-button:active { background:var(--raised); }
 }
-/* Give the simplified WriteShape menu hierarchy without bringing back nested navigation. */
+@media (max-width:359px) {
+  .app-header > .brand { width:32px; min-width:32px; padding-inline:0; }
+  .mobile-file-trigger { width:32px; min-width:32px; }
+  .mobile-header-format .writing-element { min-width:52px; padding-inline:2px; font-size:11px; }
+  .mobile-header-format .writing-tool,.app-header > .header-history .icon-button { flex-basis:26px; width:26px; min-width:26px; }
+}
+.mobile-curated-tools { margin:12px 0; padding:14px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.mobile-curated-tools summary { font-weight:500; font-size:13px; padding:3px 6px; cursor:pointer; }
+.mobile-curated-tools[open] .mobile-command-grid { margin-top:12px; }
+.mobile-zoom-control { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.75rem .25rem; }
+.mobile-zoom-control select { min-height:44px; min-width:7rem; }
+.writing-element-hit { display:contents; }
+@media (max-width:950px) {
+  .mobile-header-format .writing-element-hit { display:flex; align-items:center; flex:1 1 0; min-width:64px; height:44px; }
+  .mobile-header-format .writing-element { height:32px; min-height:32px; width:100%; padding-block:2px; }
+}
+@media (max-width:359px) { .mobile-header-format .writing-element-hit { min-width:52px; } }
+
+/* WriteShape simple menu: stronger hierarchy without nested navigation. */
 .mobile-command-content > .mobile-command-grid {
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--panel);
-  box-shadow: 0 8px 28px #0000000a;
-}
-.mobile-command-content > .mobile-command-grid > button {
-  position: relative;
-  padding-left: 16px;
-}
-.mobile-command-content > .mobile-command-grid > button::before {
-  content: "";
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
-  display: inline-block;
-  margin-right: 8px;
-  vertical-align: 2px;
-}
-.mobile-command-grid kbd { display: none; }
-.mobile-command-panel button:active { transform: scale(0.98); }
-.mobile-command-panel button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.mobile-resume { width: 100%; min-height: 46px; border-radius: 12px; margin-top: 16px; background: var(--accent); color: var(--panel); border: 0; font-weight: 600; }
-.mobile-curated-tools { margin: 12px 0; padding: 14px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-.mobile-curated-tools summary { font-weight: 600; font-size: 13px; padding: 8px 6px; cursor: pointer; }
-.mobile-curated-tools[open] .mobile-command-grid { margin-top: 12px; }
-.mobile-zoom-control { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem .25rem; }
-.mobile-zoom-control select { min-height: 44px; min-width: 7rem; }
-@keyframes command-arrive { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-@media (prefers-reduced-motion: reduce) { .mobile-command-panel { animation: none; } .mobile-command-panel button:active { transform: none; } }
-@media (max-width: 950px) {
-  .app-header > .save-button { display: none; }
-  .app-header { min-height: 56px; padding: 6px 8px; gap: 4px; }
-  .app-header > .brand { display: flex; order: 0; flex-shrink: 0; min-height: 44px; min-width: 44px; justify-content: center; }
-  .app-header > .brand > span:last-child { display: none; }
-  .app-header > .spacer { display: none; }
-  .app-header > .mobile-command-nav { order: 3; flex-shrink: 0; }
-  .mobile-file-trigger { width: 44px; padding: 0; justify-content: center; }
-  .app-header > .mobile-header-format { display: flex; order: 1; flex: 1 1 auto; min-width: 0; }
-  .mobile-header-format .writing-format-group { flex: 1 1 auto; width: 100%; min-width: 0; height: 44px; padding: 0; border: 0; gap: 0; background: transparent; }
-  .mobile-header-format .writing-group-rule { display: none; }
-  .mobile-header-format .writing-element { flex: 1 1 0; width: 0; min-width: 64px; min-height: 44px; height: 44px; padding: 4px; font-size: 12px; background: var(--raised); color: var(--ink); }
-  .app-header > .header-history { display: flex; align-items: center; order: 2; flex: 0 0 auto; gap: 0; margin: 0; padding: 0; border: 0; }
-  .mobile-header-format .writing-tool, .app-header > .header-history .icon-button { flex: 0 0 32px; width: 32px; min-width: 32px; height: 44px; min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--ink); touch-action: manipulation; }
-}
-@media (max-width: 359px) {
-  .app-header > .brand { width: 32px; min-width: 32px; padding-inline: 0; }
-  .mobile-file-trigger { width: 32px; min-width: 32px; }
-  .mobile-header-format .writing-element { min-width: 52px; padding-inline: 2px; font-size: 11px; }
-  .mobile-header-format .writing-tool, .app-header > .header-history .icon-button { flex-basis: 26px; width: 26px; min-width: 26px; }
 }
