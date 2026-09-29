@@ -133,6 +133,14 @@ export function ApplicationMenu({
         return;
       }
       if (command.type === "hr") return;
+      // Document-part commands are already in the mobile toolbar dropdown.
+      if (
+        simpleMobile &&
+        ((menu.props.label === "Insert" &&
+          commandLabel(command) !== "Title page…") ||
+          ["Full screen", "Exit full screen"].includes(commandLabel(command)))
+      )
+        return;
       const provider =
         command.props.children === "Open from GitHub…"
           ? { name: "GitHub", Icon: Github, detail: "Connect or browse" }
