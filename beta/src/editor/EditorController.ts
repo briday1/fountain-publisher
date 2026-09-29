@@ -269,6 +269,11 @@ export class EditorController {
         role: "textbox",
         "aria-label": "Screenplay editor",
         "aria-multiline": "true",
+        // Use the ordinary text-box hints from keyboard-check.html. These
+        // describe text entry; the browser still owns its keyboard accessory UI.
+        autocomplete: "off",
+        inputmode: "text",
+        enterkeyhint: "enter",
         spellcheck: "true",
         autocorrect: "on",
         autocapitalize: "sentences",
