@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Keyboard check · WriteShape</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        max-width: 42rem;
+        margin: 0 auto;
+        padding: max(20px, env(safe-area-inset-top)) 20px 24px;
+        font: 16px/1.5 system-ui, sans-serif;
+      }
+      h1 { margin: 0; font-size: 1.4rem; }
+      p { margin: 12px 0; }
+      label { display: block; margin: 20px 0 8px; font-weight: 600; }
+      #typing {
+        display: block;
+        width: 100%;
+        min-height: 160px;
+        padding: 12px;
+        border: 1px solid currentColor;
+        border-radius: 8px;
+        font: 18px/1.5 system-ui, sans-serif;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      .note { font-size: 14px; }
+      nav { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 20px; }
+      a { padding: 8px 0; }
+      a[aria-current="page"] { font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <h1>Keyboard check</h1>
+    <p>Tap the box and type a few words. Check what appears above the keyboard.</p>
+    <label id="typing-label" for="typing">Ordinary text box</label>
+    <!-- One editable field, no form, and no WriteShape editor or focus handlers. -->
+    <textarea id="typing" rows="5" autocomplete="off" inputmode="text" enterkeyhint="enter" spellcheck="true" autocorrect="on" autocapitalize="sentences"></textarea>
+    <p class="note">Test text is temporary. Your documents are not opened or changed.</p>
+    <nav aria-label="Keyboard comparisons">
+      <a href="?mode=plain" id="plain-link" aria-current="page">Ordinary text box</a>
+      <a href="?mode=rich" id="rich-link">Basic rich-text box</a>
+      <a href="/">Return to WriteShape</a>
+    </nav>
+    <script>
+      // Choose the comparison before interaction. Never toggle input modes on
+      // focus: doing that can dismiss or prevent the iPhone keyboard.
+      if (new URLSearchParams(location.search).get("mode") === "rich") {
+        const field = document.createElement("div");
+        field.id = "typing";
+        field.setAttribute("contenteditable", "true");
+        field.setAttribute("role", "textbox");
+        field.setAttribute("aria-multiline", "true");
+        field.setAttribute("aria-labelledby", "typing-label");
+        field.spellcheck = true;
+        field.setAttribute("autocorrect", "on");
+        field.setAttribute("autocapitalize", "sentences");
+        document.getElementById("typing").replaceWith(field);
+        const label = document.getElementById("typing-label");
+        label.removeAttribute("for");
+        label.textContent = "Basic rich-text box";
+        document.getElementById("plain-link").removeAttribute("aria-current");
+        document.getElementById("rich-link").setAttribute("aria-current", "page");
+      }
+    </script>
+  </body>
+</html>
