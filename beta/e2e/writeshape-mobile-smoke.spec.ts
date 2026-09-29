@@ -24,6 +24,38 @@ test("private build keeps mobile editor text at 16px on focus", async ({
   await editor.click();
   await expect(editor).toBeFocused();
   await expect(editor).toHaveCSS("font-size", "16px");
+  await editor.fill("Keep this sentence.");
+  const original = await editor.elementHandle();
+  const header = page.locator(".mobile-header-format");
+  await expect(header.locator("select, input, textarea")).toHaveCount(0);
+  const element = header.getByRole("button", {
+    name: "Screenplay element",
+    exact: true,
+  });
+  await element.tap();
+  await page
+    .locator(".anchored-menu-popup")
+    .getByRole("button", { name: "Dialogue", exact: true })
+    .tap();
+  await expect(editor.locator('p[data-kind="dialogue"]')).toHaveText(
+    "Keep this sentence.",
+  );
+  await expect(editor).toBeFocused();
+  await expect(page.locator(".anchored-menu-popup")).toHaveCount(0);
+  expect(
+    await original!.evaluate(
+      (node) => node === document.querySelector(".screenplay-editor"),
+    ),
+  ).toBe(true);
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(
+      await page
+        .locator(".app-header")
+        .evaluate((node) => node.scrollWidth <= node.clientWidth),
+    ).toBe(true);
+    await expect(element).toBeVisible();
+  }
   await page.screenshot({ path: "test-results/writeshape-mobile.png" });
 });
 

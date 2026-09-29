@@ -1958,6 +1958,7 @@ export default function App() {
         {mobile ? (
           <div className="mobile-header-format">
             <FormatControls
+              appMenu={isWriteShape}
               novel={novel}
               onHeading={(level) => editor.current?.setHeadingLevel(level)}
               kind={kind}
