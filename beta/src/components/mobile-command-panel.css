@@ -333,6 +333,34 @@
 .mobile-zoom-control select {
   min-height: 44px;
   min-width: 7rem;
+  font-size: 16px;
+}
+.mobile-beat-guide-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mobile-toggle-track {
+  flex: 0 0 30px;
+  height: 18px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--muted);
+}
+.mobile-toggle-track::before {
+  content: "";
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--panel);
+}
+.mobile-beat-guide-toggle[aria-checked="true"] .mobile-toggle-track {
+  background: var(--accent);
+}
+.mobile-beat-guide-toggle[aria-checked="true"] .mobile-toggle-track::before {
+  transform: translateX(12px);
 }
 .writing-element-hit {
   display: contents;

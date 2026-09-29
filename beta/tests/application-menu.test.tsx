@@ -213,6 +213,9 @@ it.each(["Sign in", "Account"])(
         <MenuItem onClick={chosen}>New</MenuItem>
         <MenuItem onClick={chosen}>Open…</MenuItem>
         <MenuItem onClick={chosen}>Save</MenuItem>
+        <MenuItem onClick={chosen}>Save As…</MenuItem>
+        <MenuItem onClick={chosen}>Version history…</MenuItem>
+        <MenuItem onClick={chosen}>Download local copy…</MenuItem>
         <small>PUBLISH</small>
         <MenuItem onClick={chosen}>Export…</MenuItem>
       </Menu>,
@@ -223,8 +226,13 @@ it.each(["Sign in", "Account"])(
     try {
       await click(node, "File");
       for (const name of [
+        "New",
         "Open…",
         "Save",
+        "Save As…",
+        "Version history…",
+        "Beat guide",
+        "Beat sheet",
         "Outline",
         "Insights",
         "Find and replace",
@@ -238,18 +246,14 @@ it.each(["Sign in", "Account"])(
         node.querySelector('[aria-label="Command categories"]'),
       ).toBeNull();
       expect(node.querySelector('[aria-label="Text formatting"]')).toBeNull();
-      expect(button(node, "New").closest("details")).not.toBeNull();
+      expect(
+        button(node, "Download local copy…").closest("details"),
+      ).not.toBeNull();
       expect(
         [...node.querySelectorAll(".mobile-command-group h3")].map(
           (heading) => heading.textContent,
         ),
-      ).toEqual([
-        "File",
-        "Workspace",
-        "Share & export",
-        "Account",
-        "Preferences",
-      ]);
+      ).toEqual(["Tools", "Files", "View", "Preferences"]);
       await click(node, accountLabel);
       expect(openAccount).toHaveBeenCalledOnce();
       expect(node.querySelector("dialog")).toBeNull();

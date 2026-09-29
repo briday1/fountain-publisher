@@ -67,11 +67,33 @@ for (const signedIn of [false, true]) {
     await page.getByRole("button", { name: "File", exact: true }).click();
     const menu = page.locator(".mobile-command-panel");
     await expect(menu.locator(".mobile-command-group h3")).toHaveText([
-      "File",
-      "Workspace",
-      "Share & export",
-      "Account",
+      "Tools",
+      "Files",
+      "View",
       "Preferences",
+    ]);
+    const tools = menu.locator(".mobile-command-group").filter({
+      has: page.getByRole("heading", { name: "Tools", exact: true }),
+    });
+    await tools
+      .getByRole("combobox", { name: "Zoom", exact: true })
+      .selectOption("125");
+    const beatGuide = tools.getByRole("switch", { name: "Beat guide" });
+    await expect(beatGuide).not.toBeChecked();
+    await beatGuide.click();
+    await expect(beatGuide).toBeChecked();
+    await beatGuide.click();
+    await expect(beatGuide).not.toBeChecked();
+    const files = menu.locator(".mobile-command-group").filter({
+      has: page.getByRole("heading", { name: "Files", exact: true }),
+    });
+    await expect(files.getByRole("button")).toHaveText([
+      "New",
+      /^Open…/,
+      /^Save[^A-Za-z]*/,
+      /^Save As…/,
+      "Version history…",
+      "Export…",
     ]);
     const accountButton = menu.getByRole("button", {
       name: label,

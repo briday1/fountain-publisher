@@ -19,8 +19,7 @@ import {
   Menu as MenuIcon,
   FolderOpen,
   Eye,
-  Share2,
-  UserRound,
+  Wrench,
   Settings,
 } from "lucide-react";
 import { Menu } from "./Menu";
@@ -49,6 +48,15 @@ function commandsIn(children: ReactNode): Command[] {
     else commands.push(command);
   });
   return commands;
+}
+function commandLabel(node: ReactNode): string {
+  return Children.toArray(node)
+    .map((child) =>
+      isValidElement<{ children?: ReactNode }>(child)
+        ? commandLabel(child.props.children)
+        : String(child),
+    )
+    .join("");
 }
 export function ApplicationMenu({
   simpleMobile = false,
@@ -156,11 +164,40 @@ export function ApplicationMenu({
     flushSync(() => setOpen(false));
     fn();
   };
-  const files = groups.File.filter(
-    (node) =>
-      isValidElement(node) &&
-      ["Open…", "Save"].includes(String((node as Command).props.children)),
+  const allCommands = [
+    ...groups.File,
+    ...groups.Share,
+    ...groups.Write,
+    ...groups.View,
+  ];
+  const fileLabels = [
+    "New",
+    "Open…",
+    "Save",
+    "Save As…",
+    "Version history…",
+    "Export…",
+  ];
+  const files = fileLabels.map((label) =>
+    allCommands.find((node) => commandLabel(node) === label),
   );
+  const curatedLabels = new Set([
+    ...fileLabels,
+    "Find and replace…",
+    "Show outline",
+    "Hide outline",
+    "Show insights",
+    "Hide insights",
+    "Beat sheet",
+    "Settings",
+    "Help",
+  ]);
+  const moreActions = allCommands.filter((node) => {
+    const label = commandLabel(node);
+    if (curatedLabels.has(label)) return false;
+    curatedLabels.add(label);
+    return true;
+  });
   const mobileControls = cloneElement(controls, {
     showZen: false,
     onPreferences: (preferences) => {
@@ -207,18 +244,80 @@ export function ApplicationMenu({
               <div className="mobile-simple-groups">
                 <div className="mobile-command-group">
                   <h3>
+                    <Wrench size={17} aria-hidden="true" />
+                    Tools
+                  </h3>
+                  <label className="mobile-zoom-control">
+                    Zoom
+                    <select
+                      aria-label="Zoom"
+                      value={controls.props.preferences.zoom}
+                      onChange={(event) =>
+                        controls.props.onPreferences({
+                          ...controls.props.preferences,
+                          zoom: Number(event.target.value),
+                        })
+                      }
+                    >
+                      {[
+                        ...new Set([
+                          60,
+                          70,
+                          80,
+                          90,
+                          100,
+                          110,
+                          120,
+                          125,
+                          130,
+                          140,
+                          150,
+                          175,
+                          200,
+                          controls.props.preferences.zoom,
+                        ]),
+                      ]
+                        .sort((a, b) => a - b)
+                        .map((zoom) => (
+                          <option key={zoom} value={zoom}>
+                            {zoom}%
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <div className="mobile-command-grid">
+                    <button
+                      className="mobile-beat-guide-toggle"
+                      role="switch"
+                      aria-checked={controls.props.beatGuide}
+                      onClick={controls.props.onBeatGuide}
+                    >
+                      <span>Beat guide</span>
+                      <span
+                        className="mobile-toggle-track"
+                        aria-hidden="true"
+                      />
+                    </button>
+                    <button onClick={dismissThen(controls.props.onSearch)}>
+                      Find and replace
+                    </button>
+                  </div>
+                </div>
+                <div className="mobile-command-group">
+                  <h3>
                     <FolderOpen size={17} aria-hidden="true" />
-                    File
+                    Files
                   </h3>
                   <div className="mobile-command-grid">{files}</div>
                 </div>
                 <div className="mobile-command-group">
                   <h3>
                     <Eye size={17} aria-hidden="true" />
-                    Workspace
+                    View
                   </h3>
                   <div className="mobile-command-grid">
                     <button
+                      aria-pressed={controls.props.preferences.outline}
                       onClick={dismissThen(() =>
                         controls.props.onPreferences({
                           ...controls.props.preferences,
@@ -230,6 +329,7 @@ export function ApplicationMenu({
                       Outline
                     </button>
                     <button
+                      aria-pressed={controls.props.preferences.insights}
                       onClick={dismissThen(() =>
                         controls.props.onPreferences({
                           ...controls.props.preferences,
@@ -240,31 +340,11 @@ export function ApplicationMenu({
                     >
                       Insights
                     </button>
-                    <button onClick={dismissThen(controls.props.onSearch)}>
-                      Find and replace
+                    <button onClick={dismissThen(controls.props.onBeatSheet)}>
+                      Beat sheet
                     </button>
                   </div>
                 </div>
-                <div className="mobile-command-group">
-                  <h3>
-                    <Share2 size={17} aria-hidden="true" />
-                    Share & export
-                  </h3>
-                  <div className="mobile-command-grid">{groups.Share}</div>
-                </div>
-                {accountAction && (
-                  <div className="mobile-command-group">
-                    <h3>
-                      <UserRound size={17} aria-hidden="true" />
-                      Account
-                    </h3>
-                    <div className="mobile-command-grid">
-                      <button onClick={dismissThen(accountAction.onClick)}>
-                        {accountAction.label}
-                      </button>
-                    </div>
-                  </div>
-                )}
                 <div className="mobile-command-group">
                   <h3>
                     <Settings size={17} aria-hidden="true" />
@@ -274,63 +354,19 @@ export function ApplicationMenu({
                     <button onClick={dismissThen(() => onSettings?.())}>
                       Settings
                     </button>
+                    {accountAction && (
+                      <button onClick={dismissThen(accountAction.onClick)}>
+                        {accountAction.label}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
-              <label className="mobile-zoom-control">
-                Zoom
-                <select
-                  aria-label="Zoom"
-                  value={controls.props.preferences.zoom}
-                  onChange={(event) =>
-                    controls.props.onPreferences({
-                      ...controls.props.preferences,
-                      zoom: Number(event.target.value),
-                    })
-                  }
-                >
-                  {[
-                    ...new Set([
-                      60,
-                      70,
-                      80,
-                      90,
-                      100,
-                      110,
-                      120,
-                      125,
-                      130,
-                      140,
-                      150,
-                      175,
-                      200,
-                      controls.props.preferences.zoom,
-                    ]),
-                  ]
-                    .sort((a, b) => a - b)
-                    .map((zoom) => (
-                      <option key={zoom} value={zoom}>
-                        {zoom}%
-                      </option>
-                    ))}
-                </select>
-              </label>
+
               <details className="mobile-curated-tools">
                 <summary>More actions</summary>
                 <div className="mobile-command-grid">
-                  {groups.File.filter(
-                    (node) =>
-                      isValidElement(node) &&
-                      !["Open…", "Save"].includes(
-                        String((node as Command).props.children),
-                      ),
-                  )}
-                  <button onClick={dismissThen(controls.props.onBeatSheet)}>
-                    Beat sheet
-                  </button>
-                  <button onClick={dismissThen(controls.props.onBeatGuide)}>
-                    Beat guide
-                  </button>
+                  {moreActions}
                   <button onClick={dismissThen(() => onHelp?.())}>Help</button>
                 </div>
               </details>
