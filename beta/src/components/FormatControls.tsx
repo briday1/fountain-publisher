@@ -55,10 +55,7 @@ export function FormatControls({
       {appMenu ? (
         <div
           className="writing-element-hit writing-element-menu"
-          onPointerDown={(event) => {
-            // Keep the editor selection and software keyboard while choosing a part.
-            if (event.button === 0) event.preventDefault();
-          }}
+          onMouseDown={(event) => event.preventDefault()}
         >
           <Menu
             label={label}

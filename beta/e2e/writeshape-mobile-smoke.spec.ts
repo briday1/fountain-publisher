@@ -33,6 +33,7 @@ test("private build keeps mobile editor text at 16px on focus", async ({
     exact: true,
   });
   await element.tap();
+  await expect(element).toHaveAttribute("aria-expanded", "true");
   await page
     .locator(".anchored-menu-popup")
     .getByRole("button", { name: "Dialogue", exact: true })
