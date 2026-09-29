@@ -5,6 +5,7 @@ export function Menu({
   label,
   children,
   anchored = false,
+  restoreFocusOnSelect = true,
   triggerContent,
   contextMenu,
   onDismiss,
@@ -12,6 +13,7 @@ export function Menu({
   label: string;
   children: ReactNode;
   anchored?: boolean;
+  restoreFocusOnSelect?: boolean;
   triggerContent?: ReactNode;
   contextMenu?: { x: number; y: number };
   onDismiss?: () => void;
@@ -115,7 +117,8 @@ export function Menu({
         const button = (e.target as HTMLElement).closest("button");
         if (button && !button.disabled) {
           dismiss();
-          ref.current?.querySelector("button")?.focus();
+          if (restoreFocusOnSelect)
+            ref.current?.querySelector("button")?.focus();
         }
       }}
     >
