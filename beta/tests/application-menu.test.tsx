@@ -246,9 +246,8 @@ it.each(["Sign in", "Account"])(
         node.querySelector('[aria-label="Command categories"]'),
       ).toBeNull();
       expect(node.querySelector('[aria-label="Text formatting"]')).toBeNull();
-      expect(
-        button(node, "Download local copy…").closest("details"),
-      ).not.toBeNull();
+      expect(node.querySelector("details")).toBeNull();
+      expect(node.textContent).not.toContain("Download local copy…");
       expect(
         [...node.querySelectorAll(".mobile-command-group h3")].map(
           (heading) => heading.textContent,

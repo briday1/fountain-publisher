@@ -94,6 +94,7 @@ for (const signedIn of [false, true]) {
       /^Save As…/,
       "Version history…",
       "Export…",
+      "Rename…",
     ]);
     const accountButton = menu.getByRole("button", {
       name: label,

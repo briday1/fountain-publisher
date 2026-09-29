@@ -189,23 +189,13 @@ export function ApplicationMenu({
   const files = fileLabels.map((label) =>
     allCommands.find((node) => commandLabel(node) === label),
   );
-  const curatedLabels = new Set([
-    ...fileLabels,
-    "Find and replace…",
-    "Show outline",
-    "Hide outline",
-    "Show insights",
-    "Hide insights",
-    "Beat sheet",
-    "Settings",
-    "Help",
-  ]);
-  const moreActions = allCommands.filter((node) => {
-    const label = commandLabel(node);
-    if (curatedLabels.has(label)) return false;
-    curatedLabels.add(label);
-    return true;
-  });
+  const findCommand = (label: string) =>
+    allCommands.find((node) => commandLabel(node) === label) as
+      Command | undefined;
+  const renameCommand =
+    findCommand("Rename screenplay…") ?? findCommand("Rename document…");
+  const titlePageCommand = findCommand("Title page…");
+  const premiumCommand = findCommand("Explore Premium…");
   const mobileControls = cloneElement(controls, {
     showZen: false,
     onPreferences: (preferences) => {
@@ -316,7 +306,11 @@ export function ApplicationMenu({
                     <FolderOpen size={17} aria-hidden="true" />
                     Files
                   </h3>
-                  <div className="mobile-command-grid">{files}</div>
+                  <div className="mobile-command-grid">
+                    {files}
+                    {renameCommand &&
+                      cloneElement(renameCommand, { children: "Rename…" })}
+                  </div>
                 </div>
                 <div className="mobile-command-group">
                   <h3>
@@ -351,6 +345,7 @@ export function ApplicationMenu({
                     <button onClick={dismissThen(controls.props.onBeatSheet)}>
                       Beat sheet
                     </button>
+                    {titlePageCommand}
                   </div>
                 </div>
                 <div className="mobile-command-group">
@@ -367,17 +362,13 @@ export function ApplicationMenu({
                         {accountAction.label}
                       </button>
                     )}
+                    <button onClick={dismissThen(() => onHelp?.())}>
+                      Help
+                    </button>
+                    {premiumCommand}
                   </div>
                 </div>
               </div>
-
-              <details className="mobile-curated-tools">
-                <summary>More actions</summary>
-                <div className="mobile-command-grid">
-                  {moreActions}
-                  <button onClick={dismissThen(() => onHelp?.())}>Help</button>
-                </div>
-              </details>
             </section>
           ) : (
             <>
