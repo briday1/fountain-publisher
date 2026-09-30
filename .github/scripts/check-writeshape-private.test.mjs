@@ -44,6 +44,24 @@ for (const location of [
 test("does not accept a webhook hidden behind Access", async () => {
   await assert.rejects(check(async () => gate()), /expected invalid-signature rejection/);
 });
+test("accepts the Worker's authenticated-route denial for the slash variant only", async () => {
+  const reference = "8d8b52fc-1584-4442-869c-18dbdc45f92c";
+  const denial = () => Response.json({ error: "Please sign in again.", reference }, {
+    status: 401, headers: { "X-WriteShape-Request-ID": reference },
+  });
+  const results = await check(async url => {
+    if (url.pathname === "/api/billing/webhook/") return denial();
+    return url.pathname === "/api/billing/webhook" ? signatureRejection() : gate();
+  });
+  assert.ok(results.includes("/api/billing/webhook/: application authentication required"));
+  await assert.rejects(check(async () => denial()), /expected an Access redirect/);
+});
+test("does not accept an arbitrary 401 page on the slash variant", async () => {
+  for (const body of [{ error: "Unauthorized" }, { error: "Please sign in again." }]) {
+    await assert.rejects(check(async url => url.pathname === "/api/billing/webhook/"
+      ? Response.json(body, { status: 401 }) : gate()), /authentication denial|request reference/);
+  }
+});
 test("does not accept unsigned webhooks or unrelated error pages", async () => {
   for (const response of [Response.json({ received: true }), Response.json({ error: "Other failure" }, { status: 400 })]) {
     await assert.rejects(check(async url => url.pathname === "/api/billing/webhook" ? response : gate()),

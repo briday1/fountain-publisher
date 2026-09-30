@@ -17,6 +17,19 @@ export async function checkPrivateRelease({ origin, accessTeam, fetchImpl = fetc
     const response = await fetchImpl(new URL(path, base), {
       redirect: "manual", signal: AbortSignal.timeout(15000),
     });
+    // Access may normalize a trailing slash when matching its webhook exception.
+    // The Worker still treats only the exact path as a webhook; the slash variant
+    // must either reach Access login or return its own authenticated-route denial.
+    if (path === "/api/billing/webhook/" && response.status === 401) {
+      const denial = await response.json();
+      assert.equal(denial.error, "Please sign in again.", "Webhook slash: expected authentication denial");
+      assert.match(denial.reference ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+        "Webhook slash: missing application request reference");
+      assert.equal(response.headers.get("X-WriteShape-Request-ID"), denial.reference,
+        "Webhook slash: mismatched application request reference");
+      results.push(`${path}: application authentication required`);
+      continue;
+    }
     await response.body?.cancel();
     assert.ok([302, 303, 307, 308].includes(response.status),
       `${path}: expected an Access redirect, received ${response.status}`);
