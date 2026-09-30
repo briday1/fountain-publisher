@@ -31,7 +31,7 @@ jobs:
         run: npm ci
       - name: Test publication and legacy retirement
         working-directory: .
-        run: node --test .github/scripts/prepare-pages.test.mjs
+        run: node --test .github/scripts/*.test.mjs
       - name: Test document, editor, persistence and cloud contracts
         run: npm test
       - name: Browser regression tests
@@ -110,6 +110,12 @@ jobs:
         run: npm test
       - name: Validate account Worker without deploying
         run: npx wrangler deploy --dry-run
+
+  deploy_writeshape:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [build, writeshape_private, account_worker]
+    uses: ./.github/workflows/writeshape-private-deploy.yml
+    secrets: inherit
 
   deploy_production:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
