@@ -32,6 +32,11 @@ test("private build keeps mobile editor text at 16px on focus", async ({
     name: "Screenplay element",
     exact: true,
   });
+  await expect(element).toHaveCSS("height", "32px");
+  await expect(header.locator(".writing-element-hit")).toHaveCSS(
+    "height",
+    "44px",
+  );
   await element.tap();
   await expect(element).toHaveAttribute("aria-expanded", "true");
   await page
@@ -123,6 +128,7 @@ for (const signedIn of [false, true]) {
     await expect(files.getByRole("button")).toHaveText([
       "New",
       /^Open…/,
+      "File browser…",
       /^Save[^A-Za-z]*/,
       /^Save As…/,
       "Version history…",
@@ -169,3 +175,245 @@ for (const signedIn of [false, true]) {
     ).toHaveCount(1);
   });
 }
+
+test("free cloud documents open read-only and make an explicit editable local copy", async ({
+  page,
+}) => {
+  await page.route("**/api/account", (route) =>
+    route.fulfill({
+      json: {
+        account: { id: "downgrade-test", email: "writer@example.test" },
+        premium: false,
+        privateMode: true,
+      },
+    }),
+  );
+  const file = {
+    id: "11111111-1111-1111-1111-111111111111",
+    parent: "",
+    kind: "file",
+    name: "Preserved.fountain",
+    revision: 1,
+    content: "INT. ROOM - DAY\n\nThese words belong to the writer.\n",
+  };
+  await page.route("**/api/library**", (route) => {
+    if (route.request().method() !== "GET")
+      return route.fulfill({
+        status: 403,
+        json: { error: "Premium required" },
+      });
+    const path = new URL(route.request().url()).pathname;
+    return route.fulfill({
+      json:
+        path === "/api/library"
+          ? {
+              items: [file],
+              breadcrumbs: [],
+              canWrite: false,
+              usage: {
+                usedBytes: 60,
+                currentBytes: 60,
+                historyBytes: 0,
+                quotaBytes: null,
+                historyLimit: null,
+                fileCount: 1,
+                folderCount: 0,
+                versionCount: 0,
+              },
+            }
+          : file,
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Screenplay editor" }).waitFor();
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page
+    .getByRole("button", { name: "File browser…", exact: true })
+    .click();
+  await page
+    .getByRole("option", { name: "Fountain file: Preserved.fountain" })
+    .click();
+  await page.getByRole("button", { name: "Open file", exact: true }).click();
+  const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await expect(editor).toHaveAttribute("contenteditable", "false");
+  await expect(page.locator(".document-readonly")).toContainText(
+    "Read-only document",
+  );
+  await expect(editor).toContainText("These words belong to the writer.");
+  await page
+    .getByRole("button", { name: "Make local copy", exact: true })
+    .click();
+  await expect(editor).toHaveAttribute("contenteditable", "true");
+  await expect(page.locator(".document-readonly")).toHaveCount(0);
+  await expect(editor).toContainText("These words belong to the writer.");
+});
+
+test("support reports expose reviewed technical context without document contents", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await editor.fill("Private screenplay words must stay out of diagnostics");
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Report a problem", exact: true })
+    .click();
+  const report = page.getByRole("dialog", { name: "Report a problem" });
+  await expect(report).toBeVisible();
+  await report.getByText("Review technical details", { exact: true }).click();
+  await expect(report.locator("pre")).not.toContainText(
+    "Private screenplay words",
+  );
+  await expect(report).toContainText("writeshape-support@agentmail.to");
+  await expect(
+    report.getByRole("button", { name: "Email report" }),
+  ).toBeVisible();
+});
+
+test("losing Premium preserves unsynced writing and requires an explicit sync restart", async ({
+  page,
+}) => {
+  let premium = true;
+  const file = {
+    id: "22222222-2222-2222-2222-222222222222",
+    parent: "",
+    kind: "file",
+    name: "Draft.fountain",
+    revision: 1,
+    content: "Original writing.\n",
+  };
+  let writes = 0;
+  await page.route("**/api/account", (route) =>
+    route.fulfill({
+      json: {
+        account: { id: "writer", email: "writer@example.test" },
+        premium,
+        privateMode: true,
+      },
+    }),
+  );
+  await page.route("**/api/library**", (route) => {
+    if (route.request().method() !== "GET") {
+      writes++;
+      return route.abort();
+    }
+    return route.fulfill({
+      json:
+        new URL(route.request().url()).pathname === "/api/library"
+          ? { items: [file], breadcrumbs: [], canWrite: premium }
+          : file,
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page
+    .getByRole("button", { name: "File browser…", exact: true })
+    .click();
+  await page
+    .getByRole("option", { name: "Fountain file: Draft.fountain" })
+    .click();
+  await page.getByRole("button", { name: "Open file", exact: true }).click();
+  const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await expect(editor).toHaveAttribute("contenteditable", "true");
+  await editor.fill("Unsynced words that must survive.");
+  premium = false;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(editor).toHaveAttribute("contenteditable", "false");
+  await expect(editor).toContainText("Unsynced words that must survive.");
+  premium = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(
+    page.getByRole("button", { name: "Resume sync", exact: true }),
+  ).toBeVisible();
+  await expect(editor).toHaveAttribute("contenteditable", "false");
+  const writesBeforeReload = writes;
+  await page.reload();
+  await expect(editor).toContainText("Unsynced words that must survive.");
+  await expect(editor).toHaveAttribute("contenteditable", "false");
+  expect(writes).toBe(writesBeforeReload);
+  await page
+    .getByRole("button", { name: "Make local copy", exact: true })
+    .click();
+  await expect(editor).toHaveAttribute("contenteditable", "true");
+  await expect(editor).toContainText("Unsynced words that must survive.");
+});
+
+test("mobile file browser selects downloads and renames without replacing the draft", async ({
+  page,
+}) => {
+  await page.route("**/api/account", (route) =>
+    route.fulfill({
+      json: {
+        account: { id: "files", email: "writer@example.test" },
+        premium: true,
+        privateMode: true,
+      },
+    }),
+  );
+  const files = [
+    {
+      id: "33333333-3333-3333-3333-333333333333",
+      name: "One.fountain",
+      kind: "file",
+      parent: "",
+      revision: 1,
+      content: "First.",
+    },
+    {
+      id: "44444444-4444-4444-4444-444444444444",
+      name: "Two.fountain",
+      kind: "file",
+      parent: "",
+      revision: 1,
+      content: "Second.",
+    },
+  ];
+  await page.route("**/api/library**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/manage")) {
+      const input = route.request().postDataJSON();
+      expect(input.action).toBe("rename");
+      expect(input.revision).toBe(1);
+      files[0].name = input.name;
+      files[0].revision++;
+      return route.fulfill({ json: files[0] });
+    }
+    return route.fulfill({
+      json:
+        path === "/api/library"
+          ? { items: files, breadcrumbs: [], canWrite: true }
+          : files.find((file) => path.endsWith(file.id)),
+    });
+  });
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await editor.fill("Keep my active draft.");
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page
+    .getByRole("button", { name: "File browser…", exact: true })
+    .click();
+  await page
+    .getByRole("checkbox", { name: "Select all visible files and folders" })
+    .check();
+  const downloadPromise = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download selected (2)", exact: true })
+    .click();
+  expect((await downloadPromise).suggestedFilename()).toBe(
+    "WriteShape-files.zip",
+  );
+  await page
+    .getByRole("option", { name: "Fountain file: One.fountain" })
+    .click();
+  await page.getByRole("button", { name: "Rename", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "New item name" })
+    .fill("Renamed.fountain");
+  await page.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(
+    page.getByRole("option", { name: "Fountain file: Renamed.fountain" }),
+  ).toBeVisible();
+  await page.screenshot({ path: "test-results/writeshape-file-browser.png" });
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  await expect(editor).toHaveText("Keep my active draft.");
+});

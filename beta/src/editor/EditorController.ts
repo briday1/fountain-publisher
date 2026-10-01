@@ -237,6 +237,13 @@ export class EditorController {
   private hardwareInputType?: string;
   private selectedKind?: BlockKind;
   private selectedDual?: boolean;
+  private destinationReadOnly = false;
+  setDestinationReadOnly(value: boolean): void {
+    if (value === this.destinationReadOnly) return;
+    this.destinationReadOnly = value;
+    this.view.setProps({ editable: () => this.writable });
+    this.view.dom.setAttribute("aria-readonly", String(!this.writable));
+  }
   private live?: LiveBinding;
   private metadataNotification = false;
   get isComposing(): boolean {
@@ -245,8 +252,8 @@ export class EditorController {
   get isCollaborating(): boolean {
     return Boolean(this.live);
   }
-  private get writable(): boolean {
-    return !this.live || this.live.canEdit;
+  get writable(): boolean {
+    return !this.destinationReadOnly && (!this.live || this.live.canEdit);
   }
   private sharedView(): SharedView {
     return {

@@ -18,6 +18,7 @@ export interface WriteShapeDestination {
   revision: string;
   baseContent: string;
   canWrite: boolean;
+  pausedForPlan?: boolean;
   handle?: FileHandle;
 }
 export function canonicalContent(content: string, name: string) {
@@ -89,4 +90,17 @@ export function destinationAdapter(
       };
     },
   };
+}
+
+export function destinationReadOnly(
+  d: WriteShapeDestination | undefined,
+  accountId: string | undefined,
+  premium: boolean,
+) {
+  return (
+    !!d &&
+    (!d.canWrite ||
+      !!d.pausedForPlan ||
+      (d.provider !== "local" && (!premium || d.accountId !== accountId)))
+  );
 }

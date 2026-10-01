@@ -52,6 +52,7 @@ async function ownedFile(env, owner, id) {
   return item;
 }
 async function ancestors(env, owner, parent) {
+  if (parent === "__trash__") return [{ id: "__trash__", name: "Trash" }];
   const result = [];
   const seen = new Set();
   while (parent) {
@@ -344,6 +345,107 @@ export async function libraryRoutes(request, env, user) {
       }),
     );
   }
+  if (
+    request.method === "POST" &&
+    segments.length === 2 &&
+    segments[1] === "manage"
+  ) {
+    const input = await body(request);
+    const item = await env.DB.prepare(
+      `SELECT ${metadata},content FROM items WHERE owner=? AND id=?`,
+    )
+      .bind(user.id, segments[0])
+      .first();
+    if (!item) fail(404, "File not found.", "NOT_FOUND");
+    if (
+      !Number.isSafeInteger(input.revision) ||
+      input.revision !== item.revision
+    )
+      fail(
+        409,
+        "This item changed. Refresh before trying again.",
+        "REVISION_CONFLICT",
+      );
+    if (!["rename", "move", "trash"].includes(input.action))
+      throw new HttpError(400, "Choose a file action.");
+    const name =
+      input.action === "rename"
+        ? typeof input.name === "string"
+          ? input.name.trim()
+          : ""
+        : item.name;
+    if (
+      typeof name !== "string" ||
+      !name ||
+      name.length > 160 ||
+      /[\x00-\x1f/\\]/.test(name)
+    )
+      throw new HttpError(400, "Choose a valid name.");
+    let parent =
+      input.action === "move"
+        ? input.parent
+        : input.action === "trash"
+          ? "__trash__"
+          : item.parent;
+    if (
+      typeof parent !== "string" ||
+      (input.action === "move" && parent === "__trash__")
+    )
+      throw new HttpError(400, "Choose a folder.");
+    if (parent && parent !== "__trash__") await ancestors(env, user.id, parent);
+    const policy = storagePolicy(env);
+    const bytes = item.kind === "file" ? item.bytes : 0;
+    // Folder-cycle and nonempty-folder checks happen inside the conditional write.
+    // Trash is reversible; immutable file history is preserved by the existing trigger.
+    const result = await env.DB.prepare(
+      `UPDATE items SET name=?,parent=?,revision=revision+1,updated=? WHERE owner=? AND id=? AND revision=?
+      AND NOT EXISTS(SELECT 1 FROM items other WHERE other.owner=? AND other.parent=? AND other.name=? COLLATE NOCASE AND other.id!=?)
+      AND NOT EXISTS(WITH RECURSIVE chain(id,parent) AS (SELECT id,parent FROM items WHERE owner=? AND id=? UNION SELECT i.id,i.parent FROM items i JOIN chain c ON i.id=c.parent WHERE i.owner=?) SELECT 1 FROM chain WHERE id=?)
+      AND (?!='trash' OR kind!='folder' OR NOT EXISTS(SELECT 1 FROM items child WHERE child.owner=? AND child.parent=items.id))
+      AND (? IS NULL OR ${usageExpression}+?<=?)
+      AND (kind!='file' OR ? IS NULL OR (SELECT COUNT(*) FROM file_versions WHERE owner=? AND file_id=items.id)<?)`,
+    )
+      .bind(
+        name,
+        parent,
+        new Date().toISOString(),
+        user.id,
+        item.id,
+        input.revision,
+        user.id,
+        parent,
+        name,
+        item.id,
+        user.id,
+        parent,
+        user.id,
+        item.id,
+        input.action,
+        user.id,
+        policy.quotaBytes,
+        user.id,
+        user.id,
+        bytes,
+        policy.quotaBytes,
+        policy.historyLimit,
+        user.id,
+        policy.historyLimit,
+      )
+      .run();
+    if (!result.meta.changes)
+      fail(
+        409,
+        "Could not change this item. Refresh and check the name, destination, storage limit, or whether the folder is empty. A folder cannot move inside itself.",
+        "MANAGE_CONFLICT",
+      );
+    return json(
+      await env.DB.prepare(
+        `SELECT ${metadata} FROM items WHERE owner=? AND id=?`,
+      )
+        .bind(user.id, item.id)
+        .first(),
+    );
+  }
   if (request.method !== "POST" || segments.length)
     throw new HttpError(404, "Not found.");
   const input = await body(request);
@@ -353,7 +455,8 @@ export async function libraryRoutes(request, env, user) {
     input.name.length > 160 ||
     /[\x00-\x1f/\\]/.test(input.name) ||
     !["file", "folder"].includes(input.kind) ||
-    typeof input.parent !== "string"
+    typeof input.parent !== "string" ||
+    input.parent === "__trash__"
   )
     throw new HttpError(400, "Invalid file details.");
   if (input.kind === "file" && typeof input.content !== "string")

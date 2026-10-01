@@ -343,3 +343,87 @@ test("invalid configured quotas fail closed and zero bytes is a real enforced li
     0,
   );
 });
+
+test("file management preserves versions, rejects stale/cross-account edits, and restores from Trash", async () => {
+  const env = testDB();
+  let file = await create(env, "Keep these words");
+  const action = (user, body, free = false) =>
+    call(env, user, `/${file.id}/manage`, body, free);
+  assert.equal(
+    (await action("bob", { action: "trash", revision: 1 })).status,
+    404,
+  );
+  assert.equal(
+    (await action("alice", { action: "trash", revision: 1 }, true)).status,
+    403,
+  );
+  let response = await action("alice", {
+    action: "rename",
+    revision: 1,
+    name: "Renamed.fountain",
+  });
+  assert.equal(response.status, 200);
+  file = await response.json();
+  assert.equal(
+    (await action("alice", { action: "trash", revision: 1 })).status,
+    409,
+  );
+  response = await action("alice", { action: "trash", revision: 2 });
+  assert.equal(response.status, 200);
+  file = await response.json();
+  assert.equal((await (await call(env, "alice")).json()).items.length, 0);
+  assert.equal(
+    (
+      await (
+        await call(env, "alice", "?parent=__trash__", undefined, true)
+      ).json()
+    ).items.length,
+    1,
+  );
+  assert.equal(
+    (await (await call(env, "alice", `/${file.id}`, undefined, true)).json())
+      .content,
+    "Keep these words",
+  );
+  response = await action("alice", { action: "move", revision: 3, parent: "" });
+  assert.equal(response.status, 200);
+  assert.equal((await versions(env, file)).versions.length, 4);
+});
+test("folder management rejects cycles and nonempty deletion", async () => {
+  const env = testDB();
+  const folder = await (
+    await call(env, "alice", "", { kind: "folder", parent: "", name: "Parent" })
+  ).json();
+  const child = await (
+    await call(env, "alice", "", {
+      kind: "folder",
+      parent: folder.id,
+      name: "Child",
+    })
+  ).json();
+  for (const input of [
+    { action: "move", parent: child.id },
+    { action: "move", parent: folder.id },
+    { action: "trash" },
+  ]) {
+    assert.equal(
+      (
+        await call(env, "alice", `/${folder.id}/manage`, {
+          ...input,
+          revision: 1,
+        })
+      ).status,
+      409,
+    );
+  }
+  assert.equal(
+    (
+      await call(env, "alice", `/${child.id}/manage`, {
+        action: "move",
+        parent: "",
+        revision: 1,
+      })
+    ).status,
+    200,
+  );
+});

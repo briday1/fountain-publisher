@@ -1,3 +1,4 @@
+import { recordDiagnostic, supportAddress } from "./support/diagnostics";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "@fontsource/courier-prime/400.css";
@@ -26,11 +27,26 @@ class ErrorBoundary extends React.Component<
         </p>
         <pre>{this.state.error}</pre>
         <button onClick={() => location.reload()}>Try again</button>
+        {isWriteShape && (
+          <p>
+            <a
+              href={`mailto:${supportAddress}?subject=WriteShape%20could%20not%20open`}
+            >
+              Report this problem
+            </a>
+          </p>
+        )}
       </main>
     ) : (
       this.props.children
     );
   }
+}
+if (isWriteShape) {
+  window.addEventListener("error", () => recordDiagnostic("app-error"));
+  window.addEventListener("unhandledrejection", () =>
+    recordDiagnostic("unhandled-promise"),
+  );
 }
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>

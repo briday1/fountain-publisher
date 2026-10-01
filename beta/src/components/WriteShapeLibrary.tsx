@@ -1,3 +1,4 @@
+import { downloadLibraryItems } from "../storage/libraryDownloads";
 import { documentFilename } from "../core/documentFormat";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -48,6 +49,11 @@ export function WriteShapeLibrary({
   embedded?: boolean;
   onBusyChange?: (busy: boolean) => void;
 }) {
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [management, setManagement] = useState<"rename" | "move" | "trash">();
+  const [manageName, setManageName] = useState("");
+  const [moveParent, setMoveParent] = useState("");
+  const [folders, setFolders] = useState<{ id: string; name: string }[]>([]);
   const [parent, setParent] = useState(initialFile?.parent || "");
   const [breadcrumbs, setBreadcrumbs] = useState<
     { id: string; name: string }[]
@@ -88,6 +94,8 @@ export function WriteShapeLibrary({
     setLoading(true);
     setError("");
     setItems([]);
+    setChecked(new Set());
+    setManagement(undefined);
     libraryRequest("?parent=" + encodeURIComponent(parent))
       .then((data) => {
         if (!active) return;
@@ -143,6 +151,36 @@ export function WriteShapeLibrary({
       onClose();
     });
   }
+  async function manage(action: "rename" | "move" | "trash") {
+    if (!choice) return;
+    setManagement(action);
+    setManageName(choice.name);
+    setMoveParent("");
+    if (action === "move")
+      await run(async () => {
+        const found: { id: string; name: string }[] = [
+          { id: "", name: "My documents" },
+        ];
+        const seen = new Set<string>();
+        async function visit(id: string, path: string) {
+          if (seen.has(id) || found.length > 500)
+            throw new Error("Too many folders to list at once.");
+          seen.add(id);
+          const list = await libraryRequest(
+            "?parent=" + encodeURIComponent(id),
+          );
+          for (const folder of list.items.filter(
+            (i: LibraryFile) => i.kind === "folder" && i.id !== choice!.id,
+          )) {
+            const label = path + folder.name;
+            found.push({ id: folder.id, name: label });
+            await visit(folder.id, label + " / ");
+          }
+        }
+        await visit("", "");
+        setFolders(found);
+      });
+  }
   async function save() {
     await run(async () => {
       const actual = documentFilename(filename, name);
@@ -191,6 +229,16 @@ export function WriteShapeLibrary({
         >
           <Share2 size={18} />
           <span>Shared with me</span>
+        </button>
+        <button
+          className="library-location"
+          disabled={busy}
+          onClick={() => {
+            setShared(false);
+            navigate("__trash__");
+          }}
+        >
+          Trash
         </button>
         <div className="library-storage" aria-label="Storage usage">
           <HardDrive size={19} />
@@ -322,13 +370,142 @@ export function WriteShapeLibrary({
                 </select>
               </label>
               <button
-                disabled={busy || loading || !canWrite}
+                disabled={
+                  busy || loading || !canWrite || parent === "__trash__"
+                }
                 onClick={() => setNewFolder((v) => !v)}
               >
                 <FolderPlus size={16} />
                 <span>New folder</span>
               </button>
             </div>
+            {mode === "open" && (
+              <div className="library-bulk-actions">
+                <label>
+                  <input
+                    type="checkbox"
+                    aria-label="Select all visible files and folders"
+                    checked={
+                      visible.length > 0 &&
+                      visible.every((i) => checked.has(i.id))
+                    }
+                    disabled={busy || loading}
+                    onChange={(e) =>
+                      setChecked(
+                        e.target.checked
+                          ? new Set(visible.map((i) => i.id))
+                          : new Set(),
+                      )
+                    }
+                  />{" "}
+                  Select all
+                </label>
+                <button
+                  disabled={busy || loading || !checked.size}
+                  onClick={() =>
+                    void run(() =>
+                      downloadLibraryItems(
+                        items.filter((i) => checked.has(i.id)),
+                      ),
+                    )
+                  }
+                >
+                  Download selected ({checked.size})
+                </button>
+                <button
+                  disabled={busy || loading || !items.length}
+                  onClick={() => void run(() => downloadLibraryItems(items))}
+                >
+                  Download this folder
+                </button>
+                {choice && (
+                  <>
+                    <button
+                      disabled={busy || !canWrite}
+                      onClick={() => void manage("rename")}
+                    >
+                      Rename
+                    </button>
+                    <button
+                      disabled={busy || !canWrite}
+                      onClick={() => void manage("move")}
+                    >
+                      {parent === "__trash__" ? "Restore / move" : "Move"}
+                    </button>
+                    {parent !== "__trash__" && (
+                      <button
+                        disabled={busy || !canWrite}
+                        onClick={() => void manage("trash")}
+                      >
+                        Move to trash
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+            {management && choice && (
+              <form
+                className="library-new-folder"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void run(async () => {
+                    await libraryRequest("/" + choice.id + "/manage", {
+                      action: management,
+                      revision: choice.revision,
+                      name: manageName,
+                      parent: moveParent,
+                    });
+                    setSelected(undefined);
+                    setManagement(undefined);
+                    setReload((n) => n + 1);
+                  });
+                }}
+              >
+                {management === "rename" ? (
+                  <label>
+                    New name
+                    <input
+                      aria-label="New item name"
+                      required
+                      maxLength={160}
+                      value={manageName}
+                      onChange={(e) => setManageName(e.target.value)}
+                    />
+                  </label>
+                ) : management === "move" ? (
+                  <label>
+                    Destination folder
+                    <select
+                      aria-label="Destination folder"
+                      value={moveParent}
+                      onChange={(e) => setMoveParent(e.target.value)}
+                    >
+                      {folders.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <p>
+                    Move “{choice.name}” to Trash? Files can be restored from
+                    Trash. Folders must be empty.
+                  </p>
+                )}
+                <button className="primary" disabled={busy || !canWrite}>
+                  {management === "trash" ? "Confirm move to trash" : "Apply"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setManagement(undefined)}
+                  disabled={busy}
+                >
+                  Cancel
+                </button>
+              </form>
+            )}
             {newFolder && (
               <form
                 className="library-new-folder"
@@ -443,6 +620,26 @@ export function WriteShapeLibrary({
                     }}
                   >
                     <div className="library-file-name">
+                      {mode === "open" && (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${item.name}`}
+                          checked={checked.has(item.id)}
+                          disabled={busy}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                          onChange={(e) =>
+                            setChecked((before) => {
+                              const next = new Set(before);
+                              e.target.checked
+                                ? next.add(item.id)
+                                : next.delete(item.id);
+                              return next;
+                            })
+                          }
+                        />
+                      )}
+
                       {item.kind === "folder" ? (
                         <Folder className="library-folder-icon" size={27} />
                       ) : (
@@ -525,7 +722,13 @@ export function WriteShapeLibrary({
                   </label>
                   <button
                     className="primary"
-                    disabled={busy || loading || !canWrite || !filename.trim()}
+                    disabled={
+                      busy ||
+                      loading ||
+                      !canWrite ||
+                      parent === "__trash__" ||
+                      !filename.trim()
+                    }
                   >
                     {busy ? "Saving…" : "Save new file"}
                     <ArrowRight size={15} />

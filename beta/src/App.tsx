@@ -1,3 +1,5 @@
+import { ReportProblem } from "./components/ReportProblem";
+import { destinationReadOnly } from "./storage/destinations";
 import type { DirectoryHandle } from "./storage/localDirectory";
 import { DocumentWorkspace } from "./core/documentWorkspace";
 import { DocumentPanes, BufferSync } from "./components/DocumentPanes";
@@ -151,6 +153,13 @@ export default function App() {
     setFileTab(accountId ? "writeshape" : "local");
   }, [accountId]);
   const [snapshot, setSnapshot] = useState<SessionSnapshot>();
+  const cloudReadOnly =
+    isWriteShape &&
+    destinationReadOnly(
+      snapshot?.destination,
+      accountId,
+      account.state.premium,
+    );
   const documentWorkspace = useRef<DocumentWorkspace | null>(null);
   const [workspaceReady, setWorkspaceReady] = useState(!isWriteShape);
   const [, updateWorkspace] = useState(0);
@@ -246,6 +255,7 @@ export default function App() {
     | "settings"
     | "title"
     | "help"
+    | "support"
     | "library"
     | "history"
     | "rename"
@@ -988,8 +998,11 @@ export default function App() {
     editor.current?.focus();
   }
   const changeDoc = (doc: Screenplay, previousDocument?: Screenplay) => {
-    if (liveClient.current && !liveClient.current.self.canEdit) {
-      tell("This Drive document is view only. Keep a copy to make edits.");
+    if (
+      cloudReadOnly ||
+      (liveClient.current && !liveClient.current.self.canEdit)
+    ) {
+      tell("This document is read only. Make a local copy to edit.");
       return;
     }
     session?.updateMetadata(doc, previousDocument);
@@ -1021,8 +1034,11 @@ export default function App() {
   }
   function assignBeatRange(beatId: string, range: BeatRange): boolean {
     if (!session) return false;
-    if (liveClient.current && !liveClient.current.self.canEdit) {
-      tell("This Drive document is view only.");
+    if (
+      cloudReadOnly ||
+      (liveClient.current && !liveClient.current.self.canEdit)
+    ) {
+      tell("This document is read only.");
       return false;
     }
     const current = session.capture().screenplay;
@@ -1716,6 +1732,7 @@ export default function App() {
           }
           onSettings={() => setDialog("settings")}
           onHelp={() => setDialog("help")}
+          onReport={isWriteShape ? () => setDialog("support") : undefined}
           mobile={mobile}
           controls={writingControls}
           filename={snapshot.name}
@@ -1733,6 +1750,16 @@ export default function App() {
             <MenuItem onClick={() => void run(openLocal)} shortcut={`${mod}O`}>
               {isWriteShape ? "Open…" : "Open screenplay…"}
             </MenuItem>
+            {isWriteShape && (
+              <MenuItem
+                onClick={() => {
+                  setFileTab("writeshape");
+                  setLibraryMode("open");
+                }}
+              >
+                File browser…
+              </MenuItem>
+            )}
             <MenuItem onClick={() => void run(save)} shortcut={`${mod}S`}>
               Save
             </MenuItem>
@@ -1989,6 +2016,60 @@ export default function App() {
           <span>Save</span>
         </button>
       </header>
+      {cloudReadOnly && (
+        <div className="document-readonly" role="status">
+          <span>
+            <strong>Read-only document.</strong>{" "}
+            {snapshot.destination?.provider === "drive"
+              ? "Drive sync is paused."
+              : "Cloud changes are not being saved."}{" "}
+            Your saved cloud file and any unsynced device draft are preserved.
+            Make a local copy to edit.
+          </span>
+          <button
+            onClick={() =>
+              downloadFile(
+                serializeDocument(session.capture().screenplay),
+                snapshot.name,
+              )
+            }
+          >
+            Download
+          </button>
+          <button
+            onClick={() =>
+              void run(async () => {
+                await session.fork();
+                tell(
+                  "Editable local copy created. Changes stay on this device.",
+                );
+              })
+            }
+          >
+            Make local copy
+          </button>
+          {!account.state.premium && (
+            <button onClick={() => setPlansOpen(true)}>Explore Premium</button>
+          )}
+          {account.state.premium && snapshot.destination?.pausedForPlan && (
+            <button
+              onClick={() => {
+                const d = session.current.destination;
+                if (
+                  !d ||
+                  !confirm(
+                    "Resume cloud syncing for this draft? If the cloud version has changed, WriteShape will ask you to resolve the conflict.",
+                  )
+                )
+                  return;
+                session.setDestination({ ...d, pausedForPlan: false });
+              }}
+            >
+              Resume sync
+            </button>
+          )}
+        </div>
+      )}
       {liveStatus && (liveStatus.phase === "paused" || !liveStatus.canEdit) && (
         <div className="live-notice" role="status" aria-live="polite">
           <span>
@@ -2490,7 +2571,7 @@ export default function App() {
                     </div>
                     <textarea
                       aria-label="Story notes"
-                      readOnly={liveStatus?.canEdit === false}
+                      readOnly={cloudReadOnly || liveStatus?.canEdit === false}
                       placeholder="A thought to come back to…"
                       value={doc.metadata.notes}
                       rows={5}
@@ -3048,14 +3129,29 @@ export default function App() {
       {dialog === "title" && (
         <TitleDialog
           value={doc.titlePage}
-          readOnly={liveStatus?.canEdit === false}
+          readOnly={cloudReadOnly || liveStatus?.canEdit === false}
           onSave={(titlePage, original) =>
             changeDoc({ ...doc, titlePage }, { ...doc, titlePage: original })
           }
           onClose={() => setDialog(null)}
         />
       )}
-      {dialog === "help" && <Help onClose={() => setDialog(null)} />}
+      {dialog === "help" && (
+        <Help
+          onClose={() => setDialog(null)}
+          onReport={isWriteShape ? () => setDialog("support") : undefined}
+        />
+      )}
+      {dialog === "support" && (
+        <ReportProblem
+          context={{
+            destination: snapshot.destination?.provider || "device",
+            sync: destinationSync.status?.phase || "local",
+            premium: account.state.premium,
+          }}
+          onClose={() => setDialog(null)}
+        />
+      )}
       {dialog === "rename" && (
         <Modal
           title={novel ? "Name your document" : "Name your screenplay"}
@@ -3071,6 +3167,12 @@ export default function App() {
                     "Use Save As to give a live document a new filename. The shared document keeps its current name.",
                   );
                   setDialog(null);
+                  return;
+                }
+                if (cloudReadOnly) {
+                  tell(
+                    "This document is read only. Make a local copy to rename it.",
+                  );
                   return;
                 }
                 session.rename(documentFilename(name, snapshot.name));

@@ -63,6 +63,7 @@ export function ApplicationMenu({
   accountAction,
   onSettings,
   onHelp,
+  onReport,
   children,
   mobile,
   controls,
@@ -72,6 +73,7 @@ export function ApplicationMenu({
   accountAction?: { label: string; onClick: () => void };
   onSettings?: () => void;
   onHelp?: () => void;
+  onReport?: () => void;
   children: ReactNode;
   mobile: boolean;
   controls: ReactElement<WritingToolbarProps>;
@@ -181,6 +183,7 @@ export function ApplicationMenu({
   const fileLabels = [
     "New",
     "Open…",
+    "File browser…",
     "Save",
     "Save As…",
     "Version history…",
@@ -365,6 +368,11 @@ export function ApplicationMenu({
                     <button onClick={dismissThen(() => onHelp?.())}>
                       Help
                     </button>
+                    {onReport && (
+                      <button onClick={dismissThen(onReport)}>
+                        Report a problem
+                      </button>
+                    )}
                     {premiumCommand}
                   </div>
                 </div>

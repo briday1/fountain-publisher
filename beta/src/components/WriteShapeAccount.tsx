@@ -1,3 +1,4 @@
+import { recordDiagnostic } from "../support/diagnostics";
 import { AccessCodes } from "./AccessCodes";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isWriteShape } from "../product";
@@ -44,6 +45,8 @@ export async function accountRequest(path: string, body?: unknown) {
   if (!response.headers.get("Content-Type")?.includes("application/json"))
     throw new Error("Your sign-in needs refreshing. Your local draft is safe.");
   const data = await response.json();
+  if (!response.ok)
+    recordDiagnostic("account-request", response.status, data.reference);
   if (!response.ok) throw new Error(data.error || "Account request failed.");
   return data;
 }

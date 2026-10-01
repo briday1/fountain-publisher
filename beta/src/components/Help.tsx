@@ -1,8 +1,23 @@
 import { Modal } from "./Modal";
-export function Help({ onClose }: { onClose: () => void }) {
+export function Help({
+  onClose,
+  onReport,
+}: {
+  onClose: () => void;
+  onReport?: () => void;
+}) {
   const mod = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
   return (
-    <Modal title="Just write." eyebrow="FOUNTAIN PUBLISHER" onClose={onClose}>
+    <Modal
+      title="Just write."
+      eyebrow={onReport ? "WRITESHAPE" : "FOUNTAIN PUBLISHER"}
+      onClose={onClose}
+    >
+      {onReport && (
+        <button className="primary" onClick={onReport}>
+          Report a problem or contact support
+        </button>
+      )}
       <p>
         Click the page and start typing. Scene headings such as INT. or EXT.
         format themselves. Enter moves naturally through character cues and

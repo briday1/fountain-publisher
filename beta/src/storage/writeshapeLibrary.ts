@@ -1,3 +1,4 @@
+import { recordDiagnostic } from "../support/diagnostics";
 export interface LibraryFile {
   id: string;
   parent: string;
@@ -57,6 +58,8 @@ export async function cloudRequest(path: string, body?: unknown): Promise<any> {
       response.status,
     );
   const result = await response.json();
+  if (!response.ok)
+    recordDiagnostic("cloud-request", response.status, result.reference);
   if (!response.ok)
     throw new LibraryError(
       result.error || "Cloud storage is unavailable.",

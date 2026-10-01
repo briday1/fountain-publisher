@@ -1,0 +1,50 @@
+.report-problem {
+  display: grid;
+  gap: 12px;
+}
+.report-problem > label {
+  display: grid;
+  gap: 8px;
+}
+.report-problem textarea {
+  width: 100%;
+  resize: vertical;
+  font-size: 16px;
+}
+.report-problem p {
+  margin: 0;
+  line-height: 1.5;
+  font-size: 12px;
+  color: var(--muted);
+}
+.report-problem .report-check {
+  display: flex;
+  align-items: center;
+}
+.report-check input {
+  width: auto;
+}
+.report-problem pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 220px;
+  overflow: auto;
+  font-size: 11px;
+}
+.report-problem a {
+  overflow-wrap: anywhere;
+}
+.document-readonly {
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.document-readonly > span {
+  flex: 1 1 260px;
+  font-size: 12px;
+  line-height: 1.5;
+}

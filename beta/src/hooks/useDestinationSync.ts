@@ -31,6 +31,30 @@ export function useDestinationSync(
       });
       return;
     }
+    if (
+      original.provider !== "local" &&
+      !premium &&
+      accountId === original.accountId &&
+      serializeDocument(session.capture().screenplay) !==
+        original.baseContent &&
+      !original.pausedForPlan
+    ) {
+      session.setDestination({ ...original, pausedForPlan: true });
+      void session.flush().catch(() => {});
+    }
+    if (
+      (original.provider === "drive" && !premium) ||
+      session.current.destination?.pausedForPlan
+    ) {
+      setStatus({
+        phase: "readonly",
+        message:
+          original.provider === "drive" && !premium
+            ? "Drive sync paused. Premium required. Your unsynced work is kept on this device."
+            : "Unsynced work preserved. Make a local copy, download, or explicitly resume sync.",
+      });
+      return;
+    }
     let active = true;
     const matches = () =>
       active &&
@@ -140,7 +164,15 @@ export function useDestinationSync(
       window.removeEventListener("online", online);
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [session, documentId, key, accountId, premium, enabled]);
+  }, [
+    session,
+    documentId,
+    key,
+    accountId,
+    premium,
+    enabled,
+    session?.current.destination?.pausedForPlan,
+  ]);
   useEffect(() => {
     if (!enabled || !session) return;
     let subscribed = true;

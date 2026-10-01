@@ -13,7 +13,11 @@ import type {
   DocumentView,
 } from "../core/documentWorkspace";
 import { useDestinationSync } from "../hooks/useDestinationSync";
-import { destinationKey, destinationLabel } from "../storage/destinations";
+import {
+  destinationReadOnly,
+  destinationKey,
+  destinationLabel,
+} from "../storage/destinations";
 import type { Preferences } from "./Settings";
 import { TitlePreview } from "./TitlePreview";
 import { Menu, MenuItem } from "./Menu";
@@ -31,6 +35,21 @@ export function BufferSync({
   premium: boolean;
   changed: () => void;
 }) {
+  const destination = buffer.snapshot.destination;
+  useLayoutEffect(() => {
+    const readOnly = destinationReadOnly(destination, accountId, premium);
+    for (const id of buffer.views)
+      model.views.get(id)?.controller.setDestinationReadOnly(readOnly);
+    if (readOnly && buffer.live) model.stopLive(buffer.session.current.id);
+    if (destination?.live && !premium && accountId === destination.accountId) {
+      buffer.session.setDestination({
+        ...destination,
+        live: false,
+        pausedForPlan: true,
+      });
+      void buffer.session.flush().catch(() => {});
+    }
+  }, [destination, accountId, premium, model, buffer, model.views.size]);
   const sync = useDestinationSync(
     buffer.session,
     buffer.snapshot.id,
@@ -45,6 +64,8 @@ export function BufferSync({
       model.stopLive(buffer.session.current.id);
     if (
       destination?.live &&
+      premium &&
+      !destination.pausedForPlan &&
       accountId === destination.accountId &&
       !buffer.live &&
       !buffer.joiningLive
@@ -58,7 +79,7 @@ export function BufferSync({
         };
         changed();
       });
-  }, [accountId, buffer.snapshot.id]);
+  }, [accountId, premium, buffer.snapshot.id]);
   useEffect(() => {
     buffer.sync.current = sync.engine.current;
     buffer.syncStatus = sync.status;
@@ -177,7 +198,7 @@ function DocumentCanvas({
             </div>
           ) : (
             <button
-              disabled={buffer.joiningLive}
+              disabled={buffer.joiningLive || !view.controller.writable}
               onClick={() =>
                 void model
                   .startLive(

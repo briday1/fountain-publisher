@@ -89,9 +89,11 @@ export function createFileProviders(options: {
       const state = await cloudRequest("/api/drive/status");
       return {
         available: state.configured,
-        connected: state.connected,
+        connected: state.connected && options.premium,
         label: state.email || "Google Drive",
-        message: state.reason,
+        message: !options.premium
+          ? "Drive sync paused. Premium required. Your files remain available in Google Drive."
+          : state.reason,
         writable: options.premium && state.canWrite,
       };
     },
