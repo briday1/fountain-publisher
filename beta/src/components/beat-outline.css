@@ -24,3 +24,83 @@
 .beat-children-toggle { display: flex; gap: 3px; }
 .beat-children-toggle small { font-size: 9px; }
 @media(max-width:600px) { .beat-flow-row { margin-left: calc(var(--beat-depth, 0) * 10px); } .beat-scene { padding-left: 8px; margin-left: 0; } .beat-flow-main { flex-wrap: wrap; } .beat-flow-title { min-width: 120px; } }
+
+/* On phones, keep beats in compact list rows instead of wrapping each action. */
+@media (max-width: 820px) {
+  .beat-sheet-paper .beat-premise-field {
+    margin-bottom: 12px;
+    padding-bottom: 0;
+  }
+  .beat-sheet-paper .beat-premise-field textarea {
+    min-height: 0;
+    height: 72px;
+    padding: 4px 0;
+    font-size: 16px;
+  }
+  .beat-sheet-paper .beat-flow-heading {
+    gap: 8px;
+  }
+  .beat-sheet-paper .beat-flow-summary {
+    margin: 8px 0;
+  }
+  .beat-sheet-paper .beat-act {
+    margin: 12px 0 16px;
+  }
+  .beat-sheet-paper .beat-act-heading {
+    padding: 8px 0;
+    font-size: 16px;
+  }
+  .beat-sheet-paper .beat-scene {
+    margin: 4px 0 0;
+    padding-left: 0;
+    border-left: 0;
+  }
+  .beat-sheet-paper .beat-scene-heading {
+    padding: 8px 0;
+  }
+  .beat-sheet-paper .beat-flow-row {
+    margin-left: min(calc(var(--beat-depth, 0) * 8px), 24px);
+    padding: 0;
+    gap: 4px;
+  }
+  .beat-sheet-paper .beat-flow-body {
+    padding: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .beat-sheet-paper .beat-flow-main {
+    min-height: 0;
+    padding: 4px 0;
+    gap: 0;
+  }
+  .beat-sheet-paper .beat-flow-title {
+    flex: 1 1 0;
+    min-width: 0;
+    width: 0;
+    height: 36px;
+  }
+  .beat-sheet-paper .beat-flow-main .icon-button {
+    flex: 0 0 32px;
+    width: 32px;
+    min-width: 32px;
+    height: 36px;
+  }
+  .beat-sheet-paper .beat-flow-assignment {
+    min-height: 32px;
+  }
+  .beat-sheet-paper .beat-flow-assignment :is(.beat-assigned-lines, .beat-assign-range) {
+    min-height: 32px;
+    white-space: normal;
+    text-align: left;
+  }
+  .beat-sheet-paper .beat-range-unavailable {
+    white-space: normal;
+  }
+  .beat-sheet-paper .beat-flow-details {
+    margin: 4px 0 8px;
+    padding: 8px;
+  }
+  .beat-sheet-paper .beat-organization label {
+    min-width: 0;
+    flex-basis: 100%;
+  }
+}

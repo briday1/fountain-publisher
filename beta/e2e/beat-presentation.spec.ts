@@ -319,6 +319,22 @@ test("beat rows and graph controls remain usable on a narrow screen", async ({
       .fill(`Story change ${index}`);
   }
   await expect(page.locator(".beat-flow-row")).toHaveCount(8);
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    const row = page.locator(".beat-flow-row").first();
+    const bounds = await row.boundingBox();
+    expect(bounds!.height).toBeLessThanOrEqual(90);
+    const title = await row.locator(".beat-flow-title").boundingBox();
+    for (const action of await row
+      .locator(".beat-flow-main > .icon-button")
+      .all()) {
+      const button = await action.boundingBox();
+      expect(Math.abs(button!.y - title!.y)).toBeLessThanOrEqual(2);
+    }
+    expect(
+      await sheet.evaluate((node) => node.scrollWidth <= node.clientWidth),
+    ).toBe(true);
+  }
   await expect(sheet).toHaveCSS("overflow", "hidden");
   await expect(page.locator(".beat-sheet-dialog-scroll")).toHaveCSS(
     "overscroll-behavior",
