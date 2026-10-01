@@ -15,7 +15,7 @@
 .beat-flow-row { margin-left: calc(var(--beat-depth, 0) * 22px); padding: 2px 0; }
 .beat-flow-body { border-bottom: 0; padding: 8px 0 12px; }
 .beat-flow-node-lane::after { display: none; }
-.beat-flow-number { border-radius: 7px; width: 26px; height: 26px; font-size: 10px; background: color-mix(in srgb, var(--beat-color) 12%, transparent); border-color: transparent; }
+.beat-flow-number { border-radius: 7px; width: 26px; height: 26px; font-size: 10px; background: color-mix(in srgb, var(--beat-color) 12%, var(--paper)); border-color: transparent; }
 .beat-flow-title { font-weight: 500; letter-spacing: -.015em; }
 .beat-flow-details { border-left: 2px solid var(--beat-color); margin: 12px 0; padding: 10px 16px; background: color-mix(in srgb, var(--beat-color) 3%, transparent); border-radius: 0 8px 8px 0; }
 .beat-organization { display: flex; gap: 14px; flex-wrap: wrap; }
