@@ -67,7 +67,10 @@ it("brands real WriteShape builds and offline installs without changing default 
         expect(html).toContain('content="WriteShape"');
         expect(html).toContain('href="/writeshape-icon.svg"');
         expect(html).toContain('href="/writeshape-manifest.webmanifest"');
-        expect(html).toContain('href="/writeshape-apple-touch-icon.png"');
+        expect(html).toContain(
+          'href="https://fountain-publisher.com/writeshape-apple-touch-icon.png"',
+        );
+        expect(html).toContain('crossorigin="use-credentials"');
         expect(shell).toBe(html);
         expect(icon).not.toContain("<text");
         expect(icon).toBe(
@@ -77,6 +80,11 @@ it("brands real WriteShape builds and offline installs without changing default 
         expect(installed.name).toBe("WriteShape");
         expect(installed.short_name).toBe("WriteShape");
         expect(installed.start_url).toBe("/");
+        for (const icon of installed.icons) {
+          expect(new URL(icon.src).origin).toBe(
+            "https://fountain-publisher.com",
+          );
+        }
         expect(
           installed.icons.some(
             (i: { purpose: string }) => i.purpose === "maskable",

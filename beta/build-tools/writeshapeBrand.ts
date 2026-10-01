@@ -46,7 +46,7 @@ export function writeshapeBrand(): Plugin {
             .replace('href="/favicon.svg"', 'href="/writeshape-icon.svg"')
             .replace(
               'href="/manifest.webmanifest"',
-              'href="/writeshape-manifest.webmanifest"',
+              'href="/writeshape-manifest.webmanifest" crossorigin="use-credentials"',
             ),
           tags: [
             {
@@ -85,7 +85,8 @@ export function writeshapeBrand(): Plugin {
               attrs: {
                 rel: "apple-touch-icon",
                 sizes: "180x180",
-                href: "/writeshape-apple-touch-icon.png",
+                // Home-screen icon fetches must not depend on an Access session.
+                href: "https://fountain-publisher.com/writeshape-apple-touch-icon.png",
               },
               injectTo: "head",
             },
