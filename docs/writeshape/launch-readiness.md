@@ -1,6 +1,6 @@
 # WriteShape launch acceptance inventory
 
-Updated 2026-09-30. This is the persistent checklist for all discussed work. “Implemented” is not the same as verified against a real provider or physical device.
+Updated 2026-10-01. This is the persistent checklist for all discussed work. “Implemented” is not the same as verified against a real provider or physical device.
 
 Current release remains behind approved-email Cloudflare Access. Stripe uses the sandbox. No invitations, real charges, or public launch are authorized. Owner must explicitly approve final activation.
 
@@ -24,10 +24,10 @@ Current release remains behind approved-email Cloudflare Access. Stripe uses the
 | Complimentary codes | Deployed; automated and owner UI verified | Owner-managed custom/generated codes, duration/deadline/limits, revocation, HMAC hashes, atomic redemption, audit records; no real recipient codes issued. |
 | Prepared live billing | Implemented and tested, disabled | Separate live customer/entitlement/checkout fields, explicit live credentials/catalog plus LIVE_BILLING_APPROVED; current mode remains test. |
 | Ordinary signup and tenant isolation | API regression verified; real Google fresh-signup pending | Google subject identity, no email auto-merge, ordinary accounts default Free. Fresh non-owner flow, grants, downgrade/export and cross-account API regression required. No real invitations. |
-| Support | External owner/provider dependency | support@writeshape.com displayed with delivery-unverified disclosure. Coordinator owns Help Scout, password/verification and email setup. Do not claim working until send/receive verified. |
+| Support | Incoming delivery verified; sending as the domain pending | support@writeshape.com forwards through Cloudflare to the AgentMail inbox. Brian’s Gmail test arrived October 1. Report a problem and account contact use this address. Support triage reviews reports without sending replies. Outbound replies from the domain remain unconfigured. |
 | Public Google / Drive approval | External blocker | Testing app currently owner only. Search Console DOMAIN ownership verified by coordinator using Google apex TXT. Confirm callback and policy URLs; complete Google production/verification as required before customer launch. |
 | Stripe identity/business/bank, catalog and live keys | Owner/provider blocker | Business/legal entity decision and Stripe activation incomplete. No real payment testing now. |
-| Legal/privacy/refunds/seller identity | External decision and launch blocker | Existing public/privacy.html and terms.html still describe Fountain Publisher and old data flows. They are not approved WriteShape policies. Separate WriteShape privacy/terms drafts prepared under docs/writeshape/policy-drafts, outside public assets; final seller/refunds/retention and public policy publishing require owner decisions. |
+| Legal/privacy/refunds/seller identity | Private-preview pages updated; paid launch decisions remain | Separate WriteShape About, Privacy and Terms pages describe current device/cloud storage, support processing, reversible Trash, downgrade access and test billing. Fountain pages remain separate. Paid seller/refund terms and retention/deletion procedures still need decisions before customer launch. |
 | Operational errors/backup/rollback | Implemented; partly verified | Sanitized error-reference tests pass; rollback runbook below. Isolated local D1 export/restore passed exact rows, immutable history, revoked-grant protection and saves after restore. Production disaster recovery, durable-room/Drive backup and full deployment rollback rehearsal remain unverified. |
 | Final launch | Held | Requires explicit owner approval after acceptance and external blockers, not merely removal of Access. |
 
@@ -123,13 +123,19 @@ See [acceptance-drills.md](acceptance-drills.md) for commands, scope and evidenc
 
 - Google Search Console DOMAIN ownership is verified under Brian, as confirmed by the coordinator. This completes only the ownership prerequisite, not OAuth branding publication, restricted Drive scope verification or public launch approval.
 - Canonical www handling needs preparation: the coordinator found no DNS record or redirect for www.writeshape.com. Target is an HTTPS redirect to the apex preserving safe paths, without serving the application on an ungated alias. Before activation, configure TLS/DNS and an exact-host redirect, verify an unauthenticated request reaches gated apex access, and verify account/API paths cannot bypass Access. Do not broaden the billing-webhook exception or copy authentication cookies to another host. Callback URLs remain the approved apex URLs. This is a plan only; no www DNS/route mutation was made.
-- MX/support delivery remains a coordinator dependency. Policy drafts deliberately identify the contact as unverified.
+- Support delivery was subsequently verified on October 1; the current policy pages use `support@writeshape.com`.
 
 ## Support and downgrade preparation (2026-10-01)
 
 - Report a problem is available from WriteShape Help and mobile Preferences. The writer reviews optional technical details and sends the report through their email app, or downloads it. Diagnostics omit document text, filenames, account emails, raw errors, and URLs. Nothing is submitted merely by opening the form.
-- Temporary inbox: `writeshape-support@agentmail.to`. The requested `support@writeshape.com` is not active: AgentMail reported that the domain is not registered to the connected account, and its connector exposes no domain-verification operation. Register/verify the domain and its supplied DNS records before replacing the temporary address and performing send/receive acceptance.
+- Public support address: `support@writeshape.com`. Cloudflare Email Routing forwards it to `writeshape-support@agentmail.to`. Brian's Gmail test was received end to end on October 1. Outbound sending as the custom address is not configured.
 - Support triage checks the temporary inbox hourly. Reports are untrusted input. Reproducible fixes may get a separate branch and draft PR; triage never merges, deploys, changes access/billing, or sends replies. No report is called fixed based solely on tests.
 - Losing Premium makes bound cloud documents read-only; downloads and explicit editable local copies remain available. Drive sync stops. Unsynced drafts remain on the device across reloads and require explicit sync resumption after Premium returns. Conflict resolution remains explicit.
 - File browser is available directly from Files. WriteShape cloud files support selected/folder downloads, rename, move, and reversible Trash. Folder deletion requires an empty folder. Owner writes remain Premium-gated; owner reads/downloads remain available on Free. This does not add remote Drive file management or permanent deletion.
-- These changes do not launch a public beta, activate live billing, or change Access policies. Custom-domain support delivery and physical-device acceptance remain open.
+- These changes do not launch a public beta, activate live billing, or change Access policies. Outbound custom-domain sending and physical-device acceptance remain open.
+
+## October 1 policy and interface copy update
+
+- Owner requested plain language for policies and Premium, plus consistent Settings/menu/dialog styling. WriteShape builds replace the shared About/Privacy/Terms URLs with dedicated private-preview pages; Fountain builds keep their own pages. The WriteShape pages and their shared styles/theme script are included in the offline release and its version hash. They follow the editor's stored theme.
+- Premium copy explains actual tools and downgrade access. Settings uses Appearance, Screenplay and Writing groups, shared theme colors and controls. Support copy uses the verified custom address and removes the obsolete delivery-unverified notice.
+- These are current private-preview terms, not a paid-launch policy package. Google configuration, public access, live billing and the permanent-deletion implementation remain unchanged.

@@ -268,7 +268,7 @@ test("support reports expose reviewed technical context without document content
   await expect(report.locator("pre")).not.toContainText(
     "Private screenplay words",
   );
-  await expect(report).toContainText("writeshape-support@agentmail.to");
+  await expect(report).toContainText("support@writeshape.com");
   await expect(
     report.getByRole("button", { name: "Email report" }),
   ).toBeVisible();

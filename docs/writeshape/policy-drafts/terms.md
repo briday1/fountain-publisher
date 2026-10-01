@@ -1,3 +1,5 @@
+> Historical paid-launch planning draft. Current private-preview copy is in beta/writeshape-pages; October 1 receiving-email verification supersedes the delivery-unverified statements below. Commercial decisions remain open.
+
 # WriteShape terms — draft
 
 **Internal review draft, 26 September 2026. Not published, approved, or effective.** This factual service description needs the operator's legal and commercial decisions before it can become terms. Bracketed sections are unresolved, not default commitments.

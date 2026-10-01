@@ -9,6 +9,8 @@ import { offlineShell } from "../build-tools/offline";
 import {
   writeshapeBrand,
   writeShapeBrandAssets,
+  writeShapePages,
+  writeShapePageAssets,
 } from "../build-tools/writeshapeBrand";
 import { WriteShapeMark } from "../src/components/WriteShapeMark";
 
@@ -51,6 +53,18 @@ it("brands real WriteShape builds and offline installs without changing default 
         "utf8",
       );
       const sw = await readFile(resolve(outDir, "sw.js"), "utf8");
+      for (const page of writeShapePages) {
+        const actual = await readFile(resolve(outDir, page), "utf8");
+        const expected = await readFile(
+          resolve(
+            repo,
+            mode === "writeshape" ? "writeshape-pages" : "public",
+            page,
+          ),
+          "utf8",
+        );
+        expect(actual).toBe(expected);
+      }
       const files: string[] = JSON.parse(
         sw.match(/const FILES=(\[[^\n]*\]);/)![1],
       );
@@ -96,6 +110,12 @@ it("brands real WriteShape builds and offline installs without changing default 
             (await readFile(resolve(outDir, path))).length,
           ).toBeGreaterThan(0);
         }
+        for (const page of writeShapePageAssets) {
+          expect(files).toContain("/" + page);
+          expect(await readFile(resolve(outDir, page), "utf8")).toBe(
+            await readFile(resolve(repo, "writeshape-pages", page), "utf8"),
+          );
+        }
       } else {
         expect(html).toContain("<title>Fountain Publisher</title>");
         expect(html).toContain('href="/favicon.svg"');
@@ -104,6 +124,8 @@ it("brands real WriteShape builds and offline installs without changing default 
         expect(manifest).toBe(sourceManifest);
         expect(shell).toBe(html);
         expect(files).not.toContain("/writeshape-icon.svg");
+        for (const page of writeShapePageAssets)
+          expect(files).not.toContain("/" + page);
       }
     }
     expect(await readFile(resolve(repo, "index.html"), "utf8")).toBe(

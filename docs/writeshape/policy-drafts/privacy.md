@@ -1,3 +1,5 @@
+> Historical paid-launch planning draft. Current private-preview copy is in beta/writeshape-pages; October 1 receiving-email verification supersedes the delivery-unverified statements below. Commercial decisions remain open.
+
 # WriteShape privacy notice — draft
 
 **Internal review draft, 26 September 2026. Not published, approved, or effective.** Bracketed items require decisions or verification before publication. This notice describes the private WriteShape implementation; it does not assert that Google has approved the app.

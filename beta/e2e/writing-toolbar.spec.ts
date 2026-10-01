@@ -203,6 +203,6 @@ test("writing controls stay in one compact row, respond to panel width, and rema
   await page.getByRole("button", { name: "View", exact: true }).click();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(
-    page.getByRole("dialog", { name: "Make yourself at home", exact: true }),
+    page.getByRole("dialog", { name: "Settings", exact: true }),
   ).toBeVisible();
 });

@@ -9,7 +9,7 @@ export function Help({
   const mod = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
   return (
     <Modal
-      title="Just write."
+      title={onReport ? "Help" : "Just write."}
       eyebrow={onReport ? "WRITESHAPE" : "FOUNTAIN PUBLISHER"}
       onClose={onClose}
     >
@@ -74,7 +74,7 @@ export function Help({
       </p>
       <nav className="policy-links" aria-label="About and policies">
         <a href="/about.html" target="_blank" rel="noopener noreferrer">
-          About Fountain Publisher
+          About {onReport ? "WriteShape" : "Fountain Publisher"}
         </a>
         <a href="/privacy.html" target="_blank" rel="noopener noreferrer">
           Privacy

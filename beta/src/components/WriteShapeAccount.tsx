@@ -519,8 +519,8 @@ export function WriteShapeAccount({
           <a href="mailto:support@writeshape.com">support@writeshape.com</a>
         </p>
         <p>
-          This support inbox is being set up. Delivery has not been verified
-          yet.
+          Tell us what happened and what you expected. Please leave out private
+          writing, passwords, and payment details.
         </p>
       </section>
       <footer className="account-footer">

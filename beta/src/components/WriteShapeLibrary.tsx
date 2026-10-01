@@ -670,7 +670,7 @@ export function WriteShapeLibrary({
                   <strong>
                     {query
                       ? "No matching files"
-                      : "A little room for your next story"}
+                      : "No files in this folder"}
                   </strong>
                   <p>
                     {query

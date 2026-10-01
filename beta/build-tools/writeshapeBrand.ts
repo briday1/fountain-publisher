@@ -4,7 +4,17 @@ import { resolve } from "node:path";
 import type { Plugin } from "vite";
 
 const description =
-  "A focused screenplay studio. Write, organize your story, and publish Fountain screenplays.";
+  "Write screenplays and books, organize beats, and export your work.";
+export const writeShapePages = [
+  "about.html",
+  "privacy.html",
+  "terms.html",
+] as const;
+export const writeShapePageAssets = [
+  ...writeShapePages,
+  "writeshape-site.css",
+  "writeshape-site.js",
+] as const;
 export const writeShapeBrandAssets = [
   "writeshape-icon.svg",
   "writeshape-maskable.svg",
@@ -18,11 +28,13 @@ export const writeShapeBrandAssets = [
 /** Keep Fountain source metadata intact; brand only the isolated WriteShape mode. */
 export function writeshapeBrand(): Plugin {
   let publicDir = "";
+  let pagesDir = "";
   return {
     name: "writeshape-brand",
     apply: (_config, { mode }) => mode === "writeshape",
     configResolved(config) {
       publicDir = config.publicDir;
+      pagesDir = resolve(import.meta.dirname, "../writeshape-pages");
     },
     transformIndexHtml: {
       order: "pre",
@@ -31,6 +43,8 @@ export function writeshapeBrand(): Plugin {
         const hash = createHash("sha256");
         for (const fileName of writeShapeBrandAssets)
           hash.update(await readFile(resolve(publicDir, fileName)));
+        for (const fileName of writeShapePageAssets)
+          hash.update(await readFile(resolve(pagesDir, fileName)));
         const brandRevision = hash.digest("hex").slice(0, 16);
         return {
           html: html
@@ -95,6 +109,14 @@ export function writeshapeBrand(): Plugin {
       },
     },
     async generateBundle() {
+      // The shared public pages belong to Fountain. Replace them only in this
+      // build, and emit them before offlineShell captures the release assets.
+      for (const fileName of writeShapePageAssets)
+        this.emitFile({
+          type: "asset",
+          fileName,
+          source: await readFile(resolve(pagesDir, fileName)),
+        });
       // Emit public brand assets into Rollup's bundle so offlineShell includes
       // them in its atomic release. Public-only files otherwise aren't cached.
       for (const fileName of writeShapeBrandAssets)

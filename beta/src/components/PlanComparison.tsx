@@ -7,21 +7,21 @@ const features: { title: PremiumFeature; benefit: string; caption: string }[] =
   [
     {
       title: "Insights",
-      benefit: "See who carries the conversation.",
+      benefit: "Dialogue and character statistics",
       caption:
-        "Compare dialogue with action and see each character’s share, speeches, and scene appearances. In this sample, Mara leads the conversation; Eli and June bring different voices to the story.",
+        "Compare dialogue and action. See how much each character speaks, which scenes they appear in, and the estimated length of their dialogue.",
     },
     {
       title: "Beat Sheet",
-      benefit: "Give the story a shape you can revise.",
+      benefit: "Outline your story",
       caption:
-        "Organize a premise into beats, group them by act, and link each beat to the passage where it happens. The Last Light moves from a failed beacon to a choice to trust, then a shared rescue.",
+        "Write a premise, arrange beats by act, and add sub-beats. Link each beat to the lines where it happens and check the pacing graph.",
     },
     {
       title: "Beat Guide",
-      benefit: "Keep the next beat beside your writing.",
+      benefit: "Beats beside the editor",
       caption:
-        "A compact prompt keeps your next story moment in view. Select a passage, assign it to a beat, and advance. Here, the next beat asks Mara to trust Eli’s solution.",
+        "Keep the beat you are working on beside the page. Select the relevant lines, assign them to that beat, and move to the next one.",
     },
   ];
 export function PlanComparison({
@@ -40,21 +40,20 @@ export function PlanComparison({
   const [plan, setPlan] = useState<BillingPlan>("monthly");
   return (
     <Modal
-      title="Explore WriteShape Premium"
+      title="WriteShape Premium"
       onClose={onClose}
       wide
       className="writeshape-plans"
     >
       <p className="showcase-intro">
-        Write freely. See your story from a new angle.
+        Extra tools for planning, revising, and saving your work.
       </p>
       <p>
-        Writing, local saves, and standard PDF exports stay free without an
-        account. Explore the Premium tools below.
+        Writing, local saves, and standard PDF export are free. Premium adds
+        cloud saving and the tools below.
       </p>
       <p className="sample-label">
-        All illustrations use fictional sample content: The Last Light. Your
-        screenplay is never used in these previews.
+        The examples use fictional sample content from The Last Light.
       </p>
       <div className="premium-showcase">
         {features.map((feature) => (
@@ -64,49 +63,47 @@ export function PlanComparison({
             <p>{feature.caption}</p>
             <figure>
               <PremiumSample feature={feature.title} />
-              <figcaption>
-                {feature.title} · Sample content · Static illustration
-              </figcaption>
+              <figcaption>{feature.title} example</figcaption>
             </figure>
           </section>
         ))}
         <section className="showcase-feature">
           <small className="showcase-kicker">Mobile PDF</small>
-          <h3>A screenplay that travels with you.</h3>
+          <h3>PDFs for phone screens</h3>
           <p>
-            Export a layout formatted for a phone, with text arranged for a
-            smaller page. Read a scene on the go while keeping the familiar
-            screenplay structure.
+            Export a screenplay PDF with narrower pages for reading on a phone.
+            Each mobile page contains the same text as its corresponding
+            standard PDF page.
           </p>
           <figure className="sample-phone">
             <div inert aria-hidden="true">
               <SampleScript mobile />
             </div>
-            <figcaption>Mobile PDF · Sample layout illustration</figcaption>
+            <figcaption>Mobile PDF example</figcaption>
           </figure>
         </section>
         <section className="showcase-feature">
           <small className="showcase-kicker">Character highlighting</small>
-          <h3>Find your character at a glance.</h3>
+          <h3>Highlight character cues</h3>
           <p>
-            Choose characters to highlight their names throughout the exported
-            PDF. Follow Mara’s cues in this sample, useful for a table read or a
-            focused character pass.
+            Choose characters and colors for the exported PDF. Their cues are
+            highlighted throughout the script, making parts easier to find
+            during a read-through.
           </p>
           <figure>
             <div inert aria-hidden="true">
               <SampleScript highlight />
             </div>
-            <figcaption>Mara highlighted · Sample PDF illustration</figcaption>
+            <figcaption>Mara's cues highlighted</figcaption>
           </figure>
         </section>
         <section className="showcase-feature">
           <small className="showcase-kicker">Writing goals</small>
-          <h3>A little progress, made visible.</h3>
+          <h3>Word and time targets</h3>
           <p>
-            Set your own word and writing-time targets by day, week or month.
-            New writing still counts when you revise or delete it. Start an
-            activity-aware timer when you are ready to write.
+            Set daily, weekly, or monthly targets for words and writing time.
+            Words you add still count if you later delete them. The timer pauses
+            when you stop writing. Goals and progress stay on this device.
           </p>
           <figure>
             <div
@@ -136,7 +133,7 @@ export function PlanComparison({
                 />
               </div>
             </div>
-            <figcaption>Writing goals · Fictional sample progress</figcaption>
+            <figcaption>Example word and time goals</figcaption>
           </figure>
         </section>
         <section className="showcase-feature showcase-collaboration">
@@ -144,11 +141,11 @@ export function PlanComparison({
             Live collaboration ·{" "}
             {collaborationAvailable ? "Available" : "Not enabled"}
           </small>
-          <h3>Two perspectives. One document.</h3>
+          <h3>Write together</h3>
           <p>
             {collaborationAvailable
-              ? "Write together in a screenplay or Book, with live presence, shared edits, and saved recovery. Save to your cloud library or Google Drive, then choose Start live editing. Everyone needs access to the document and WriteShape. Local folders do not support live collaboration."
-              : "Live collaboration is not enabled for this deployment. Autosave and saved-file sync keep your own WriteShape instances up to date."}
+              ? "Save a screenplay or book to WriteShape or Google Drive, then choose Start live editing. People with access can edit together and see each other's cursors. Everyone needs access to both the document and WriteShape. Live editing is available for cloud and Drive files."
+              : "Live collaboration is not enabled for this deployment. Your own devices receive saved changes after they reach cloud storage."}
           </p>
           <figure>
             <div
@@ -169,7 +166,7 @@ export function PlanComparison({
               </div>
             </div>
             <figcaption>
-              Live collaboration · Fictional sample, not a working session
+              Example of two collaborators; this preview is not a live session
             </figcaption>
           </figure>
         </section>
@@ -211,9 +208,14 @@ export function PlanComparison({
           ))}
         </tbody>
       </table>
+      <p>
+        If Premium ends, your saved cloud files remain available to open, read,
+        and download. Make a local copy to keep editing. New cloud saves and
+        live editing require Premium.
+      </p>
       {billingMode !== "live" && (
         <p>
-          {privateMode ? "Private pilot · " : ""}Sandbox only. No real payments.
+          Payments are being tested. You will not be charged.
           {privateMode
             ? " Premium is included for approved private testers."
             : ""}

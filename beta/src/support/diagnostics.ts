@@ -6,7 +6,7 @@ type Event = {
   reference?: string;
 };
 const events: Event[] = [];
-export const supportAddress = "writeshape-support@agentmail.to";
+export const supportAddress = "support@writeshape.com";
 export function recordDiagnostic(
   area: string,
   status?: number,

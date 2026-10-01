@@ -9,6 +9,7 @@ import App from "./App";
 import { isWriteShape } from "./product";
 import "./styles.css";
 import "./mobile-settings.css";
+import "./writeshape-ui.css";
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { error: string }
@@ -43,6 +44,7 @@ class ErrorBoundary extends React.Component<
   }
 }
 if (isWriteShape) {
+  document.documentElement.dataset.product = "writeshape";
   window.addEventListener("error", () => recordDiagnostic("app-error"));
   window.addEventListener("unhandledrejection", () =>
     recordDiagnostic("unhandled-promise"),

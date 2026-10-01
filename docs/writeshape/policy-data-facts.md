@@ -1,6 +1,6 @@
 # WriteShape policy drafting facts
 
-Engineering preparation dated 2026-09-26. This is a factual basis for separate WriteShape policy drafts, not approved legal terms or a public privacy policy. Existing beta/public/privacy.html and terms.html describe Fountain Publisher and must not be presented as accurate WriteShape policies without revision and owner review.
+Engineering facts updated 2026-10-01. Dedicated current-preview pages live in beta/writeshape-pages and replace About/Privacy/Terms only in WriteShape builds. Shared beta/public pages continue to describe Fountain Publisher. Paid-launch commercial terms and permanent-deletion procedures remain unresolved.
 
 ## Confirmed implemented data flows
 
@@ -16,4 +16,4 @@ Engineering preparation dated 2026-09-26. This is a factual basis for separate W
 
 Confirm seller/legal identity, jurisdiction, support/contact details, processor terms and data locations, retention periods for documents/history/room state/recoveries/logs, deletion and export request handling, backups, age eligibility, refunds and cancellation terms. Do not invent retention or deletion promises: the current immutable file-history mechanism and local recovery copies require a designed policy and implementation check.
 
-support@writeshape.com is currently displayed with a delivery-unverified notice. Confirm actual receiving/reply capability before calling it operational. Public homepage/privacy/terms URLs and Google publication are separate launch actions; preparing this document does not publish them or open the editor.
+support@writeshape.com receives through Cloudflare forwarding to writeshape-support@agentmail.to. Brian’s Gmail test arrived on October 1. Outbound support mail from the custom domain is not configured. Support messages and attachments may be reviewed using AI tools to triage reports and prepare fixes; automatic diagnostics exclude writing and filenames. Publishing pages within the private app does not make public Google policy URLs available or open the editor.

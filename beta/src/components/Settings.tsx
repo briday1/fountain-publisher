@@ -82,8 +82,9 @@ export function Settings({
     });
   };
   return (
-    <Modal title="Make yourself at home" eyebrow="SETTINGS" onClose={onClose}>
+    <Modal title="Settings" className="settings-dialog" onClose={onClose}>
       <div className="settings-form">
+        <h3 className="settings-section-title">Appearance</h3>
         <label>
           Theme
           <select
@@ -102,48 +103,6 @@ export function Settings({
                 {l}
               </option>
             ))}
-          </select>
-        </label>
-        <label>
-          Paper size
-          <select
-            value={value.pageSize}
-            onChange={(e) =>
-              patch({ pageSize: e.target.value as Preferences["pageSize"] })
-            }
-          >
-            <option value="letter">US Letter</option>
-            <option value="a4">A4</option>
-          </select>
-        </label>
-        <label>
-          Scene numbers
-          <select
-            value={value.sceneNumbers}
-            onChange={(e) =>
-              patch({
-                sceneNumbers: e.target.value as Preferences["sceneNumbers"],
-              })
-            }
-          >
-            <option value="margin">In the margin</option>
-            <option value="inline">Inline</option>
-            <option value="off">Off</option>
-          </select>
-        </label>
-        <label>
-          Scene numbering
-          <select
-            value={value.sceneNumberFormat}
-            onChange={(e) =>
-              patch({
-                sceneNumberFormat: e.target
-                  .value as Preferences["sceneNumberFormat"],
-              })
-            }
-          >
-            <option value="sequential">Sequential · 1, 2, 3</option>
-            <option value="act">By act · A1S1, A1S2</option>
           </select>
         </label>
         <label className="workspace-background-setting">
@@ -217,14 +176,48 @@ export function Settings({
             </p>
           </fieldset>
         )}
+        <h3 className="settings-section-title">Screenplay</h3>
         <label>
-          Spellcheck
-          <input
-            type="checkbox"
-            role="switch"
-            checked={value.spellcheck}
-            onChange={(e) => patch({ spellcheck: e.target.checked })}
-          />
+          Paper size
+          <select
+            value={value.pageSize}
+            onChange={(e) =>
+              patch({ pageSize: e.target.value as Preferences["pageSize"] })
+            }
+          >
+            <option value="letter">US Letter</option>
+            <option value="a4">A4</option>
+          </select>
+        </label>
+        <label>
+          Scene numbers
+          <select
+            value={value.sceneNumbers}
+            onChange={(e) =>
+              patch({
+                sceneNumbers: e.target.value as Preferences["sceneNumbers"],
+              })
+            }
+          >
+            <option value="margin">In the margin</option>
+            <option value="inline">Inline</option>
+            <option value="off">Off</option>
+          </select>
+        </label>
+        <label>
+          Scene numbering
+          <select
+            value={value.sceneNumberFormat}
+            onChange={(e) =>
+              patch({
+                sceneNumberFormat: e.target
+                  .value as Preferences["sceneNumberFormat"],
+              })
+            }
+          >
+            <option value="sequential">Sequential · 1, 2, 3</option>
+            <option value="act">By act · A1S1, A1S2</option>
+          </select>
         </label>
         <label>
           Bold scene headings
@@ -244,6 +237,16 @@ export function Settings({
             onChange={(e) => patch({ colors: e.target.checked })}
           />
         </label>
+        <h3 className="settings-section-title">Writing</h3>
+        <label>
+          Spellcheck
+          <input
+            type="checkbox"
+            role="switch"
+            checked={value.spellcheck}
+            onChange={(e) => patch({ spellcheck: e.target.checked })}
+          />
+        </label>
         <label>
           Typewriter scrolling
           <input
@@ -254,8 +257,7 @@ export function Settings({
           />
         </label>
         <p className="muted">
-          Appearance preferences stay on this device. Story notes and beats
-          travel with your Fountain file.
+          Settings apply to this device and save as you change them.
         </p>
       </div>
       <footer className="dialog-actions">

@@ -106,7 +106,7 @@ test("Insights counts generated screenplay pages without title pages, including 
   expect(letter.getPage(0).getSize()).toEqual({ width: 612, height: 792 });
 
   await page.getByRole("button", { name: "Settings", exact: true }).click();
-  const settings = page.getByRole("dialog", { name: "Make yourself at home" });
+  const settings = page.getByRole("dialog", { name: "Settings" });
   await settings
     .getByRole("combobox", { name: "Paper size", exact: true })
     .selectOption("a4");
