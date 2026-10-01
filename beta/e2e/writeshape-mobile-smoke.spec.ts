@@ -6,6 +6,10 @@ test.skip(
 );
 
 test.use({
+  // These tests stub account/cloud APIs. WebKit sends service-worker-controlled
+  // requests past page.route, even when the worker leaves /api uncached.
+  // Offline/service-worker behavior is covered by the dedicated offline suite.
+  serviceWorkers: "block",
   viewport: { width: 390, height: 844 },
   hasTouch: true,
   isMobile: true,
