@@ -741,8 +741,39 @@ export default function App() {
     let frame = 0;
     let settleTimer = 0;
 
+    const resetViewport = () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.clearTimeout(settleTimer);
+      frame = 0;
+      settleTimer = 0;
+      root.style.removeProperty("--fp-visual-top");
+      root.style.removeProperty("--fp-visual-height");
+    };
+
     const applyViewport = () => {
       frame = 0;
+      const focused = document.activeElement;
+      const textEntry =
+        focused instanceof HTMLElement &&
+        (focused.isContentEditable ||
+          focused instanceof HTMLTextAreaElement ||
+          (focused instanceof HTMLInputElement &&
+            [
+              "text",
+              "search",
+              "email",
+              "password",
+              "tel",
+              "url",
+              "number",
+            ].includes(focused.type)));
+      // A measured keyboard viewport can remain stale after Account, dialogs,
+      // or navigation. Let 100dvh size the ordinary canvas; only pin the visual
+      // viewport while a text field can actually have the keyboard open.
+      if (!textEntry) {
+        resetViewport();
+        return;
+      }
       // iOS/WebKit can visually pan the page for the software keyboard without
       // changing document scrollTop. pageTop sometimes updates more reliably
       // than offsetTop during that transition, so use whichever reports the
@@ -775,17 +806,27 @@ export default function App() {
     window.addEventListener("orientationchange", scheduleViewport);
     document.addEventListener("focusin", scheduleViewport);
     document.addEventListener("focusout", scheduleViewport);
+    // Back/Forward cache and tab returns need not emit a viewport resize. Clear
+    // cached keyboard geometry until a fresh focus/viewport event arrives.
+    const visibility = () => {
+      if (document.visibilityState === "visible") resetViewport();
+    };
+    window.addEventListener("pageshow", resetViewport);
+    window.addEventListener("focus", resetViewport);
+    document.addEventListener("visibilitychange", visibility);
+    document.addEventListener("close", resetViewport, true);
     return () => {
-      if (frame) cancelAnimationFrame(frame);
-      window.clearTimeout(settleTimer);
+      resetViewport();
       viewport.removeEventListener("resize", scheduleViewport);
       viewport.removeEventListener("scroll", scheduleViewport);
       window.removeEventListener("resize", scheduleViewport);
       window.removeEventListener("orientationchange", scheduleViewport);
       document.removeEventListener("focusin", scheduleViewport);
       document.removeEventListener("focusout", scheduleViewport);
-      root.style.removeProperty("--fp-visual-top");
-      root.style.removeProperty("--fp-visual-height");
+      window.removeEventListener("pageshow", resetViewport);
+      window.removeEventListener("focus", resetViewport);
+      document.removeEventListener("visibilitychange", visibility);
+      document.removeEventListener("close", resetViewport, true);
     };
   }, []);
   useEffect(() => {
