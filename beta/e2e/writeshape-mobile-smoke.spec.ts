@@ -1,5 +1,132 @@
 import { expect, test } from "@playwright/test";
 
+test("returning from Account or navigation restores the full mobile canvas", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const state = { height: 844, offsetTop: 0, pageTop: 0 };
+    const viewport = new EventTarget();
+    for (const key of Object.keys(state) as Array<keyof typeof state>)
+      Object.defineProperty(viewport, key, { get: () => state[key] });
+    Object.defineProperty(window, "visualViewport", {
+      configurable: true,
+      value: viewport,
+    });
+    (
+      window as unknown as {
+        setViewport: (next: Partial<typeof state>, emit?: boolean) => void;
+      }
+    ).setViewport = (next, emit = true) => {
+      Object.assign(state, next);
+      if (emit) viewport.dispatchEvent(new Event("resize"));
+    };
+  });
+  await page.route("**/api/account", (route) =>
+    route.fulfill({
+      json: {
+        account: {
+          id: "viewport-test",
+          email: "writer@example.test",
+          privateTester: true,
+        },
+        premium: true,
+        privateMode: true,
+        billingAvailable: false,
+        portalAvailable: false,
+      },
+    }),
+  );
+  await page.goto("/");
+  const app = page.locator(".app");
+  const header = page.locator(".app-header");
+  const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await editor.fill("Keep this draft while returning from Account.");
+  const original = await editor.elementHandle();
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page
+    .locator(".mobile-command-panel")
+    .getByRole("button", { name: "Account", exact: true })
+    .click();
+  const account = page.getByRole("dialog", { name: "Account", exact: true });
+  await expect(account).toBeVisible();
+  // iOS may leave its last keyboard measurement cached after a dialog closes.
+  await page.evaluate(() =>
+    (
+      window as unknown as {
+        setViewport: (next: Record<string, number>) => void;
+      }
+    ).setViewport({ height: 660 }),
+  );
+  await account
+    .getByRole("button", { name: "Close dialog", exact: true })
+    .click();
+  const fullCanvas = async () => {
+    await expect
+      .poll(async () => Math.round((await app.boundingBox())?.height ?? 0))
+      .toBe(844);
+    await expect
+      .poll(async () => {
+        const bar = await page.locator(".statusbar").boundingBox();
+        return bar ? Math.round(bar.y + bar.height) : -1;
+      })
+      .toBe(844);
+    await expect
+      .poll(async () => Math.round((await header.boundingBox())?.y ?? -1))
+      .toBe(0);
+  };
+  await fullCanvas();
+  // Retain the keyboard-pan fix while actually editing.
+  await editor.click();
+  await page.evaluate(() =>
+    (
+      window as unknown as {
+        setViewport: (next: Record<string, number>) => void;
+      }
+    ).setViewport({ height: 430, pageTop: 108 }),
+  );
+  await expect
+    .poll(async () => Math.round((await app.boundingBox())?.height ?? 0))
+    .toBe(430);
+  await expect
+    .poll(async () => Math.round((await header.boundingBox())?.y ?? -1))
+    .toBe(108);
+  // Returning to a tab can happen without a visualViewport resize event.
+  await page.evaluate(() => {
+    (
+      window as unknown as {
+        setViewport: (next: Record<string, number>, emit: boolean) => void;
+      }
+    ).setViewport({ height: 844, pageTop: 0 }, false);
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await fullCanvas();
+  // A Back/Forward cache restoration can retain the old viewport object too.
+  await page.evaluate(() =>
+    (
+      window as unknown as {
+        setViewport: (next: Record<string, number>) => void;
+      }
+    ).setViewport({ height: 430, pageTop: 108 }),
+  );
+  await expect
+    .poll(async () => Math.round((await app.boundingBox())?.height ?? 0))
+    .toBe(430);
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new PageTransitionEvent("pageshow", { persisted: true }),
+    ),
+  );
+  await fullCanvas();
+  expect(
+    await original!.evaluate(
+      (node) => node === document.querySelector(".screenplay-editor"),
+    ),
+  ).toBe(true);
+  await expect(editor).toContainText(
+    "Keep this draft while returning from Account.",
+  );
+});
+
 test.skip(
   process.env.WRITESHAPE_BUILD_SMOKE !== "1",
   "Runs against the isolated WriteShape production build",
