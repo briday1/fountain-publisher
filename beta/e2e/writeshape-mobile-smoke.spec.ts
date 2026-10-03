@@ -445,7 +445,12 @@ test("losing Premium preserves unsynced writing and requires an explicit sync re
     .click();
   await page.getByRole("button", { name: "Open file", exact: true }).click();
   const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await expect(
+    page.getByRole("dialog", { name: "Files", exact: true }),
+  ).not.toBeVisible();
+  await expect(editor).toContainText("Original writing.");
   await expect(editor).toHaveAttribute("contenteditable", "true");
+  await editor.click();
   await editor.fill("Unsynced words that must survive.");
   premium = false;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -523,6 +528,7 @@ test("mobile file browser selects downloads and renames without replacing the dr
   await page
     .getByRole("button", { name: "File browser…", exact: true })
     .click();
+  await page.locator(".library-more-actions > summary").click();
   await page
     .getByRole("checkbox", { name: "Select all visible files and folders" })
     .check();

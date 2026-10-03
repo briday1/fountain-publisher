@@ -469,7 +469,12 @@
 .writeshape-statusbar > .destination-notice { flex: 1 0 100%; border: 0; padding: 0; background: none; }
 @media (max-width: 760px) {
   .writeshape-files .library-shell, .writeshape-files .files-browser { grid-template-rows: auto minmax(0, 1fr); }
-  .writeshape-files .library-sidebar { padding: 6px 12px; }
+  .writeshape-files .library-sidebar { padding: 6px 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .writeshape-files .library-storage { padding: 0; }
   .writeshape-files .files-provider-sidebar { padding: 8px 12px; }
+  .writeshape-files .library-sort { flex: 1 1 100px; min-width: 0; }
+  .writeshape-files .library-sort select { width: 82px; max-width: 82px; }
+  /* Expanded actions must not squeeze the file rows out of a phone viewport. */
+  .writeshape-files .library-main { overflow: auto; }
+  .writeshape-files .library-files { flex: 1 0 120px; min-height: 120px; }
 }
