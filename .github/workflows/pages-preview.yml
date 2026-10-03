@@ -55,7 +55,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: writeshape-mobile-smoke
-          path: beta/test-results/**/writeshape-*.png
+          path: beta/test-results/
           if-no-files-found: ignore
       - name: Build writing app
         run: npm run build:beta

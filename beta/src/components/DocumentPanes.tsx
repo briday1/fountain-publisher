@@ -389,7 +389,14 @@ export function DocumentPanes({
           else finishDrag();
         } else model.activate(touch.id);
       }}
-      onPointerCancel={() => {
+      onPointerCancel={(event) => {
+        // Native HTML drag cancels its mouse pointer stream as it starts.
+        // Only cancel our touch fallback, not the browser's active tab drag.
+        if (
+          !touchDrag.current ||
+          touchDrag.current.pointerId !== event.pointerId
+        )
+          return;
         touchDrag.current = undefined;
         finishDrag();
       }}

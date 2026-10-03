@@ -128,6 +128,9 @@ it("drag feedback matches the before/after slot, then moves an editor across gro
   );
   let tabs = host.querySelectorAll(".document-tab");
   await act(async () => sendDrag(tabs[0], "dragstart", 110));
+  await act(async () =>
+    tabs[0].dispatchEvent(new MouseEvent("pointercancel", { bubbles: true })),
+  );
   await act(async () => sendDrag(tabs[2], "dragover", 290));
   expect(tabs[2].classList.contains("drop-after")).toBe(true);
   await act(async () => sendDrag(tabs[2], "drop", 290));

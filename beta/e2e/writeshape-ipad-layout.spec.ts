@@ -236,7 +236,8 @@ test("desktop Annotate preserves the selected writing and opens the annotation e
   const editor = page.getByRole("textbox", { name: "Screenplay editor" });
   await expect(page.locator(".app-header .save-button")).toHaveCount(0);
   await editor.fill("A thought worth annotating.");
-  await editor.press("ControlOrMeta+a");
+  await editor.press("Home");
+  await editor.press("Shift+End");
   const annotate = page
     .getByRole("toolbar", { name: "Writing controls" })
     .getByRole("button", { name: "Add annotation", exact: true });
