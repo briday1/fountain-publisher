@@ -1735,7 +1735,7 @@ export default function App() {
   );
   return (
     <div
-      className={`app ${zen ? "zen" : ""}`}
+      className={`app ${zen ? "zen" : ""} ${fullscreen ? "is-fullscreen" : ""}`}
       style={
         {
           "--left-width": `${preferences.leftWidth}px`,

@@ -124,6 +124,7 @@ function DocumentCanvas({
 }) {
   const slot = useRef<HTMLDivElement>(null),
     scroll = useRef<HTMLDivElement>(null);
+  const buffer = model.buffers.get(view.bufferId)!;
   useLayoutEffect(() => {
     slot.current!.append(view.host);
     if (scroll.current) scroll.current.scrollTop = view.scrollTop;

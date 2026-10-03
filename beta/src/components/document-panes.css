@@ -304,13 +304,14 @@
   .is-split .document-pane {
     flex: 1;
   }
-  .document-pane .writing-scroll {
+}
+.document-pane .writing-scroll {
   flex: 1;
   min-height: 0;
   overflow: auto;
 }
 .document-pane .paper-wrap {
-  min-width: 0;
+  min-width: 160px;
   container-type: inline-size;
   container-name: screenplay-page;
 }
@@ -340,11 +341,16 @@
     padding: 40px 24px 40px 40px;
   }
   .document-pane .paper-wrap {
-    padding: 20px 12px;
+    max-width: calc(100% - 24px);
+    padding: 0;
+    margin-block: 20px 56px;
   }
-  .document-pane .numbers-margin .screenplay-editor p[data-kind="scene"]::before {
+  .document-pane
+    .numbers-margin
+    .screenplay-editor
+    p[data-kind="scene"]::before {
     position: static;
-    margin-right: .5em;
+    margin-right: 0.5em;
     font-size: inherit;
   }
 }
@@ -362,9 +368,12 @@
   .document-pane .screenplay-paper {
     padding: 40px 24px;
   }
-  .document-pane .numbers-margin .screenplay-editor p[data-kind="scene"]::before {
+  .document-pane
+    .numbers-margin
+    .screenplay-editor
+    p[data-kind="scene"]::before {
     position: static;
-    margin-right: .5em;
+    margin-right: 0.5em;
     font-size: inherit;
   }
 }
@@ -372,5 +381,50 @@
   overflow-wrap: anywhere;
 }
 
-.document-tab > [role="tab"] { touch-action: none; -webkit-user-select: none; user-select: none; }
-.document-drop-overlay { pointer-events: none; }
+.document-tab > [role="tab"] {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.document-drop-overlay {
+  pointer-events: none;
+}
+
+/* Focus the active editor without discarding the user's tab or pane layout. */
+.app.zen .document-pane-header,
+.app.zen .document-pane-divider,
+.app.zen .is-split .document-pane:not(.active) {
+  display: none;
+}
+.app.zen .is-split .document-pane.active {
+  flex: 1;
+}
+.app.zen .main-panel {
+  position: relative;
+}
+.app.zen .writing-scroll {
+  background: var(--paper);
+}
+.app.zen .screenplay-paper {
+  box-shadow: none;
+}
+.app.zen .paper-wrap {
+  margin-block: 56px 72px;
+}
+.app.zen .zen-controls {
+  position: absolute;
+  z-index: 5;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  padding: 0;
+  background: transparent;
+}
+.app.is-fullscreen:not(.zen) .writing-scroll {
+  background: var(--panel);
+}
+.app.is-fullscreen:not(.zen) .paper-wrap {
+  margin-block: 32px 64px;
+}
+.app.is-fullscreen:not(.zen) .screenplay-paper {
+  box-shadow: 0 8px 40px #00000014;
+}

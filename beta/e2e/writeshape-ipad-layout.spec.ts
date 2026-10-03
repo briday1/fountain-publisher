@@ -257,3 +257,44 @@ test("desktop Annotate preserves the selected writing and opens the annotation e
     }),
   ).toBeVisible();
 });
+
+test("Zen focuses the active pane and restores tabs, split widths and writing on exit", async ({
+  page,
+}, testInfo) => {
+  await page
+    .getByRole("textbox", { name: "Screenplay editor" })
+    .fill("Keep my focused writing.");
+  await page
+    .getByRole("button", { name: "Split editor right", exact: true })
+    .click();
+  const divider = page.getByRole("separator", {
+    name: "Resize document panes",
+  });
+  await divider.press("End");
+  const original = await page
+    .locator(".pane-1 .screenplay-editor")
+    .elementHandle();
+  await page
+    .getByRole("button", { name: "Enter Zen mode", exact: true })
+    .click();
+  await expect(page.locator(".document-pane-header").first()).not.toBeVisible();
+  await expect(divider).not.toBeVisible();
+  await expect(page.locator(".document-pane:visible")).toHaveCount(1);
+  await expect(page.locator(".pane-1")).toBeVisible();
+  const pane = await page.locator(".pane-1").boundingBox();
+  expect(pane!.width).toBeGreaterThanOrEqual(1000);
+  await expect(page.locator(".pane-1 .screenplay-editor")).toContainText(
+    "Keep my focused writing.",
+  );
+  await page.screenshot({
+    path: testInfo.outputPath("writeshape-ipad-zen.png"),
+  });
+  await page.getByRole("button", { name: "Exit Zen", exact: true }).click();
+  await expect(page.locator(".document-pane:visible")).toHaveCount(2);
+  await expect(divider).toHaveAttribute("aria-valuenow", "75");
+  expect(
+    await original!.evaluate(
+      (node) => node === document.querySelector(".pane-1 .screenplay-editor"),
+    ),
+  ).toBe(true);
+});
