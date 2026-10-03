@@ -549,6 +549,8 @@ export function DocumentPanes({
                         data-document-view={id}
                         draggable
                         onDragStart={(event) => {
+                          // Safari may promote a long touch into native drag.
+                          touchDrag.current = undefined;
                           setContext(undefined);
                           dragId.current = id;
                           setDrag(id);
