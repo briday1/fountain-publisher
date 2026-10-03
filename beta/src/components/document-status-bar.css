@@ -1,0 +1,43 @@
+.statusbar.writeshape-statusbar {
+  height: auto;
+  min-height: 32px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 5px 12px;
+  font-size: 12px;
+}
+.document-status-context,
+.document-live-controls,
+.document-save-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.document-status-context { flex: 1 1 auto; flex-wrap: wrap; }
+.document-status-context > :first-child { color: var(--muted); }
+.document-status-context > :first-child:not(:only-child) {
+  border-right: 1px solid var(--border);
+  padding-right: 8px;
+}
+.document-status-context > button:first-child {
+  max-width: 40ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.writeshape-statusbar button { font-size: inherit; line-height: 1.4; text-align: left; }
+.document-save-state { color: var(--muted) !important; }
+.document-save-state > svg { flex: 0 0 auto; }
+.document-save-state.failed, .document-status-warning { color: var(--danger, #b65c30) !important; }
+.document-live-controls { flex-wrap: wrap; gap: 8px 12px; }
+.statusbar.writeshape-statusbar > .document-status-message {
+  display: block;
+  flex: 1 0 100%;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 720px) {
+  .statusbar.writeshape-statusbar { font-size: 11px; padding: 5px 9px; }
+  .document-status-context > button:first-child { max-width: 25ch; }
+}

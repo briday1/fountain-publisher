@@ -76,7 +76,10 @@ it("mobile shows only the active document and preserves desktop panes, drafts, c
       "Second.md",
     );
     await render(true);
-    expect(node.textContent).toContain("Second.md");
+    expect(node.querySelector(".ProseMirror")?.textContent).toContain(
+      "Other document.",
+    );
+    expect(model.activeBuffer?.snapshot.name).toBe("Second.md");
     expect(model.buffers.size).toBe(2);
     expect(model.views.has(original.id)).toBe(true);
   } finally {

@@ -352,6 +352,7 @@ test("tokens are encrypted, omitted from browser responses and bound to account 
     ).connected,
     false,
   );
+  const callsBeforeCrossAccount = f.calls.length;
   f.env.sql
     .prepare(
       "INSERT INTO drive_connections SELECT ?,google_subject,email,token_cipher,expires,generation,refresh_lock,refresh_until,updated FROM drive_connections WHERE account_id=?",
@@ -362,7 +363,7 @@ test("tokens are encrypted, omitted from browser responses and bound to account 
       .status,
     503,
   );
-  assert.equal(f.calls.length, 1);
+  assert.equal(f.calls.length, callsBeforeCrossAccount);
 });
 
 test("disconnect deletes tokens, invalidates pending callbacks, and works after downgrade or missing config", async () => {
@@ -788,7 +789,132 @@ test("token exchange does not follow a provider redirect or expose credentials",
 });
 
 test("Markdown can be created and reopened with its format and content intact", async () => {
- const f=fixture();await f.connect();f.provider.name="Book.md";f.provider.text="# Book\n\n## Chapter\n\nA **bold** start.";
- const created=await f.call("/api/drive/create",{name:"Book.md",parent:"folder",content:f.provider.text});assert.equal(created.status,201);
- const opened=await f.call("/api/drive/open?id=created");assert.equal(opened.status,200);const result=await opened.json();assert.equal(result.name,"Book.md");assert.equal(result.content,f.provider.text);
+  const f = fixture();
+  await f.connect();
+  f.provider.name = "Book.md";
+  f.provider.text = "# Book\n\n## Chapter\n\nA **bold** start.";
+  const created = await f.call("/api/drive/create", {
+    name: "Book.md",
+    parent: "folder",
+    content: f.provider.text,
+  });
+  assert.equal(created.status, 201);
+  const opened = await f.call("/api/drive/open?id=created");
+  assert.equal(opened.status, 200);
+  const result = await opened.json();
+  assert.equal(result.name, "Book.md");
+  assert.equal(result.content, f.provider.text);
+});
+
+test("status verifies Drive access and refreshes a prematurely rejected token once", async () => {
+  const f = fixture();
+  await f.connect();
+  let checks = 0;
+  f.provider.hook = (_url, init) => {
+    checks++;
+    if (
+      new Headers(init.headers).get("Authorization") ===
+      "Bearer fixture-access-1"
+    )
+      return response({}, 401);
+  };
+  const status = await (await f.call("/api/drive/status")).json();
+  assert.equal(status.connected, true);
+  assert.equal(status.canWrite, true);
+  assert.equal(checks, 2);
+  assert.equal(f.provider.tokenCount, 2);
+});
+
+test("revoked grants and persistent authentication failures never report Connected", async () => {
+  for (const expired of [true, false]) {
+    const f = fixture();
+    await f.connect();
+    if (expired) {
+      f.env.sql.exec("UPDATE drive_connections SET expires=0");
+      f.provider.tokenHook = () => response({ error: "invalid_grant" }, 400);
+    } else f.provider.hook = () => response({}, 401);
+    const status = await (await f.call("/api/drive/status")).json();
+    assert.equal(status.connected, false);
+    assert.equal(status.canWrite, false);
+    assert.equal(status.reconnect, true);
+    assert.equal(f.provider.tokenCount, 2);
+    assert.equal(
+      f.env.sql.prepare("SELECT COUNT(*) AS n FROM drive_connections").get().n,
+      1,
+    );
+    const browse = await (await f.call("/api/drive/browser")).json();
+    assert.equal(browse.code, "DRIVE_RECONNECT_REQUIRED");
+  }
+});
+
+test("scope denial, disabled Drive API and provider outage have honest recoverable status", async () => {
+  for (const [reason, reconnect] of [
+    ["insufficientPermissions", true],
+    ["SERVICE_DISABLED", false],
+    ["unavailable", false],
+  ]) {
+    const f = fixture();
+    await f.connect();
+    f.provider.hook = () =>
+      response(
+        {
+          error: {
+            errors: [{ reason }],
+            message: "private-provider-diagnostic",
+          },
+        },
+        reason === "unavailable" ? 503 : 403,
+      );
+    const status = await (await f.call("/api/drive/status")).json();
+    assert.equal(status.connected, false);
+    assert.equal(status.canWrite, false);
+    assert.equal(status.reconnect, reconnect);
+    assert.doesNotMatch(status.reason, /private-provider-diagnostic/);
+    if (reason === "SERVICE_DISABLED")
+      assert.match(status.reason, /Drive API is not enabled/);
+    f.provider.hook = null;
+    assert.equal(
+      (await (await f.call("/api/drive/status")).json()).connected,
+      true,
+    );
+  }
+});
+
+test("folder listing keeps ordinary filenames instead of using prefix-only extension queries", async () => {
+  const f = fixture();
+  await f.connect();
+  f.provider.hook = (url) => {
+    if (url.pathname !== "/drive/v3/files") return;
+    const names = [
+      "Cabin.fountain",
+      "Notes.txt",
+      "Book.MD",
+      "Draft.markdown",
+      "Picture.png",
+    ];
+    // Model Google's documented prefix matching to reproduce the hidden files.
+    const prefixes = [
+      ...(url.searchParams.get("q") || "").matchAll(/name contains '([^']+)'/g),
+    ].map((m) => m[1]);
+    return response({
+      files: names
+        .filter(
+          (name) =>
+            !prefixes.length ||
+            prefixes.some((prefix) => name.startsWith(prefix)),
+        )
+        .map((name, i) => ({
+          id: String(i),
+          name,
+          mimeType: "application/octet-stream",
+        })),
+      nextPageToken: "more",
+    });
+  };
+  const listing = await (await f.call("/api/drive/browser")).json();
+  assert.deepEqual(
+    listing.items.map((item) => item.name),
+    ["Cabin.fountain", "Notes.txt", "Book.MD", "Draft.markdown"],
+  );
+  assert.equal(listing.nextPageToken, "more");
 });

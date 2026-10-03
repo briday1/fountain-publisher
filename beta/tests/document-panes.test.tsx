@@ -238,3 +238,45 @@ it("uses the final drop coordinates even when the browser clears the hover marke
   await act(async () => sendDrag(tabs[1], "drop", 110));
   expect(model.panes[0].tabs).toEqual([first.id, second.id, third.id]);
 });
+
+it("touch dragging the final tab to another pane closes its empty pane without editing text", async () => {
+  const first = await setup();
+  await act(async () => model.splitWith(first.id));
+  const target = host.querySelector<HTMLElement>(".pane-1 .writing-scroll")!;
+  const workspace = host.querySelector<HTMLElement>(".document-workspace")!;
+  workspace.setPointerCapture = vi.fn();
+  workspace.hasPointerCapture = () => true;
+  workspace.releasePointerCapture = vi.fn();
+  Object.defineProperty(document, "elementFromPoint", {
+    configurable: true,
+    value: () => target,
+  });
+  function pointer(element: Element, type: string, x: number) {
+    const event = new MouseEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      clientX: x,
+      clientY: 100,
+    });
+    Object.defineProperties(event, {
+      pointerId: { value: 7 },
+      pointerType: { value: "touch" },
+    });
+    element.dispatchEvent(event);
+  }
+  try {
+    await act(async () =>
+      pointer(host.querySelector('.pane-0 [role="tab"]')!, "pointerdown", 40),
+    );
+    await act(async () => pointer(workspace, "pointermove", 600));
+    expect(host.querySelector(".dragging-tab")).not.toBeNull();
+    await act(async () => pointer(workspace, "pointerup", 600));
+    expect(model.split).toBe(false);
+    expect(model.activeView).toBe(first);
+    expect(model.panes[0].tabs).toHaveLength(2);
+    expect(first.controller.getBlocks()[1].text).toBe("Words remain here.");
+  } finally {
+    delete (document as Partial<Document>).elementFromPoint;
+  }
+});

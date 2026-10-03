@@ -49,13 +49,13 @@ jobs:
           preview_pid=$!
           trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
           npx playwright install --with-deps webkit
-          WRITESHAPE_BUILD_SMOKE=1 TEST_BASE_URL=http://127.0.0.1:4175 npx playwright test e2e/writeshape-mobile-smoke.spec.ts --browser webkit
+          WRITESHAPE_BUILD_SMOKE=1 TEST_BASE_URL=http://127.0.0.1:4175 npx playwright test e2e/writeshape-mobile-smoke.spec.ts e2e/writeshape-ipad-layout.spec.ts --browser webkit
       - name: Keep WriteShape mobile screenshot
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: writeshape-mobile-smoke
-          path: beta/test-results/writeshape-*.png
+          path: beta/test-results/**/writeshape-*.png
           if-no-files-found: ignore
       - name: Build writing app
         run: npm run build:beta

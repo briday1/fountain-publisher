@@ -1,3 +1,4 @@
+import { NewFileForm, type NewFileInput } from "./NewFileForm";
 import { documentFilename } from "../core/documentFormat";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ComponentProps, ReactNode } from "react";
@@ -11,6 +12,7 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  Plus,
   HardDrive,
   Laptop,
   LoaderCircle,
@@ -21,7 +23,11 @@ import {
 import { Modal } from "./Modal";
 import { WriteShapeLibrary } from "./WriteShapeLibrary";
 import { WriteShapeMark } from "./WriteShapeMark";
-import { formatBytes, formatModified } from "../storage/writeshapeLibrary";
+import {
+  formatBytes,
+  formatModified,
+  LibraryError,
+} from "../storage/writeshapeLibrary";
 import "./writeshape-files.css";
 
 export type FileDestination = "writeshape" | "drive" | "local";
@@ -36,6 +42,7 @@ export interface DestinationItem {
 }
 export interface DestinationStatus {
   connected: boolean;
+  reconnect?: boolean;
   available: boolean;
   label?: string;
   message?: string;
@@ -55,6 +62,11 @@ export interface FilesProvider {
   open: (item: DestinationItem) => Promise<void>;
   /** Always creates a new file; never overwrites a selected row. */
   save: (input: { name: string; parent: string }) => Promise<void>;
+  create?: (input: {
+    name: string;
+    content: string;
+    parent: string;
+  }) => Promise<void>;
   mkdir?: (input: { name: string; parent: string }) => Promise<void>;
 }
 export interface WriteShapeFilesProps extends Omit<
@@ -66,6 +78,7 @@ export interface WriteShapeFilesProps extends Omit<
   initialDestination?: FileDestination;
   deviceDrafts?: ReactNode;
   onDestination?: (destination: FileDestination) => void;
+  onNewLocal?: (file: NewFileInput) => Promise<void>;
   onSignIn: () => void;
   onUpgrade: () => void;
   onOpenLocalFile: () => Promise<void> | void;
@@ -94,7 +107,7 @@ export function WriteShapeFiles(props: WriteShapeFilesProps) {
   }
   return (
     <Modal
-      title={props.mode === "save" ? "Save as…" : "Open…"}
+      title={props.mode === "save" ? "Save as…" : "Files"}
       eyebrow="YOUR FILES"
       onClose={close}
       wide
@@ -178,6 +191,7 @@ export function WriteShapeFiles(props: WriteShapeFilesProps) {
               name={props.name}
               captureSave={props.captureSave}
               onOpen={props.onOpen}
+              onOpenLive={props.onOpenLive}
               initialFile={props.initialFile}
               onClose={props.onClose}
               embedded
@@ -196,6 +210,7 @@ export function WriteShapeFiles(props: WriteShapeFilesProps) {
             onBusyChange={setBusy}
             onSignIn={props.onSignIn}
             onUpgrade={props.onUpgrade}
+            onNewLocal={props.onNewLocal}
             fallback={
               props.mode === "open"
                 ? props.onOpenLocalFile
@@ -204,17 +219,13 @@ export function WriteShapeFiles(props: WriteShapeFilesProps) {
           />
         )}
         {destination === "local" && props.deviceDrafts && (
-          <section
+          <details
             className="files-device-drafts"
             aria-label="Browser drafts and recovery"
           >
-            <h3>Saved in this browser</h3>
-            <p>
-              Device drafts and recovered writing. These are separate from files
-              in a local folder.
-            </p>
+            <summary>Saved in this browser</summary>
             {props.deviceDrafts}
-          </section>
+          </details>
         )}
       </div>
     </Modal>
@@ -265,6 +276,7 @@ function DestinationBrowser({
   onBusyChange,
   onSignIn,
   onUpgrade,
+  onNewLocal,
   fallback,
 }: {
   destination: "drive" | "local";
@@ -276,6 +288,7 @@ function DestinationBrowser({
   onBusyChange: (busy: boolean) => void;
   onSignIn: () => void;
   onUpgrade: () => void;
+  onNewLocal?: (file: NewFileInput) => Promise<void>;
   fallback: () => Promise<void> | void;
 }) {
   const latest = useRef(provider);
@@ -297,6 +310,7 @@ function DestinationBrowser({
       (/\.(md|markdown)$/i.test(name) ? ".md" : ".fountain"),
   );
   const [newFolder, setNewFolder] = useState(false);
+  const [newFile, setNewFile] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -330,12 +344,14 @@ function DestinationBrowser({
         if (valid) setStatus(result);
       })
       .catch((reason) => {
-        if (valid)
+        if (valid) {
+          setStatus(undefined);
           setError(
             reason instanceof Error
               ? reason.message
               : "This location is unavailable.",
           );
+        }
       })
       .finally(() => {
         if (valid) setLoading(false);
@@ -363,12 +379,7 @@ function DestinationBrowser({
         );
       })
       .catch((reason) => {
-        if (valid)
-          setError(
-            reason instanceof Error
-              ? reason.message
-              : "Could not load this folder.",
-          );
+        if (valid) handleError(reason, "Could not load this folder.");
       })
       .finally(() => {
         if (valid) setLoading(false);
@@ -409,7 +420,29 @@ function DestinationBrowser({
     setSelected(undefined);
     setQuery("");
     setNewFolder(false);
+    setNewFile(false);
     setError("");
+  }
+  function handleError(reason: unknown, fallback: string) {
+    const message = reason instanceof Error ? reason.message : fallback;
+    setError(message);
+    if (
+      drive &&
+      reason instanceof LibraryError &&
+      reason.code === "DRIVE_RECONNECT_REQUIRED"
+    ) {
+      setStatus((previous) => ({
+        ...previous,
+        available: true,
+        connected: false,
+        writable: false,
+        reconnect: true,
+        message,
+      }));
+      setItems([]);
+      setSelected(undefined);
+      setFolderWritable(false);
+    }
   }
   async function run(action: () => Promise<void> | void) {
     setBusy(true);
@@ -421,11 +454,7 @@ function DestinationBrowser({
         active.current &&
         !(reason instanceof DOMException && reason.name === "AbortError")
       )
-        setError(
-          reason instanceof Error
-            ? reason.message
-            : "The request could not finish.",
-        );
+        handleError(reason, "The request could not finish.");
     } finally {
       if (active.current) setBusy(false);
     }
@@ -455,6 +484,21 @@ function DestinationBrowser({
       if (active.current) onClose();
     });
   }
+  const newFileForm = (
+    <NewFileForm
+      busy={busy}
+      onCancel={() => setNewFile(false)}
+      onCreate={(file) =>
+        void run(async () => {
+          if (status?.connected && latest.current.create && writable)
+            await latest.current.create({ ...file, parent });
+          else if (!drive && onNewLocal) await onNewLocal(file);
+          else return;
+          if (active.current) onClose();
+        })
+      }
+    />
+  );
   const fallbackButton = (
     <button
       disabled={busy}
@@ -490,6 +534,7 @@ function DestinationBrowser({
           </button>
         </div>
       )}
+      {newFile && !status?.connected && newFileForm}
       {!status && loading ? (
         <div className="files-connecting" role="status">
           <LoaderCircle className="files-spinner" size={24} />
@@ -529,7 +574,11 @@ function DestinationBrowser({
                   disabled={busy || !status?.available}
                   onClick={connect}
                 >
-                  {busy ? "Connecting…" : "Connect Google Drive"}
+                  {busy
+                    ? "Connecting…"
+                    : status?.reconnect
+                      ? "Reconnect Google Drive"
+                      : "Connect Google Drive"}
                   <ArrowRight size={16} />
                 </button>
               )
@@ -539,6 +588,15 @@ function DestinationBrowser({
                   <button className="primary" disabled={busy} onClick={connect}>
                     <FolderOpen size={17} />
                     {busy ? "Choosing folder…" : "Open local folder"}
+                  </button>
+                )}
+                {onNewLocal && (
+                  <button
+                    disabled={busy}
+                    onClick={() => setNewFile((value) => !value)}
+                  >
+                    <Plus size={16} />
+                    New
                   </button>
                 )}
                 {fallbackButton}
@@ -562,9 +620,24 @@ function DestinationBrowser({
               <span>{rootName}</span>
             </div>
             <span className="files-connected">
-              <Check size={13} />
-              {drive ? "Connected" : "Folder selected"}
+              {drive && (loading || error) ? (
+                <RefreshCw size={13} />
+              ) : (
+                <Check size={13} />
+              )}
+              {drive
+                ? loading
+                  ? "Checking connection…"
+                  : error
+                    ? "Connection needs attention"
+                    : "Connected"
+                : "Folder selected"}
             </span>
+            {drive && account.premium && (
+              <button disabled={busy || loading} onClick={connect}>
+                Reconnect Google Drive
+              </button>
+            )}
             {!drive && (
               <button disabled={busy} onClick={connect}>
                 <FolderOpen size={15} />
@@ -654,16 +727,32 @@ function DestinationBrowser({
                   <option value="size">Size</option>
                 </select>
               </label>
+              {provider.create && (
+                <button
+                  disabled={busy || loading || !writable}
+                  onClick={() => {
+                    setNewFile((value) => !value);
+                    setNewFolder(false);
+                  }}
+                >
+                  <Plus size={16} />
+                  New
+                </button>
+              )}
               {provider.mkdir && (
                 <button
                   disabled={busy || loading || !writable}
-                  onClick={() => setNewFolder((value) => !value)}
+                  onClick={() => {
+                    setNewFolder((value) => !value);
+                    setNewFile(false);
+                  }}
                 >
                   <FolderPlus size={16} />
                   New folder
                 </button>
               )}
             </div>
+            {newFile && newFileForm}
             {newFolder && (
               <form
                 className="library-new-folder"

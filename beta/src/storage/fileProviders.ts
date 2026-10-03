@@ -89,6 +89,7 @@ export function createFileProviders(options: {
       const state = await cloudRequest("/api/drive/status");
       return {
         available: state.configured,
+        reconnect: state.reconnect,
         connected: state.connected && options.premium,
         label: state.email || "Google Drive",
         message: !options.premium
@@ -151,6 +152,25 @@ export function createFileProviders(options: {
         revision: data.etag,
         baseContent: "",
         canWrite: data.canEdit,
+      });
+    },
+    async create({ name, content, parent }) {
+      assertCurrent();
+      await session.flush();
+      assertCurrent();
+      const data = await cloudRequest("/api/drive/create", {
+        name,
+        content,
+        parent: parent || "root",
+      });
+      await bind(data.content ?? content, data.name, {
+        provider: "drive",
+        id: data.id,
+        accountId: options.accountId,
+        name: data.name,
+        revision: data.etag,
+        baseContent: content,
+        canWrite: true,
       });
     },
     async save({ name, parent }) {
@@ -231,6 +251,28 @@ export function createFileProviders(options: {
         baseContent: "",
         canWrite: writable && data.canEdit,
         handle,
+      });
+    },
+    async create({ name, content, parent }) {
+      const folder = folders.get(parent || "root");
+      if (!folder) throw new Error("Choose a local folder.");
+      const permission = ensureLocalWritePermission(folder);
+      assertCurrent();
+      if (!(await permission))
+        throw new Error(
+          "Folder write permission is required to create a file.",
+        );
+      await session.flush();
+      assertCurrent();
+      const data = await createDirectoryFile(folder, name, content);
+      await bind(content, name, {
+        provider: "local",
+        id: crypto.randomUUID(),
+        name,
+        revision: data.revision,
+        baseContent: content,
+        canWrite: true,
+        handle: data.handle,
       });
     },
     async save({ name, parent }) {

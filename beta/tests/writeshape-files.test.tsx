@@ -1,3 +1,4 @@
+import { LibraryError } from "../src/storage/writeshapeLibrary";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { beforeAll, expect, it, vi } from "vitest";
@@ -199,7 +200,7 @@ it("embeds the existing WriteShape library in the common modal without a second 
   const h = await mount({ initialDestination: "writeshape" });
   try {
     expect(h.node.querySelectorAll("dialog")).toHaveLength(1);
-    expect(h.node.textContent).toContain("My documents");
+    expect(h.node.textContent).toContain("My Storage");
     expect(h.node.textContent).toContain("Unlimited");
     expect(button(h.node, "WriteShape").getAttribute("aria-selected")).toBe(
       "true",
@@ -223,6 +224,54 @@ it("an unsafe or failed document switch leaves the picker open with its error", 
     expect(h.props.onClose).not.toHaveBeenCalled();
     expect(h.node.textContent).toContain("Your draft changed");
     expect(button(h.node, "Google Drive").disabled).toBe(false);
+  } finally {
+    await h.close();
+  }
+});
+
+it("a revoked Drive grant removes Connected and offers reconnection without closing the draft", async () => {
+  const drive = provider();
+  drive.list = vi.fn(async () => {
+    throw new LibraryError(
+      "Reconnect Google Drive to continue.",
+      401,
+      "DRIVE_RECONNECT_REQUIRED",
+    );
+  });
+  const h = await mount({
+    initialDestination: "drive",
+    providers: { drive, local: provider() },
+  });
+  try {
+    expect(h.node.querySelector(".files-connected")).toBeNull();
+    expect(button(h.node, "Reconnect Google Drive").disabled).toBe(false);
+    expect(h.props.onClose).not.toHaveBeenCalled();
+    expect(drive.list).toHaveBeenCalledOnce();
+    await act(async () => button(h.node, "Reconnect Google Drive").click());
+    expect(drive.connect).toHaveBeenCalledOnce();
+  } finally {
+    await h.close();
+  }
+});
+it("a folder failure does not keep a misleading Connected badge and retains retry", async () => {
+  const drive = provider();
+  drive.list = vi.fn(async () => {
+    throw Error("Drive is temporarily unavailable.");
+  });
+  const h = await mount({
+    initialDestination: "drive",
+    providers: { drive, local: provider() },
+  });
+  try {
+    expect(h.node.querySelector(".files-connected")?.textContent).toBe(
+      "Connection needs attention",
+    );
+    drive.list = vi.fn(async () => ({ items: [file], breadcrumbs: [] }));
+    await act(async () => button(h.node, "Try again").click());
+    expect(h.node.querySelector(".files-connected")?.textContent).toBe(
+      "Connected",
+    );
+    expect(h.node.textContent).toContain("Scene.fountain");
   } finally {
     await h.close();
   }

@@ -1,6 +1,6 @@
 import {
   BarChart3,
-  Columns3,
+  Drum,
   Eye,
   Leaf,
   ListChecks,
@@ -24,6 +24,8 @@ export interface WritingToolbarProps {
   dualDialogue: boolean;
   onKind: (kind: BlockKind, dual?: boolean) => void;
   onMark: (mark: TextMark) => void;
+  canAnnotate?: boolean;
+  onAnnotate?: () => void;
   preferences: Preferences;
   onPreferences: (preferences: Preferences) => void;
   beatGuide: boolean;
@@ -47,6 +49,8 @@ export function WritingToolbar({
   dualDialogue,
   onKind,
   onMark,
+  canAnnotate = false,
+  onAnnotate,
   preferences,
   onPreferences,
   beatGuide,
@@ -126,33 +130,27 @@ export function WritingToolbar({
           onKind={onKind}
           onMark={onMark}
         />
-        <div
-          className="writing-control-group writing-story-group"
-          role="group"
-          aria-label="Story planning"
-        >
-          <button
-            type="button"
-            className="writing-tool writing-labeled-tool writing-beat-sheet"
-            aria-label="Beat sheet"
-            title="Open beat sheet"
-            onClick={onBeatSheet}
-          >
-            <Columns3 size={15} aria-hidden="true" />
-            <span>Beat sheet</span>
-          </button>
+        {onAnnotate && (
           <button
             type="button"
             className="writing-tool writing-labeled-tool"
-            aria-label="Beat guide"
-            title={beatGuide ? "Hide beat guide" : "Show beat guide"}
-            aria-pressed={beatGuide}
-            onClick={onBeatGuide}
+            aria-label="Add annotation"
+            title={
+              canAnnotate
+                ? "Annotate selected text"
+                : "Select text to add an annotation"
+            }
+            disabled={!canAnnotate}
+            onPointerDown={(event) => {
+              if (event.button === 0) event.preventDefault();
+            }}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={onAnnotate}
           >
-            <ListChecks size={15} aria-hidden="true" />
-            <span>Beat guide</span>
+            <Plus size={15} aria-hidden="true" />
+            <span>Annotate</span>
           </button>
-        </div>
+        )}
         <span className="writing-toolbar-space" aria-hidden="true" />
         <div
           className="writing-control-group writing-zoom-group"
@@ -192,6 +190,33 @@ export function WritingToolbar({
             }
           >
             <Plus size={14} aria-hidden="true" />
+          </button>
+        </div>
+        <div
+          className="writing-control-group writing-story-group"
+          role="group"
+          aria-label="Story planning"
+        >
+          <button
+            type="button"
+            className="writing-tool writing-labeled-tool writing-beat-sheet"
+            aria-label="Beat sheet"
+            title="Open beat sheet"
+            onClick={onBeatSheet}
+          >
+            <Drum size={15} aria-hidden="true" />
+            <span>Beat sheet</span>
+          </button>
+          <button
+            type="button"
+            className="writing-tool writing-labeled-tool"
+            aria-label="Beat guide"
+            title={beatGuide ? "Hide beat guide" : "Show beat guide"}
+            aria-pressed={beatGuide}
+            onClick={onBeatGuide}
+          >
+            <ListChecks size={15} aria-hidden="true" />
+            <span>Beat guide</span>
           </button>
         </div>
         <div

@@ -1,3 +1,5 @@
+import { DocumentStatusBar } from "./components/DocumentStatusBar";
+import { cloudRequest } from "./storage/writeshapeLibrary";
 import { ReportProblem } from "./components/ReportProblem";
 import { destinationReadOnly } from "./storage/destinations";
 import type { DirectoryHandle } from "./storage/localDirectory";
@@ -698,7 +700,19 @@ export default function App() {
         );
       }
       if (params.has("driveConnected")) {
-        tell("Google Drive connected. Open Files to choose a screenplay.");
+        void cloudRequest("/api/drive/status")
+          .then((drive) => {
+            if (live)
+              tell(
+                drive.connected
+                  ? "Google Drive connected. Open Files to choose a screenplay."
+                  : drive.reason ||
+                      "Google Drive could not connect. Open Files to try again.",
+              );
+          })
+          .catch((error) => {
+            if (live) report(error);
+          });
         params.delete("driveConnected");
         window.history.replaceState(
           {},
@@ -1697,6 +1711,8 @@ export default function App() {
   };
   const writingControls = (
     <WritingToolbar
+      canAnnotate={annotationState === "add"}
+      onAnnotate={() => editor.current?.annotateSelection()}
       novel={novel}
       onHeading={(level) => editor.current?.setHeadingLevel(level)}
       kind={kind}
@@ -1953,7 +1969,6 @@ export default function App() {
             <MenuItem onClick={toggleFullscreen}>
               {fullscreen ? "Exit full screen" : "Full screen"}
             </MenuItem>
-            <MenuItem onClick={() => setDialog("settings")}>Settings…</MenuItem>
           </Menu>
           <Menu label="Insert">
             <MenuItem onClick={() => setDialog("title")}>Title page…</MenuItem>
@@ -2048,14 +2063,16 @@ export default function App() {
             {workspaceEmpty ? "No open document" : snapshot.name}
           </button>
         )}
-        <button
-          className="save-button"
-          disabled={busy || workspaceEmpty}
-          onClick={() => void run(save)}
-        >
-          <Download size={15} />
-          <span>Save</span>
-        </button>
+        {(mobile || !isWriteShape) && (
+          <button
+            className="save-button"
+            disabled={busy || workspaceEmpty}
+            onClick={() => void run(save)}
+          >
+            <Download size={15} />
+            <span>Save</span>
+          </button>
+        )}
       </header>
       {cloudReadOnly && (
         <div className="document-readonly" role="status">
@@ -2404,7 +2421,6 @@ export default function App() {
             {documentWorkspace.current ? (
               <DocumentPanes
                 mobile={mobile}
-                collaborationAvailable={account.state.collaborationAvailable}
                 model={documentWorkspace.current}
                 preferences={preferences}
                 onOpen={() => setLibraryMode("open")}
@@ -2638,85 +2654,142 @@ export default function App() {
           </>
         )}
       </div>
-      <footer className="statusbar">
-        {liveStatus && (
-          <div
-            className="live-status"
-            role="status"
-            aria-live="off"
-            aria-label="Live collaboration"
-            title={liveStatus.message}
-          >
-            <span className={`live-dot ${liveStatus.phase}`} />
-            <span>
-              {
-                {
-                  connecting: "Connecting…",
-                  live: "Live",
-                  syncing: "Syncing…",
-                  offline: "Offline · edits kept on this device",
-                  readonly: "View only · live",
-                  paused: "Live sync paused",
-                }[liveStatus.phase]
-              }
-            </span>
-            {liveStatus.members.map((member, index) => (
-              <span
-                className="live-member"
-                key={`${member.id}-${index}`}
-                style={{ "--member-color": member.color } as CSSProperties}
+      <footer
+        className={`statusbar${isWriteShape ? " writeshape-statusbar" : ""}`}
+      >
+        {documentWorkspace.current ? (
+          <DocumentStatusBar
+            model={documentWorkspace.current}
+            collaborationAvailable={!!account.state.collaborationAvailable}
+            onFiles={(mode) => {
+              setFileTab(
+                documentWorkspace.current?.activeBuffer?.snapshot.destination
+                  ?.provider || "local",
+              );
+              setLibraryMode(mode);
+            }}
+          />
+        ) : (
+          <>
+            {liveStatus && (
+              <div
+                className="live-status"
+                role="status"
+                aria-live="off"
+                aria-label="Live collaboration"
+                title={liveStatus.message}
               >
-                {member.name}
-              </span>
-            ))}
-            <button
-              aria-label="Copy collaboration link"
-              title="Copy collaboration link for people with Drive access"
-              onClick={() => void run(copyCollaborationLink)}
+                <span className={`live-dot ${liveStatus.phase}`} />
+                <span>
+                  {
+                    {
+                      connecting: "Connecting…",
+                      live: "Live",
+                      syncing: "Syncing…",
+                      offline: "Offline · edits kept on this device",
+                      readonly: "View only · live",
+                      paused: "Live sync paused",
+                    }[liveStatus.phase]
+                  }
+                </span>
+                {liveStatus.members.map((member, index) => (
+                  <span
+                    className="live-member"
+                    key={`${member.id}-${index}`}
+                    style={{ "--member-color": member.color } as CSSProperties}
+                  >
+                    {member.name}
+                  </span>
+                ))}
+                <button
+                  aria-label="Copy collaboration link"
+                  title="Copy collaboration link for people with Drive access"
+                  onClick={() => void run(copyCollaborationLink)}
+                >
+                  <Link size={13} />
+                </button>
+              </div>
+            )}
+            <span
+              className={storageFailed ? "save-status failed" : "save-status"}
             >
-              <Link size={13} />
-            </button>
-          </div>
+              {storageFailed ? <Cloud size={12} /> : <Check size={12} />}
+              <span>{status}</span>
+              {isWriteShape && (
+                <button
+                  className="destination-status"
+                  onClick={() =>
+                    setLibraryMode(
+                      destinationSync.status?.phase === "conflict"
+                        ? "save"
+                        : "open",
+                    )
+                  }
+                  title={destinationSync.status?.message}
+                >
+                  {destinationLabel(snapshot.destination)}
+                  {snapshot.destination
+                    ? ` · ${destinationSync.status?.phase || "checking"}`
+                    : " · Choose save location"}
+                </button>
+              )}
+            </span>
+            {storageFailed && (
+              <button onClick={() => void run(() => session.fork())}>
+                Keep as a copy
+              </button>
+            )}
+            <div className="spacer" />
+            <span>
+              {novel
+                ? proseLabels[kind as keyof typeof proseLabels] || "Body text"
+                : dualDialogue
+                  ? "Dual dialogue"
+                  : blockLabels[kind]}
+            </span>
+            <span className="status-divider" />
+            <span>
+              {preferences.pageSize === "letter" ? "US Letter" : "A4"}
+            </span>
+            <span className="status-divider" />
+            <span>{novel ? "Markdown · Book" : "Fountain"}</span>
+          </>
         )}
-        <span className={storageFailed ? "save-status failed" : "save-status"}>
-          {storageFailed ? <Cloud size={12} /> : <Check size={12} />}
-          <span>{status}</span>
-          {isWriteShape && (
-            <button
-              className="destination-status"
-              onClick={() =>
-                setLibraryMode(
-                  destinationSync.status?.phase === "conflict"
-                    ? "save"
-                    : "open",
-                )
-              }
-              title={destinationSync.status?.message}
-            >
-              {destinationLabel(snapshot.destination)}
-              {snapshot.destination
-                ? ` · ${documentWorkspace.current?.activeBuffer?.liveStatus?.phase || destinationSync.status?.phase || "checking"}`
-                : " · Choose save location"}
-            </button>
+        {isWriteShape &&
+          destinationSync.status &&
+          ["conflict", "offline", "error", "readonly"].includes(
+            destinationSync.status.phase,
+          ) && (
+            <div className="destination-notice" role="status">
+              <span>{destinationSync.status.message}</span>
+              <button
+                onClick={() => void destinationSync.engine.current?.refresh()}
+              >
+                Check latest
+              </button>
+              <button
+                onClick={() =>
+                  void run(async () => {
+                    await session.fork();
+                    setLibraryMode("save");
+                  })
+                }
+              >
+                Save a copy…
+              </button>
+              <button
+                onClick={() =>
+                  void run(async () => {
+                    if (destinationSync.status?.phase === "conflict")
+                      await session.fork();
+                    setLibraryMode("open");
+                  })
+                }
+              >
+                Open latest…
+              </button>
+            </div>
           )}
-        </span>
-        {storageFailed && (
-          <button onClick={() => void run(() => session.fork())}>
-            Keep as a copy
-          </button>
-        )}
-        <div className="spacer" />
-        <span>
-          {novel
-            ? proseLabels[kind as keyof typeof proseLabels] || "Body text"
-            : dualDialogue
-              ? "Dual dialogue"
-              : blockLabels[kind]}
-        </span>
-        <span className="status-divider" />
-        <span>{preferences.pageSize === "letter" ? "US Letter" : "A4"}</span>
-        <span className="status-divider" />
-        <span>{novel ? "Markdown · Book" : "Fountain"}</span>
       </footer>
       {notice && (
         <div className="toast" role="status">
@@ -2837,6 +2910,12 @@ export default function App() {
                 accountIdRef.current === accountId,
             );
           }}
+          onNewLocal={async (file) => {
+            await session.open(
+              file.format === "novel" ? createNovel() : emptyScreenplay(),
+              file.name,
+            );
+          }}
           onOpenLive={openWriteShapeLive}
           onOpen={async (item) => {
             if (
@@ -2884,41 +2963,6 @@ export default function App() {
           onClose={() => setLibraryMode(null)}
         />
       )}
-      {isWriteShape &&
-        destinationSync.status &&
-        ["conflict", "offline", "error", "readonly"].includes(
-          destinationSync.status.phase,
-        ) && (
-          <div className="destination-notice" role="status">
-            <span>{destinationSync.status.message}</span>
-            <button
-              onClick={() => void destinationSync.engine.current?.refresh()}
-            >
-              Check latest
-            </button>
-            <button
-              onClick={() =>
-                void run(async () => {
-                  await session.fork();
-                  setLibraryMode("save");
-                })
-              }
-            >
-              Save a copy…
-            </button>
-            <button
-              onClick={() =>
-                void run(async () => {
-                  if (destinationSync.status?.phase === "conflict")
-                    await session.fork();
-                  setLibraryMode("open");
-                })
-              }
-            >
-              Open latest…
-            </button>
-          </div>
-        )}
       {cloudConflict && (
         <Modal
           title="The cloud file has a newer version"

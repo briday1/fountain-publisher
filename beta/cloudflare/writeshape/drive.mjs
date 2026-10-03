@@ -15,6 +15,14 @@ const MAX_BYTES = 2_000_000;
 const encoder = new TextEncoder();
 const folderType = "application/vnd.google-apps.folder";
 const unavailable = "Google Drive is not configured for WriteShape yet.";
+const reconnect = (
+  message = "Reconnect Google Drive to continue.",
+  status = 401,
+) => {
+  const error = new HttpError(status, message);
+  error.code = "DRIVE_RECONNECT_REQUIRED";
+  return error;
+};
 const conflict = (
   message = "This file changed on Google Drive. Open its latest version or save a new copy.",
 ) => {
@@ -104,9 +112,9 @@ async function decrypt(env, account, purpose, value) {
     );
     return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(plain));
   } catch {
-    throw new HttpError(
-      503,
+    throw reconnect(
       "Google Drive connection needs attention. Reconnect Drive to continue.",
+      503,
     );
   }
 }
@@ -243,11 +251,16 @@ export function createDriveRoutes({
         ...params,
       }),
     });
-    if (!response.ok)
+    if (!response.ok) {
+      if (response.status === 400 || response.status === 401)
+        throw reconnect(
+          "Google Drive authorization expired or was revoked. Reconnect Drive to continue.",
+        );
       throw new HttpError(
-        response.status === 400 || response.status === 401 ? 401 : 503,
-        "Google Drive authorization could not be refreshed. Reconnect Drive to continue.",
+        503,
+        "Google Drive is temporarily unavailable. Try again shortly.",
       );
+    }
     let tokens;
     try {
       tokens = await response.json();
@@ -277,7 +290,7 @@ export function createDriveRoutes({
     )
       .bind(account.id)
       .first();
-    if (!row) throw new HttpError(401, "Connect Google Drive to continue.");
+    if (!row) throw reconnect("Connect Google Drive to continue.");
     let tokens = await decrypt(env, account.id, "tokens", row.token_cipher);
     if (row.expires <= now() + 60) {
       const lock = randomToken();
@@ -307,9 +320,9 @@ export function createDriveRoutes({
           refreshed.scope &&
           !String(refreshed.scope).split(" ").includes(SCOPE)
         )
-          throw new HttpError(
-            403,
+          throw reconnect(
             "Reconnect Google Drive and approve file access.",
+            403,
           );
         tokens = {
           accessToken: refreshed.access_token,
@@ -329,6 +342,11 @@ export function createDriveRoutes({
           )
           .run();
         if (!saved.meta.changes) connectionChanged();
+        row = {
+          ...row,
+          token_cipher: cipher,
+          expires: now() + refreshed.expires_in,
+        };
       } finally {
         await env.DB.prepare(
           "UPDATE drive_connections SET refresh_lock=NULL,refresh_until=0 WHERE account_id=? AND generation=? AND refresh_lock=?",
@@ -347,7 +365,7 @@ export function createDriveRoutes({
       .first();
     if (active?.generation !== current.generation) connectionChanged();
   }
-  async function drive(env, account, current, path, init = {}) {
+  async function drive(env, account, current, path, init = {}, retry = true) {
     await assertConnection(env, account, current);
     const headers = new Headers(init.headers);
     headers.set("Authorization", `Bearer ${current.accessToken}`);
@@ -356,13 +374,55 @@ export function createDriveRoutes({
       headers,
     });
     if (response.status === 412 || response.status === 409) conflict();
-    if (response.status === 401)
-      throw new HttpError(401, "Reconnect Google Drive to continue.");
-    if (response.status === 403)
+    if (response.status === 401) {
+      if (!retry) throw reconnect();
+      // Google can invalidate an access token before its stored expiry. Refresh
+      // once, with the same generation/locking guards as an ordinary expiry.
+      await env.DB.prepare(
+        "UPDATE drive_connections SET expires=0 WHERE account_id=? AND generation=? AND token_cipher=?",
+      )
+        .bind(account.id, current.generation, current.token_cipher)
+        .run();
+      const refreshed = await connection(env, account);
+      if (refreshed.generation !== current.generation) connectionChanged();
+      Object.assign(current, refreshed);
+      return drive(env, account, current, path, init, false);
+    }
+    if (response.status === 403) {
+      const details = await response.json().catch(() => ({}));
+      const reasons = [
+        ...(Array.isArray(details.error?.errors)
+          ? details.error.errors
+          : []
+        ).map((item) => item.reason),
+        ...(Array.isArray(details.error?.details)
+          ? details.error.details
+          : []
+        ).map((item) => item.reason),
+      ];
+      if (
+        reasons.some((reason) =>
+          [
+            "insufficientPermissions",
+            "ACCESS_TOKEN_SCOPE_INSUFFICIENT",
+          ].includes(reason),
+        )
+      )
+        throw reconnect("Reconnect Google Drive and approve file access.", 403);
+      if (
+        reasons.some((reason) =>
+          ["accessNotConfigured", "SERVICE_DISABLED"].includes(reason),
+        )
+      )
+        throw new HttpError(
+          503,
+          "Google Drive is unavailable because the Drive API is not enabled for WriteShape. Contact support@writeshape.com.",
+        );
       throw new HttpError(
         403,
         "Google Drive did not allow this operation. Check file access and try again.",
       );
+    }
     if (response.status === 404)
       throw new HttpError(
         404,
@@ -444,17 +504,45 @@ export function createDriveRoutes({
       )
         .bind(account.id)
         .first();
-      return json({
-        configured: true,
-        connected: Boolean(linked),
-        email: linked?.email || null,
-        canWrite: Boolean(linked && premium(account)),
-        reason: !linked
-          ? "Connect your Google Drive account."
-          : !premium(account)
-            ? "Premium is required to save to Google Drive. You can still open and download your files."
-            : null,
-      });
+      if (!linked)
+        return json({
+          configured: true,
+          connected: false,
+          email: null,
+          canWrite: false,
+          reason: "Connect your Google Drive account.",
+        });
+      try {
+        const current = await connection(env, account);
+        // A stored grant is not proof that Drive still accepts it. Check the
+        // actual API before the UI claims that browsing and saving are ready.
+        await data(
+          env,
+          account,
+          current,
+          "/drive/v3/files/root?fields=id&supportsAllDrives=true",
+        );
+        await assertConnection(env, account, current);
+        return json({
+          configured: true,
+          connected: true,
+          email: current.email,
+          canWrite: premium(account),
+          reason: premium(account)
+            ? null
+            : "Premium is required to save to Google Drive. You can still open and download your files.",
+        });
+      } catch (error) {
+        if (!(error instanceof HttpError)) throw error;
+        return json({
+          configured: true,
+          connected: false,
+          email: linked.email,
+          canWrite: false,
+          reason: error.message,
+          reconnect: error.code === "DRIVE_RECONNECT_REQUIRED",
+        });
+      }
     }
     if (request.method === "POST") {
       sameOrigin(request);
@@ -656,7 +744,9 @@ export function createDriveRoutes({
       )
         throw new HttpError(400, "Search or page token is too long.");
       const escaped = search.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-      const q = `trashed=false and '${parent}' in parents and (mimeType='${folderType}' or name contains '.fountain' or name contains '.txt' or name contains '.md' or name contains '.markdown')${search ? ` and name contains '${escaped}'` : ""}`;
+      // Drive's `name contains` only matches prefixes, not extensions. List
+      // the folder and filter supported suffixes below, preserving pagination.
+      const q = `trashed=false and '${parent}' in parents${search ? ` and name contains '${escaped}'` : ""}`;
       const params = new URLSearchParams({
         q,
         fields:

@@ -304,39 +304,15 @@
   .is-split .document-pane {
     flex: 1;
   }
-  .document-view-context {
-    font-size: 9px;
-  }
-}
-.document-view-context {
-  display: flex;
-  gap: 6px;
-  justify-content: space-between;
-  align-items: center;
-  padding: 5px 9px;
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 10px;
-  flex: 0 0 auto;
-  min-height: 25px;
-}
-.document-view-context span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.document-view-context button {
-  font-size: 10px;
-  flex-shrink: 0;
-  padding: 2px 5px;
-}
-.document-pane .writing-scroll {
+  .document-pane .writing-scroll {
   flex: 1;
   min-height: 0;
   overflow: auto;
 }
 .document-pane .paper-wrap {
   min-width: 0;
+  container-type: inline-size;
+  container-name: screenplay-page;
 }
 .is-split .screenplay-paper {
   min-width: 0;
@@ -366,6 +342,11 @@
   .document-pane .paper-wrap {
     padding: 20px 12px;
   }
+  .document-pane .numbers-margin .screenplay-editor p[data-kind="scene"]::before {
+    position: static;
+    margin-right: .5em;
+    font-size: inherit;
+  }
 }
 @media (max-width: 720px) {
   .document-workspace-tools button {
@@ -375,3 +356,21 @@
     min-width: 70px;
   }
 }
+
+/* Include zoom and split resizing when choosing the scene-number placement. */
+@container screenplay-page (max-width: 600px) {
+  .document-pane .screenplay-paper {
+    padding: 40px 24px;
+  }
+  .document-pane .numbers-margin .screenplay-editor p[data-kind="scene"]::before {
+    position: static;
+    margin-right: .5em;
+    font-size: inherit;
+  }
+}
+.document-pane .screenplay-editor p[data-kind="scene"] {
+  overflow-wrap: anywhere;
+}
+
+.document-tab > [role="tab"] { touch-action: none; -webkit-user-select: none; user-select: none; }
+.document-drop-overlay { pointer-events: none; }

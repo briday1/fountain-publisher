@@ -1,3 +1,4 @@
+import { NewFileForm } from "./NewFileForm";
 import { downloadLibraryItems } from "../storage/libraryDownloads";
 import { documentFilename } from "../core/documentFormat";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -6,6 +7,7 @@ import {
   ChevronRight,
   Folder,
   FolderPlus,
+  Plus,
   FileText,
   Search,
   RefreshCw,
@@ -54,6 +56,7 @@ export function WriteShapeLibrary({
   const [manageName, setManageName] = useState("");
   const [moveParent, setMoveParent] = useState("");
   const [folders, setFolders] = useState<{ id: string; name: string }[]>([]);
+  const [newFile, setNewFile] = useState(false);
   const [parent, setParent] = useState(initialFile?.parent || "");
   const [breadcrumbs, setBreadcrumbs] = useState<
     { id: string; name: string }[]
@@ -124,6 +127,7 @@ export function WriteShapeLibrary({
     setSelected(undefined);
     setQuery("");
     setNewFolder(false);
+    setNewFile(false);
     setError("");
   }
   async function run(action: () => Promise<void>) {
@@ -159,7 +163,7 @@ export function WriteShapeLibrary({
     if (action === "move")
       await run(async () => {
         const found: { id: string; name: string }[] = [
-          { id: "", name: "My documents" },
+          { id: "", name: "My Storage" },
         ];
         const seen = new Set<string>();
         async function visit(id: string, path: string) {
@@ -216,7 +220,7 @@ export function WriteShapeLibrary({
           }}
         >
           <Cloud size={18} />
-          <span>My documents</span>
+          <span>My Storage</span>
         </button>
         <button
           className="library-location"
@@ -264,25 +268,30 @@ export function WriteShapeLibrary({
                   aria-label="Storage used"
                 />
               )}
-              <dl>
-                <div>
-                  <dt>Current scripts</dt>
-                  <dd>{formatBytes(usage.currentBytes)}</dd>
-                </div>
-                <div>
-                  <dt>Version history</dt>
-                  <dd>{formatBytes(usage.historyBytes)}</dd>
-                </div>
-              </dl>
-              <p>
-                {usage.fileCount} {usage.fileCount === 1 ? "file" : "files"} ·{" "}
-                {usage.folderCount}{" "}
-                {usage.folderCount === 1 ? "folder" : "folders"}
-                <br />
-                {usage.versionCount} prior{" "}
-                {usage.versionCount === 1 ? "version" : "versions"}
-              </p>
-              <small>Usage includes current scripts and saved versions.</small>
+              <details className="library-storage-details">
+                <summary>Storage details</summary>
+                <dl>
+                  <div>
+                    <dt>Current scripts</dt>
+                    <dd>{formatBytes(usage.currentBytes)}</dd>
+                  </div>
+                  <div>
+                    <dt>Version history</dt>
+                    <dd>{formatBytes(usage.historyBytes)}</dd>
+                  </div>
+                </dl>
+                <p>
+                  {usage.fileCount} {usage.fileCount === 1 ? "file" : "files"} ·{" "}
+                  {usage.folderCount}{" "}
+                  {usage.folderCount === 1 ? "folder" : "folders"}
+                  <br />
+                  {usage.versionCount} prior{" "}
+                  {usage.versionCount === 1 ? "version" : "versions"}
+                </p>
+                <small>
+                  Usage includes current scripts and saved versions.
+                </small>
+              </details>
             </>
           ) : (
             <p>Loading usage…</p>
@@ -318,7 +327,7 @@ export function WriteShapeLibrary({
               </button>
               <nav aria-label="Folder path">
                 <button disabled={busy} onClick={() => navigate("")}>
-                  My documents
+                  My Storage
                 </button>
                 {breadcrumbs.map((crumb, index) => (
                   <span key={crumb.id}>
@@ -373,76 +382,119 @@ export function WriteShapeLibrary({
                 disabled={
                   busy || loading || !canWrite || parent === "__trash__"
                 }
-                onClick={() => setNewFolder((v) => !v)}
+                onClick={() => {
+                  setNewFile((value) => !value);
+                  setNewFolder(false);
+                }}
+              >
+                <Plus size={16} />
+                New
+              </button>
+              <button
+                disabled={
+                  busy || loading || !canWrite || parent === "__trash__"
+                }
+                onClick={() => {
+                  setNewFolder((v) => !v);
+                  setNewFile(false);
+                }}
               >
                 <FolderPlus size={16} />
                 <span>New folder</span>
               </button>
             </div>
+            {newFile && (
+              <NewFileForm
+                busy={busy}
+                onCancel={() => setNewFile(false)}
+                onCreate={(file) =>
+                  void run(async () => {
+                    if (!canWrite || parent === "__trash__") return;
+                    const result = await libraryRequest("", {
+                      kind: "file",
+                      parent,
+                      name: file.name,
+                      content: file.content,
+                    });
+                    if (!active.current) return;
+                    setNewFile(false);
+                    setReload((value) => value + 1);
+                    await onOpen({ ...result, content: file.content });
+                    onClose();
+                  })
+                }
+              />
+            )}
             {mode === "open" && (
-              <div className="library-bulk-actions">
-                <label>
-                  <input
-                    type="checkbox"
-                    aria-label="Select all visible files and folders"
-                    checked={
-                      visible.length > 0 &&
-                      visible.every((i) => checked.has(i.id))
-                    }
-                    disabled={busy || loading}
-                    onChange={(e) =>
-                      setChecked(
-                        e.target.checked
-                          ? new Set(visible.map((i) => i.id))
-                          : new Set(),
+              <details className="library-more-actions">
+                <summary>
+                  File actions
+                  {checked.size ? ` (${checked.size} selected)` : ""}
+                </summary>
+                <div className="library-bulk-actions">
+                  <label>
+                    <input
+                      type="checkbox"
+                      aria-label="Select all visible files and folders"
+                      checked={
+                        visible.length > 0 &&
+                        visible.every((i) => checked.has(i.id))
+                      }
+                      disabled={busy || loading}
+                      onChange={(e) =>
+                        setChecked(
+                          e.target.checked
+                            ? new Set(visible.map((i) => i.id))
+                            : new Set(),
+                        )
+                      }
+                    />{" "}
+                    Select all
+                  </label>
+                  <button
+                    disabled={busy || loading || !checked.size}
+                    onClick={() =>
+                      void run(() =>
+                        downloadLibraryItems(
+                          items.filter((i) => checked.has(i.id)),
+                        ),
                       )
                     }
-                  />{" "}
-                  Select all
-                </label>
-                <button
-                  disabled={busy || loading || !checked.size}
-                  onClick={() =>
-                    void run(() =>
-                      downloadLibraryItems(
-                        items.filter((i) => checked.has(i.id)),
-                      ),
-                    )
-                  }
-                >
-                  Download selected ({checked.size})
-                </button>
-                <button
-                  disabled={busy || loading || !items.length}
-                  onClick={() => void run(() => downloadLibraryItems(items))}
-                >
-                  Download this folder
-                </button>
-                {choice && (
-                  <>
-                    <button
-                      disabled={busy || !canWrite}
-                      onClick={() => void manage("rename")}
-                    >
-                      Rename
-                    </button>
-                    <button
-                      disabled={busy || !canWrite}
-                      onClick={() => void manage("move")}
-                    >
-                      {parent === "__trash__" ? "Restore / move" : "Move"}
-                    </button>
-                    {parent !== "__trash__" && (
+                  >
+                    Download selected ({checked.size})
+                  </button>
+                  <button
+                    disabled={busy || loading || !items.length}
+                    onClick={() => void run(() => downloadLibraryItems(items))}
+                  >
+                    Download this folder
+                  </button>
+                  {choice && (
+                    <>
                       <button
                         disabled={busy || !canWrite}
-                        onClick={() => void manage("trash")}
+                        onClick={() => void manage("rename")}
                       >
-                        Move to trash
+                        Rename
                       </button>
-                    )}
-                  </>
-                )}
-              </div>
+                      <button
+                        disabled={busy || !canWrite}
+                        onClick={() => void manage("move")}
+                      >
+                        {parent === "__trash__" ? "Restore / move" : "Move"}
+                      </button>
+                      {parent !== "__trash__" && (
+                        <button
+                          disabled={busy || !canWrite}
+                          onClick={() => void manage("trash")}
+                        >
+                          Move to trash
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </details>
             )}
             {management && choice && (
               <form
@@ -668,9 +720,7 @@ export function WriteShapeLibrary({
                 <div className="library-empty">
                   <Folder size={38} />
                   <strong>
-                    {query
-                      ? "No matching files"
-                      : "No files in this folder"}
+                    {query ? "No matching files" : "No files in this folder"}
                   </strong>
                   <p>
                     {query

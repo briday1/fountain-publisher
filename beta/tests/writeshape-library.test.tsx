@@ -259,7 +259,9 @@ it("history restore uses the current revision, creates a new version, and does n
       ...node.querySelectorAll(".library-version-list button"),
     ].find((b) => b.textContent?.startsWith("Version 1"))!;
     await act(async () => (oldButton as HTMLElement).click());
-    expect(node.querySelector(".version-diff-paper")?.textContent).toBe("Earlier draft");
+    expect(node.querySelector(".version-diff-paper")?.textContent).toBe(
+      "Earlier draft",
+    );
     await click(node, "Restore as new version");
     expect(node.textContent).toContain(
       "Current version 3 and all history will be kept",
@@ -307,7 +309,9 @@ it("history conflicts preserve the preview and require refreshing before a succe
     expect(node.querySelector("[role=alert]")?.textContent).toContain(
       "A newer version exists.",
     );
-    expect(node.querySelector(".version-diff-paper")?.textContent).toBe("Original");
+    expect(node.querySelector(".version-diff-paper")?.textContent).toBe(
+      "Original",
+    );
     expect(changed).not.toHaveBeenCalled();
   } finally {
     await close();
@@ -370,3 +374,68 @@ it("owner can revoke a grant while creation is disabled", async () => {
     await close();
   }
 });
+
+it.each(["screenplay", "novel"])(
+  "New creates a separate %s in the current folder without saving the open draft",
+  async (format) => {
+    api.mockImplementation(async (path: string, body?: any) =>
+      body
+        ? { ...file, ...body, id: "created", revision: 1 }
+        : { items: [], breadcrumbs: [folder], usage, canWrite: true },
+    );
+    const captureSave = vi.fn(() => ({
+      content: "EXISTING DRAFT MUST NOT BE COPIED",
+      onSaved: vi.fn(),
+    }));
+    const onOpen = vi.fn(async () => {}),
+      onClose = vi.fn();
+    const { node, close } = await mount(
+      <WriteShapeLibrary
+        mode="open"
+        name="Existing.fountain"
+        initialFile={file}
+        captureSave={captureSave}
+        onOpen={onOpen}
+        onClose={onClose}
+      />,
+    );
+    try {
+      await click(node, "New");
+      await act(async () => {
+        const input = node.querySelector<HTMLInputElement>(
+          '[aria-label="New file name"]',
+        )!;
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value",
+        )!.set!.call(input, "Fresh story");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        const select = node.querySelector<HTMLSelectElement>(
+          '[aria-label="New file type"]',
+        )!;
+        select.value = format;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      await act(async () =>
+        node
+          .querySelector('form[aria-label="Create a new file"]')!
+          .dispatchEvent(
+            new Event("submit", { bubbles: true, cancelable: true }),
+          ),
+      );
+      const call = api.mock.calls.find(([, body]) => body?.kind === "file");
+      expect(call?.[1]).toMatchObject({
+        parent: "folder",
+        name: format === "novel" ? "Fresh story.md" : "Fresh story.fountain",
+      });
+      expect(call?.[1].content).not.toContain("EXISTING DRAFT");
+      expect(captureSave).not.toHaveBeenCalled();
+      expect(onOpen).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "created", content: call?.[1].content }),
+      );
+      expect(onClose).toHaveBeenCalledOnce();
+    } finally {
+      await close();
+    }
+  },
+);

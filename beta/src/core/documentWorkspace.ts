@@ -18,6 +18,7 @@ export interface DocumentBuffer {
   live?: LiveClient;
   liveStatus?: LiveStatus;
   joiningLive?: boolean;
+  endingLive?: boolean;
   session: DocumentSession;
   snapshot: SessionSnapshot;
   views: Set<string>;
@@ -198,6 +199,49 @@ export class DocumentWorkspace {
       canEdit: client.self.canEdit,
     });
     if (view.sectionId) view.controller.setSectionFocus(view.sectionId);
+  }
+  async endLive(bufferId: string) {
+    const buffer = this.buffers.get(bufferId);
+    if (!buffer?.live || buffer.endingLive) return;
+    if (
+      [...buffer.views].some((id) => this.views.get(id)?.controller.isComposing)
+    )
+      throw new Error("Finish typing before ending live editing.");
+    const client = buffer.live;
+    buffer.endingLive = true;
+    for (const id of buffer.views)
+      this.views.get(id)?.controller.setCollaborationEditable(false);
+    this.options.changed();
+    try {
+      await buffer.session.flush();
+      // Do not silently switch back to ordinary autosave with unacknowledged
+      // shared edits. A failed checkpoint leaves the live session recoverable.
+      if (client.self.canEdit) await client.checkpoint();
+      if (buffer.live !== client) return;
+      await client.stop();
+      if (buffer.live !== client) return;
+      buffer.session.capture();
+      for (const id of buffer.views)
+        this.views.get(id)?.controller.detachCollaboration();
+      buffer.state = [...buffer.views]
+        .map((id) => this.views.get(id)?.controller.view.state)
+        .find(Boolean);
+      buffer.live = undefined;
+      buffer.liveStatus = undefined;
+      const destination = buffer.session.current.destination;
+      if (destination)
+        buffer.session.setDestination({ ...destination, live: false });
+      client.destroy();
+      await buffer.session.flush();
+    } finally {
+      if (buffer.live === client)
+        for (const id of buffer.views)
+          this.views
+            .get(id)
+            ?.controller.setCollaborationEditable(client.self.canEdit);
+      buffer.endingLive = false;
+      this.options.changed();
+    }
   }
   stopLive(bufferId: string) {
     const buffer = this.buffers.get(bufferId);

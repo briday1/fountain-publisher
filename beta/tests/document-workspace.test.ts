@@ -603,3 +603,32 @@ it("bulk closing a live group retains peer updates in a reopened document", asyn
     "Peer after bulk close",
   );
 });
+
+it("ending live editing checkpoints before detaching and persists a non-live destination", async () => {
+  const { first, second, a } = await liveSetup();
+  const checkpoint = vi.spyOn(a, "checkpoint").mockResolvedValue();
+  vi.spyOn(a, "stop").mockResolvedValue();
+  const before = serializeDocument(first.session.capture().screenplay);
+  await first.model.endLive(first.session.current.id);
+  expect(checkpoint).toHaveBeenCalledOnce();
+  expect(first.model.activeBuffer!.live).toBeUndefined();
+  expect(first.session.current.destination?.live).toBe(false);
+  expect(serializeDocument(first.session.capture().screenplay)).toBe(before);
+  expect(first.model.activeView!.controller.writable).toBe(true);
+  expect(second.model.activeBuffer!.live).toBeDefined();
+});
+it("an unsuccessful final live save keeps the shared session and draft editable", async () => {
+  const { first, a } = await liveSetup();
+  vi.spyOn(a, "checkpoint").mockRejectedValue(
+    new Error("Live connection unavailable"),
+  );
+  const stop = vi.spyOn(a, "stop");
+  await expect(first.model.endLive(first.session.current.id)).rejects.toThrow(
+    "Live connection unavailable",
+  );
+  expect(stop).not.toHaveBeenCalled();
+  expect(first.model.activeBuffer!.live).toBe(a);
+  expect(first.session.current.destination?.live).toBe(true);
+  expect(first.model.activeView!.controller.writable).toBe(true);
+  expect(first.model.activeBuffer!.endingLive).toBe(false);
+});

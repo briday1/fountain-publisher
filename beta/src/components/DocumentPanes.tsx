@@ -114,10 +114,8 @@ function DocumentCanvas({
   view,
   preferences,
   onTitle,
-  collaborationAvailable = false,
   mobile = false,
 }: {
-  collaborationAvailable?: boolean;
   mobile?: boolean;
   model: DocumentWorkspace;
   view: DocumentView;
@@ -126,7 +124,6 @@ function DocumentCanvas({
 }) {
   const slot = useRef<HTMLDivElement>(null),
     scroll = useRef<HTMLDivElement>(null);
-  const buffer = model.buffers.get(view.bufferId)!;
   useLayoutEffect(() => {
     slot.current!.append(view.host);
     if (scroll.current) scroll.current.scrollTop = view.scrollTop;
@@ -141,94 +138,8 @@ function DocumentCanvas({
     );
   }, [preferences.spellcheck, view]);
   const focus = view.controller.focusedSection;
-  const heading = buffer.snapshot.screenplay.blocks.find((b) => b.id === focus);
   return (
     <>
-      <div className="document-view-context">
-        <span>
-          {buffer.snapshot.name} ·{" "}
-          {focus ? `Focus: ${heading?.text || "Section"}` : "Whole document"} ·{" "}
-          {destinationLabel(buffer.snapshot.destination)}
-        </span>
-        {collaborationAvailable &&
-          buffer.snapshot.destination &&
-          buffer.snapshot.destination.provider !== "local" &&
-          (buffer.live ? (
-            <div
-              className="live-status"
-              role="status"
-              aria-label="Live collaboration"
-              title={buffer.liveStatus?.message}
-            >
-              <span>
-                {buffer.liveStatus?.phase === "live"
-                  ? "Live editing"
-                  : buffer.liveStatus?.phase === "readonly"
-                    ? "View only · live"
-                    : buffer.liveStatus?.phase || "Connecting…"}
-              </span>
-              <button
-                onClick={() => {
-                  const url = new URL(location.origin);
-                  url.searchParams.set("live", buffer.live!.fileId);
-                  void navigator.clipboard
-                    .writeText(url.toString())
-                    .then(() => {
-                      buffer.liveStatus = {
-                        ...buffer.liveStatus!,
-                        message:
-                          "Link copied. The recipient must already have access to this file and WriteShape.",
-                      };
-                      model.notifyChanged();
-                    })
-                    .catch(() => {
-                      buffer.liveStatus = {
-                        ...buffer.liveStatus!,
-                        message: "Copy this link: " + url,
-                      };
-                      model.notifyChanged();
-                    });
-                }}
-              >
-                Copy live link
-              </button>
-              {buffer.liveStatus?.members.map((member, index) => (
-                <span key={member.id + index}>{member.name}</span>
-              ))}
-            </div>
-          ) : (
-            <button
-              disabled={buffer.joiningLive || !view.controller.writable}
-              onClick={() =>
-                void model
-                  .startLive(
-                    buffer.snapshot.id,
-                    !!buffer.snapshot.destination?.live,
-                  )
-                  .catch((error) => {
-                    buffer.message = String(error);
-                    buffer.liveStatus = {
-                      phase: "paused",
-                      message: String(error),
-                      members: [],
-                      canEdit: false,
-                    };
-                    model.notifyChanged();
-                  })
-              }
-            >
-              {buffer.joiningLive ? "Joining…" : "Start live editing"}
-            </button>
-          ))}
-        {buffer.liveStatus?.message && (
-          <span role="status">{buffer.liveStatus.message}</span>
-        )}
-        {focus && (
-          <button onClick={() => model.focusSection(view.id)}>
-            Show whole document
-          </button>
-        )}
-      </div>
       <div
         ref={scroll}
         className="writing-scroll"
@@ -280,10 +191,8 @@ export function DocumentPanes({
   onOpen,
   onTitle,
   changed,
-  collaborationAvailable = false,
   mobile = false,
 }: {
-  collaborationAvailable?: boolean;
   mobile?: boolean;
   model: DocumentWorkspace;
   preferences: Preferences;
@@ -293,6 +202,17 @@ export function DocumentPanes({
 }) {
   const root = useRef<HTMLDivElement>(null);
   const dragId = useRef<string | undefined>(undefined);
+  const touchDrag = useRef<
+    | {
+        id: string;
+        pointerId: number;
+        x: number;
+        y: number;
+        started: boolean;
+      }
+    | undefined
+  >(undefined);
+  const suppressClick = useRef(false);
   const [drag, setDrag] = useState<string>();
   const [drop, setDrop] = useState<DropTarget>();
   const [resizing, setResizing] = useState(false);
@@ -357,6 +277,38 @@ export function DocumentPanes({
     finishDrag();
     focusSelected();
   };
+  const pointerTarget = (
+    x: number,
+    y: number,
+    fallback?: Element,
+  ): DropTarget | undefined => {
+    const hit = document.elementFromPoint?.(x, y) || fallback;
+    const paneElement = hit?.closest<HTMLElement>("[data-document-pane]");
+    if (!paneElement || !root.current?.contains(paneElement)) return;
+    const pane = Number(paneElement.dataset.documentPane) as 0 | 1;
+    const tab = hit?.closest<HTMLElement>("[data-document-view]");
+    if (tab) {
+      const bounds = tab.getBoundingClientRect();
+      const index = model.panes[pane].tabs.indexOf(tab.dataset.documentView!);
+      return {
+        pane,
+        slot: index + (x >= bounds.left + bounds.width / 2 ? 1 : 0),
+      };
+    }
+    const strip = hit?.closest<HTMLElement>(".document-tabs");
+    if (strip) return { pane, slot: model.panes[pane].tabs.length };
+    const bounds = paneElement.getBoundingClientRect();
+    const fraction = (x - bounds.left) / bounds.width;
+    return {
+      pane,
+      edge:
+        !model.split && fraction > 0.75
+          ? "right"
+          : !model.split && fraction < 0.25
+            ? "left"
+            : undefined,
+    };
+  };
   // Rendering one active view preserves the complete desktop group layout.
   if (mobile)
     return (
@@ -367,7 +319,6 @@ export function DocumentPanes({
               key={model.activeView.id}
               model={model}
               view={model.activeView}
-              collaborationAvailable={collaborationAvailable}
               preferences={preferences}
               onTitle={onTitle}
               mobile
@@ -385,6 +336,62 @@ export function DocumentPanes({
     <div
       className={`document-workspace ${model.split ? "is-split" : ""} ${drag ? "dragging-tab" : ""} ${resizing ? "resizing-panes" : ""} active-pane-${model.activePane}`}
       ref={root}
+      onDropCapture={(event) => {
+        if (!dragId.current) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const target = pointerTarget(
+          event.clientX,
+          event.clientY,
+          event.target as Element,
+        );
+        if (target) acceptDrop(target);
+        else finishDrag();
+      }}
+      onClickCapture={(event) => {
+        if (suppressClick.current) {
+          event.preventDefault();
+          event.stopPropagation();
+          suppressClick.current = false;
+        }
+      }}
+      onPointerMove={(event) => {
+        const touch = touchDrag.current;
+        if (!touch || touch.pointerId !== event.pointerId) return;
+        if (
+          !touch.started &&
+          Math.hypot(event.clientX - touch.x, event.clientY - touch.y) < 8
+        )
+          return;
+        event.preventDefault();
+        if (!touch.started) {
+          touch.started = true;
+          setContext(undefined);
+          dragId.current = touch.id;
+          setDrag(touch.id);
+        }
+        setDrop(pointerTarget(event.clientX, event.clientY));
+      }}
+      onPointerUp={(event) => {
+        const touch = touchDrag.current;
+        if (!touch || touch.pointerId !== event.pointerId) return;
+        touchDrag.current = undefined;
+        if (event.currentTarget.hasPointerCapture(event.pointerId))
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        suppressClick.current = true;
+        window.setTimeout(() => {
+          suppressClick.current = false;
+        }, 0);
+        if (touch.started) {
+          const target = pointerTarget(event.clientX, event.clientY);
+          if (target) acceptDrop(target);
+          else finishDrag();
+        } else model.activate(touch.id);
+      }}
+      onPointerCancel={() => {
+        touchDrag.current = undefined;
+        finishDrag();
+      }}
       style={{ "--pane-ratio": `${model.ratio}%` } as React.CSSProperties}
       onKeyDown={(event) => {
         if (
@@ -424,6 +431,7 @@ export function DocumentPanes({
             <section
               className={`document-pane pane-${paneId} ${model.activePane === paneId ? "active" : ""}`}
               key={paneId}
+              data-document-pane={paneId}
               aria-label={`${paneId === 0 ? "Left" : "Right"} document pane`}
               onDragOver={(event) => {
                 if (!dragId.current) return;
@@ -530,12 +538,14 @@ export function DocumentPanes({
                       <div
                         className={`document-tab ${pane.selected === id ? "selected" : ""} ${drag === id ? "drag-source" : ""} ${target?.slot === index ? "drop-before" : ""} ${index === pane.tabs.length - 1 && target?.slot === pane.tabs.length ? "drop-after" : ""}`}
                         key={id}
+                        data-document-view={id}
                         draggable
                         onDragStart={(event) => {
                           setContext(undefined);
                           dragId.current = id;
                           setDrag(id);
                           event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", id);
                           event.dataTransfer.setData(
                             "application/x-writeshape-tab",
                             id,
@@ -581,6 +591,21 @@ export function DocumentPanes({
                       >
                         <button
                           role="tab"
+                          onPointerDown={(event) => {
+                            if (
+                              event.pointerType === "mouse" ||
+                              event.button !== 0
+                            )
+                              return;
+                            touchDrag.current = {
+                              id,
+                              pointerId: event.pointerId,
+                              x: event.clientX,
+                              y: event.clientY,
+                              started: false,
+                            };
+                            root.current?.setPointerCapture(event.pointerId);
+                          }}
                           draggable
                           id={`document-tab-${id}`}
                           aria-controls={`document-panel-${id}`}
@@ -869,7 +894,6 @@ export function DocumentPanes({
                   key={selected.id}
                   model={model}
                   view={selected}
-                  collaborationAvailable={collaborationAvailable}
                   preferences={preferences}
                   onTitle={onTitle}
                 />
