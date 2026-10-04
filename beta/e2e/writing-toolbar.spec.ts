@@ -140,10 +140,12 @@ test("writing controls stay in one compact row, respond to panel width, and rema
     fullPage: true,
   });
   await page.setViewportSize({ width: 1100, height: 900 });
-  await expect(toolbar.locator(".writing-insights-tool span")).toHaveCSS(
-    "display",
-    "none",
-  );
+  await expect(
+    toolbar.getByRole("button", { name: "Toggle outline", exact: true }).locator("span"),
+  ).toBeVisible();
+  await expect(
+    toolbar.getByRole("button", { name: "Insights", exact: true }).locator("span"),
+  ).toBeVisible();
   expect((await toolbar.boundingBox())!.height).toBeLessThanOrEqual(46);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(toolbar).toHaveCount(0);
