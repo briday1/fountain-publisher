@@ -295,15 +295,19 @@ for (const signedIn of [false, true]) {
     );
 
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await expect(
-      page
-        .locator(".app-header")
-        .getByRole("button", { name: label, exact: true }),
-    ).toBeVisible();
+    const header = page.locator(".app-header");
+    await expect(header.getByRole("button", { name: label, exact: true })).toHaveCount(0);
+    await expect(header.getByRole("button", { name: "Files", exact: true })).toHaveCount(0);
+    await expect(header.locator(".document-name")).toHaveCount(0);
+    await header.getByRole("button", { name: "WriteShape account", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: label, exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Close dialog" }).click();
+    await expect(editor).toHaveText("Keep this draft while checking my account.");
     await page.getByRole("button", { name: "File", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Files…", exact: true })).toBeVisible();
     await expect(
       page.getByRole("button", { name: new RegExp(`^${label}…?$`) }),
-    ).toHaveCount(1);
+    ).toHaveCount(0);
   });
 }
 
