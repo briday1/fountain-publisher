@@ -125,7 +125,8 @@ test("storage stays within the iPad dialog, keeps its position and creates an in
   await page
     .getByRole("textbox", { name: "Screenplay editor" })
     .fill("Keep my existing draft.");
-  await page.getByRole("button", { name: "Files", exact: true }).click();
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page.getByRole("button", { name: "Files…", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Files", exact: true });
   await dialog.getByRole("tab", { name: "WriteShape", exact: true }).click();
   const sidebar = dialog.getByRole("complementary", {

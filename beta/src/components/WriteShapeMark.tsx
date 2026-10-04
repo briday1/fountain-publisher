@@ -21,13 +21,13 @@ export function WriteShapeMark({
       />
       <path d="M38 14v6a3 3 0 0 0 3 3h6" fill="var(--surface, white)" opacity="0.6" />
       <path
-        d="M24 28h15M27 34h12"
+        d="M28.667 37H42M22 44h13.333"
         stroke="var(--surface, white)"
         strokeWidth="3"
         strokeLinecap="round"
       />
       <path
-        d="m24 41 4 4 4-4 4 4 4-4"
+        d="m24 27 4 4 4-4 4 4 4-4"
         stroke="var(--surface, white)"
         strokeWidth="3"
         strokeLinecap="round"

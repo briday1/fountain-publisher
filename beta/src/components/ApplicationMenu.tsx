@@ -183,7 +183,7 @@ export function ApplicationMenu({
   const fileLabels = [
     "New",
     "Open…",
-    "File browser…",
+    "Files…",
     "Save",
     "Save As…",
     "Version history…",

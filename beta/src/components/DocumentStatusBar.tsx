@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Check, Cloud, RefreshCw } from "lucide-react";
 import type {
   DocumentBuffer,
@@ -60,6 +61,12 @@ export function DocumentStatusBar({
   collaborationAvailable: boolean;
   onFiles: (mode: "open" | "save") => void;
 }) {
+  const [copiedFor, setCopiedFor] = useState<string | null>(null);
+  useEffect(() => {
+    if (!copiedFor) return;
+    const timer = window.setTimeout(() => setCopiedFor(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [copiedFor]);
   const view = model.activeView;
   const buffer = model.activeBuffer;
   if (!view || !buffer) return <span>No document open</span>;
@@ -148,22 +155,38 @@ export function DocumentStatusBar({
                   </span>
                 ) : null}
                 <button
+                  className="document-copy-link"
+                  title="Only people with file access can join."
                   disabled={buffer.endingLive}
                   onClick={() =>
                     void act(async () => {
                       const url = new URL(location.origin);
                       url.searchParams.set("live", buffer.live!.fileId);
                       await navigator.clipboard.writeText(url.toString());
-                      buffer.liveStatus = {
-                        ...buffer.liveStatus!,
-                        message:
-                          "Link copied. Only people with file access can join.",
-                      };
-                      model.notifyChanged();
+                      setCopiedFor(buffer.snapshot.id);
                     })
                   }
                 >
-                  Copy live link
+                  <span
+                    aria-hidden={copiedFor === buffer.snapshot.id}
+                    className={
+                      copiedFor === buffer.snapshot.id
+                        ? "copy-label-hidden"
+                        : ""
+                    }
+                  >
+                    Copy live link
+                  </span>
+                  <span
+                    role="status"
+                    className={
+                      copiedFor === buffer.snapshot.id
+                        ? ""
+                        : "copy-label-hidden"
+                    }
+                  >
+                    {copiedFor === buffer.snapshot.id ? "Link copied" : ""}
+                  </span>
                 </button>
                 <button
                   disabled={buffer.endingLive}

@@ -75,6 +75,18 @@
   padding: 0 8px;
   white-space: nowrap;
 }
+.writing-panels-group {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 7px;
+}
+.writing-toolbar .writing-panel-tool {
+  height: 32px;
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--raised) 58%, transparent);
+}
 .writing-toolbar .writing-element {
   width: 132px;
   padding: 0 4px 0 7px;
@@ -109,13 +121,6 @@
   .writing-toolbar .writing-element {
     width: 116px;
   }
-  .writing-insights-tool span {
-    display: none;
-  }
-  .writing-toolbar .writing-insights-tool {
-    width: 27px;
-    padding: 0;
-  }
   .writing-toolbar-space {
     display: none;
   }
@@ -138,10 +143,6 @@
     padding-inline: 6px;
     font-size: 10px;
     gap: 4px;
-  }
-  .writing-toolbar .writing-insights-tool {
-    width: 25px;
-    padding: 0;
   }
   .writing-group-rule {
     margin-inline: 1px;

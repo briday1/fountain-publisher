@@ -259,7 +259,7 @@ for (const signedIn of [false, true]) {
     await expect(files.getByRole("button")).toHaveText([
       "New",
       /^Open…/,
-      "File browser…",
+      "Files…",
       /^Save[^A-Za-z]*/,
       /^Save As…/,
       "Version history…",
@@ -359,7 +359,7 @@ test("free cloud documents open read-only and make an explicit editable local co
   await page.getByRole("textbox", { name: "Screenplay editor" }).waitFor();
   await page.getByRole("button", { name: "File", exact: true }).click();
   await page
-    .getByRole("button", { name: "File browser…", exact: true })
+    .getByRole("button", { name: "Files…", exact: true })
     .click();
   await page
     .getByRole("option", { name: "Fountain file: Preserved.fountain" })
@@ -438,7 +438,7 @@ test("losing Premium preserves unsynced writing and requires an explicit sync re
   await page.goto("/");
   await page.getByRole("button", { name: "File", exact: true }).click();
   await page
-    .getByRole("button", { name: "File browser…", exact: true })
+    .getByRole("button", { name: "Files…", exact: true })
     .click();
   await page
     .getByRole("option", { name: "Fountain file: Draft.fountain" })
@@ -526,7 +526,7 @@ test("mobile file browser selects downloads and renames without replacing the dr
   await editor.fill("Keep my active draft.");
   await page.getByRole("button", { name: "File", exact: true }).click();
   await page
-    .getByRole("button", { name: "File browser…", exact: true })
+    .getByRole("button", { name: "Files…", exact: true })
     .click();
   await page.locator(".library-more-actions > summary").click();
   await page

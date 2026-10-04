@@ -1,0 +1,27 @@
+.annotation-form textarea {
+  display: block;
+  min-width: 0;
+  min-height: 144px;
+  padding: 12px;
+  font-size: 16px;
+  background: var(--raised);
+}
+.annotation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.annotation-actions .annotation-delete {
+  margin-right: auto;
+}
+.annotation-form .annotation-error {
+  margin: 0;
+}
+@media (max-width: 480px) {
+  .annotation-actions .annotation-delete {
+    flex-basis: 100%;
+    margin-bottom: 4px;
+  }
+}

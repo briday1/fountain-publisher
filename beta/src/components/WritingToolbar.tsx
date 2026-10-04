@@ -220,13 +220,13 @@ export function WritingToolbar({
           </button>
         </div>
         <div
-          className="writing-control-group writing-panels-group"
+          className="writing-panels-group"
           role="group"
           aria-label="Writing panels"
         >
           <button
             type="button"
-            className="writing-tool"
+            className="writing-tool writing-labeled-tool writing-panel-tool"
             aria-label="Toggle outline"
             title={
               novel
@@ -244,10 +244,11 @@ export function WritingToolbar({
             }
           >
             <PanelLeft size={16} aria-hidden="true" />
+            <span>Outline</span>
           </button>
           <button
             type="button"
-            className="writing-tool writing-labeled-tool writing-insights-tool"
+            className="writing-tool writing-labeled-tool writing-panel-tool"
             aria-label="Insights"
             title="Insights: page count, pacing, and character analytics"
             aria-pressed={preferences.insights}

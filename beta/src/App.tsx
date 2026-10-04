@@ -90,6 +90,7 @@ import { ExportDialog } from "./components/ExportDialog";
 import type { ExportSelection } from "./components/ExportDialog";
 import { highlightedPdfFilename } from "./core/characterHighlights";
 import { AnnotationsDialog } from "./components/AnnotationsDialog";
+import { AnnotationDialog } from "./components/AnnotationDialog";
 import { CharacterDialog } from "./components/CharacterDialog";
 import { CharacterAnalytics } from "./components/CharacterAnalytics";
 import { BeatSheetDialog } from "./components/BeatSheetDialog";
@@ -169,7 +170,6 @@ export default function App() {
     controller: EditorController;
     target: AnnotationTarget;
   } | null>(null);
-  const [workspaceAnnotationText, setWorkspaceAnnotationText] = useState("");
   const goalActivity = useRef(goals.onActivity);
   goalActivity.current = goals.onActivity;
   const refreshWorkspace = () => {
@@ -664,7 +664,6 @@ export default function App() {
             const controller = editor.current;
             if (controller) {
               setWorkspaceAnnotation({ controller, target });
-              setWorkspaceAnnotationText(target.text);
             }
           },
           error: tell,
@@ -1758,9 +1757,12 @@ export default function App() {
         <button
           className="brand"
           aria-label={
-            isWriteShape ? "WriteShape help" : "Fountain Publisher help"
+            isWriteShape ? "WriteShape account" : "Fountain Publisher help"
           }
-          onClick={() => setDialog("help")}
+          title={isWriteShape ? "Account" : "Help"}
+          onClick={() =>
+            isWriteShape ? setAccountOpen(true) : setDialog("help")
+          }
         >
           {isWriteShape ? (
             <WriteShapeMark size={28} />
@@ -1769,14 +1771,6 @@ export default function App() {
           )}
           <span>{isWriteShape ? "WriteShape" : "Fountain Publisher"}</span>
         </button>
-        {isWriteShape && !mobile && (
-          <button onClick={() => setLibraryMode("open")}>Files</button>
-        )}
-        {isWriteShape && !mobile && (
-          <button onClick={() => setAccountOpen(true)}>
-            {account.state.account ? "Account" : "Sign in"}
-          </button>
-        )}
         <ApplicationMenu
           simpleMobile={isWriteShape}
           accountAction={
@@ -1814,7 +1808,7 @@ export default function App() {
                   setLibraryMode("open");
                 }}
               >
-                File browser…
+                Files…
               </MenuItem>
             )}
             <MenuItem onClick={() => void run(save)} shortcut={`${mod}S`}>
@@ -2050,7 +2044,7 @@ export default function App() {
               onMark={(mark) => editor.current?.toggleMark(mark)}
             />
           </div>
-        ) : (
+        ) : !isWriteShape ? (
           <button
             className="document-name"
             disabled={workspaceEmpty}
@@ -2062,7 +2056,7 @@ export default function App() {
           >
             {workspaceEmpty ? "No open document" : snapshot.name}
           </button>
-        )}
+        ) : null}
         {(mobile || !isWriteShape) && (
           <button
             className="save-button"
@@ -3036,52 +3030,21 @@ export default function App() {
           />
         ))}
       {workspaceAnnotation && (
-        <Modal title="Annotation" onClose={() => setWorkspaceAnnotation(null)}>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              try {
-                workspaceAnnotation.controller.saveAnnotation(
-                  workspaceAnnotation.target,
-                  workspaceAnnotationText,
-                );
-                setWorkspaceAnnotation(null);
-              } catch (error) {
-                report(error);
-              }
-            }}
-          >
-            <textarea
-              aria-label="Annotation"
-              value={workspaceAnnotationText}
-              readOnly={!workspaceAnnotation.target.canEdit}
-              onChange={(e) => setWorkspaceAnnotationText(e.target.value)}
-            />
-            {workspaceAnnotation.target.canEdit && (
-              <>
-                {workspaceAnnotation.target.noteId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      try {
-                        workspaceAnnotation.controller.saveAnnotation(
-                          workspaceAnnotation.target,
-                          null,
-                        );
-                        setWorkspaceAnnotation(null);
-                      } catch (error) {
-                        report(error);
-                      }
-                    }}
-                  >
-                    Delete annotation
-                  </button>
-                )}
-                <button type="submit">Save annotation</button>
-              </>
-            )}
-          </form>
-        </Modal>
+        <AnnotationDialog
+          title="Annotation"
+          target={workspaceAnnotation.target}
+          onSave={(value) =>
+            workspaceAnnotation.controller.saveAnnotation(
+              workspaceAnnotation.target,
+              value,
+            )
+          }
+          onClose={() => {
+            const controller = workspaceAnnotation.controller;
+            setWorkspaceAnnotation(null);
+            controller.focus();
+          }}
+        />
       )}
       {dialog === "new" && (
         <Modal title="New document" onClose={() => setDialog(null)}>
