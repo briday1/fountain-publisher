@@ -308,6 +308,10 @@
   line-height: 1.6;
 }
 @media (max-width: 600px) {
+  .sample-beat-sheet svg,
+  .sample-gantt svg {
+    font-size: 26px;
+  }
   .sample-beat-grid {
     grid-template-columns: 1fr;
   }
