@@ -1,5 +1,8 @@
 import { ArrowRight, ArrowDown, Focus } from "lucide-react";
 import "./section-focus.css";
+import { SampleScript } from "./PremiumSample";
+import { premiumSample } from "./premiumSampleData";
+import { sampleBook } from "./BookPremiumExamples";
 
 export function FocusPremiumExample({ mode }: { mode: "book" | "screenplay" }) {
   const book = mode === "book";
@@ -51,27 +54,30 @@ export function FocusPremiumExample({ mode }: { mode: "book" | "screenplay" }) {
           </div>
           <ArrowRight className="focus-diagram-arrow" aria-hidden="true" />
           <ArrowDown className="focus-diagram-down" aria-hidden="true" />
-          <div className="focus-diagram-page">
+          <div className="focus-diagram-page" inert aria-hidden="true">
             <small>
               <Focus size={14} /> Focus mode · 2 of 3
             </small>
-            <article className={book ? "book-example" : "script-example"}>
-              <h4>{units[1]}</h4>
-              {book ? (
-                <p>
-                  She had spent years refusing his help. Tonight, with a boat
-                  lost in the channel, she could no longer afford to.
-                </p>
-              ) : (
-                <>
-                  <p>Mara grips the crank. Eli waits beside the dark lens.</p>
-                  <p className="focus-example-cue">MARA</p>
-                  <p className="focus-example-dialogue">
-                    Then we turn it together.
-                  </p>
-                </>
-              )}
-            </article>
+            <SampleScript
+              doc={(() => {
+                const doc = book ? sampleBook : premiumSample;
+                const headings = doc.blocks.filter((block) =>
+                  book
+                    ? block.kind === "section" && block.level === 2
+                    : block.kind === "scene",
+                );
+                const start = doc.blocks.findIndex(
+                  (block) => block.id === headings[1]?.id,
+                );
+                const end = doc.blocks.findIndex(
+                  (block) => block.id === headings[2]?.id,
+                );
+                return {
+                  ...doc,
+                  blocks: doc.blocks.slice(start, end < 0 ? undefined : end),
+                };
+              })()}
+            />
             <footer>Same document. Every edit stays connected.</footer>
           </div>
         </div>

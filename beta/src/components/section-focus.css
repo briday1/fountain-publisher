@@ -101,29 +101,6 @@
   padding: 12px 16px;
   border-bottom: 1px solid var(--border);
 }
-.focus-diagram-page article {
-  padding: 24px;
-  min-height: 230px;
-  line-height: 1.7;
-  font-size: 13px;
-}
-.focus-diagram-page h4 {
-  font-size: 14px;
-  margin: 0 0 18px;
-}
-.focus-diagram-page .book-example {
-  font-family: Georgia, serif;
-}
-.focus-diagram-page .script-example {
-  font-family: "Courier Prime", monospace;
-}
-.focus-example-cue {
-  text-align: center;
-  margin-bottom: 0;
-}
-.focus-example-dialogue {
-  margin: 0 10%;
-}
 .focus-diagram-page footer {
   padding: 12px 16px;
   border-top: 1px solid var(--border);
@@ -141,9 +118,6 @@
     display: block;
     justify-self: center;
     color: var(--accent);
-  }
-  .focus-diagram-page article {
-    min-height: 0;
   }
   .section-focus-bar {
     padding: 8px;

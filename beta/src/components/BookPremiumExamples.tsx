@@ -1,5 +1,5 @@
 import { parseMarkdown } from "../core/markdown";
-import { NovelOutline } from "./NovelOutline";
+import { SampleOutline } from "./PremiumStoryExamples";
 import { NovelCharacters } from "./NovelCharacters";
 import { TitlePreview } from "./TitlePreview";
 import { BeatBoard } from "./BeatBoard";
@@ -74,13 +74,16 @@ export function BookPremiumExamples() {
         </p>
         <figure>
           <div className="book-premium-opening" inert aria-hidden="true">
-            <TitlePreview value={sampleBook.titlePage} novel onEdit={noop} />
-            <NovelOutline
-              doc={sampleBook}
-              onJump={noop}
-              onAdd={noop}
-              onBeats={noop}
-            />
+            <SampleOutline doc={sampleBook} />
+            <div className="sample-book-page novel-mode">
+              <article className="screenplay-paper">
+                <TitlePreview
+                  value={sampleBook.titlePage}
+                  novel
+                  onEdit={noop}
+                />
+              </article>
+            </div>
           </div>
           <figcaption>Book title page and outline example</figcaption>
         </figure>
@@ -93,7 +96,17 @@ export function BookPremiumExamples() {
           details that make them distinct.
         </p>
         <figure>
-          <div className="sample-insights" inert aria-hidden="true">
+          <div
+            className="sample-insights insights-panel"
+            inert
+            aria-hidden="true"
+          >
+            <div className="panel-heading">
+              <div>
+                <small>DOCUMENT</small>
+                <h2>Insights</h2>
+              </div>
+            </div>
             <NovelCharacters doc={sampleBook} onChange={noop} />
           </div>
           <figcaption>Character profiles from The Last Light</figcaption>

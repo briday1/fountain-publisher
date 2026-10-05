@@ -113,7 +113,9 @@ export function CharacterAnalytics({
   onCharacter,
   onScene,
   onClose,
+  inline = false,
 }: {
+  inline?: boolean;
   doc: Screenplay;
   onCharacter: (name: string) => void;
   onScene: (id: string) => void;
@@ -181,6 +183,7 @@ export function CharacterAnalytics({
   };
 
   useEffect(() => {
+    if (inline) return;
     const element = dialog.current!;
     const previousFocus = document.activeElement;
     element.showModal();
@@ -189,7 +192,7 @@ export function CharacterAnalytics({
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected)
         previousFocus.focus({ preventScroll: true });
     };
-  }, []);
+  }, [inline]);
   useEffect(() => {
     const element = viewport.current!;
     const observer = new ResizeObserver(([entry]) =>
@@ -252,6 +255,361 @@ export function CharacterAnalytics({
       });
   }
 
+  const content = (
+    <div className="character-analytics-shell">
+      <header className="character-analytics-header">
+        <div>
+          <small>INSIGHTS</small>
+          <h2 id={titleId}>{selectedTitle}</h2>
+        </div>
+        <div className="character-analytics-header-actions">
+          {selected && data.groups.length > 1 && (
+            <button type="button" onClick={() => setSelection(null)}>
+              <ArrowLeft size={13} /> Overview
+            </button>
+          )}
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onClose}
+            aria-label="Close character analytics"
+          >
+            <X size={20} />
+          </button>
+        </div>
+      </header>
+      <p id={descriptionId} className="character-analytics-description">
+        {selected
+          ? `${selected.heading} · Solid bars show dialogue word count and position within this ${selected.kind}.`
+          : `Dialogue lines by character across ${data.groups[0]?.kind === "scene" ? "acts and scenes" : "the document structure"}. Select a ${data.groups[0]?.kind === "scene" ? "scene " : ""}header for word-position detail.`}
+      </p>
+      <div
+        ref={viewport}
+        className="character-analytics-viewport"
+        tabIndex={0}
+        role="region"
+        aria-label="Scrollable character analytics chart"
+      >
+        <svg
+          ref={chart}
+          xmlns="http://www.w3.org/2000/svg"
+          width={width + padding * 2}
+          height={height + padding * 2}
+          viewBox={`${-padding} ${-padding} ${width + padding * 2} ${height + padding * 2}`}
+          fontFamily={chartFont}
+          fontSize={11}
+          fontWeight={600}
+          fill={colors.ink}
+          textAnchor="start"
+          dominantBaseline="central"
+          role="group"
+          aria-label={
+            selected
+              ? `Character dialogue word-position Gantt for ${selected.heading}, with ${selected.totalWords} words`
+              : `Character dialogue timeline with ${characters.length} characters across ${data.groups.length} ${data.groups[0]?.kind === "scene" ? "scenes" : "groups"}; usage ranges from ${data.minLines} to ${data.maxLines} dialogue lines`
+          }
+        >
+          <rect
+            x={-padding}
+            y={-padding}
+            width={width + padding * 2}
+            height={height + padding * 2}
+            fill={colors.paper}
+          />
+          {/* Paint bands first so they never obscure the grid. */}
+          {characters.map(
+            (name, row) =>
+              row % 2 === 1 && (
+                <rect
+                  key={name}
+                  data-chart-row-band="true"
+                  x={0}
+                  y={headerHeight + row * rowHeight}
+                  width={width}
+                  height={rowHeight}
+                  fill={colors.ink}
+                  fillOpacity={dark ? 0.045 : 0.035}
+                />
+              ),
+          )}
+          <rect
+            width={selected ? width : labelWidth}
+            height={headerHeight}
+            fill={colors.paper}
+          />
+          {selected ? (
+            <>
+              <text x={12} y={20} fontSize={12}>
+                {fit(selected.heading, 130, 12)}
+              </text>
+              <text
+                x={12}
+                y={40}
+                fill={colors.muted}
+                fontSize={9}
+                fontWeight={400}
+              >
+                {selected.totalWords.toLocaleString()} {selected.kind} words
+              </text>
+              {[0, 0.25, 0.5, 0.75, 1].map((ratio) => (
+                <g key={ratio}>
+                  <line
+                    x1={labelWidth + plotWidth * ratio}
+                    x2={labelWidth + plotWidth * ratio}
+                    y1={headerHeight}
+                    y2={height}
+                    stroke={colors.grid}
+                    data-chart-grid="true"
+                  />
+                  <text
+                    x={labelWidth + plotWidth * ratio}
+                    y={42}
+                    textAnchor="middle"
+                    data-chart-tick="true"
+                    fontSize={9}
+                    fontWeight={400}
+                    fill={colors.muted}
+                  >
+                    {Math.round(selected.totalWords * ratio).toLocaleString()}
+                  </text>
+                </g>
+              ))}
+            </>
+          ) : (
+            <>
+              <text x={12} y={55} fill={colors.muted}>
+                CHARACTER
+              </text>
+              {actHeaders.map((act) => (
+                <ChartButton
+                  key={`${act.start}-${act.title}`}
+                  label={`View ${act.group.heading} character Gantt`}
+                  onClick={() => setSelection(act.group.id)}
+                >
+                  <rect
+                    x={labelWidth + act.start * sceneWidth + 0.5}
+                    y={0.5}
+                    width={act.length * sceneWidth}
+                    height={28}
+                    fill={colors.paper}
+                    stroke={colors.border}
+                  />
+                  <text
+                    x={labelWidth + (act.start + act.length / 2) * sceneWidth}
+                    y={14}
+                    textAnchor="middle"
+                  >
+                    {fit(act.title, act.length * sceneWidth - 12)}
+                  </text>
+                </ChartButton>
+              ))}
+              {data.groups.map((group, index) => (
+                <ChartButton
+                  key={group.id}
+                  label={`View ${group.kind === "scene" ? `Scene ${group.sceneNumber}: ` : ""}${group.heading} character Gantt`}
+                  onClick={() => setSelection(group.id)}
+                >
+                  <rect
+                    x={labelWidth + index * sceneWidth + 0.5}
+                    y={28.5}
+                    width={sceneWidth}
+                    height={54}
+                    fill={colors.paper}
+                    stroke={colors.border}
+                  />
+                  <text
+                    x={labelWidth + (index + 0.5) * sceneWidth}
+                    y={44}
+                    textAnchor="middle"
+                  >
+                    {group.label}
+                  </text>
+                  <text
+                    x={labelWidth + (index + 0.5) * sceneWidth}
+                    y={64}
+                    textAnchor="middle"
+                    fontSize={9}
+                    fontWeight={400}
+                    fill={colors.muted}
+                  >
+                    {fit(group.heading, sceneWidth - 10, 9, 400)}
+                  </text>
+                </ChartButton>
+              ))}
+            </>
+          )}
+          {!selected &&
+            Array.from({ length: data.groups.length + 1 }, (_, index) => (
+              <line
+                key={index}
+                data-chart-grid="true"
+                x1={labelWidth + index * sceneWidth}
+                x2={labelWidth + index * sceneWidth}
+                y1={headerHeight}
+                y2={height}
+                stroke={colors.grid}
+              />
+            ))}
+          {characters.map((name, row) => {
+            const y = headerHeight + row * rowHeight;
+            return (
+              <g key={name}>
+                <ChartButton
+                  label={`View all ${name} dialogue`}
+                  onClick={() => openCharacter(name)}
+                >
+                  <rect
+                    x={0}
+                    y={y}
+                    width={labelWidth}
+                    height={rowHeight}
+                    fill="transparent"
+                  />
+                  <text x={12} y={y + rowHeight / 2}>
+                    {fit(name, labelWidth - 20)}
+                  </text>
+                </ChartButton>
+                {selected
+                  ? selected.segments
+                      .filter((segment) => segment.character === name)
+                      .map((segment, index) => (
+                        <g
+                          key={`${segment.blockId}-${index}`}
+                          role="img"
+                          aria-label={`${name}: ${segment.words} dialogue words, starting at word ${segment.start}`}
+                        >
+                          <title>
+                            {name}: {segment.words} dialogue words, starting at
+                            word {segment.start}
+                          </title>
+                          <rect
+                            x={
+                              labelWidth +
+                              (segment.start / (selected.totalWords || 1)) *
+                                plotWidth
+                            }
+                            y={y + 8}
+                            width={Math.max(
+                              2,
+                              (segment.words / (selected.totalWords || 1)) *
+                                plotWidth,
+                            )}
+                            height={rowHeight - 16}
+                            fill={colorFor(name)}
+                          />
+                        </g>
+                      ))
+                  : data.groups.map((group, index) => {
+                      const count = group.lines[name] ?? 0;
+                      if (!count) return null;
+                      const opacity =
+                        data.maxLines === data.minLines
+                          ? 1
+                          : 0.3 +
+                            (0.7 * (count - data.minLines)) /
+                              (data.maxLines - data.minLines);
+                      return (
+                        <g
+                          key={group.id}
+                          role="img"
+                          aria-label={`${name}, ${group.heading}: ${count} ${count === 1 ? "line" : "lines"}`}
+                        >
+                          <title>
+                            {name}, {group.heading}: {count}{" "}
+                            {count === 1 ? "line" : "lines"}
+                          </title>
+                          <rect
+                            x={labelWidth + index * sceneWidth + 4}
+                            y={y + 7}
+                            width={sceneWidth - 8}
+                            height={rowHeight - 14}
+                            fill={colorFor(name)}
+                            opacity={opacity}
+                          />
+                          <text
+                            x={labelWidth + (index + 0.5) * sceneWidth}
+                            y={y + rowHeight / 2}
+                            textAnchor="middle"
+                            fill={
+                              opacity >= 0.62
+                                ? labelColor(colorFor(name))
+                                : colors.ink
+                            }
+                          >
+                            {count}
+                          </text>
+                        </g>
+                      );
+                    })}
+              </g>
+            );
+          })}
+          <rect
+            x={0.5}
+            y={selected ? headerHeight + 0.5 : 0.5}
+            width={width - 1}
+            height={height - (selected ? headerHeight : 0) - 1}
+            fill="none"
+            stroke={colors.grid}
+            pointerEvents="none"
+          />
+          {!characters.length && (
+            <text
+              x={width / 2}
+              y={headerHeight + rowHeight / 2}
+              textAnchor="middle"
+              fill={colors.muted}
+              fontWeight={400}
+            >
+              No character dialogue in this {selected?.kind ?? "document"}.
+            </text>
+          )}
+        </svg>
+      </div>
+      <footer className="character-analytics-actions">
+        <span role="status">{status}</span>
+        {selected && selected.kind !== "document" && (
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onScene(selected.id);
+            }}
+          >
+            <ExternalLink size={14} /> Go to {selected.kind}
+          </button>
+        )}
+        <button
+          type="button"
+          className="primary"
+          disabled={saving}
+          onClick={async () => {
+            if (!chart.current) return;
+            setSaving(true);
+            setStatus("");
+            try {
+              await saveChart(chart.current, doc.titlePage.title);
+              setStatus("Character analytics PNG saved.");
+            } catch (error) {
+              setStatus(
+                error instanceof Error
+                  ? error.message
+                  : "Could not save the chart.",
+              );
+            } finally {
+              setSaving(false);
+            }
+          }}
+        >
+          <Download size={14} /> {saving ? "Saving…" : "Save PNG"}
+        </button>
+      </footer>
+    </div>
+  );
+  if (inline)
+    return (
+      <div className="character-analytics sample-analytics">{content}</div>
+    );
   return (
     <dialog
       ref={dialog}
@@ -266,355 +624,7 @@ export function CharacterAnalytics({
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="character-analytics-shell">
-        <header className="character-analytics-header">
-          <div>
-            <small>INSIGHTS</small>
-            <h2 id={titleId}>{selectedTitle}</h2>
-          </div>
-          <div className="character-analytics-header-actions">
-            {selected && data.groups.length > 1 && (
-              <button type="button" onClick={() => setSelection(null)}>
-                <ArrowLeft size={13} /> Overview
-              </button>
-            )}
-            <button
-              type="button"
-              className="icon-button"
-              onClick={onClose}
-              aria-label="Close character analytics"
-            >
-              <X size={20} />
-            </button>
-          </div>
-        </header>
-        <p id={descriptionId} className="character-analytics-description">
-          {selected
-            ? `${selected.heading} · Solid bars show dialogue word count and position within this ${selected.kind}.`
-            : `Dialogue lines by character across ${data.groups[0]?.kind === "scene" ? "acts and scenes" : "the document structure"}. Select a ${data.groups[0]?.kind === "scene" ? "scene " : ""}header for word-position detail.`}
-        </p>
-        <div
-          ref={viewport}
-          className="character-analytics-viewport"
-          tabIndex={0}
-          role="region"
-          aria-label="Scrollable character analytics chart"
-        >
-          <svg
-            ref={chart}
-            xmlns="http://www.w3.org/2000/svg"
-            width={width + padding * 2}
-            height={height + padding * 2}
-            viewBox={`${-padding} ${-padding} ${width + padding * 2} ${height + padding * 2}`}
-            fontFamily={chartFont}
-            fontSize={11}
-            fontWeight={600}
-            fill={colors.ink}
-            textAnchor="start"
-            dominantBaseline="central"
-            role="group"
-            aria-label={
-              selected
-                ? `Character dialogue word-position Gantt for ${selected.heading}, with ${selected.totalWords} words`
-                : `Character dialogue timeline with ${characters.length} characters across ${data.groups.length} ${data.groups[0]?.kind === "scene" ? "scenes" : "groups"}; usage ranges from ${data.minLines} to ${data.maxLines} dialogue lines`
-            }
-          >
-            <rect
-              x={-padding}
-              y={-padding}
-              width={width + padding * 2}
-              height={height + padding * 2}
-              fill={colors.paper}
-            />
-            {/* Paint bands first so they never obscure the grid. */}
-            {characters.map(
-              (name, row) =>
-                row % 2 === 1 && (
-                  <rect
-                    key={name}
-                    data-chart-row-band="true"
-                    x={0}
-                    y={headerHeight + row * rowHeight}
-                    width={width}
-                    height={rowHeight}
-                    fill={colors.ink}
-                    fillOpacity={dark ? 0.045 : 0.035}
-                  />
-                ),
-            )}
-            <rect
-              width={selected ? width : labelWidth}
-              height={headerHeight}
-              fill={colors.paper}
-            />
-            {selected ? (
-              <>
-                <text x={12} y={20} fontSize={12}>
-                  {fit(selected.heading, 130, 12)}
-                </text>
-                <text
-                  x={12}
-                  y={40}
-                  fill={colors.muted}
-                  fontSize={9}
-                  fontWeight={400}
-                >
-                  {selected.totalWords.toLocaleString()} {selected.kind} words
-                </text>
-                {[0, 0.25, 0.5, 0.75, 1].map((ratio) => (
-                  <g key={ratio}>
-                    <line
-                      x1={labelWidth + plotWidth * ratio}
-                      x2={labelWidth + plotWidth * ratio}
-                      y1={headerHeight}
-                      y2={height}
-                      stroke={colors.grid}
-                      data-chart-grid="true"
-                    />
-                    <text
-                      x={labelWidth + plotWidth * ratio}
-                      y={42}
-                      textAnchor="middle"
-                      data-chart-tick="true"
-                      fontSize={9}
-                      fontWeight={400}
-                      fill={colors.muted}
-                    >
-                      {Math.round(selected.totalWords * ratio).toLocaleString()}
-                    </text>
-                  </g>
-                ))}
-              </>
-            ) : (
-              <>
-                <text x={12} y={55} fill={colors.muted}>
-                  CHARACTER
-                </text>
-                {actHeaders.map((act) => (
-                  <ChartButton
-                    key={`${act.start}-${act.title}`}
-                    label={`View ${act.group.heading} character Gantt`}
-                    onClick={() => setSelection(act.group.id)}
-                  >
-                    <rect
-                      x={labelWidth + act.start * sceneWidth + 0.5}
-                      y={0.5}
-                      width={act.length * sceneWidth}
-                      height={28}
-                      fill={colors.paper}
-                      stroke={colors.border}
-                    />
-                    <text
-                      x={labelWidth + (act.start + act.length / 2) * sceneWidth}
-                      y={14}
-                      textAnchor="middle"
-                    >
-                      {fit(act.title, act.length * sceneWidth - 12)}
-                    </text>
-                  </ChartButton>
-                ))}
-                {data.groups.map((group, index) => (
-                  <ChartButton
-                    key={group.id}
-                    label={`View ${group.kind === "scene" ? `Scene ${group.sceneNumber}: ` : ""}${group.heading} character Gantt`}
-                    onClick={() => setSelection(group.id)}
-                  >
-                    <rect
-                      x={labelWidth + index * sceneWidth + 0.5}
-                      y={28.5}
-                      width={sceneWidth}
-                      height={54}
-                      fill={colors.paper}
-                      stroke={colors.border}
-                    />
-                    <text
-                      x={labelWidth + (index + 0.5) * sceneWidth}
-                      y={44}
-                      textAnchor="middle"
-                    >
-                      {group.label}
-                    </text>
-                    <text
-                      x={labelWidth + (index + 0.5) * sceneWidth}
-                      y={64}
-                      textAnchor="middle"
-                      fontSize={9}
-                      fontWeight={400}
-                      fill={colors.muted}
-                    >
-                      {fit(group.heading, sceneWidth - 10, 9, 400)}
-                    </text>
-                  </ChartButton>
-                ))}
-              </>
-            )}
-            {!selected &&
-              Array.from({ length: data.groups.length + 1 }, (_, index) => (
-                <line
-                  key={index}
-                  data-chart-grid="true"
-                  x1={labelWidth + index * sceneWidth}
-                  x2={labelWidth + index * sceneWidth}
-                  y1={headerHeight}
-                  y2={height}
-                  stroke={colors.grid}
-                />
-              ))}
-            {characters.map((name, row) => {
-              const y = headerHeight + row * rowHeight;
-              return (
-                <g key={name}>
-                  <ChartButton
-                    label={`View all ${name} dialogue`}
-                    onClick={() => openCharacter(name)}
-                  >
-                    <rect
-                      x={0}
-                      y={y}
-                      width={labelWidth}
-                      height={rowHeight}
-                      fill="transparent"
-                    />
-                    <text x={12} y={y + rowHeight / 2}>
-                      {fit(name, labelWidth - 20)}
-                    </text>
-                  </ChartButton>
-                  {selected
-                    ? selected.segments
-                        .filter((segment) => segment.character === name)
-                        .map((segment, index) => (
-                          <g
-                            key={`${segment.blockId}-${index}`}
-                            role="img"
-                            aria-label={`${name}: ${segment.words} dialogue words, starting at word ${segment.start}`}
-                          >
-                            <title>
-                              {name}: {segment.words} dialogue words, starting
-                              at word {segment.start}
-                            </title>
-                            <rect
-                              x={
-                                labelWidth +
-                                (segment.start / (selected.totalWords || 1)) *
-                                  plotWidth
-                              }
-                              y={y + 8}
-                              width={Math.max(
-                                2,
-                                (segment.words / (selected.totalWords || 1)) *
-                                  plotWidth,
-                              )}
-                              height={rowHeight - 16}
-                              fill={colorFor(name)}
-                            />
-                          </g>
-                        ))
-                    : data.groups.map((group, index) => {
-                        const count = group.lines[name] ?? 0;
-                        if (!count) return null;
-                        const opacity =
-                          data.maxLines === data.minLines
-                            ? 1
-                            : 0.3 +
-                              (0.7 * (count - data.minLines)) /
-                                (data.maxLines - data.minLines);
-                        return (
-                          <g
-                            key={group.id}
-                            role="img"
-                            aria-label={`${name}, ${group.heading}: ${count} ${count === 1 ? "line" : "lines"}`}
-                          >
-                            <title>
-                              {name}, {group.heading}: {count}{" "}
-                              {count === 1 ? "line" : "lines"}
-                            </title>
-                            <rect
-                              x={labelWidth + index * sceneWidth + 4}
-                              y={y + 7}
-                              width={sceneWidth - 8}
-                              height={rowHeight - 14}
-                              fill={colorFor(name)}
-                              opacity={opacity}
-                            />
-                            <text
-                              x={labelWidth + (index + 0.5) * sceneWidth}
-                              y={y + rowHeight / 2}
-                              textAnchor="middle"
-                              fill={
-                                opacity >= 0.62
-                                  ? labelColor(colorFor(name))
-                                  : colors.ink
-                              }
-                            >
-                              {count}
-                            </text>
-                          </g>
-                        );
-                      })}
-                </g>
-              );
-            })}
-            <rect
-              x={0.5}
-              y={selected ? headerHeight + 0.5 : 0.5}
-              width={width - 1}
-              height={height - (selected ? headerHeight : 0) - 1}
-              fill="none"
-              stroke={colors.grid}
-              pointerEvents="none"
-            />
-            {!characters.length && (
-              <text
-                x={width / 2}
-                y={headerHeight + rowHeight / 2}
-                textAnchor="middle"
-                fill={colors.muted}
-                fontWeight={400}
-              >
-                No character dialogue in this {selected?.kind ?? "document"}.
-              </text>
-            )}
-          </svg>
-        </div>
-        <footer className="character-analytics-actions">
-          <span role="status">{status}</span>
-          {selected && selected.kind !== "document" && (
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onScene(selected.id);
-              }}
-            >
-              <ExternalLink size={14} /> Go to {selected.kind}
-            </button>
-          )}
-          <button
-            type="button"
-            className="primary"
-            disabled={saving}
-            onClick={async () => {
-              if (!chart.current) return;
-              setSaving(true);
-              setStatus("");
-              try {
-                await saveChart(chart.current, doc.titlePage.title);
-                setStatus("Character analytics PNG saved.");
-              } catch (error) {
-                setStatus(
-                  error instanceof Error
-                    ? error.message
-                    : "Could not save the chart.",
-                );
-              } finally {
-                setSaving(false);
-              }
-            }}
-          >
-            <Download size={14} /> {saving ? "Saving…" : "Save PNG"}
-          </button>
-        </footer>
-      </div>
+      {content}
     </dialog>
   );
 }

@@ -64,11 +64,11 @@ test("Premium shows the complete sample beat sheet, graph and character timeline
     dialog.locator('[data-sample-feature="Beat Guide"]'),
   ).toHaveCount(0);
   expect(
-    await dialog.locator(".sample-gantt svg rect").count(),
+    await dialog.locator(".sample-analytics svg rect").count(),
   ).toBeGreaterThan(3);
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 844 });
-    await dialog.locator(".sample-gantt").scrollIntoViewIfNeeded();
+    await dialog.locator(".sample-analytics").scrollIntoViewIfNeeded();
     await page.screenshot({
       path: testInfo.outputPath(`character-gantt-${width}.png`),
     });
@@ -80,7 +80,9 @@ test("Premium shows the complete sample beat sheet, graph and character timeline
       .first()
       .boundingBox())!;
     expect(graph.y).toBeGreaterThanOrEqual(cards.y + cards.height);
-    expect(graph.width).toBeLessThanOrEqual(width);
+    expect(
+      (await sheet.locator(".beat-pacing-scroll").boundingBox())!.width,
+    ).toBeLessThanOrEqual(width);
     await page.screenshot({
       path: testInfo.outputPath(`all-beats-${width}.png`),
     });
@@ -565,6 +567,15 @@ test("Book starts clean, saves front matter, numbers headings and keeps colored 
     plans.getByRole("tab", { name: "Book", exact: true }),
   ).toHaveAttribute("aria-selected", "true");
   await expect(plans.locator(".novel-outline li")).toHaveCount(4);
+  await expect(plans.locator(".outline-panel .novel-outline")).toBeVisible();
+  await expect(
+    plans.locator(".insights-panel .novel-character").first(),
+  ).toHaveCSS("display", "grid");
+  await expect(plans.locator(".sample-story-outline")).toHaveCSS(
+    "position",
+    "relative",
+  );
+
   await page.screenshot({
     path: testInfo.outputPath("premium-book-desktop.png"),
   });
@@ -572,6 +583,13 @@ test("Book starts clean, saves front matter, numbers headings and keeps colored 
   await expect(
     plans.getByRole("tab", { name: "Book", exact: true }),
   ).toBeVisible();
+  const outline = plans.locator(".sample-story-outline");
+  await expect(outline).toHaveCSS("position", "relative");
+  await expect(plans.locator(".insights-panel").first()).toHaveCSS(
+    "position",
+    "relative",
+  );
+  expect((await outline.boundingBox())!.width).toBeLessThanOrEqual(390);
   await page.screenshot({
     path: testInfo.outputPath("premium-book-phone.png"),
   });

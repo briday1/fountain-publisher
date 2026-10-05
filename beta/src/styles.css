@@ -1004,7 +1004,15 @@ hr {
 .modal-header h2 {
   font-size: 21px;
 }
-.modal p {
+.modal
+  p:not(
+    :where(
+      .premium-example p,
+      .sample-document p,
+      .sample-insights p,
+      .book-premium-opening p
+    )
+  ) {
   font-size: 12px;
   line-height: 1.7;
 }

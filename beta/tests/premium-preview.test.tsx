@@ -1,11 +1,14 @@
 import React from "react";
-import { expect, it } from "vitest";
+import { beforeAll, vi, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PremiumPreview } from "../src/components/PremiumPreview";
 import { PlanComparison } from "../src/components/PlanComparison";
 import { premiumSample } from "../src/components/premiumSampleData";
 import { sampleBook } from "../src/components/BookPremiumExamples";
 import { resolveBeatRange } from "../src/core/beatRanges";
+beforeAll(() => {
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+});
 it("links every sample beat to a distinct passage in both formats", () => {
   for (const doc of [premiumSample, sampleBook]) {
     const ranges = doc.metadata.beats.map((beat) =>
@@ -66,7 +69,10 @@ it("places separate outline and planning showcases before comparison and describ
   expect(
     el.querySelector('.focus-diagram[role="img"]')?.getAttribute("aria-label"),
   ).toContain("scene is isolated from Act II");
-  expect(el.querySelector("mark")?.textContent).toBe("MARA");
+  expect(el.querySelector(".sample-pdf")).not.toBeNull();
+  expect(
+    el.querySelector(".sample-analytics .character-analytics-viewport svg"),
+  ).not.toBeNull();
 });
 
 it("describes live writing only when the deployment enables it", () => {
@@ -89,7 +95,11 @@ it("shows a dedicated Book tab with real book components and relevant features",
   expect(el.querySelector(".book-front-matter h1")?.textContent).toBe(
     "The Last Light",
   );
-  expect(el.querySelectorAll(".novel-outline li")).toHaveLength(4);
+  expect(el.querySelectorAll(".outline-panel .novel-outline li")).toHaveLength(
+    4,
+  );
+  expect(el.querySelector(".insights-panel .novel-character")).not.toBeNull();
+  expect(el.querySelector(".book-front-matter .novel-outline")).toBeNull();
   expect(el.querySelectorAll(".beat-flow-row")).toHaveLength(9);
   expect(el.textContent).not.toContain("Mobile PDF formatting");
   expect(el.textContent).toContain("Character profiles");

@@ -2,86 +2,32 @@ import { SampleBeatSheet, SampleCharacterGantt } from "./PremiumStoryExamples";
 import { BeatGuide } from "./BeatGuide";
 import { premiumSample, sampleInsights as insights } from "./premiumSampleData";
 import "./premium-showcase.css";
+import { useEffect, useState } from "react";
+import { EditorSurface } from "./EditorSurface";
+import { publishPdf } from "../core/publisher";
+import type { Screenplay } from "../core/model";
+import { InsightsContent } from "./InsightsContent";
 export type PremiumFeature = "Insights" | "Beat Sheet" | "Beat Guide";
 const noop = () => {};
-const colors = ["#76add9", "#c29ad0", "#91b378"];
-
 function SampleInsights() {
   return (
-    <div className="sample-insights">
-      <div className="metrics">
+    <div className="sample-insights insights-panel">
+      <div className="panel-heading">
         <div>
-          <strong>{insights.estimatedPages}</strong>
-          <span>estimated pages</span>
-        </div>
-        <div>
-          <strong>{insights.sceneCount}</strong>
-          <span>scenes</span>
-        </div>
-        <div>
-          <strong>{insights.wordCount}</strong>
-          <span>words</span>
+          <small>DOCUMENT</small>
+          <h2>Insights</h2>
         </div>
       </div>
-      <section className="insight-section">
-        <div className="section-label">
-          <h3>On the page</h3>
-          <span>{Math.round(insights.dialoguePercent)}% dialogue</span>
-        </div>
-        <div className="balance-bar">
-          <span style={{ width: `${insights.dialoguePercent}%` }} />
-        </div>
-        <div className="chart-key">
-          <span>
-            <i />
-            Dialogue
-          </span>
-          <span>
-            <i />
-            Action
-          </span>
-        </div>
-      </section>
-      <section className="insight-section">
-        <div className="section-label">
-          <h3>Characters</h3>
-          <span>{insights.characterCount}</span>
-        </div>
-        {insights.characters.map((c, i) => (
-          <button className="character-row" key={c.name} tabIndex={-1}>
-            <div>
-              <span
-                className="character-dot"
-                style={{ background: colors[i] }}
-              />
-              <strong>{c.name}</strong>
-              <span>{c.dialogueWords} words</span>
-            </div>
-            <div className="character-bar">
-              <span style={{ width: `${c.share}%`, background: colors[i] }} />
-            </div>
-            <small>
-              {c.speeches} speeches · {c.sceneCount} scenes ·{" "}
-              {c.estimatedMinutes.toFixed(1)} min
-            </small>
-          </button>
-        ))}
-        <button className="pacing-link" tabIndex={-1}>
-          Character analytics →
-        </button>
-      </section>
-      <section className="insight-section notes-section">
-        <div className="section-label">
-          <h3>Story notes</h3>
-        </div>
-        <textarea
-          aria-label="Sample story notes"
-          readOnly
-          value={premiumSample.metadata.notes}
-          rows={3}
-        />
-        <small>Saved with your screenplay</small>
-      </section>
+      <InsightsContent
+        doc={premiumSample}
+        insights={insights}
+        documentId="premium-example"
+        pages={insights.estimatedPages}
+        onChange={noop}
+        onCharacter={noop}
+        onAnalytics={noop}
+        readOnly
+      />
     </div>
   );
 }
@@ -89,21 +35,75 @@ function SampleInsights() {
 export function SampleScript({
   highlight = false,
   mobile = false,
+  doc = premiumSample,
 }: {
   highlight?: boolean;
   mobile?: boolean;
+  doc?: Screenplay;
 }) {
+  if (highlight || mobile)
+    return <SamplePdf highlight={highlight} mobile={mobile} />;
   return (
-    <div className={`sample-script${mobile ? " sample-script-mobile" : ""}`}>
-      {premiumSample.blocks.slice(0, 8).map((block) => (
-        <p key={block.id} className={`sample-line-${block.kind}`}>
-          {highlight && block.kind === "character" && block.text === "MARA" ? (
-            <mark>{block.text}</mark>
-          ) : (
-            block.text
-          )}
-        </p>
-      ))}
+    <div
+      className={`sample-document${doc.metadata.format === "markdown" ? " novel-mode" : ""}`}
+    >
+      <article className="screenplay-paper">
+        <EditorSurface
+          initial={{ ...doc, blocks: doc.blocks.slice(0, 8) }}
+          onReady={(editor) => editor?.setDestinationReadOnly(true)}
+          onChange={noop}
+          onSelection={noop}
+        />
+      </article>
+    </div>
+  );
+}
+function SamplePdf({
+  highlight,
+  mobile,
+}: {
+  highlight: boolean;
+  mobile: boolean;
+}) {
+  const [url, setUrl] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl = "";
+    publishPdf(premiumSample, {
+      includeTitlePage: false,
+      mobileLayout: mobile,
+      highlightCharacters: highlight ? ["MARA"] : [],
+    })
+      .then((result) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(
+          new Blob([result.bytes as BlobPart], { type: "application/pdf" }),
+        );
+        setUrl(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setError("The sample PDF could not be loaded.");
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [highlight, mobile]);
+  return (
+    <div className={`sample-pdf${mobile ? " sample-pdf-mobile" : ""}`}>
+      {url ? (
+        <iframe
+          src={`${url}#toolbar=0&navpanes=0&view=FitH`}
+          title={
+            mobile
+              ? "Actual mobile PDF export example"
+              : "Actual highlighted PDF export example"
+          }
+        />
+      ) : (
+        <p>{error || "Preparing sample PDF…"}</p>
+      )}
     </div>
   );
 }

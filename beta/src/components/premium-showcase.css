@@ -12,15 +12,14 @@
   width: min(1000px, calc(100vw - 32px));
 }
 .sample-insights {
-  max-width: 440px;
+  width: min(100%, 320px);
   margin: auto;
-  padding: 20px;
-  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
 }
-.sample-insights .character-row {
-  width: 100%;
+.premium-example {
+  line-height: normal;
+  font-size: 13px;
 }
 .sample-guide {
   border: 1px solid var(--border);
@@ -33,40 +32,25 @@
 .sample-guide .writing-beat-prompt {
   flex-basis: 230px;
 }
-.sample-script {
-  padding: 28px clamp(18px, 5vw, 58px);
+.sample-document {
+  overflow: hidden;
+}
+.sample-document .screenplay-paper {
+  width: 100%;
+  min-height: 0;
+}
+.sample-pdf {
+  height: 620px;
   background: var(--paper);
-  color: var(--paper-ink);
-  font:
-    14px/1.5 "Courier Prime",
-    monospace;
-  border-radius: 5px;
 }
-.sample-script p {
-  margin: 0 0 14px;
+.sample-pdf-mobile {
+  height: 520px;
 }
-.sample-script .sample-line-scene {
-  font-weight: bold;
-}
-.sample-script .sample-line-character {
-  margin: 14px 0 0 40%;
-}
-.sample-script .sample-line-dialogue {
-  margin: 0 12% 12px 20%;
-}
-.sample-script mark {
-  background: #fff29b;
-  color: #232323;
-  padding: 2px 5px;
-  border-radius: 3px;
-}
-.sample-script-mobile {
-  padding: 24px 20px;
-  font-size: 15px;
-}
-.sample-script-mobile .sample-line-dialogue {
-  margin-left: 10%;
-  margin-right: 5%;
+.sample-pdf iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 .writeshape-plans .showcase-intro {
   font-size: clamp(22px, 4vw, 32px);
@@ -136,9 +120,6 @@
   background: color-mix(in srgb, var(--panel) 72%, transparent);
 }
 @media (max-width: 600px) {
-  .sample-insights {
-    padding: 12px;
-  }
   .showcase-feature > h3 {
     font-size: 20px;
   }
@@ -255,66 +236,26 @@
   max-width: 100%;
   box-sizing: border-box;
 }
-.sample-beat-sheet,
-.sample-gantt {
-  padding: 22px;
-  background: var(--raised);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-.sample-gantt svg {
-  display: block;
-  width: 100%;
-  height: auto;
-  fill: var(--ink);
-  font:
-    12px system-ui,
-    sans-serif;
-}
 .sample-story-outline {
-  max-width: 340px;
+  width: min(100%, 240px);
   margin: 0 auto;
-  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding-bottom: 16px;
 }
-.sample-beat-sheet {
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
 .sample-beat-sheet .beat-pacing {
-  max-width: 816px;
   margin: 24px auto 0;
 }
-.sample-gantt {
+.sample-analytics.character-analytics {
+  width: 100%;
+  height: auto;
   margin-top: 24px;
+  box-shadow: none;
+  overflow: hidden;
 }
-.sample-beat-sheet > p,
-.sample-gantt > p {
-  font-size: 13px;
-  line-height: 1.6;
+.sample-analytics .character-analytics-viewport {
+  max-height: 500px;
 }
-@media (max-width: 600px) {
-  .sample-gantt svg {
-    font-size: 26px;
-  }
-  .sample-gantt {
-    padding: 14px;
-  }
-}
-
-.sample-beat-sheet .beat-pacing-scroll svg {
-  min-width: 0;
-}
-@media (max-width: 600px) {
-  .sample-beat-sheet .beat-pacing-scroll svg text {
-    font-size: 28px;
-  }
-}
-
 .premium-mode-tabs {
   display: flex;
   gap: 4px;
@@ -336,15 +277,50 @@
   box-shadow: 0 1px 4px #0001;
 }
 .book-premium-opening {
-  padding: 24px;
-  background: var(--paper);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
 }
-.book-premium-opening .book-front-matter {
-  margin-bottom: 24px;
+.sample-book-page {
+  min-width: 0;
 }
-.book-premium-opening .novel-outline {
-  max-width: 480px;
-  margin: auto;
+.sample-book-page .screenplay-paper {
+  width: 100%;
+  min-height: 0;
+  padding: 32px 20px;
+}
+@media (max-width: 700px) {
+  .book-premium-opening {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Examples retain the live panels' internal styles without workspace positioning. */
+.premium-example .sample-story-outline.outline-panel,
+.sample-insights.insights-panel {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  max-width: 100%;
+  box-shadow: none;
+  line-height: normal;
+  font-size: 13px;
+}
+.premium-example .sample-story-outline.outline-panel {
+  width: min(100%, 240px);
+}
+.sample-insights.insights-panel {
+  width: min(100%, 320px);
+}
+
+.sample-document {
+  max-height: 460px;
+  overflow: auto;
+}
+.sample-document .screenplay-editor {
+  min-height: 0;
+}
+.focus-diagram-page .sample-document {
+  max-height: 360px;
 }

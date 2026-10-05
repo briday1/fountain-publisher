@@ -1,5 +1,7 @@
 import { FocusPremiumExample } from "./FocusPremiumExample";
 import { BookPremiumExamples } from "./BookPremiumExamples";
+import { WritingGoals } from "./WritingGoals";
+import { localDay } from "../core/writingGoals";
 import { useState } from "react";
 import { BillingPlanChoice, type BillingPlan } from "./BillingPlanChoice";
 import { Modal } from "./Modal";
@@ -170,31 +172,42 @@ export function PlanComparison({
           </p>
           <figure>
             <div
-              className="writing-goals"
-              aria-label="Fictional writing goal illustration"
+              className="premium-example sample-insights insights-panel"
+              inert
+              aria-hidden="true"
             >
-              <div className="writing-goal">
-                <div>
-                  <span>500 words / day</span>
-                  <small>320 / 500</small>
-                </div>
-                <progress
-                  max={500}
-                  value={320}
-                  aria-label="Sample daily word goal"
-                />
-              </div>
-              <div className="writing-goal">
-                <div>
-                  <span>3 hours / week</span>
-                  <small>1.5 / 3</small>
-                </div>
-                <progress
-                  max={3}
-                  value={1.5}
-                  aria-label="Sample weekly writing time goal"
-                />
-              </div>
+              <WritingGoals
+                premium
+                onUpgrade={() => {}}
+                state={{
+                  goals: [
+                    {
+                      id: "sample-words",
+                      metric: "words",
+                      target: 500,
+                      period: "day",
+                    },
+                    {
+                      id: "sample-time",
+                      metric: "hours",
+                      target: 3,
+                      period: "week",
+                    },
+                  ],
+                  days: [
+                    {
+                      day: localDay(new Date()),
+                      words: 320,
+                      milliseconds: 5400000,
+                    },
+                  ],
+                  running: false,
+                  error: "",
+                  save: () => {},
+                  toggleTimer: () => {},
+                  onActivity: () => {},
+                }}
+              />
             </div>
             <figcaption>Example word and time goals</figcaption>
           </figure>
