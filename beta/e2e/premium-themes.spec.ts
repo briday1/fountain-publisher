@@ -583,13 +583,13 @@ test("Book starts clean, saves front matter, numbers headings and keeps colored 
   await expect(
     plans.getByRole("tab", { name: "Book", exact: true }),
   ).toBeVisible();
-  const outline = plans.locator(".sample-story-outline");
-  await expect(outline).toHaveCSS("position", "relative");
+  const sampleOutline = plans.locator(".sample-story-outline");
+  await expect(sampleOutline).toHaveCSS("position", "relative");
   await expect(plans.locator(".insights-panel").first()).toHaveCSS(
     "position",
     "relative",
   );
-  expect((await outline.boundingBox())!.width).toBeLessThanOrEqual(390);
+  expect((await sampleOutline.boundingBox())!.width).toBeLessThanOrEqual(390);
   await page.screenshot({
     path: testInfo.outputPath("premium-book-phone.png"),
   });
