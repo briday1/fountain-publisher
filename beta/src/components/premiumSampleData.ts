@@ -59,7 +59,10 @@ export function createSampleBeats(
         id: `sample-${actIndex}-${index}`,
         title,
         description,
-        act: `Act ${["I", "II", "III"][actIndex]}`,
+        act:
+          doc.metadata.format === "markdown"
+            ? ""
+            : `Act ${["I", "II", "III"][actIndex]}`,
         color: ["#76add9", "#c29ad0", "#91b378"][actIndex],
         groupSceneId: section.id,
         range: {

@@ -24,6 +24,7 @@ import "./beat-presentation.css";
 import "./beat-outline.css";
 import {
   outlineBeats,
+  documentBeats,
   beatAncestors,
   removeBeat,
   moveBeat,
@@ -145,7 +146,8 @@ export function BeatBoard({
   const [announcement, setAnnouncement] = useState("");
   const inputs = useRef(new Map<string, HTMLInputElement>());
   const pendingFocus = useRef<string | null>(null);
-  const beats = outlineBeats(doc.metadata.beats);
+  const novel = isNovel(doc);
+  const beats = documentBeats(doc);
   const collapsed = new Set(
     Array.isArray(doc.metadata.beatSheetCollapsed)
       ? doc.metadata.beatSheetCollapsed.filter(
@@ -162,8 +164,10 @@ export function BeatBoard({
       metadata: { ...doc.metadata, beatSheetCollapsed: [...next] },
     });
   };
-  const scenes = doc.blocks.filter(
-    (block) => block.kind === (isNovel(doc) ? "section" : "scene"),
+  const scenes = doc.blocks.filter((block) =>
+    novel
+      ? block.kind === "section" && (block.level || 2) === 2
+      : block.kind === "scene",
   );
   const assignments = new Map(
     beats.map((beat) => {
@@ -218,8 +222,10 @@ export function BeatBoard({
       title: "",
       description: "",
       parentId: parent?.id,
-      groupSceneId: parent?.groupSceneId,
-      act: parent?.act || beats.at(-1)?.act || "Act I",
+      groupSceneId:
+        parent?.groupSceneId ||
+        (novel ? beats.at(-1)?.groupSceneId || scenes[0]?.id : undefined),
+      act: novel ? "" : parent?.act || beats.at(-1)?.act || "Act I",
       color: parent?.color || "#75a8ed",
     };
     nextCollapsed.delete(`act:${added.act}`);
@@ -305,20 +311,22 @@ export function BeatBoard({
         })
         .map((act) => (
           <section
-            className="beat-act"
+            className={novel ? "beat-chapters" : "beat-act"}
             key={act}
-            aria-label={act || "Unassigned act"}
+            aria-label={novel ? "Chapters" : act || "Unassigned act"}
           >
-            <button
-              className="beat-group-heading beat-act-heading"
-              aria-expanded={!collapsed.has(`act:${act}`)}
-              onClick={() => toggleGroup(`act:${act}`)}
-            >
-              <ChevronDown size={18} />
-              <span>{act || "Unassigned act"}</span>
-              <small>{beats.filter((b) => b.act === act).length} beats</small>
-            </button>
-            {!collapsed.has(`act:${act}`) &&
+            {!novel && (
+              <button
+                className="beat-group-heading beat-act-heading"
+                aria-expanded={!collapsed.has(`act:${act}`)}
+                onClick={() => toggleGroup(`act:${act}`)}
+              >
+                <ChevronDown size={18} />
+                <span>{act || "Unassigned act"}</span>
+                <small>{beats.filter((b) => b.act === act).length} beats</small>
+              </button>
+            )}
+            {(novel || !collapsed.has(`act:${act}`)) &&
               [
                 ...new Set(
                   beats
@@ -345,7 +353,11 @@ export function BeatBoard({
                     <ChevronDown size={14} />
                     <span>
                       {scenes.find((s) => s.id === sceneId)?.text ||
-                        (sceneId ? "Scene no longer available" : "Story beats")}
+                        (sceneId
+                          ? novel
+                            ? "Chapter no longer available"
+                            : "Scene no longer available"
+                          : "Story beats")}
                     </span>
                     <small>
                       {
@@ -604,7 +616,9 @@ export function BeatBoard({
                                         }
                                       >
                                         <option value="">
-                                          Top level in act / scene
+                                          {novel
+                                            ? "Top level in chapter"
+                                            : "Top level in act / scene"}
                                         </option>
                                         {beats
                                           .filter(
@@ -623,29 +637,32 @@ export function BeatBoard({
                                     </label>
                                     <label>
                                       Organize under{" "}
-                                      {isNovel(doc)
-                                        ? "chapter / section"
-                                        : "scene"}
+                                      {isNovel(doc) ? "chapter" : "scene"}
                                       <select
-                                        aria-label={`Beat ${index + 1} scene group`}
+                                        aria-label={`Beat ${index + 1} ${novel ? "chapter" : "scene"} group`}
                                         disabled={!!beat.parentId}
                                         value={beat.groupSceneId || ""}
                                         onChange={(e) =>
                                           edit(beat.id, {
                                             groupSceneId:
-                                              e.target.value || undefined,
+                                              e.target.value ||
+                                              (novel ? "" : undefined),
                                           })
                                         }
                                       >
                                         <option value="">
-                                          Story beats (no scene)
+                                          {novel
+                                            ? "Story beats (no chapter)"
+                                            : "Story beats (no scene)"}
                                         </option>
                                         {beat.groupSceneId &&
                                           !scenes.some(
                                             (s) => s.id === beat.groupSceneId,
                                           ) && (
                                             <option value={beat.groupSceneId}>
-                                              Scene no longer available
+                                              {novel
+                                                ? "Chapter no longer available"
+                                                : "Scene no longer available"}
                                             </option>
                                           )}
                                         {scenes.map((s) => (
@@ -675,7 +692,8 @@ export function BeatBoard({
                                     }
                                   />
                                   <label className="beat-whole-scene">
-                                    Assign a whole {isNovel(doc) ? "chapter / section" : "scene"}
+                                    Assign a whole{" "}
+                                    {isNovel(doc) ? "chapter" : "scene"}
                                     <select
                                       aria-label={`Beat ${index + 1} scene`}
                                       value=""
@@ -712,32 +730,34 @@ export function BeatBoard({
                                     rows={2}
                                   />
                                   <div>
-                                    <label>
-                                      Act
-                                      <select
-                                        aria-label={`Beat ${index + 1} act`}
-                                        value={beat.act}
-                                        disabled={!!beat.parentId}
-                                        onChange={(event) =>
-                                          edit(beat.id, {
-                                            act: event.target.value,
-                                          })
-                                        }
-                                      >
-                                        {[
-                                          ...new Set([
-                                            "Act I",
-                                            "Act II",
-                                            "Act III",
-                                            beat.act,
-                                          ]),
-                                        ]
-                                          .filter(Boolean)
-                                          .map((act) => (
-                                            <option key={act}>{act}</option>
-                                          ))}
-                                      </select>
-                                    </label>
+                                    {!novel && (
+                                      <label>
+                                        Act
+                                        <select
+                                          aria-label={`Beat ${index + 1} act`}
+                                          value={beat.act}
+                                          disabled={!!beat.parentId}
+                                          onChange={(event) =>
+                                            edit(beat.id, {
+                                              act: event.target.value,
+                                            })
+                                          }
+                                        >
+                                          {[
+                                            ...new Set([
+                                              "Act I",
+                                              "Act II",
+                                              "Act III",
+                                              beat.act,
+                                            ]),
+                                          ]
+                                            .filter(Boolean)
+                                            .map((act) => (
+                                              <option key={act}>{act}</option>
+                                            ))}
+                                        </select>
+                                      </label>
+                                    )}
                                     <label>
                                       Color
                                       <input
@@ -773,9 +793,10 @@ export function BeatBoard({
         </div>
       )}
       <footer className="beat-flow-footer">
-        Changes save automatically. Fold acts, scenes or sub-beats to focus. Use
-        + to nest a beat; drag its number or use arrow keys to reorder within
-        its group. Deleting a parent keeps its sub-beats.
+        Changes save automatically. Fold {novel ? "chapters" : "acts, scenes"}{" "}
+        or sub-beats to focus. Use + to nest a beat; drag its number or use
+        arrow keys to reorder within its group. Deleting a parent keeps its
+        sub-beats.
       </footer>
       <span className="sr-only" role="status">
         {announcement}

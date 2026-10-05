@@ -1,4 +1,4 @@
-import { outlineBeats, beatAncestors } from "./beatOutline";
+import { documentBeats, beatAncestors } from "./beatOutline";
 import type { PDFFont, PDFPage } from "pdf-lib";
 import { newId } from "./model";
 import type {
@@ -1182,7 +1182,19 @@ export function exportFdx(document: Screenplay, fontName?: string): string {
 
 function beatExportAssignments(document: Screenplay) {
   const lines = screenplayLines(document);
-  const scenes = analyzeScreenplay(document).scenes;
+  const scenes =
+    document.metadata.format === "markdown"
+      ? document.blocks
+          .map((block, blockIndex) => ({ block, blockIndex }))
+          .filter(
+            ({ block }) => block.kind === "section" && (block.level || 2) === 2,
+          )
+          .map(({ block, blockIndex }, index) => ({
+            number: index + 1,
+            blockIndex,
+            heading: block.text,
+          }))
+      : analyzeScreenplay(document).scenes;
   const sceneForBlock = new Map<string, (typeof scenes)[number]>();
   let sceneIndex = -1;
   document.blocks.forEach((block, index) => {
@@ -1198,7 +1210,14 @@ function beatExportAssignments(document: Screenplay) {
       ? resolveBeatRange(document, range, lines)
       : undefined;
     return resolved && range
-      ? { ...resolved, scene: sceneForBlock.get(range.start.blockId) }
+      ? {
+          ...resolved,
+          scene: sceneForBlock.get(range.start.blockId),
+          sceneHeading:
+            document.metadata.format === "markdown"
+              ? sceneForBlock.get(range.start.blockId)?.heading
+              : resolved.sceneHeading,
+        }
       : undefined;
   };
 }
@@ -1214,22 +1233,24 @@ export function exportBeatSheetCsv(document: Screenplay): string {
   const rows: unknown[][] = [
     [
       "Beat",
-      "Act",
+      ...(document.metadata.format === "markdown" ? [] : ["Act"]),
       "Description",
-      "Scene",
-      "Scene heading",
+      document.metadata.format === "markdown" ? "Chapter" : "Scene",
+      document.metadata.format === "markdown"
+        ? "Chapter heading"
+        : "Scene heading",
       "Color",
       "Lines",
       "Words before first line",
       "Parent beat",
-      "Scene group",
+      document.metadata.format === "markdown" ? "Chapter group" : "Scene group",
     ],
   ];
-  for (const beat of outlineBeats(document.metadata.beats)) {
+  for (const beat of documentBeats(document)) {
     const assignment = assignmentFor(beat);
     rows.push([
       beat.title,
-      beat.act,
+      ...(document.metadata.format === "markdown" ? [] : [beat.act]),
       beat.description,
       assignment?.scene?.number ?? "",
       assignment?.sceneHeading ?? "",
@@ -1257,20 +1278,31 @@ export function beatSheetDocument(document: Screenplay): Screenplay {
     });
   add(`${document.titlePage.title || "Untitled"} — Beat sheet`, true);
   if (document.metadata.premise) add(String(document.metadata.premise));
-  outlineBeats(document.metadata.beats).forEach((beat, index) => {
+  documentBeats(document).forEach((beat, index) => {
     const parents = beatAncestors(document.metadata.beats, beat.id);
     if (parents.length)
       add(
         `Within: ${parents.map((b) => b.title || "Untitled beat").join(" / ")}`,
       );
-    add(`${index + 1}. ${beat.title || "Untitled beat"} · ${beat.act}`, true);
+    const group =
+      document.metadata.format === "markdown"
+        ? document.blocks.find((b) => b.id === beat.groupSceneId)?.text ||
+          "Story beats"
+        : beat.act;
+    add(
+      `${index + 1}. ${beat.title || "Untitled beat"}${group ? ` · ${group}` : ""}`,
+      true,
+    );
     if (beat.description) add(beat.description);
     const assignment = assignmentFor(beat);
     if (assignment) {
       add(
         `Lines ${assignment.startLine}–${assignment.endLine} · ${assignment.words.toLocaleString()} words before first assigned line`,
       );
-      if (assignment.sceneHeading) add(`Scene: ${assignment.sceneHeading}`);
+      if (assignment.sceneHeading)
+        add(
+          `${document.metadata.format === "markdown" ? "Chapter" : "Scene"}: ${assignment.sceneHeading}`,
+        );
     } else if (beat.range !== undefined || beat.sceneId) {
       add("Assigned lines are no longer available.");
     }

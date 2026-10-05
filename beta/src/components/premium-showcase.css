@@ -324,3 +324,14 @@
 .focus-diagram-page .sample-document {
   max-height: 360px;
 }
+
+.premium-feature-picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 24px;
+}
+.premium-feature-picker select {
+  max-width: 100%;
+}

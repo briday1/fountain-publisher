@@ -47,12 +47,14 @@ export function PlanComparison({
       wide
       className="writeshape-plans"
     >
-      <p className="showcase-intro">
-        Extra tools for planning, revising, and saving your work.
-      </p>
+      <p className="showcase-intro">Books and screenplays. One Premium plan.</p>
       <p>
         Writing, local saves, and standard PDF export are free. Premium adds
-        cloud saving and the tools below.
+        cloud saving and the tools below for both books and screenplays.
+      </p>
+      <p>
+        Both formats are included. Choose an example below, then take a closer
+        look at individual features.
       </p>
       <p className="sample-label">
         The examples use fictional sample content from The Last Light.
@@ -60,7 +62,7 @@ export function PlanComparison({
       <div
         className="premium-mode-tabs"
         role="tablist"
-        aria-label="Writing format"
+        aria-label="Explore examples by writing format"
       >
         {(["screenplay", "book"] as const).map((item, index) => (
           <button
@@ -95,6 +97,49 @@ export function PlanComparison({
           </button>
         ))}
       </div>
+      <label className="premium-feature-picker">
+        Take a closer look
+        <select
+          value=""
+          aria-label="Explore a feature"
+          onChange={(event) => {
+            if (!event.target.value) return;
+            document
+              .getElementById("premium-mode-panel")
+              ?.querySelectorAll<HTMLElement>(".showcase-feature")
+              [Number(event.target.value) - 1]?.scrollIntoView({
+                block: "start",
+                behavior: "smooth",
+              });
+          }}
+        >
+          <option value="">Choose a feature…</option>
+          {(mode === "book"
+            ? [
+                "Focus mode",
+                "Book outline & title page",
+                "Character profiles",
+                "Beat Sheet",
+                "Writing goals",
+                "Live collaboration",
+              ]
+            : [
+                "Focus mode",
+                "Scene outline",
+                "Insights",
+                "Beat Sheet",
+                "Mobile PDF",
+                "Character highlighting",
+                "Writing goals",
+                "Live collaboration",
+              ]
+          ).map((label, index) => (
+            <option key={label} value={index + 1}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
       <div
         id="premium-mode-panel"
         role="tabpanel"
@@ -248,6 +293,11 @@ export function PlanComparison({
         </section>
       </div>
       <h3>Compare the plans</h3>
+      <p>
+        Both plans support books and screenplays. This table shows the{" "}
+        {mode === "book" ? "book" : "screenplay"} features; Premium includes
+        both.
+      </p>
       <table className="plan-comparison">
         <thead>
           <tr>

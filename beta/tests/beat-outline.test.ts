@@ -1,5 +1,10 @@
 import { expect, it } from "vitest";
-import { outlineBeats, removeBeat, moveBeat } from "../src/core/beatOutline";
+import {
+  outlineBeats,
+  removeBeat,
+  moveBeat,
+  documentBeats,
+} from "../src/core/beatOutline";
 import { emptyScreenplay, type Beat } from "../src/core/model";
 import { parseFountain, serializeFountain } from "../src/core/fountain";
 const beat = (id: string, parentId?: string): Beat => ({
@@ -53,4 +58,46 @@ it("deleting a parent promotes children and retains grandchildren and descriptio
     description: "Detail b",
   });
   expect(result[1]).toMatchObject({ id: "c", parentId: "b" });
+});
+
+it("groups legacy book beats by chapter without mutating assignments or notes", () => {
+  const doc = emptyScreenplay();
+  doc.metadata.format = "markdown";
+  doc.blocks = [
+    { id: "c1", kind: "section", level: 2, text: "Chapter 1" },
+    { id: "p1", kind: "action", text: "One." },
+    { id: "c2", kind: "section", level: 2, text: "Chapter 2" },
+    { id: "p2", kind: "action", text: "Two." },
+  ];
+  const first = {
+    ...beat("first"),
+    act: "Act III",
+    range: {
+      start: { blockId: "p1", offset: 0 },
+      end: { blockId: "p1", offset: 4 },
+    },
+  };
+  doc.metadata.beats = [
+    { ...beat("second"), act: "Act I", groupSceneId: "c2" },
+    first,
+    { ...beat("child", "first"), act: "Act II" },
+    { ...beat("peer"), act: "Act I", groupSceneId: "c1" },
+  ];
+  const ordered = documentBeats(doc);
+  expect(ordered.map((b) => b.id)).toEqual([
+    "first",
+    "child",
+    "peer",
+    "second",
+  ]);
+  expect(ordered.every((b) => b.act === "")).toBe(true);
+  expect(ordered[0].range).toEqual(first.range);
+  expect(ordered[1].description).toBe("Detail child");
+  expect(moveBeat(ordered, "first", "peer").map((b) => b.id)).toEqual([
+    "peer",
+    "first",
+    "child",
+    "second",
+  ]);
+  expect(doc.metadata.beats[1].act).toBe("Act III");
 });

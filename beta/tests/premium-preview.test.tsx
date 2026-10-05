@@ -101,6 +101,8 @@ it("shows a dedicated Book tab with real book components and relevant features",
   expect(el.querySelector(".insights-panel .novel-character")).not.toBeNull();
   expect(el.querySelector(".book-front-matter .novel-outline")).toBeNull();
   expect(el.querySelectorAll(".beat-flow-row")).toHaveLength(9);
+  expect(el.querySelectorAll(".beat-act-heading")).toHaveLength(0);
+  expect(el.querySelectorAll(".beat-scene-heading")).toHaveLength(3);
   expect(el.textContent).not.toContain("Mobile PDF formatting");
   expect(el.textContent).toContain("Character profiles");
   expect(

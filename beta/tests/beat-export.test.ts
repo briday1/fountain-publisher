@@ -75,3 +75,17 @@ describe("beat assignments in exported documents", () => {
     );
   });
 });
+
+it("exports book beats with chapters rather than acts", async () => {
+  const { sampleBook } = await import("../src/components/BookPremiumExamples");
+  const csv = exportBeatSheetCsv(sampleBook);
+  expect(csv).not.toContain('"Act"');
+  expect(csv).toContain('"Chapter heading"');
+  expect(csv).toContain("Chapter 2 — The promise");
+  const text = beatSheetDocument(sampleBook)
+    .blocks.map((b) => b.text)
+    .join("\n");
+  expect(text).toContain("Chapter 2 — The promise");
+  expect(text).not.toContain("Act II");
+  expect(text).not.toContain("Scene:");
+});

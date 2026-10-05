@@ -116,7 +116,7 @@ export function BookPremiumExamples() {
         <small className="showcase-kicker">Beat Sheet · Premium</small>
         <h3>Plan across chapters</h3>
         <p>
-          Arrange beats by act and chapter, connect them to passages, and follow
+          Arrange beats across chapters, connect them to passages, and follow
           the shape of your manuscript in the pacing graph.
         </p>
         <figure>

@@ -1,3 +1,4 @@
+import { documentBeats } from "../core/beatOutline";
 import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, Pencil, X } from "lucide-react";
 import type { Beat, BeatRange, Screenplay } from "../core/model";
@@ -34,7 +35,7 @@ export function BeatGuide({
   onExitZen?: () => void;
   targetBeatId?: string;
 }) {
-  const beats = doc.metadata.beats;
+  const beats = documentBeats(doc);
   const [activeId, setActiveId] = useState(
     () => (beats.find((beat) => !assignedRange(doc, beat)) ?? beats[0])?.id,
   );

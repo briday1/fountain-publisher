@@ -1,4 +1,4 @@
-import type { Beat } from "./model";
+import type { Beat, Screenplay } from "./model";
 
 /** Flat, portable storage; preorder is shared by the sheet, guide and exports. */
 export function outlineBeats(input: Beat[]): Beat[] {
@@ -90,4 +90,35 @@ export function moveBeat(beats: Beat[], id: string, targetId: string): Beat[] {
       : rest.findIndex((b) => b.id === targetId);
   rest.splice(insertion, 0, ...ordered.filter((b) => moving.has(b.id)));
   return rest;
+}
+
+/** Books use chapter order, including older beats saved with screenplay act labels. */
+export function documentBeats(doc: Screenplay): Beat[] {
+  if (doc.metadata.format !== "markdown")
+    return outlineBeats(doc.metadata.beats);
+  const chapters = doc.blocks.filter(
+    (b) => b.kind === "section" && (b.level || 2) === 2,
+  );
+  const chapterAt = new Map<string, string>();
+  let current: string | undefined;
+  for (const block of doc.blocks) {
+    if (block.kind === "section" && block.level === 1) current = undefined;
+    if (chapters.includes(block)) current = block.id;
+    if (current) chapterAt.set(block.id, current);
+  }
+  const beats = outlineBeats(
+    doc.metadata.beats.map((beat) => ({
+      ...beat,
+      act: "",
+      groupSceneId:
+        beat.groupSceneId ??
+        chapterAt.get(beat.range?.start.blockId || beat.sceneId || ""),
+    })),
+  );
+  const order = new Map(chapters.map((chapter, i) => [chapter.id, i]));
+  return beats.sort(
+    (a, b) =>
+      (order.get(a.groupSceneId || "") ?? Infinity) -
+      (order.get(b.groupSceneId || "") ?? Infinity),
+  );
 }

@@ -1,3 +1,4 @@
+import { documentBeats } from "../core/beatOutline";
 import { countWords } from "../core/insights";
 import { resolveBeatRange, sceneBeatRange } from "../core/beatRanges";
 import type { Beat, BeatRange, Screenplay } from "../core/model";
@@ -27,7 +28,7 @@ export function beatPacing(doc: Screenplay): {
       total += countWords(block.text);
     }
   }
-  const positions = doc.metadata.beats.map((beat) => {
+  const positions = documentBeats(doc).map((beat) => {
     const range =
       beat.range === undefined && beat.sceneId
         ? sceneBeatRange(doc, beat.sceneId)
