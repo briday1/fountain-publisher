@@ -307,3 +307,37 @@
     font-size: 28px;
   }
 }
+
+.premium-mode-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  margin: 20px 0;
+}
+.premium-mode-tabs button {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 12px 18px;
+}
+.premium-mode-tabs [aria-selected="true"] {
+  background: var(--raised);
+  color: var(--accent);
+  box-shadow: 0 1px 4px #0001;
+}
+.book-premium-opening {
+  padding: 24px;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.book-premium-opening .book-front-matter {
+  margin-bottom: 24px;
+}
+.book-premium-opening .novel-outline {
+  max-width: 480px;
+  margin: auto;
+}

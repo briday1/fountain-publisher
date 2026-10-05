@@ -171,6 +171,9 @@ function DocumentCanvas({
           >
             {!focus && (
               <TitlePreview
+                novel={
+                  buffer.snapshot.screenplay.metadata.format === "markdown"
+                }
                 value={buffer.snapshot.screenplay.titlePage}
                 onEdit={() => {
                   model.activate(view.id);

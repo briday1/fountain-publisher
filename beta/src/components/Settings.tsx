@@ -1,3 +1,9 @@
+import {
+  writingFonts,
+  screenplayFonts,
+  bookFonts,
+  type WritingFont,
+} from "../core/writingFonts";
 import { Modal } from "./Modal";
 import {
   readBackgroundPreferences,
@@ -7,6 +13,8 @@ import {
 } from "./backgroundPreferences";
 export interface Preferences {
   theme: string;
+  screenplayFont: WritingFont;
+  bookFont: WritingFont;
   zoom: number;
   spellcheck: boolean;
   colors: boolean;
@@ -24,6 +32,8 @@ export interface Preferences {
 }
 export const defaults: Preferences = {
   theme: "system",
+  screenplayFont: "courier",
+  bookFont: "georgia",
   zoom: 100,
   spellcheck: true,
   colors: false,
@@ -45,6 +55,12 @@ export function readPreferences(): Preferences {
     return {
       ...defaults,
       ...saved,
+      screenplayFont: screenplayFonts.includes(saved?.screenplayFont)
+        ? saved.screenplayFont
+        : defaults.screenplayFont,
+      bookFont: bookFonts.includes(saved?.bookFont)
+        ? saved.bookFont
+        : defaults.bookFont,
       backgroundOptions: readBackgroundPreferences(saved?.backgroundOptions),
       background: ["dots", "topographic", "hyperspace", "plain"].includes(
         saved?.background,
@@ -248,6 +264,43 @@ export function Settings({
           />
         </label>
         <h3 className="settings-section-title">Writing</h3>
+        {(
+          [
+            ["screenplayFont", "Screenplay font", screenplayFonts],
+            ["bookFont", "Book font", bookFonts],
+          ] as const
+        ).map(([key, label, choices]) => (
+          <div key={key}>
+            <label>
+              {label}
+              <select
+                value={value[key]}
+                onChange={(e) =>
+                  patch({ [key]: e.target.value as WritingFont })
+                }
+              >
+                {choices.map((id) => (
+                  <option key={id} value={id}>
+                    {writingFonts[id].name}
+                    {id === defaults[key] ? " (default)" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p
+              className="writing-font-sample"
+              style={{ fontFamily: writingFonts[value[key]].css }}
+            >
+              {key === "bookFont"
+                ? "Every story begins with a single line."
+                : "FADE IN: A new story begins."}
+            </p>
+          </div>
+        ))}
+        <p className="muted">
+          Writing fonts change your view. Exports use standard fonts unless you
+          choose “Keep selected font” when exporting.
+        </p>
         <label>
           Spellcheck
           <input

@@ -1,3 +1,4 @@
+import "./fonts/fonts.css";
 import { recordDiagnostic, supportAddress } from "./support/diagnostics";
 import React from "react";
 import ReactDOM from "react-dom/client";

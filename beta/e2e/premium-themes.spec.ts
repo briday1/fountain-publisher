@@ -338,3 +338,197 @@ for (const width of [390, 834, 1280]) {
     await page.screenshot({ path: testInfo.outputPath(`panels-${width}.png`) });
   });
 }
+
+test("Book starts clean, saves front matter, numbers headings and keeps colored bookmarks", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 960 });
+  await setup(page);
+  await page.route("**/api/account", (route) =>
+    route.fulfill({
+      json: {
+        account: { ...account, privateTester: true },
+        premium: true,
+        billingAvailable: false,
+      },
+    }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "New document", exact: true })
+    .getByRole("button", { name: /^Book/ })
+    .click();
+  const editor = page.locator(".novel-editor");
+  await expect(editor).toBeVisible();
+  await expect(editor).not.toContainText("Untitled");
+  await expect(editor).not.toContainText("Chapter 1");
+  await page.getByRole("button", { name: "Add a title", exact: true }).click();
+  const title = page.getByRole("dialog", { name: "Title page", exact: true });
+  await title.getByLabel("Title", { exact: true }).fill("The Coast");
+  await title.getByLabel("Author", { exact: true }).fill("Alex Morgan");
+  await title.getByLabel(/Dedication/).fill("For the keepers.");
+  await title
+    .getByRole("button", { name: "Save title page", exact: true })
+    .click();
+  await expect(page.locator(".book-front-matter")).toContainText(
+    "For the keepers.",
+  );
+  await editor.fill("The light reached the coast.");
+  await editor.press("End");
+  await page.getByRole("button", { name: "Insert", exact: true }).click();
+  await page.getByRole("button", { name: "Footnote…", exact: true }).click();
+  const footnote = page.getByRole("dialog", {
+    name: "Add footnote",
+    exact: true,
+  });
+  await footnote
+    .getByRole("textbox", { name: "Footnote", exact: true })
+    .fill("Coastal records, 1924.");
+  await footnote
+    .getByRole("button", { name: "Save footnote", exact: true })
+    .click();
+  const marker = editor.getByRole("button", {
+    name: "Footnote 1: Coastal records, 1924.",
+    exact: true,
+  });
+  await expect(marker).toBeVisible();
+  await expect(editor.locator(".footnote-source")).toBeHidden();
+  await marker.click();
+  const editNote = page.getByRole("dialog", {
+    name: "Edit footnote",
+    exact: true,
+  });
+  await editNote
+    .getByRole("textbox", { name: "Footnote", exact: true })
+    .fill("Coastal records, revised 1925.");
+  await editNote
+    .getByRole("button", { name: "Save footnote", exact: true })
+    .click();
+  const outline = page.getByRole("complementary", {
+    name: "Book outline",
+    exact: true,
+  });
+  if (!(await outline.isVisible()))
+    await page
+      .getByRole("button", { name: "Toggle outline", exact: true })
+      .click();
+  await outline
+    .getByRole("button", { name: "Add chapter", exact: true })
+    .click();
+  await outline
+    .getByRole("button", { name: "Add chapter", exact: true })
+    .click();
+  await outline.getByRole("button", { name: "Add book", exact: true }).click();
+  await expect(editor).toContainText("Chapter 2");
+  await expect(editor).toContainText("Book 1");
+  await editor.press("End");
+  await outline
+    .getByRole("button", { name: "Add bookmark", exact: true })
+    .click();
+  const mark = page.getByRole("dialog", { name: "New bookmark", exact: true });
+  await mark.getByLabel("Name", { exact: true }).fill("Return to the coast");
+  await mark.getByRole("radio", { name: "Purple", exact: true }).check();
+  await mark
+    .getByRole("button", { name: "Save bookmark", exact: true })
+    .click();
+  await expect(outline.locator(".bookmark-jump")).toContainText(
+    "Return to the coast",
+  );
+  await outline.locator(".bookmark-jump").click();
+  expect(
+    await editor.evaluate((el) =>
+      el.contains(document.getSelection()?.anchorNode || null),
+    ),
+  ).toBe(true);
+  await expect(outline.locator(".bookmark-jump i")).toHaveCSS(
+    "background-color",
+    "rgb(123, 94, 181)",
+  );
+  await expect(
+    page.getByText("Saved on this device", { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(page.locator(".book-front-matter")).toContainText("The Coast");
+  await expect(page.locator(".book-front-matter")).toContainText(
+    "For the keepers.",
+  );
+  await expect(page.locator(".bookmark-jump")).toContainText(
+    "Return to the coast",
+  );
+  await expect(
+    editor.getByRole("button", {
+      name: "Footnote 1: Coastal records, revised 1925.",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("book-outline-bookmarks.png"),
+  });
+  const fontSettings = await settings(page);
+  await expect(
+    fontSettings.getByLabel("Book font", { exact: true }),
+  ).toHaveValue("georgia");
+  await expect(
+    fontSettings.getByLabel("Screenplay font", { exact: true }),
+  ).toHaveValue("courier");
+  await fontSettings
+    .getByLabel("Book font", { exact: true })
+    .selectOption("serif");
+  await fontSettings
+    .getByLabel("Screenplay font", { exact: true })
+    .selectOption("mono");
+  await fontSettings.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(editor).toHaveCSS("font-family", /DejaVu Serif/);
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page.getByRole("button", { name: "Export…", exact: true }).click();
+  const bookExport = page.getByRole("dialog", {
+    name: "Export book",
+    exact: true,
+  });
+  await expect(
+    bookExport.getByRole("checkbox", {
+      name: "Keep selected font",
+      exact: true,
+    }),
+  ).not.toBeChecked();
+  await bookExport
+    .getByRole("checkbox", { name: "Keep selected font", exact: true })
+    .check();
+  const downloaded = page.waitForEvent("download");
+  await bookExport.getByRole("button", { name: "Export", exact: true }).click();
+  const pdf = await downloaded;
+  expect(pdf.suggestedFilename()).toMatch(/\.pdf$/);
+  await pdf.saveAs(testInfo.outputPath("book-selected-font.pdf"));
+  await expect(bookExport).toBeHidden();
+  await page.reload();
+  await expect(editor).toHaveCSS("font-family", /DejaVu Serif/);
+
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Explore Premium…", exact: true })
+    .click();
+  const plans = page.getByRole("dialog", {
+    name: "WriteShape Premium",
+    exact: true,
+  });
+  await expect(
+    plans.getByRole("tab", { name: "Book", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect(plans.locator(".novel-outline li")).toHaveCount(4);
+  await page.screenshot({
+    path: testInfo.outputPath("premium-book-desktop.png"),
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    plans.getByRole("tab", { name: "Book", exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("premium-book-phone.png"),
+  });
+  await plans.getByRole("tab", { name: "Screenplay", exact: true }).click();
+  await expect(plans.locator('[data-sample-feature="Insights"]')).toHaveCount(
+    1,
+  );
+});

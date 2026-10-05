@@ -39,6 +39,7 @@ it("defaults to plain PDF, shares mobile and character settings, and hides PDF o
     expect(onExport).toHaveBeenLastCalledWith({
       format: "pdf",
       mobile: false,
+      keepFont: false,
       characters: [],
     });
     const boxes = container.querySelectorAll<HTMLInputElement>(
@@ -50,18 +51,20 @@ it("defaults to plain PDF, shares mobile and character settings, and hides PDF o
     expect(onExport).toHaveBeenLastCalledWith({
       format: "pdf",
       mobile: true,
+      keepFont: false,
       characters: ["MARA"],
     });
     await act(async () => {
       select.value = "fdx";
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    expect(container.querySelectorAll("input[type=checkbox]").length).toBe(0);
+    expect(container.querySelectorAll("input[type=checkbox]").length).toBe(1);
     expect(container.textContent).not.toContain("Find a character");
     await act(async () => submit().click());
     expect(onExport).toHaveBeenLastCalledWith({
       format: "fdx",
       mobile: false,
+      keepFont: false,
       characters: [],
     });
     await act(async () => {
@@ -76,6 +79,7 @@ it("defaults to plain PDF, shares mobile and character settings, and hides PDF o
     expect(onExport).toHaveBeenLastCalledWith({
       format: "pdf",
       mobile: true,
+      keepFont: false,
       characters: ["MARA"],
     });
   } finally {

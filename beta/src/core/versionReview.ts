@@ -16,7 +16,10 @@ function splitDetails(source: string) {
         return {
           body: source.slice(0, match.index),
           suffix: match[0],
-          metadata: JSON.stringify(data.metadata),
+          metadata: JSON.stringify({
+            metadata: data.metadata,
+            titlePage: data.titlePage,
+          }),
         };
     } catch {
       /* Unrecognized comments remain ordinary, reviewable text. */

@@ -14,6 +14,7 @@ export function AnnotationDialog({
   onSave: (value: string | null) => void;
   onClose: () => void;
 }) {
+  const noun = target.footnote ? "footnote" : "annotation";
   const [text, setText] = useState(target.text);
   const [error, setError] = useState("");
   const save = (value: string | null) => {
@@ -27,7 +28,17 @@ export function AnnotationDialog({
     }
   };
   return (
-    <Modal title={title} className="annotation-dialog" onClose={onClose}>
+    <Modal
+      title={
+        target.footnote
+          ? target.noteId
+            ? "Edit footnote"
+            : "Add footnote"
+          : title
+      }
+      className="annotation-dialog"
+      onClose={onClose}
+    >
       <form
         className="form-grid annotation-form"
         onSubmit={(event) => {
@@ -36,7 +47,7 @@ export function AnnotationDialog({
         }}
       >
         <textarea
-          aria-label="Annotation"
+          aria-label={target.footnote ? "Footnote" : "Annotation"}
           autoFocus
           rows={5}
           placeholder={target.canEdit ? "Write a note…" : undefined}
@@ -56,7 +67,7 @@ export function AnnotationDialog({
               type="button"
               onClick={() => save(null)}
             >
-              Delete annotation
+              Delete {noun}
             </button>
           )}
           <button type="button" onClick={onClose}>
@@ -64,7 +75,7 @@ export function AnnotationDialog({
           </button>
           {target.canEdit && (
             <button className="primary" type="submit" disabled={!text.trim()}>
-              Save annotation
+              Save {noun}
             </button>
           )}
         </div>

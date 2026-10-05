@@ -1,3 +1,4 @@
+import { nextBookHeading } from "../src/core/book";
 import { expect, it, beforeAll } from "vitest";
 import {
   parseMarkdown,
@@ -171,7 +172,7 @@ it("PDF produces prose pages", async () => {
 });
 
 it("retains heading references after empty paragraphs and keeps filename format", () => {
-  const doc = createNovel();
+  const doc = parseMarkdown("# Book 1\n\n## Chapter 1\n\nOpening.");
   doc.blocks.splice(1, 0, { id: "blank", kind: "action", text: "" });
   const chapter = doc.blocks[2].id;
   expect(
@@ -183,4 +184,38 @@ it("retains heading references after empty paragraphs and keeps filename format"
   expect(documentFilename("Script.md", "Draft.fountain")).toBe(
     "Script.fountain",
   );
+});
+
+it("starts books empty and preserves title, author and dedication through saving and exports", async () => {
+  const doc = createNovel();
+  expect(doc.blocks.map((b) => b.text).join("")).toBe("");
+  expect(doc.titlePage.title).toBe("");
+  doc.titlePage.title = "The Coast";
+  doc.titlePage.author = "Alex Morgan";
+  doc.titlePage.extra = { Dedication: "For the keepers." };
+  doc.blocks = [
+    { id: "chapter", kind: "section", level: 2, text: "Chapter 1" },
+    { id: "body", kind: "action", text: "Opening words." },
+  ];
+  const loaded = parseMarkdown(serializeMarkdown(doc));
+  expect(loaded.titlePage).toEqual(doc.titlePage);
+  const word = strFromU8(unzipSync(novelDocx(loaded))["word/document.xml"]);
+  const epub = strFromU8(unzipSync(novelEpub(loaded))["EPUB/book.xhtml"]);
+  const rtf = novelRtf(loaded);
+  for (const text of [word, epub, rtf])
+    for (const value of ["The Coast", "Alex Morgan", "For the keepers."])
+      expect(text).toContain(value);
+  expect(word.indexOf("For the keepers.")).toBeLessThan(
+    word.indexOf("Chapter 1"),
+  );
+  expect((await novelPdf(loaded)).pageCount).toBeGreaterThanOrEqual(3);
+});
+
+it("numbers new books and chapters independently without overwriting custom titles", () => {
+  const doc = parseMarkdown(
+    "# Book 2 — The Coast\n\n## Chapter 4 — Home\n\n## Interlude\n\nOpening.",
+  );
+  expect(nextBookHeading(doc, 1)).toBe("Book 3");
+  expect(nextBookHeading(doc, 2)).toBe("Chapter 5");
+  expect(nextBookHeading(createNovel(), 2)).toBe("Chapter 1");
 });

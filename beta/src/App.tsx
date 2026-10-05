@@ -1,3 +1,6 @@
+import { writingFonts, loadWritingFont } from "./core/writingFonts";
+import { Bookmarks } from "./components/Bookmarks";
+import { nextBookHeading } from "./core/book";
 import { SceneOutline } from "./components/SceneOutline";
 import { VersionReview } from "./components/VersionReview";
 import { DocumentStatusBar } from "./components/DocumentStatusBar";
@@ -1055,7 +1058,7 @@ export default function App() {
     }
     await session.open(
       format === "novel" ? createNovel() : emptyScreenplay(),
-      format === "novel" ? "Untitled.md" : "Untitled.fountain",
+      format === "novel" ? "New book.md" : "Untitled.fountain",
     );
     file.current = undefined;
     setDialog(null);
@@ -1392,11 +1395,28 @@ export default function App() {
     }
     if (!session) return;
     if (selection.format === "fdx") {
-      await exportFile("fdx");
+      const snap = session.capture();
+      const { exportFdx } = await import("./core/export");
+      downloadFile(
+        exportFdx(
+          snap.screenplay,
+          selection.keepFont
+            ? writingFonts[preferences.screenplayFont].name
+            : undefined,
+        ),
+        snap.name.replace(/\.[^.]+$/, "") + ".fdx",
+        "application/xml",
+      );
     } else {
       const snap = session.capture();
       const result = await publishPdf(snap.screenplay, {
         ...pdfOptions,
+        ...(selection.keepFont
+          ? {
+              fontBytes: await loadWritingFont(preferences.screenplayFont),
+              strictFont: true,
+            }
+          : {}),
         mobileLayout: selection.mobile,
         highlightCharacters: [...selection.characters],
       });
@@ -1748,6 +1768,9 @@ export default function App() {
       style={
         {
           "--left-width": `${preferences.leftWidth}px`,
+          "--screenplay-writing-font":
+            writingFonts[preferences.screenplayFont].css,
+          "--book-writing-font": writingFonts[preferences.bookFont].css,
           "--right-width": `${preferences.rightWidth}px`,
         } as CSSProperties
       }
@@ -1976,6 +1999,11 @@ export default function App() {
             </MenuItem>
           </Menu>
           <Menu label="Insert">
+            {novel && (
+              <MenuItem onClick={() => editor.current?.insertFootnote()}>
+                Footnote…
+              </MenuItem>
+            )}
             <MenuItem onClick={() => setDialog("title")}>Title page…</MenuItem>
             {(novel
               ? (Object.keys(proseLabels) as BlockKind[])
@@ -2209,9 +2237,12 @@ export default function App() {
                         )
                       : undefined
                   }
-                  onAdd={() => {
-                    insert("section");
-                    editor.current?.setHeadingLevel(2);
+                  onAdd={(level = 2) => {
+                    editor.current?.insertBlock(
+                      "section",
+                      nextBookHeading(doc, level),
+                      level,
+                    );
                   }}
                   onBeats={() => openView("beats")}
                 />
@@ -2234,6 +2265,20 @@ export default function App() {
                   />
                 </>
               )}
+              <Bookmarks
+                doc={doc}
+                onChange={changeDoc}
+                readOnly={cloudReadOnly || liveStatus?.canEdit === false}
+                onCapture={() => editor.current?.cursorAnchor()}
+                onJump={(anchor) => {
+                  flushSync(() => {
+                    if (matchMedia("(max-width: 950px)").matches)
+                      setPreferences((p) => ({ ...p, outline: false }));
+                  });
+                  editor.current?.focusBlock(anchor.blockId);
+                  editor.current?.focusRange({ start: anchor, end: anchor });
+                }}
+              />
               <div className="outline-bottom">
                 {!isWriteShape && (
                   <button onClick={() => void run(listWorkspace)}>
@@ -2422,6 +2467,7 @@ export default function App() {
                     aria-label={novel ? "Manuscript page" : "Screenplay page"}
                   >
                     <TitlePreview
+                      novel={novel}
                       value={doc.titlePage}
                       onEdit={() => setDialog("title")}
                     />
@@ -2978,6 +3024,7 @@ export default function App() {
       )}
       {plansOpen && (
         <PlanComparison
+          initialMode={novel ? "book" : "screenplay"}
           collaborationAvailable={account.state.collaborationAvailable}
           billingMode={account.state.billingMode}
           privateMode={account.state.privateMode}
@@ -3058,13 +3105,29 @@ export default function App() {
       {dialog === "export" &&
         (novel ? (
           <NovelExportDialog
+            font={preferences.bookFont}
             busy={busy}
             onClose={() => setDialog(null)}
-            onExport={(format) =>
+            onExport={(format, keepFont, suppliedFonts) =>
               void run(async () => {
                 const snap = session.capture();
                 const { exportNovel } = await import("./core/novelExport");
-                const result = await exportNovel(snap.screenplay, format);
+                const fontBytes =
+                  keepFont &&
+                  (format === "pdf" || preferences.bookFont !== "georgia")
+                    ? (suppliedFonts ??
+                      (await loadWritingFont(preferences.bookFont)))
+                    : undefined;
+                const result = await exportNovel(
+                  snap.screenplay,
+                  format,
+                  keepFont
+                    ? {
+                        fontName: writingFonts[preferences.bookFont].name,
+                        fontBytes,
+                      }
+                    : {},
+                );
                 downloadFile(
                   result.blob,
                   snap.name.replace(/\.[^.]+$/, "") + "." + format,
@@ -3076,6 +3139,7 @@ export default function App() {
           />
         ) : (
           <ExportDialog
+            font={preferences.screenplayFont}
             freeOnly={isWriteShapeFree}
             onUpgrade={() => {
               setDialog(null);
@@ -3170,6 +3234,7 @@ export default function App() {
       )}
       {dialog === "title" && (
         <TitleDialog
+          novel={novel}
           value={doc.titlePage}
           readOnly={cloudReadOnly || liveStatus?.canEdit === false}
           onSave={(titlePage, original) =>

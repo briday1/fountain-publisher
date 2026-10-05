@@ -2862,3 +2862,6 @@ button.danger {
     margin-right: var(--insights-space, 0px);
   }
 }
+
+.title-preview { font-family:var(--screenplay-writing-font, "Courier Prime", "Courier New", monospace); }
+.writing-font-sample { margin:8px 0 20px; padding:12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; }

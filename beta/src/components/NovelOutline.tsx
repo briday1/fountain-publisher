@@ -1,3 +1,4 @@
+import { withoutFootnotes } from "../core/footnotes";
 import { type ReactNode, useState } from "react";
 import { ChevronDown, Plus } from "lucide-react";
 import type { Screenplay } from "../core/model";
@@ -11,7 +12,7 @@ export function NovelOutline({
   viewActions?: (id: string) => ReactNode;
   doc: Screenplay;
   onJump: (id: string) => void;
-  onAdd: () => void;
+  onAdd: (level?: 1 | 2) => void;
   onBeats: () => void;
 }) {
   const [folded, setFolded] = useState(new Set<string>());
@@ -42,7 +43,7 @@ export function NovelOutline({
                 {children ? (
                   <button
                     className="icon-button"
-                    aria-label={`${folded.has(heading.id) ? "Expand" : "Collapse"} ${heading.text}`}
+                    aria-label={`${folded.has(heading.id) ? "Expand" : "Collapse"} ${withoutFootnotes(heading.text)}`}
                     aria-expanded={!folded.has(heading.id)}
                     onClick={() =>
                       setFolded((current) => {
@@ -62,8 +63,10 @@ export function NovelOutline({
                   className="novel-outline-jump"
                   onClick={() => onJump(heading.id)}
                 >
-                  {heading.text || "Untitled heading"}
-                  <small>Level {level}</small>
+                  {withoutFootnotes(heading.text) || "Untitled heading"}
+                  <small>
+                    {level === 1 ? "Book" : level === 2 ? "Chapter" : "Section"}
+                  </small>
                 </button>
                 {viewActions?.(heading.id)}
               </div>
@@ -81,10 +84,16 @@ export function NovelOutline({
           Book, chapter and section headings appear here as you write.
         </p>
       )}
-      <button className="subtle-button add-scene" onClick={onAdd}>
+      <button className="subtle-button add-scene" onClick={() => onAdd(2)}>
         <Plus size={15} />
         Add chapter
       </button>
+      <button className="subtle-button add-scene" onClick={() => onAdd(1)}>
+        <Plus size={15} /> Add book
+      </button>
+      <p className="book-numbering-hint">
+        New books and chapters use the next number. You can rename any heading.
+      </p>
     </>
   );
 }

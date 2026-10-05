@@ -1,3 +1,8 @@
+import {
+  anchoredItems,
+  bookmarksFromBeats,
+  bookmarkPrefix,
+} from "../core/bookmarks";
 import * as Y from "yjs";
 import type { Node as PMNode } from "prosemirror-model";
 import {
@@ -235,7 +240,10 @@ export function readSharedDetails(
       ...extras,
       version: 1,
       notes: plainText(metadata.get("notes")),
-      beats,
+      beats: beats.filter((b) => !b.id.startsWith(bookmarkPrefix)),
+      ...(bookmarksFromBeats(beats).length
+        ? { bookmarks: bookmarksFromBeats(beats) }
+        : {}),
     },
   };
 }
@@ -271,7 +279,7 @@ export function updateSharedDetails(
       ...Object.keys(previous.metadata),
     ])) {
       if (
-        ["version", "notes", "beats"].includes(key) ||
+        ["version", "notes", "beats", "bookmarks"].includes(key) ||
         same(next.metadata[key], previous.metadata[key])
       )
         continue;
@@ -279,11 +287,11 @@ export function updateSharedDetails(
       else metadata.set(key, next.metadata[key]);
     }
     const before = new Map(
-      previous.metadata.beats.map((beat) => [beat.id, beat]),
+      anchoredItems(previous).map((beat) => [beat.id, beat]),
     );
-    const nextIds = new Set(next.metadata.beats.map((beat) => beat.id));
+    const nextIds = new Set(anchoredItems(next).map((beat) => beat.id));
     for (const id of before.keys()) if (!nextIds.has(id)) beats.delete(id);
-    next.metadata.beats.forEach((beat, order) => {
+    anchoredItems(next).forEach((beat, order) => {
       const old = before.get(beat.id);
       let target = beats.get(beat.id);
       // A stale edit cannot resurrect a deleted beat; explicit additions can create it.
@@ -296,7 +304,7 @@ export function updateSharedDetails(
         if (!old || beat[key] !== old[key]) setText(target, key, beat[key]);
       for (const key of ["color", "act"] as const)
         if (!old || beat[key] !== old[key]) target.set(key, beat[key]);
-      if (!old || previous.metadata.beats[order]?.id !== beat.id)
+      if (!old || anchoredItems(previous)[order]?.id !== beat.id)
         target.set("order", order);
       if (!old || !same(beat.range, old.range) || beat.sceneId !== old.sceneId)
         target.set("range", rangeFromBeat(doc, next, beat, view));
@@ -318,7 +326,7 @@ export function createSharedDocument(screenplay: Screenplay): Y.Doc {
     const metadata = new Y.Map<unknown>();
     details.set("metadata", metadata);
     for (const [key, value] of Object.entries(screenplay.metadata))
-      if (!["notes", "beats", "version"].includes(key))
+      if (!["notes", "beats", "version", "bookmarks"].includes(key))
         metadata.set(key, value);
     metadata.set("notes", new Y.Text(screenplay.metadata.notes));
     details.set("beats", new Y.Map());
@@ -326,7 +334,10 @@ export function createSharedDocument(screenplay: Screenplay): Y.Doc {
     updateSharedDetails(
       doc,
       screenplay,
-      { ...screenplay, metadata: { ...screenplay.metadata, beats: [] } },
+      {
+        ...screenplay,
+        metadata: { ...screenplay.metadata, beats: [], bookmarks: [] },
+      },
       context(doc),
     );
   });
