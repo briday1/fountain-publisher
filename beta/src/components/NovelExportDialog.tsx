@@ -1,16 +1,26 @@
+import { ExportFontOption } from "./ExportFontOption";
+import type { WritingFont, FontBytes } from "../core/writingFonts";
 import { useState } from "react";
 import { Modal } from "./Modal";
 import type { NovelExportFormat } from "../core/novelExport";
 export function NovelExportDialog({
   busy,
+  font = "georgia",
   onClose,
   onExport,
 }: {
   busy: boolean;
+  font?: WritingFont;
   onClose: () => void;
-  onExport: (format: NovelExportFormat) => void;
+  onExport: (
+    format: NovelExportFormat,
+    keepFont: boolean,
+    fonts?: FontBytes,
+  ) => void;
 }) {
   const [format, setFormat] = useState<NovelExportFormat>("pdf");
+  const [keepFont, setKeepFont] = useState(false);
+  const [fonts, setFonts] = useState<FontBytes>();
   return (
     <Modal title="Export book" onClose={onClose}>
       <label className="field">
@@ -36,10 +46,20 @@ export function NovelExportDialog({
           Scrivener’s Import and Split.
         </p>
       )}
+      <ExportFontOption
+        font={font}
+        checked={keepFont}
+        onChange={setKeepFont}
+        pdf={format === "pdf"}
+        busy={busy}
+        onFonts={setFonts}
+      />
       <button
         className="primary"
-        disabled={busy}
-        onClick={() => onExport(format)}
+        disabled={
+          busy || (keepFont && format === "pdf" && font === "georgia" && !fonts)
+        }
+        onClick={() => onExport(format, keepFont, fonts)}
       >
         {busy ? "Preparing export…" : "Export"}
       </button>

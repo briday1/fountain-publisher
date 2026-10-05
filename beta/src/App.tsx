@@ -1,3 +1,4 @@
+import { writingFonts, loadWritingFont } from "./core/writingFonts";
 import { Bookmarks } from "./components/Bookmarks";
 import { nextBookHeading } from "./core/book";
 import { SceneOutline } from "./components/SceneOutline";
@@ -1394,11 +1395,28 @@ export default function App() {
     }
     if (!session) return;
     if (selection.format === "fdx") {
-      await exportFile("fdx");
+      const snap = session.capture();
+      const { exportFdx } = await import("./core/export");
+      downloadFile(
+        exportFdx(
+          snap.screenplay,
+          selection.keepFont
+            ? writingFonts[preferences.screenplayFont].name
+            : undefined,
+        ),
+        snap.name.replace(/\.[^.]+$/, "") + ".fdx",
+        "application/xml",
+      );
     } else {
       const snap = session.capture();
       const result = await publishPdf(snap.screenplay, {
         ...pdfOptions,
+        ...(selection.keepFont
+          ? {
+              fontBytes: await loadWritingFont(preferences.screenplayFont),
+              strictFont: true,
+            }
+          : {}),
         mobileLayout: selection.mobile,
         highlightCharacters: [...selection.characters],
       });
@@ -1750,6 +1768,9 @@ export default function App() {
       style={
         {
           "--left-width": `${preferences.leftWidth}px`,
+          "--screenplay-writing-font":
+            writingFonts[preferences.screenplayFont].css,
+          "--book-writing-font": writingFonts[preferences.bookFont].css,
           "--right-width": `${preferences.rightWidth}px`,
         } as CSSProperties
       }
@@ -3084,13 +3105,29 @@ export default function App() {
       {dialog === "export" &&
         (novel ? (
           <NovelExportDialog
+            font={preferences.bookFont}
             busy={busy}
             onClose={() => setDialog(null)}
-            onExport={(format) =>
+            onExport={(format, keepFont, suppliedFonts) =>
               void run(async () => {
                 const snap = session.capture();
                 const { exportNovel } = await import("./core/novelExport");
-                const result = await exportNovel(snap.screenplay, format);
+                const fontBytes =
+                  keepFont &&
+                  (format === "pdf" || preferences.bookFont !== "georgia")
+                    ? (suppliedFonts ??
+                      (await loadWritingFont(preferences.bookFont)))
+                    : undefined;
+                const result = await exportNovel(
+                  snap.screenplay,
+                  format,
+                  keepFont
+                    ? {
+                        fontName: writingFonts[preferences.bookFont].name,
+                        fontBytes,
+                      }
+                    : {},
+                );
                 downloadFile(
                   result.blob,
                   snap.name.replace(/\.[^.]+$/, "") + "." + format,
@@ -3102,6 +3139,7 @@ export default function App() {
           />
         ) : (
           <ExportDialog
+            font={preferences.screenplayFont}
             freeOnly={isWriteShapeFree}
             onUpgrade={() => {
               setDialog(null);

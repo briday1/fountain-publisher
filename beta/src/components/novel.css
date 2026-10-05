@@ -301,3 +301,5 @@
 .footnote-source { display: none; }
 .book-footnote-marker { display:inline; border:0; padding:0 2px; background:transparent; color:var(--accent); font:inherit; font-size:.72em; vertical-align:super; line-height:0; cursor:pointer; }
 .book-footnote-marker:focus-visible { outline:2px solid currentColor; outline-offset:3px; }
+
+.book-front-matter h1, .book-author, .book-dedication, .book-title-placeholder { font-family:var(--book-writing-font, Georgia, "Times New Roman", serif); }

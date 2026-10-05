@@ -243,3 +243,6 @@
 .screenplay-editor.novel-editor p[data-kind=parenthetical] { margin:0 10% 2em; text-align:right; font-size:.88em; }
 .screenplay-editor.novel-editor p[data-kind=pageBreak] { font-size:inherit; border:0; text-align:center; margin:2em 0; }
 .screenplay-editor.novel-editor p[data-kind=pageBreak]::before { content:'*  *  *'; }
+
+.screenplay-editor { font-family:var(--screenplay-writing-font, "Courier Prime", "Courier New", monospace); }
+.screenplay-editor.novel-editor { font-family:var(--book-writing-font, Georgia, "Times New Roman", serif); }

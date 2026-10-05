@@ -24,6 +24,7 @@ import boldItalicFontUrl from "@fontsource/courier-prime/files/courier-prime-lat
 import { characterHighlights } from "./characterHighlights";
 
 export interface PdfOptions {
+  strictFont?: boolean;
   highlightCharacters?: string[];
   includeTitlePage?: boolean;
   pageSize?: "letter" | "a4";
@@ -656,7 +657,8 @@ export async function exportPdf(
         ]),
       ),
     ) as Fonts;
-  } catch {
+  } catch (error) {
+    if (options.strictFont) throw error;
     fonts = {
       regular: await pdf.embedFont(StandardFonts.Courier),
       bold: await pdf.embedFont(StandardFonts.CourierBold),
@@ -1124,7 +1126,7 @@ function fdxParagraph(block: ScriptBlock, pageBreak = false): string {
   return `<Paragraph Type="${type}"${block.kind === "centered" ? ' Alignment="Center"' : ""}${block.sceneNumber ? ` Number="${xml(block.sceneNumber)}"` : ""}${pageBreak ? ' StartsNewPage="Yes"' : ""}>${text}</Paragraph>`;
 }
 
-export function exportFdx(document: Screenplay): string {
+export function exportFdx(document: Screenplay, fontName?: string): string {
   const blocks = document.blocks.filter((block) =>
     publishedKinds.has(block.kind),
   );
@@ -1172,7 +1174,10 @@ export function exportFdx(document: Screenplay): string {
         `<Paragraph Alignment="Left" SpaceBefore="24"><Text>${xml(value)}</Text></Paragraph>`,
     )
     .join("");
-  return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n<FinalDraft DocumentType="Script" Template="No" Version="3"><Content>${paragraphs.join("\n")}</Content><TitlePage><Content>${title}${contact}</Content></TitlePage><PageLayout TopMargin="72" BottomMargin="72"><PageSize Width="8.50" Height="11.00"/></PageLayout></FinalDraft>\n`;
+  const output = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n<FinalDraft DocumentType="Script" Template="No" Version="3"><Content>${paragraphs.join("\n")}</Content><TitlePage><Content>${title}${contact}</Content></TitlePage><PageLayout TopMargin="72" BottomMargin="72"><PageSize Width="8.50" Height="11.00"/></PageLayout></FinalDraft>\n`;
+  return fontName
+    ? output.replace(/<Text(?=[ >])/g, `<Text Font="${xml(fontName)}"`)
+    : output;
 }
 
 function beatExportAssignments(document: Screenplay) {
@@ -1231,8 +1236,10 @@ export function exportBeatSheetCsv(document: Screenplay): string {
       beat.color,
       assignment ? `${assignment.startLine}–${assignment.endLine}` : "",
       assignment?.words ?? "",
-      beatAncestors(document.metadata.beats, beat.id).map(b => b.title).join(" / "),
-      document.blocks.find(b => b.id === beat.groupSceneId)?.text || "",
+      beatAncestors(document.metadata.beats, beat.id)
+        .map((b) => b.title)
+        .join(" / "),
+      document.blocks.find((b) => b.id === beat.groupSceneId)?.text || "",
     ]);
   }
   return `\uFEFF${rows.map((row) => row.map(cell).join(",")).join("\r\n")}\r\n`;
@@ -1252,7 +1259,10 @@ export function beatSheetDocument(document: Screenplay): Screenplay {
   if (document.metadata.premise) add(String(document.metadata.premise));
   outlineBeats(document.metadata.beats).forEach((beat, index) => {
     const parents = beatAncestors(document.metadata.beats, beat.id);
-    if (parents.length) add(`Within: ${parents.map(b => b.title || "Untitled beat").join(" / ")}`);
+    if (parents.length)
+      add(
+        `Within: ${parents.map((b) => b.title || "Untitled beat").join(" / ")}`,
+      );
     add(`${index + 1}. ${beat.title || "Untitled beat"} · ${beat.act}`, true);
     if (beat.description) add(beat.description);
     const assignment = assignmentFor(beat);

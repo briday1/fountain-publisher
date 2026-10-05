@@ -466,6 +466,45 @@ test("Book starts clean, saves front matter, numbers headings and keeps colored 
   await page.screenshot({
     path: testInfo.outputPath("book-outline-bookmarks.png"),
   });
+  const fontSettings = await settings(page);
+  await expect(
+    fontSettings.getByLabel("Book font", { exact: true }),
+  ).toHaveValue("georgia");
+  await expect(
+    fontSettings.getByLabel("Screenplay font", { exact: true }),
+  ).toHaveValue("courier");
+  await fontSettings
+    .getByLabel("Book font", { exact: true })
+    .selectOption("serif");
+  await fontSettings
+    .getByLabel("Screenplay font", { exact: true })
+    .selectOption("mono");
+  await fontSettings.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(editor).toHaveCSS("font-family", /DejaVu Serif/);
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page.getByRole("button", { name: "Export…", exact: true }).click();
+  const bookExport = page.getByRole("dialog", {
+    name: "Export book",
+    exact: true,
+  });
+  await expect(
+    bookExport.getByRole("checkbox", {
+      name: "Keep selected font",
+      exact: true,
+    }),
+  ).not.toBeChecked();
+  await bookExport
+    .getByRole("checkbox", { name: "Keep selected font", exact: true })
+    .check();
+  const downloaded = page.waitForEvent("download");
+  await bookExport.getByRole("button", { name: "Export", exact: true }).click();
+  const pdf = await downloaded;
+  expect(pdf.suggestedFilename()).toMatch(/\.pdf$/);
+  await pdf.saveAs(testInfo.outputPath("book-selected-font.pdf"));
+  await expect(bookExport).toBeHidden();
+  await page.reload();
+  await expect(editor).toHaveCSS("font-family", /DejaVu Serif/);
+
   await page.getByRole("button", { name: "File", exact: true }).click();
   await page
     .getByRole("button", { name: "Explore Premium…", exact: true })

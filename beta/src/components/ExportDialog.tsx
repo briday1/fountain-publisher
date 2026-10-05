@@ -1,3 +1,5 @@
+import { ExportFontOption } from "./ExportFontOption";
+import type { WritingFont } from "../core/writingFonts";
 import { useMemo, useState } from "react";
 import { characterHighlights } from "../core/characterHighlights";
 import { Modal } from "./Modal";
@@ -6,10 +8,12 @@ export type ExportSelection = {
   format: "pdf" | "fdx";
   mobile: boolean;
   characters: string[];
+  keepFont?: boolean;
 };
 
 export function ExportDialog({
   freeOnly = false,
+  font = "courier",
   onUpgrade,
   names,
   busy,
@@ -17,6 +21,7 @@ export function ExportDialog({
   onClose,
 }: {
   freeOnly?: boolean;
+  font?: WritingFont;
   onUpgrade?: () => void;
   names: string[];
   busy: boolean;
@@ -24,6 +29,7 @@ export function ExportDialog({
   onClose: () => void;
 }) {
   const [format, setFormat] = useState<"pdf" | "fdx">("pdf");
+  const [keepFont, setKeepFont] = useState(false);
   const [mobile, setMobile] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState("");
@@ -47,7 +53,14 @@ export function ExportDialog({
           {!freeOnly && <option value="fdx">Final Draft (.fdx)</option>}
         </select>
       </label>
-      {freeOnly && <p>Standard PDF is included. <button onClick={onUpgrade}>Explore Premium mobile PDFs and highlighting</button></p>}
+      {freeOnly && (
+        <p>
+          Standard PDF is included.{" "}
+          <button onClick={onUpgrade}>
+            Explore Premium mobile PDFs and highlighting
+          </button>
+        </p>
+      )}
       {format === "pdf" && !freeOnly && (
         <>
           <label>
@@ -132,6 +145,13 @@ export function ExportDialog({
           )}
         </>
       )}
+      <ExportFontOption
+        font={font}
+        checked={keepFont}
+        onChange={setKeepFont}
+        pdf={format === "pdf"}
+        busy={busy}
+      />
       <div className="dialog-actions">
         <button onClick={onClose}>Cancel</button>
         <button
@@ -140,6 +160,7 @@ export function ExportDialog({
           onClick={() =>
             onExport({
               format,
+              keepFont,
               mobile: format === "pdf" && mobile,
               characters: format === "pdf" ? selected : [],
             })

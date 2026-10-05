@@ -1,0 +1,12 @@
+@font-face{font-family:"DejaVu Serif";font-weight:400;font-style:normal;font-display:swap;src:url("./DejaVuSerif-regular.woff") format("woff");}
+@font-face{font-family:"DejaVu Serif";font-weight:700;font-style:normal;font-display:swap;src:url("./DejaVuSerif-bold.woff") format("woff");}
+@font-face{font-family:"DejaVu Serif";font-weight:400;font-style:italic;font-display:swap;src:url("./DejaVuSerif-italic.woff") format("woff");}
+@font-face{font-family:"DejaVu Serif";font-weight:700;font-style:italic;font-display:swap;src:url("./DejaVuSerif-boldItalic.woff") format("woff");}
+@font-face{font-family:"DejaVu Sans";font-weight:400;font-style:normal;font-display:swap;src:url("./DejaVuSans-regular.woff") format("woff");}
+@font-face{font-family:"DejaVu Sans";font-weight:700;font-style:normal;font-display:swap;src:url("./DejaVuSans-bold.woff") format("woff");}
+@font-face{font-family:"DejaVu Sans";font-weight:400;font-style:italic;font-display:swap;src:url("./DejaVuSans-italic.woff") format("woff");}
+@font-face{font-family:"DejaVu Sans";font-weight:700;font-style:italic;font-display:swap;src:url("./DejaVuSans-boldItalic.woff") format("woff");}
+@font-face{font-family:"DejaVu Sans Mono";font-weight:400;font-style:normal;font-display:swap;src:url("./DejaVuSansMono-regular.woff") format("woff");}
+@font-face{font-family:"DejaVu Sans Mono";font-weight:700;font-style:normal;font-display:swap;src:url("./DejaVuSansMono-bold.woff") format("woff");}
+@font-face{font-family:"DejaVu Sans Mono";font-weight:400;font-style:italic;font-display:swap;src:url("./DejaVuSansMono-italic.woff") format("woff");}
+@font-face{font-family:"DejaVu Sans Mono";font-weight:700;font-style:italic;font-display:swap;src:url("./DejaVuSansMono-boldItalic.woff") format("woff");}
