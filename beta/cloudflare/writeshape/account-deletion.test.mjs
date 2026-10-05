@@ -57,6 +57,21 @@ test("account erasure removes owned files, immutable history, shares, credential
     /IMMUTABLE/,
   );
   assert.equal((await deletion(env)).status, 200);
+  assert.throws(
+    () =>
+      env.sql
+        .prepare(
+          "INSERT INTO oauth_attempts VALUES('late-link','nonce','verifier','alice',9999999999)",
+        )
+        .run(),
+    /ACCOUNT_UNAVAILABLE/,
+  );
+  // A fresh anonymous sign-in remains possible after deletion.
+  env.sql
+    .prepare(
+      "INSERT INTO oauth_attempts VALUES('new-sign-in','nonce','verifier',NULL,9999999999)",
+    )
+    .run();
   for (const table of [
     "accounts",
     "items",
