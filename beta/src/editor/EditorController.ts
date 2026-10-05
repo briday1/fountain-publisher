@@ -1,3 +1,4 @@
+import { nextBookHeading } from "../core/book";
 import { footnotePlugin, footnoteKey } from "./footnotes";
 import { encodeFootnote } from "../core/footnotes";
 import {
@@ -1282,6 +1283,14 @@ export class EditorController {
     this.focus();
     this.view.dispatch(selectText(this.view.state, found, found));
     return true;
+  }
+
+  insertBookHeading(level: 1 | 2 = 2): string {
+    return this.insertBlock(
+      "section",
+      nextBookHeading({ blocks: this.getBlocks() }, level),
+      level,
+    );
   }
 
   insertBlock(kind: BlockKind, text = "", level?: number): string {

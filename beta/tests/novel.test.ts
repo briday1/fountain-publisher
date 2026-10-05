@@ -219,3 +219,24 @@ it("numbers new books and chapters independently without overwriting custom titl
   expect(nextBookHeading(doc, 2)).toBe("Chapter 5");
   expect(nextBookHeading(createNovel(), 2)).toBe("Chapter 1");
 });
+
+it("numbers consecutive insertions from current editor contents before the UI snapshot refreshes", () => {
+  const initial = createNovel();
+  const mount = document.createElement("div");
+  document.body.append(mount);
+  const editor = new EditorController(mount, initial, {});
+  editor.insertBookHeading(2);
+  editor.insertBookHeading(2);
+  editor.insertBookHeading(1);
+  editor.insertBookHeading(2);
+  editor.insertBookHeading(1);
+  expect(
+    editor
+      .getBlocks()
+      .filter((b) => b.kind === "section")
+      .map((b) => b.text),
+  ).toEqual(["Chapter 1", "Chapter 2", "Book 1", "Chapter 3", "Book 2"]);
+  expect(initial.blocks.map((b) => b.text)).toEqual([""]);
+  editor.destroy();
+  mount.remove();
+});

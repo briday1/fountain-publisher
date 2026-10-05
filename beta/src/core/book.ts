@@ -1,6 +1,9 @@
 import type { Screenplay, ScriptBlock } from "./model";
 import { titlePageExtra } from "./titlePage";
-export function nextBookHeading(doc: Screenplay, level: 1 | 2): string {
+export function nextBookHeading(
+  doc: Pick<Screenplay, "blocks">,
+  level: 1 | 2,
+): string {
   const label = level === 1 ? "Book" : "Chapter";
   const numbers = doc.blocks
     .filter((b) => b.kind === "section" && (b.level || 2) === level)

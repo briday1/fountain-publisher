@@ -1,6 +1,5 @@
 import { writingFonts, loadWritingFont } from "./core/writingFonts";
 import { Bookmarks } from "./components/Bookmarks";
-import { nextBookHeading } from "./core/book";
 import { SceneOutline } from "./components/SceneOutline";
 import { VersionReview } from "./components/VersionReview";
 import { DocumentStatusBar } from "./components/DocumentStatusBar";
@@ -2238,11 +2237,7 @@ export default function App() {
                       : undefined
                   }
                   onAdd={(level = 2) => {
-                    editor.current?.insertBlock(
-                      "section",
-                      nextBookHeading(doc, level),
-                      level,
-                    );
+                    editor.current?.insertBookHeading(level);
                   }}
                   onBeats={() => openView("beats")}
                 />
