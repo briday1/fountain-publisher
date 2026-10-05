@@ -49,6 +49,7 @@ export function SampleScript({
     >
       <article className="screenplay-paper">
         <EditorSurface
+          key={`${doc.metadata.format || "fountain"}-${doc.blocks[0]?.id}`}
           initial={{ ...doc, blocks: doc.blocks.slice(0, 8) }}
           onReady={(editor) => editor?.setDestinationReadOnly(true)}
           onChange={noop}
