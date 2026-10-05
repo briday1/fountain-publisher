@@ -46,7 +46,9 @@ test("Premium shows the complete sample beat sheet, graph and character timeline
     exact: true,
   });
   await expect(dialog).toBeVisible();
-  await expect(dialog.locator(".sample-beat-grid article")).toHaveCount(3);
+  await expect(dialog.locator(".sample-beat-sheet .beat-flow-row")).toHaveCount(
+    3,
+  );
   await expect(
     dialog.locator('[data-sample-feature="Beat Sheet"]'),
   ).toHaveCount(1);
@@ -64,8 +66,11 @@ test("Premium shows the complete sample beat sheet, graph and character timeline
     });
     const sheet = dialog.locator(".sample-beat-sheet");
     await sheet.scrollIntoViewIfNeeded();
-    const cards = (await sheet.locator(".sample-beat-grid").boundingBox())!;
-    const graph = (await sheet.locator("svg").boundingBox())!;
+    const cards = (await sheet.locator(".beat-board").boundingBox())!;
+    const graph = (await sheet
+      .locator(".beat-pacing svg")
+      .first()
+      .boundingBox())!;
     expect(graph.y).toBeGreaterThanOrEqual(cards.y + cards.height);
     expect(graph.width).toBeLessThanOrEqual(width);
     await page.screenshot({
@@ -320,6 +325,15 @@ for (const width of [390, 834, 1280]) {
       await page.screenshot({
         path: testInfo.outputPath(`${label.toLowerCase()}-${width}.png`),
       });
+    }
+    if (!mobile) {
+      const workspace = (await page.locator(".workspace").boundingBox())!;
+      const tabs = (await page
+        .locator(".document-pane-header")
+        .first()
+        .boundingBox())!;
+      expect(Math.abs(tabs.x - workspace.x)).toBeLessThan(2);
+      expect(Math.abs(tabs.width - workspace.width)).toBeLessThan(2);
     }
     await page.screenshot({ path: testInfo.outputPath(`panels-${width}.png`) });
   });

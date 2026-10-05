@@ -2825,3 +2825,38 @@ button.danger {
   max-height: 38dvh;
   overflow: auto;
 }
+
+/* Panels reserve space beside the page, never beside the document tabs. */
+.workspace > .outline-panel,
+.workspace > .insights-panel,
+.workspace > .panel-resizer {
+  position: absolute;
+  top: var(--panel-top, 37px);
+  bottom: 0;
+  margin-top: 0;
+  z-index: 15;
+}
+.workspace > .outline-panel {
+  left: 0;
+}
+.workspace > .insights-panel {
+  right: 0;
+}
+.workspace > .outline-panel + .panel-resizer {
+  left: calc(var(--outline-space) - 4px);
+}
+.workspace > .main-panel + .panel-resizer {
+  right: calc(var(--insights-space) - 4px);
+}
+@media (min-width: 951px) {
+  .workspace .document-pane:first-child > .writing-scroll,
+  .workspace .document-pane:first-child > .empty-document-pane {
+    margin-left: var(--outline-space, 0px);
+  }
+}
+@media (min-width: 721px) {
+  .workspace .document-pane:last-child > .writing-scroll,
+  .workspace .document-pane:last-child > .empty-document-pane {
+    margin-right: var(--insights-space, 0px);
+  }
+}

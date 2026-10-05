@@ -263,33 +263,6 @@
   border: 1px solid var(--border);
   border-radius: 10px;
 }
-.sample-beat-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin: 24px 0;
-}
-.sample-beat-grid article {
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-top: 4px solid;
-  border-radius: 6px;
-  background: var(--surface);
-}
-.sample-beat-grid h4 {
-  margin: 12px 0;
-  font-size: 16px;
-}
-.sample-beat-grid p {
-  margin: 0;
-  line-height: 1.6;
-  font-size: 13px;
-}
-.sample-beat-grid small {
-  color: var(--muted);
-  font-size: 10px;
-}
-.sample-beat-sheet svg,
 .sample-gantt svg {
   display: block;
   width: 100%;
@@ -298,6 +271,15 @@
   font:
     12px system-ui,
     sans-serif;
+}
+.sample-story-outline {
+  max-width: 340px;
+  background: var(--panel);
+  padding: 16px;
+  margin-bottom: 24px;
+}
+.sample-beat-sheet .beat-pacing {
+  margin-top: 24px;
 }
 .sample-gantt {
   margin-top: 24px;
@@ -308,12 +290,8 @@
   line-height: 1.6;
 }
 @media (max-width: 600px) {
-  .sample-beat-sheet svg,
   .sample-gantt svg {
     font-size: 26px;
-  }
-  .sample-beat-grid {
-    grid-template-columns: 1fr;
   }
   .sample-beat-sheet,
   .sample-gantt {

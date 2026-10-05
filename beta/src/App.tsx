@@ -1,3 +1,4 @@
+import { SceneOutline } from "./components/SceneOutline";
 import { VersionReview } from "./components/VersionReview";
 import { DocumentStatusBar } from "./components/DocumentStatusBar";
 import { cloudRequest } from "./storage/writeshapeLibrary";
@@ -2216,46 +2217,21 @@ export default function App() {
                 />
               ) : (
                 <>
-                  <div className="outline-section">
-                    <small>SCENES</small>
-                    <span>{insights.sceneCount}</span>
-                  </div>
-                  <ol className="scene-list">
-                    {insights.scenes.map((s, i) => (
-                      <li key={s.id}>
-                        {documentWorkspace.current && !mobile && (
-                          <OutlineViewActions
-                            model={documentWorkspace.current}
-                            sectionId={s.id}
-                          />
-                        )}
-                        <button onClick={() => scene(s.id)}>
-                          <span className="scene-index">
-                            {String(i + 1).padStart(2, "0")}
-                          </span>
-                          <span>
-                            {s.heading}
-                            <small>
-                              {s.synopsis ||
-                                `${s.wordCount} words · ${s.timeOfDay || "Scene"}`}
-                            </small>
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ol>
-                  {!insights.sceneCount && (
-                    <p className="panel-empty">
-                      Your scenes will appear here as you write.
-                    </p>
-                  )}
-                  <button
-                    className="subtle-button add-scene"
-                    onClick={() => insert("scene")}
-                  >
-                    <Plus size={15} />
-                    Add scene
-                  </button>
+                  <SceneOutline
+                    insights={insights}
+                    onJump={scene}
+                    onAdd={() => insert("scene")}
+                    viewActions={
+                      documentWorkspace.current && !mobile
+                        ? (id) => (
+                            <OutlineViewActions
+                              model={documentWorkspace.current!}
+                              sectionId={id}
+                            />
+                          )
+                        : undefined
+                    }
+                  />
                 </>
               )}
               <div className="outline-bottom">
@@ -3317,6 +3293,7 @@ export default function App() {
       )}
       {historyReview && (
         <VersionReview
+          novel={novel}
           older={serializeDocument(historyReview.older.screenplay)}
           current={historyReview.current}
           olderLabel={new Date(historyReview.older.createdAt).toLocaleString()}

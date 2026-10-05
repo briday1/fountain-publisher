@@ -1,7 +1,19 @@
 import { parseMarkdown } from "./markdown";
 import { parseFountain } from "./fountain";
-import type { BlockKind } from "./model";
-export type DiffPart = { text: string; change?: "added" | "removed" };
+import type { BlockKind, TextSpan } from "./model";
+export type DiffPart = TextSpan & { change?: "added" | "removed" };
+type VisibleBlock = { kind: BlockKind; text: string; spans?: TextSpan[] };
+const spans = (b: VisibleBlock): TextSpan[] => b.spans || [{ text: b.text }];
+const tokens = (b: VisibleBlock) =>
+  spans(b).flatMap((s) =>
+    (s.text.match(/\s+|[^\s]+/gu) || []).map((text) => ({
+      text,
+      marks: s.marks,
+    })),
+  );
+const same = (a: TextSpan, b: TextSpan) =>
+  a.text === b.text &&
+  JSON.stringify(a.marks || []) === JSON.stringify(b.marks || []);
 export type DiffBlock = {
   kind: BlockKind;
   parts: DiffPart[];
@@ -90,21 +102,23 @@ export function versionDiff(
   const edits = sequenceDiff(
     visible(older, novel),
     visible(newer, novel),
-    (a, b) => a.kind === b.kind && a.text === b.text,
+    (a, b) =>
+      a.kind === b.kind &&
+      JSON.stringify(spans(a)) === JSON.stringify(spans(b)),
   );
   const result: DiffBlock[] = [];
   for (let i = 0; i < edits.length;) {
     if (!edits[i].change) {
       result.push({
         kind: edits[i].value.kind,
-        parts: [{ text: edits[i].value.text }],
+        parts: spans(edits[i].value),
         changed: false,
       });
       i++;
       continue;
     }
-    const removed: { kind: BlockKind; text: string }[] = [],
-      added: { kind: BlockKind; text: string }[] = [];
+    const removed: VisibleBlock[] = [],
+      added: VisibleBlock[] = [];
     while (i < edits.length && edits[i].change) {
       (edits[i].change === "removed" ? removed : added).push(edits[i++].value);
     }
@@ -112,23 +126,22 @@ export function versionDiff(
       const a = removed[j],
         b = added[j];
       if (a && b && a.kind === b.kind) {
-        const parts = sequenceDiff(
-          a.text.match(/\s+|[^\s]+/gu) || [],
-          b.text.match(/\s+|[^\s]+/gu) || [],
-          (x, y) => x === y,
-        ).map((p) => ({ text: p.value, change: p.change }));
+        const parts = sequenceDiff(tokens(a), tokens(b), same).map((p) => ({
+          ...p.value,
+          change: p.change,
+        }));
         result.push({ kind: b.kind, parts, changed: true });
       } else {
         if (a)
           result.push({
             kind: a.kind,
-            parts: [{ text: a.text, change: "removed" }],
+            parts: spans(a).map((s) => ({ ...s, change: "removed" })),
             changed: true,
           });
         if (b)
           result.push({
             kind: b.kind,
-            parts: [{ text: b.text, change: "added" }],
+            parts: spans(b).map((s) => ({ ...s, change: "added" })),
             changed: true,
           });
       }
