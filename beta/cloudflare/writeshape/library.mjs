@@ -348,6 +348,97 @@ export async function libraryRoutes(request, env, user) {
   if (
     request.method === "POST" &&
     segments.length === 2 &&
+    segments[1] === "copy"
+  ) {
+    const input = await body(request);
+    const item = await env.DB.prepare(
+      `SELECT ${metadata} FROM items WHERE owner=? AND id=?`,
+    )
+      .bind(user.id, segments[0])
+      .first();
+    if (!item) fail(404, "File not found.", "NOT_FOUND");
+    const name = typeof input.name === "string" ? input.name.trim() : "";
+    if (!name || name.length > 160 || /[\x00-\x1f/\\]/.test(name))
+      throw new HttpError(400, "Choose a valid name for the copy.");
+    if (typeof input.parent !== "string" || input.parent === "__trash__")
+      throw new HttpError(400, "Choose a destination folder.");
+    const path = await ancestors(env, user.id, input.parent);
+    const sourcePath = await ancestors(env, user.id, item.parent);
+    if (
+      sourcePath.some((f) => f.id === "__trash__") ||
+      path.some((f) => f.id === "__trash__" || f.id === item.id)
+    )
+      throw new HttpError(
+        400,
+        "Restore this item first, or choose a folder outside it.",
+      );
+    if (
+      !Number.isSafeInteger(input.revision) ||
+      input.revision !== item.revision
+    )
+      fail(
+        409,
+        "This item changed. Refresh before copying.",
+        "REVISION_CONFLICT",
+      );
+    const id = crypto.randomUUID();
+    const updated = new Date().toISOString();
+    const { quotaBytes } = storagePolicy(env);
+    // Copy a whole subtree from one SQLite snapshot in one atomic statement.
+    // Fresh IDs, current content only, no grants or history; originals stay untouched.
+    const result = await env.DB.prepare(
+      `WITH RECURSIVE source AS (
+      SELECT id,parent,name,kind,content FROM items WHERE owner=? AND id=? AND revision=? AND parent=?
+      UNION SELECT child.id,child.parent,child.name,child.kind,child.content FROM items child JOIN source s ON child.parent=s.id WHERE child.owner=? AND s.kind='folder'
+    ), copies AS MATERIALIZED (
+      SELECT *,CASE WHEN id=? THEN ? ELSE lower(hex(randomblob(4))||'-'||hex(randomblob(2))||'-'||hex(randomblob(2))||'-'||hex(randomblob(2))||'-'||hex(randomblob(6))) END AS new_id FROM source
+    ) INSERT INTO items(id,owner,parent,name,kind,content,revision,updated)
+      SELECT new_id,?,CASE WHEN id=? THEN ? ELSE (SELECT p.new_id FROM copies p WHERE p.id=c.parent) END,
+      CASE WHEN id=? THEN ? ELSE name END,kind,content,1,? FROM copies c
+      WHERE NOT EXISTS(SELECT 1 FROM items WHERE owner=? AND parent=? AND name=? COLLATE NOCASE)
+      AND (? IS NULL OR ${usageExpression}+(SELECT COALESCE(SUM(length(CAST(COALESCE(content,'') AS BLOB))),0) FROM source WHERE kind='file')<=?)`,
+    )
+      .bind(
+        user.id,
+        item.id,
+        input.revision,
+        item.parent,
+        user.id,
+        item.id,
+        id,
+        user.id,
+        item.id,
+        input.parent,
+        item.id,
+        name,
+        updated,
+        user.id,
+        input.parent,
+        name,
+        quotaBytes,
+        user.id,
+        user.id,
+        quotaBytes,
+      )
+      .run();
+    if (!result.meta.changes)
+      fail(
+        409,
+        "Could not make the copy. Refresh and check the name, destination and available storage. No files were changed.",
+        "COPY_CONFLICT",
+      );
+    return json(
+      await env.DB.prepare(
+        `SELECT ${metadata} FROM items WHERE owner=? AND id=?`,
+      )
+        .bind(user.id, id)
+        .first(),
+      201,
+    );
+  }
+  if (
+    request.method === "POST" &&
+    segments.length === 2 &&
     segments[1] === "manage"
   ) {
     const input = await body(request);

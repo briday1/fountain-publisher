@@ -3,6 +3,7 @@ import type { DocumentSession } from "../core/session";
 import { serializeDocument } from "../core/documentFormat";
 import { importScreenplay } from "../core/fdx";
 import { cloudRequest } from "./writeshapeLibrary";
+import { downloadFile } from "./files";
 import {
   directorySupported,
   pickDirectory,
@@ -193,6 +194,26 @@ export function createFileProviders(options: {
     },
   };
   const local: FilesProvider = {
+    async copy({ item, name, parent }) {
+      assertCurrent();
+      const source = files.get(item.id);
+      const destination = folders.get(parent || "root");
+      if (!source || !destination)
+        throw new Error("Choose this file and folder again.");
+      const permission = ensureLocalWritePermission(destination);
+      if (!(await permission))
+        throw new Error("Folder write permission is required to copy here.");
+      const data = await readDirectoryFile(source);
+      assertCurrent();
+      await createDirectoryFile(destination, name, data.content);
+    },
+    async download(item) {
+      const source = files.get(item.id);
+      if (!source) throw new Error("Choose this file again.");
+      const data = await source.getFile();
+      assertCurrent();
+      downloadFile(data, source.name);
+    },
     async status() {
       return {
         available: directorySupported(),

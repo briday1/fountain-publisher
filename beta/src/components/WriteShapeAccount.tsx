@@ -1,9 +1,11 @@
+import { ChevronDown } from "lucide-react";
 import { recordDiagnostic } from "../support/diagnostics";
 import { AccessCodes } from "./AccessCodes";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isWriteShape } from "../product";
 import { Modal } from "./Modal";
 import { BillingPlanChoice, type BillingPlan } from "./BillingPlanChoice";
+import { AccountAvatar } from "./AccountAvatar";
 export interface AccountState {
   account: null | {
     id: string;
@@ -112,6 +114,7 @@ export function WriteShapeAccount({
   beforeNavigate,
   onClose,
   initialPlan = "monthly",
+  showBilling = false,
 }: {
   state: AccountState;
   error: string;
@@ -119,6 +122,7 @@ export function WriteShapeAccount({
   beforeNavigate: () => Promise<void>;
   onClose: () => void;
   initialPlan?: BillingPlan;
+  showBilling?: boolean;
 }) {
   const account = state.account;
   const testBilling = state.billingMode !== "live";
@@ -250,9 +254,13 @@ export function WriteShapeAccount({
       onClose={onClose}
     >
       <div className="account-heading">
-        <div>
+        <AccountAvatar name={account.displayName} email={account.email} />
+        <div className="account-identity">
           <h3>{account.displayName || "Your account"}</h3>
           <p>{account.email}</p>
+          <span className="account-badge">
+            {state.premium ? "Premium" : "Free"}
+          </span>
         </div>
         <button
           disabled={busy}
@@ -276,8 +284,12 @@ export function WriteShapeAccount({
           {notice || error}
         </p>
       )}
-      <details className="account-section account-profile" id="account-profile">
-        <summary>Edit profile</summary>
+      <section
+        className="account-section account-profile"
+        id="account-profile"
+        aria-label="Profile"
+      >
+        <h3>Profile</h3>
         <form
           className="account-profile-form"
           onSubmit={(e) => {
@@ -310,16 +322,22 @@ export function WriteShapeAccount({
             Connect Google account
           </button>
         )}
-      </details>
-      <section
+      </section>
+      <details
         className="account-section"
         id="account-subscription"
         aria-labelledby="account-plan-title"
+        open={showBilling}
       >
-        <div className="account-section-title">
-          <h3 id="account-plan-title">Your plan</h3>
+        <summary className="account-section-title">
+          <span id="account-plan-title">Plan & billing</span>
+          <ChevronDown
+            size={17}
+            className="account-section-chevron"
+            aria-hidden="true"
+          />
           {testBilling && <span className="account-badge">Test mode</span>}
-        </div>
+        </summary>
         {testBilling && (
           <p>
             No real payments.{" "}
@@ -505,7 +523,7 @@ export function WriteShapeAccount({
             Refresh billing status
           </button>
         )}
-      </section>
+      </details>
       {account && state.accessCodesAvailable && (
         <AccessCodes
           owner={!!state.manageAccessCodes}

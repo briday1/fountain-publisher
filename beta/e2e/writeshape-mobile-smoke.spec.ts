@@ -296,15 +296,27 @@ for (const signedIn of [false, true]) {
 
     await page.setViewportSize({ width: 1440, height: 1000 });
     const header = page.locator(".app-header");
-    await expect(header.getByRole("button", { name: label, exact: true })).toHaveCount(0);
-    await expect(header.getByRole("button", { name: "Files", exact: true })).toHaveCount(0);
+    await expect(
+      header.getByRole("button", { name: label, exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      header.getByRole("button", { name: "Files", exact: true }),
+    ).toHaveCount(0);
     await expect(header.locator(".document-name")).toHaveCount(0);
-    await header.getByRole("button", { name: "WriteShape account", exact: true }).click();
-    await expect(page.getByRole("dialog", { name: label, exact: true })).toBeVisible();
+    await header
+      .getByRole("button", { name: "WriteShape account", exact: true })
+      .click();
+    await expect(
+      page.getByRole("dialog", { name: label, exact: true }),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Close dialog" }).click();
-    await expect(editor).toHaveText("Keep this draft while checking my account.");
+    await expect(editor).toHaveText(
+      "Keep this draft while checking my account.",
+    );
     await page.getByRole("button", { name: "File", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Files…", exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Files…", exact: true }),
+    ).toBeVisible();
     await expect(
       page.getByRole("button", { name: new RegExp(`^${label}…?$`) }),
     ).toHaveCount(0);
@@ -362,9 +374,7 @@ test("free cloud documents open read-only and make an explicit editable local co
   await page.goto("/");
   await page.getByRole("textbox", { name: "Screenplay editor" }).waitFor();
   await page.getByRole("button", { name: "File", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Files…", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Files…", exact: true }).click();
   await page
     .getByRole("option", { name: "Fountain file: Preserved.fountain" })
     .click();
@@ -441,9 +451,7 @@ test("losing Premium preserves unsynced writing and requires an explicit sync re
   });
   await page.goto("/");
   await page.getByRole("button", { name: "File", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Files…", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Files…", exact: true }).click();
   await page
     .getByRole("option", { name: "Fountain file: Draft.fountain" })
     .click();
@@ -510,6 +518,17 @@ test("mobile file browser selects downloads and renames without replacing the dr
   ];
   await page.route("**/api/library**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/copy")) {
+      const input = route.request().postDataJSON();
+      const copy = {
+        ...files[0],
+        id: "55555555-5555-5555-5555-555555555555",
+        name: input.name,
+        revision: 1,
+      };
+      files.push(copy);
+      return route.fulfill({ json: copy });
+    }
     if (path.endsWith("/manage")) {
       const input = route.request().postDataJSON();
       expect(input.action).toBe("rename");
@@ -529,23 +548,19 @@ test("mobile file browser selects downloads and renames without replacing the dr
   const editor = page.getByRole("textbox", { name: "Screenplay editor" });
   await editor.fill("Keep my active draft.");
   await page.getByRole("button", { name: "File", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Files…", exact: true })
-    .click();
-  await page.locator(".library-more-actions > summary").click();
+  await page.getByRole("button", { name: "Files…", exact: true }).click();
   await page
     .getByRole("checkbox", { name: "Select all visible files and folders" })
     .check();
   const downloadPromise = page.waitForEvent("download");
-  await page
-    .getByRole("button", { name: "Download selected (2)", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Download", exact: true }).click();
   expect((await downloadPromise).suggestedFilename()).toBe(
     "WriteShape-files.zip",
   );
   await page
     .getByRole("option", { name: "Fountain file: One.fountain" })
     .click();
+  await page.getByLabel("More file actions", { exact: true }).click();
   await page.getByRole("button", { name: "Rename", exact: true }).click();
   await page
     .getByRole("textbox", { name: "New item name" })
@@ -554,6 +569,19 @@ test("mobile file browser selects downloads and renames without replacing the dr
   await expect(
     page.getByRole("option", { name: "Fountain file: Renamed.fountain" }),
   ).toBeVisible();
+  await page
+    .getByRole("option", { name: "Fountain file: Renamed.fountain" })
+    .click();
+  await page.getByRole("button", { name: "Copy", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Copy name" })).toHaveValue(
+    "Renamed copy.fountain",
+  );
+  await page.getByRole("button", { name: "Create copy", exact: true }).click();
+  await expect(
+    page.getByRole("option", { name: "Fountain file: Renamed copy.fountain" }),
+  ).toBeVisible();
+  expect(files[0].content).toBe("First.");
+  expect(files[2].content).toBe("First.");
   await page.screenshot({ path: "test-results/writeshape-file-browser.png" });
   await page.getByRole("button", { name: "Close dialog" }).click();
   await expect(editor).toHaveText("Keep my active draft.");

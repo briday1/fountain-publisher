@@ -439,3 +439,69 @@ it.each(["screenplay", "novel"])(
     }
   },
 );
+
+it("Copy uses the stored file and a fresh name without touching the editor draft or closing the browser", async () => {
+  const original = { ...file, parent: "", name: "Light.md" };
+  const existing = { ...original, id: "copy-1", name: "Light copy.md" };
+  const copied = {
+    ...original,
+    id: "copy-2",
+    name: "Light copy 2.md",
+    revision: 1,
+  };
+  let made = false;
+  api.mockImplementation(async (path: string, body?: any) => {
+    if (path === "/file/copy") {
+      made = true;
+      return copied;
+    }
+    return {
+      items: made ? [original, existing, copied] : [original, existing],
+      breadcrumbs: [],
+      usage,
+      canWrite: true,
+    };
+  });
+  const capture = vi.fn(() => ({
+    content: "unsaved editor draft",
+    onSaved: vi.fn(),
+  }));
+  const opened = vi.fn(async () => {}),
+    closed = vi.fn();
+  const h = await mount(
+    <WriteShapeLibrary
+      mode="open"
+      name="Draft.fountain"
+      captureSave={capture}
+      onOpen={opened}
+      onClose={closed}
+    />,
+  );
+  try {
+    await act(async () =>
+      h.node
+        .querySelector<HTMLElement>('[aria-label="Markdown file: Light.md"]')!
+        .click(),
+    );
+    await click(h.node, "Copy");
+    expect(
+      h.node.querySelector<HTMLInputElement>('[aria-label="Copy name"]')!.value,
+    ).toBe("Light copy 2.md");
+    await click(h.node, "Create copy");
+    expect(api).toHaveBeenCalledWith("/file/copy", {
+      action: "copy",
+      revision: 3,
+      name: "Light copy 2.md",
+      parent: "",
+    });
+    expect(h.node.querySelector('[role="status"]')?.textContent).toContain(
+      "Created “Light copy 2.md”",
+    );
+    expect(capture).not.toHaveBeenCalled();
+    expect(opened).not.toHaveBeenCalled();
+    expect(closed).not.toHaveBeenCalled();
+    expect(h.node.querySelectorAll('[role="option"]')).toHaveLength(3);
+  } finally {
+    await h.close();
+  }
+});

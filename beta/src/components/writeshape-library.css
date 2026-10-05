@@ -917,3 +917,134 @@
 .library-bulk-actions button {
   font-size: 12px;
 }
+
+/* One selection toolbar replaces the separate action drawer and footer tools. */
+.library-actionbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  min-height: 48px;
+}
+.library-actionbar button {
+  gap: 6px;
+  font-size: 12px;
+  padding: 7px 10px;
+  min-height: 34px;
+}
+.library-select-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.library-select-all input {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+}
+.library-item-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+.library-item-menu > summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  list-style: none;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  min-height: 34px;
+  font-size: 12px;
+}
+.library-item-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.library-item-menu > summary:hover {
+  background: var(--raised);
+}
+.library-item-menu-panel {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 5px);
+  right: 0;
+  width: 190px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel);
+  box-shadow: 0 6px 20px #0002;
+}
+.library-item-menu-panel button {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  min-height: 38px;
+  text-align: left;
+}
+.library-item-menu-panel button:hover {
+  background: var(--raised);
+}
+.library-item-menu-panel .library-trash-action {
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  margin-top: 4px;
+}
+.library-feedback {
+  padding: 8px 16px;
+  color: var(--accent);
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+.library-new-folder {
+  align-items: flex-end;
+  margin-top: 10px;
+}
+.library-new-folder label {
+  display: grid;
+  gap: 5px;
+  flex: 1;
+  min-width: 130px;
+  font-size: 12px;
+}
+.library-new-folder input,
+.library-new-folder select {
+  width: 100%;
+  min-width: 0;
+}
+@media (max-width: 760px) {
+  .library-actionbar {
+    padding: 6px 10px;
+    gap: 4px;
+  }
+  .library-actionbar button {
+    padding: 6px 7px;
+    font-size: 11px;
+  }
+  .library-item-menu > summary {
+    padding: 6px 7px;
+  }
+  .library-item-menu > summary > span {
+    display: none;
+  }
+  .library-select-all {
+    gap: 5px;
+    font-size: 10px;
+  }
+}
+@media (max-width: 400px) {
+  .library-actionbar > button:not(.icon-button) > svg {
+    display: none;
+  }
+  .library-actionbar .icon-button {
+    padding-inline: 4px;
+  }
+}

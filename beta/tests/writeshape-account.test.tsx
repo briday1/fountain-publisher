@@ -58,8 +58,9 @@ it("server account state enables only configured actions and exposes cancellatio
   expect(node.querySelector(".account-nav")).toBeNull();
   expect(node.textContent).not.toContain("Profile & sign-in");
   expect(node.textContent).not.toContain("Continue with Google");
-  expect(node.querySelector("details summary")?.textContent).toBe(
-    "Edit profile",
+  expect(node.querySelector('[aria-label="Profile"] input')).not.toBeNull();
+  expect(node.querySelector("details summary")?.textContent).toContain(
+    "Plan & billing",
   );
   expect(node.textContent).toContain("Sign out");
   expect(node.textContent).toContain("Free · local writing and saves");

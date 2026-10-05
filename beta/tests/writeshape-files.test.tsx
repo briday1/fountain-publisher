@@ -276,3 +276,31 @@ it("a folder failure does not keep a misleading Connected badge and retains retr
     await h.close();
   }
 });
+
+it("local Copy creates a separate file and keeps the browser and active draft open", async () => {
+  const local = provider();
+  local.copy = vi.fn(async () => {});
+  const h = await mount({ providers: { local, drive: provider() } });
+  try {
+    await act(async () =>
+      h.node.querySelector<HTMLElement>('[role="option"]')!.click(),
+    );
+    await act(async () => button(h.node, "Copy").click());
+    expect(
+      h.node.querySelector<HTMLInputElement>('[aria-label="Copy name"]')?.value,
+    ).toBe("Scene copy.fountain");
+    await act(async () => button(h.node, "Create copy").click());
+    expect(local.copy).toHaveBeenCalledWith({
+      item: file,
+      name: "Scene copy.fountain",
+      parent: "",
+    });
+    expect(local.open).not.toHaveBeenCalled();
+    expect(h.props.onClose).not.toHaveBeenCalled();
+    expect(h.node.querySelector('[role="status"]')?.textContent).toContain(
+      "Created “Scene copy.fountain”",
+    );
+  } finally {
+    await h.close();
+  }
+});

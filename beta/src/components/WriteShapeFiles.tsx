@@ -1,3 +1,4 @@
+import { availableCopyName } from "../storage/copyName";
 import { NewFileForm, type NewFileInput } from "./NewFileForm";
 import { documentFilename } from "../core/documentFormat";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
@@ -19,6 +20,8 @@ import {
   LockKeyhole,
   RefreshCw,
   Search,
+  Copy,
+  Download,
 } from "lucide-react";
 import { Modal } from "./Modal";
 import { WriteShapeLibrary } from "./WriteShapeLibrary";
@@ -68,6 +71,12 @@ export interface FilesProvider {
     parent: string;
   }) => Promise<void>;
   mkdir?: (input: { name: string; parent: string }) => Promise<void>;
+  copy?: (input: {
+    item: DestinationItem;
+    name: string;
+    parent: string;
+  }) => Promise<void>;
+  download?: (item: DestinationItem) => Promise<void>;
 }
 export interface WriteShapeFilesProps extends Omit<
   ComponentProps<typeof WriteShapeLibrary>,
@@ -311,6 +320,8 @@ function DestinationBrowser({
   );
   const [newFolder, setNewFolder] = useState(false);
   const [newFile, setNewFile] = useState(false);
+  const [copyName, setCopyName] = useState<string>();
+  const [notice, setNotice] = useState("");
   const [folderName, setFolderName] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -421,6 +432,8 @@ function DestinationBrowser({
     setQuery("");
     setNewFolder(false);
     setNewFile(false);
+    setCopyName(undefined);
+    setNotice("");
     setError("");
   }
   function handleError(reason: unknown, fallback: string) {
@@ -733,6 +746,7 @@ function DestinationBrowser({
                   onClick={() => {
                     setNewFile((value) => !value);
                     setNewFolder(false);
+                    setCopyName(undefined);
                   }}
                 >
                   <Plus size={16} />
@@ -745,6 +759,7 @@ function DestinationBrowser({
                   onClick={() => {
                     setNewFolder((value) => !value);
                     setNewFile(false);
+                    setCopyName(undefined);
                   }}
                 >
                   <FolderPlus size={16} />
@@ -752,6 +767,86 @@ function DestinationBrowser({
                 </button>
               )}
             </div>
+            {mode === "open" &&
+              choice?.kind === "file" &&
+              (provider.copy || provider.download) && (
+                <div className="library-actionbar" aria-label="File actions">
+                  <span className="files-selected-name">{choice.name}</span>
+                  <div className="spacer" />
+                  {provider.copy &&
+                    /\.(fountain|txt|md|markdown)$/i.test(choice.name) && (
+                      <button
+                        disabled={busy || !writable}
+                        onClick={() => {
+                          setCopyName(availableCopyName(choice, items));
+                          setNewFile(false);
+                          setNewFolder(false);
+                        }}
+                      >
+                        <Copy size={15} />
+                        Copy
+                      </button>
+                    )}
+                  {provider.download && (
+                    <button
+                      disabled={busy}
+                      onClick={() =>
+                        void run(() => latest.current.download!(choice))
+                      }
+                    >
+                      <Download size={15} />
+                      Download
+                    </button>
+                  )}
+                </div>
+              )}
+            {copyName !== undefined && choice?.kind === "file" && (
+              <form
+                className="library-new-folder"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!writable || !latest.current.copy) return;
+                  void run(async () => {
+                    await latest.current.copy!({
+                      item: choice,
+                      name: copyName.trim(),
+                      parent,
+                    });
+                    if (!active.current) return;
+                    setCopyName(undefined);
+                    setNotice(`Created “${copyName.trim()}”.`);
+                    setReload((n) => n + 1);
+                  });
+                }}
+              >
+                <label>
+                  Copy name
+                  <input
+                    autoFocus
+                    aria-label="Copy name"
+                    maxLength={160}
+                    value={copyName}
+                    required
+                    onChange={(e) => setCopyName(e.target.value)}
+                  />
+                </label>
+                <button className="primary" disabled={busy || !copyName.trim()}>
+                  Create copy
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setCopyName(undefined)}
+                >
+                  Cancel
+                </button>
+              </form>
+            )}
+            {notice && (
+              <div className="library-feedback" role="status">
+                {notice}
+              </div>
+            )}
             {newFile && newFileForm}
             {newFolder && (
               <form
@@ -842,7 +937,10 @@ function DestinationBrowser({
                         : -1
                     }
                     onClick={() => {
-                      if (!busy) setSelected(item.id);
+                      if (!busy) {
+                        setSelected(item.id);
+                        setCopyName(undefined);
+                      }
                     }}
                     onDoubleClick={() => {
                       if (!busy) open(item);
@@ -881,7 +979,7 @@ function DestinationBrowser({
                         <FileText size={23} className="library-script-icon" />
                       )}
                       <span>
-                        <strong>{item.name}</strong>
+                        <strong title={item.name}>{item.name}</strong>
                         <small>
                           {item.kind === "folder"
                             ? "Folder"
@@ -904,18 +1002,6 @@ function DestinationBrowser({
                     </span>
                   </div>
                 ))
-              )}
-            </div>
-            <div className="library-selection-bar">
-              <span>
-                {choice?.name ||
-                  `${visible.length} ${visible.length === 1 ? "item" : "items"}`}
-              </span>
-              {choice?.kind === "folder" && (
-                <button disabled={busy} onClick={() => open(choice)}>
-                  Open folder
-                  <ChevronRight size={15} />
-                </button>
               )}
             </div>
             <footer className="library-footer">
@@ -959,7 +1045,7 @@ function DestinationBrowser({
                 <div className="library-open-actions">
                   <p>
                     {choice?.name ||
-                      "Select a file to open, or a folder to browse."}
+                      `${visible.length} items · Select a file or folder.`}
                   </p>
                   <button
                     className="primary"

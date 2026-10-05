@@ -2367,3 +2367,86 @@ hr {
 .account-profile[open] summary {
   margin-bottom: 16px;
 }
+
+/* The profile is recognizable even when the mobile header hides its label. */
+.account-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  font-size: 12px;
+  font-weight: 650;
+}
+.account-trigger {
+  background: transparent;
+  border: 0;
+  padding: 3px 6px;
+  gap: 8px;
+  font-size: 12px;
+  min-height: 40px;
+  flex-shrink: 0;
+}
+.account-trigger:hover {
+  background: var(--raised);
+}
+.writeshape-account .account-heading {
+  align-items: center;
+  margin-bottom: 24px;
+}
+.account-heading > .account-avatar {
+  width: 56px;
+  height: 56px;
+  flex-basis: 56px;
+  font-size: 20px;
+}
+.account-identity {
+  flex: 1;
+  min-width: 0;
+}
+.account-identity h3 {
+  font-size: 21px;
+  margin-bottom: 5px;
+}
+.account-identity p {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+.account-section > summary {
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  min-height: 32px;
+}
+.account-section[open] > summary {
+  margin-bottom: 16px;
+}
+@media (max-width: 760px) {
+  .account-trigger > span:last-child {
+    display: none;
+  }
+  .account-trigger {
+    padding: 2px;
+  }
+  .account-avatar {
+    width: 28px;
+    height: 28px;
+    flex-basis: 28px;
+  }
+  .app-header:has(.account-trigger) {
+    gap: 7px;
+  }
+}
+.account-section-title .account-section-chevron {
+  margin-left: auto;
+  color: var(--muted);
+}
+.account-section[open] .account-section-chevron {
+  transform: rotate(180deg);
+}

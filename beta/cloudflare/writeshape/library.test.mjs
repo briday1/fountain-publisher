@@ -427,3 +427,134 @@ test("folder management rejects cycles and nonempty deletion", async () => {
     200,
   );
 });
+
+test("copy duplicates a nested folder atomically with fresh IDs, current contents and no sharing or history", async () => {
+  const env = testDB();
+  const folder = await (
+    await call(env, "alice", "", {
+      kind: "folder",
+      name: "Stories",
+      parent: "",
+    })
+  ).json();
+  const nested = await (
+    await call(env, "alice", "", {
+      kind: "folder",
+      name: "Chapters",
+      parent: folder.id,
+    })
+  ).json();
+  let file = await create(env, "old", nested.id, "Book.md");
+  file = await (await update(env, file, "current é🌊")).json();
+  const originalUsage = await (await call(env, "alice", "/usage")).json();
+  const response = await call(env, "alice", `/${folder.id}/copy`, {
+    name: "Stories copy",
+    parent: "",
+    revision: folder.revision,
+  });
+  assert.equal(response.status, 201);
+  const copy = await response.json();
+  assert.notEqual(copy.id, folder.id);
+  const children = await (
+    await call(env, "alice", "?parent=" + copy.id)
+  ).json();
+  assert.equal(children.items.length, 1);
+  assert.notEqual(children.items[0].id, nested.id);
+  const grandchildren = await (
+    await call(env, "alice", "?parent=" + children.items[0].id)
+  ).json();
+  const copiedFile = grandchildren.items[0];
+  assert.equal(copiedFile.name, "Book.md");
+  assert.equal(copiedFile.revision, 1);
+  assert.notEqual(copiedFile.id, file.id);
+  assert.equal(
+    (await (await call(env, "alice", "/" + copiedFile.id)).json()).content,
+    "current é🌊",
+  );
+  assert.equal((await versions(env, copiedFile)).versions.length, 1);
+  assert.equal((await versions(env, file)).versions.length, 2);
+  const usage = await (await call(env, "alice", "/usage")).json();
+  assert.equal(usage.usedBytes, originalUsage.usedBytes + file.bytes);
+  assert.equal(usage.historyBytes, originalUsage.historyBytes);
+  assert.equal(
+    env.sql
+      .prepare("SELECT COUNT(*) n FROM file_edit_shares WHERE file_id=?")
+      .get(copiedFile.id).n,
+    0,
+  );
+});
+
+test("copy preserves originals and rejects collisions, stale revisions, foreign owners, free accounts, cycles, trash and quota overflow", async () => {
+  const env = testDB();
+  const file = await create(env, "é🌊");
+  const body = { name: "Test copy.fountain", parent: "", revision: 1 };
+  assert.equal((await call(env, "bob", `/${file.id}/copy`, body)).status, 404);
+  assert.equal(
+    (await call(env, "alice", `/${file.id}/copy`, body, true)).status,
+    403,
+  );
+  assert.equal(
+    (await call(env, "alice", `/${file.id}/copy`, { ...body, revision: 2 }))
+      .status,
+    409,
+  );
+  assert.equal(
+    (await call(env, "alice", `/${file.id}/copy`, { ...body, name: file.name }))
+      .status,
+    409,
+  );
+  env.STORAGE_QUOTA_BYTES = "11";
+  assert.equal(
+    (await call(env, "alice", `/${file.id}/copy`, body)).status,
+    409,
+  );
+  assert.equal(env.sql.prepare("SELECT COUNT(*) n FROM items").get().n, 1);
+  env.STORAGE_QUOTA_BYTES = "12";
+  assert.equal(
+    (await call(env, "alice", `/${file.id}/copy`, body)).status,
+    201,
+  );
+  assert.equal((await versions(env, file)).versions.length, 1);
+  delete env.STORAGE_QUOTA_BYTES;
+  const folder = await (
+    await call(env, "alice", "", { kind: "folder", name: "Folder", parent: "" })
+  ).json();
+  assert.equal(
+    (
+      await call(env, "alice", `/${folder.id}/copy`, {
+        name: "Cycle",
+        parent: folder.id,
+        revision: 1,
+      })
+    ).status,
+    400,
+  );
+  const nested = await create(env, "abc", folder.id, "Nested.fountain");
+  env.STORAGE_QUOTA_BYTES = "14";
+  assert.equal(
+    (
+      await call(env, "alice", `/${folder.id}/copy`, {
+        name: "No partial copy",
+        parent: "",
+        revision: 1,
+      })
+    ).status,
+    409,
+  );
+  assert.equal(env.sql.prepare("SELECT COUNT(*) n FROM items").get().n, 4);
+  delete env.STORAGE_QUOTA_BYTES;
+  await call(env, "alice", `/${nested.id}/manage`, {
+    action: "trash",
+    revision: 1,
+  });
+  assert.equal(
+    (
+      await call(env, "alice", `/${nested.id}/copy`, {
+        name: "Restore first",
+        parent: "",
+        revision: 2,
+      })
+    ).status,
+    400,
+  );
+});
