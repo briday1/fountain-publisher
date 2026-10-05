@@ -2855,8 +2855,8 @@ button.danger {
   }
 }
 @media (min-width: 721px) {
-  .workspace .document-pane:last-child > .writing-scroll,
-  .workspace .document-pane:last-child > .empty-document-pane {
+  .workspace .document-pane:last-of-type > .writing-scroll,
+  .workspace .document-pane:last-of-type > .empty-document-pane {
     margin-right: var(--insights-space, 0px);
   }
 }
