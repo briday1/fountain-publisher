@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from "react";
+import { VersionComparison } from "./VersionComparison";
+import { useMemo, useState } from "react";
 import { Modal } from "./Modal";
 import {
   reviewDiff,
@@ -14,18 +15,32 @@ function detailText(source: string) {
     );
   try {
     const data = JSON.parse(match?.[1] || "{}");
-    return JSON.stringify(data.metadata || {}, null, 2);
+    const metadata = data.metadata || {};
+    return (
+      [
+        metadata.notes && `Story notes: ${metadata.notes}`,
+        metadata.premise && `Premise: ${metadata.premise}`,
+        ...(metadata.beats || []).map(
+          (beat: { title: string; description: string }) =>
+            `${beat.title}: ${beat.description}`,
+        ),
+      ]
+        .filter(Boolean)
+        .join("\n\n") || "No story notes or beats."
+    );
   } catch {
-    return source;
+    return "Document details updated.";
   }
 }
 export function VersionReview({
+  novel = false,
   older,
   current,
   olderLabel,
   onSave,
   onClose,
 }: {
+  novel?: boolean;
   older: string;
   current: string;
   olderLabel: string;
@@ -38,15 +53,11 @@ export function VersionReview({
   const [active, setActive] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const refs = useRef(new Map<number, HTMLSpanElement>());
   const resolved = Object.keys(choices).length;
   const selected = changes[active];
   function move(index: number) {
     const next = (index + changes.length) % changes.length;
     setActive(next);
-    const node = refs.current.get(changes[next]?.id);
-    node?.focus({ preventScroll: true });
-    node?.scrollIntoView({ block: "center", behavior: "smooth" });
   }
   function close() {
     if (
@@ -72,7 +83,7 @@ export function VersionReview({
       >
         <p>
           This review is not autosaved. Choose what to keep, then save a new
-          version.
+          version. The preview highlights the selected change in context.
         </p>
         <div className="version-diff-toolbar">
           <div className="version-diff-legend">
@@ -126,64 +137,58 @@ export function VersionReview({
           )}
         </div>
         <div
-          className="version-diff-paper review-source"
-          aria-label="Document changes"
+          className={`review-change${choices[selected?.id] ? " reviewed" : ""}`}
         >
-          {review.parts.map((part, i) =>
-            "text" in part ? (
-              <span key={i}>{part.text}</span>
-            ) : (
-              <span
-                key={i}
-                ref={(node) => {
-                  if (node) refs.current.set(part.id, node);
-                  else refs.current.delete(part.id);
-                }}
-                tabIndex={0}
-                role="button"
-                aria-label={`Change ${part.id + 1}${choices[part.id] ? `, ${choices[part.id] === "current" ? "keeping current" : "using saved version"}` : ", needs review"}`}
-                aria-pressed={active === part.id}
-                onClick={() => setActive(part.id)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setActive(part.id);
-                  }
-                }}
-                className={`review-change${active === part.id ? " selected" : ""}${choices[part.id] ? " reviewed" : ""}`}
-              >
-                {part.details ? (
-                  <span className="review-details">
-                    Notes and document details:
-                    <br />
-                    <del>{detailText(part.older)}</del>
-                    <br />
-                    <ins>{detailText(part.current)}</ins>
-                  </span>
-                ) : (
-                  <>
-                    {part.older && (
-                      <del
-                        className={
-                          choices[part.id] === "current" ? "not-kept" : ""
-                        }
-                      >
-                        {part.older}
-                      </del>
-                    )}
-                    {part.current && (
-                      <ins
-                        className={
-                          choices[part.id] === "older" ? "not-kept" : ""
-                        }
-                      >
-                        {part.current}
-                      </ins>
-                    )}
-                  </>
-                )}
-              </span>
-            ),
+          {selected?.details ? (
+            <div className="review-details">
+              <h3>Story notes and document details</h3>
+              <p>
+                These details are kept together with their version’s beat links
+                and annotations.
+              </p>
+              <h4>Saved version</h4>
+              <del>{detailText(selected.older)}</del>
+              <h4>Current version</h4>
+              <ins>{detailText(selected.current)}</ins>
+            </div>
+          ) : (
+            <VersionComparison
+              novel={novel}
+              reviewMode
+              choice={selected && choices[selected.id]}
+              older={
+                selected
+                  ? resolveReview(
+                      review,
+                      Object.fromEntries(
+                        changes.map((p) => [
+                          p.id,
+                          p.id === selected.id
+                            ? "older"
+                            : choices[p.id] || "current",
+                        ]),
+                      ),
+                    )
+                  : older
+              }
+              newer={
+                selected
+                  ? resolveReview(
+                      review,
+                      Object.fromEntries(
+                        changes.map((p) => [
+                          p.id,
+                          p.id === selected.id
+                            ? "current"
+                            : choices[p.id] || "current",
+                        ]),
+                      ),
+                    )
+                  : current
+              }
+              olderLabel={olderLabel}
+              newerLabel="Current version"
+            />
           )}
         </div>
         {error && (

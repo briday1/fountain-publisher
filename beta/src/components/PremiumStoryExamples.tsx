@@ -1,67 +1,31 @@
+import { SceneOutline } from "./SceneOutline";
+import { sampleInsights } from "./premiumSampleData";
 import { premiumSample } from "./premiumSampleData";
-import { beatPacing } from "./beat-pacing";
+import { BeatBoard } from "./BeatBoard";
+import { BeatPacing } from "./BeatPacing";
 import { buildCharacterAnalytics } from "../core/characterAnalytics";
 const palette = [
   "var(--accent)",
   "var(--accent-secondary)",
   "var(--accent-tertiary)",
 ];
+const noop = () => {};
 export function SampleBeatSheet() {
-  const { positions, total } = beatPacing(premiumSample);
-  const x = (i: number) => 60 + ((i + 1) * 560) / (positions.length + 1);
-  const y = (words: number) => 185 - (words / Math.max(1, total)) * 155;
   return (
     <div className="sample-beat-sheet">
-      <p className="sample-premise">{String(premiumSample.metadata.premise)}</p>
-      <div className="sample-beat-grid">
-        {premiumSample.metadata.beats.map((beat, i) => (
-          <article
-            key={beat.id}
-            style={{ borderTopColor: palette[i % palette.length] }}
-          >
-            <small>
-              {beat.act} · Beat {i + 1}
-            </small>
-            <h4>{beat.title}</h4>
-            <p>{beat.description}</p>
-          </article>
-        ))}
+      <div className="sample-story-outline">
+        <h4>Scene outline</h4>
+        <SceneOutline insights={sampleInsights} onJump={noop} onAdd={noop} />
       </div>
-      <h4>Beat pacing</h4>
-      <p className="muted">Cumulative screenplay words at each beat</p>
-      <svg
-        viewBox="0 0 650 225"
-        role="img"
-        aria-label="Beat graph for The Last Light"
-      >
-        {[0, Math.round(total / 2), total].map((t) => (
-          <g key={t}>
-            <line x1="60" x2="620" y1={y(t)} y2={y(t)} stroke="var(--border)" />
-            <text x="48" y={y(t) + 4} textAnchor="end">
-              {t}
-            </text>
-          </g>
-        ))}
-        <path
-          d={`M60,185 ${positions.map((p, i) => `L${x(i)},${y(p.words)}`).join(" ")} L620,30`}
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth="3"
-        />
-        {positions.map((p, i) => (
-          <g key={p.beat.id}>
-            <circle
-              cx={x(i)}
-              cy={y(p.words)}
-              r="6"
-              fill={palette[i % palette.length]}
-            />
-            <text x={x(i)} y="211" textAnchor="middle">
-              Beat {i + 1}
-            </text>
-          </g>
-        ))}
-      </svg>
+      <BeatBoard
+        doc={premiumSample}
+        onChange={noop}
+        onAssign={noop}
+        onRange={noop}
+        onExport={noop}
+        onExportCsv={noop}
+      />
+      <BeatPacing doc={premiumSample} onClose={noop} onRange={noop} inline />
     </div>
   );
 }

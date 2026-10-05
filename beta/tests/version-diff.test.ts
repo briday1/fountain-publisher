@@ -43,3 +43,31 @@ it("bounded fallback retains all old/new content for large replacements", () => 
     result.filter((p) => p.change !== "removed").map((p) => p.value),
   ).toEqual(b);
 });
+
+it("renders forced Fountain elements and inline style changes without exposing syntax", () => {
+  const result = versionDiff(
+    ".INT. ROOM - DAY\n\n@Mara\nStay **here**.",
+    ".INT. ROOM - DAY\n\n@Mara\nStay *here*.",
+  );
+  expect(
+    result.some((b) => b.kind === "character" && b.parts[0].text === "Mara"),
+  ).toBe(true);
+  const dialogue = result.find((b) => b.kind === "dialogue")!;
+  expect(dialogue.changed).toBe(true);
+  expect(dialogue.parts).toContainEqual({
+    text: "here",
+    marks: ["bold"],
+    change: "removed",
+  });
+  expect(dialogue.parts).toContainEqual({
+    text: "here",
+    marks: ["italic"],
+    change: "added",
+  });
+  expect(
+    result
+      .flatMap((b) => b.parts)
+      .map((p) => p.text)
+      .join(""),
+  ).not.toMatch(/[@*]/);
+});

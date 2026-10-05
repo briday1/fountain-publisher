@@ -18,7 +18,9 @@ export function BeatPacing({
   doc,
   onClose,
   onRange,
+  inline = false,
 }: {
+  inline?: boolean;
   doc: Screenplay;
   onClose: () => void;
   onRange: (range: BeatRange) => void;
@@ -141,8 +143,8 @@ export function BeatPacing({
     }
   };
 
-  return (
-    <Modal title="Pacing Graph" eyebrow="STORY MAP" onClose={onClose} wide>
+  const content = (
+    <>
       <div className="beat-pacing">
         <p>
           Cumulative screenplay words at each beat. Grey circles estimate the
@@ -361,6 +363,13 @@ export function BeatPacing({
           </button>
         </footer>
       </div>
+    </>
+  );
+  return inline ? (
+    content
+  ) : (
+    <Modal title="Pacing Graph" eyebrow="STORY MAP" onClose={onClose} wide>
+      {content}
     </Modal>
   );
 }

@@ -8,6 +8,16 @@ export function usePanelBounds() {
     if (!root) return;
     const measure = () => {
       const top = root.getBoundingClientRect().top;
+      for (const [name, selector] of [
+        ["outline", ".outline-panel"],
+        ["insights", ".insights-panel"],
+      ]) {
+        const panel = root.querySelector(selector);
+        root.style.setProperty(
+          `--${name}-space`,
+          panel ? `${panel.getBoundingClientRect().width + 4}px` : "0px",
+        );
+      }
       const headers = [...root.querySelectorAll(".document-pane-header")];
       const bottom = Math.max(
         top,
@@ -20,7 +30,7 @@ export function usePanelBounds() {
     observer.observe(root);
     root
       .querySelectorAll(
-        ".document-pane-header, .search-panel, .writing-beat-guide",
+        ".document-pane-header, .search-panel, .writing-beat-guide, .outline-panel, .insights-panel",
       )
       .forEach((el) => observer.observe(el));
     return () => observer.disconnect();

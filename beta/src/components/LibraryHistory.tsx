@@ -264,6 +264,7 @@ export function LibraryHistory({
       </div>
       {reviewing && preview && baseline && (
         <VersionReview
+          novel={/\.(md|markdown)$/i.test(preview.name)}
           older={preview.content || ""}
           current={baseline.content || ""}
           olderLabel={`Version ${preview.revision}`}

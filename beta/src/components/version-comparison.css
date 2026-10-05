@@ -161,3 +161,10 @@
 .version-review-dialog .version-diff-paper {
   max-height: 48dvh;
 }
+
+.version-comparison .not-kept {
+  opacity: 0.4;
+}
+.review-details {
+  white-space: pre-wrap;
+}
