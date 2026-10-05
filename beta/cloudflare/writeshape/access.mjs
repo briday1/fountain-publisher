@@ -52,5 +52,9 @@ export async function identity(request, env) {
     ))
   )
     throw new Error("Unauthorized");
-  return { id: claims.sub, email: claims.email };
+  return {
+    id: claims.sub,
+    email: claims.email,
+    ...(Number.isFinite(claims.iat) ? { issuedAt: claims.iat } : {}),
+  };
 }

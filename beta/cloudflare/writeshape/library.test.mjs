@@ -2,15 +2,22 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { testDB } from "./test-db.mjs";
 import { createHandler } from "./worker.mjs";
-const handler = createHandler(async (r) =>
-  r.headers.has("test-user")
+const handler = createHandler(async (r, env) => {
+  const id = r.headers.get("test-user");
+  if (id)
+    await env.DB.prepare(
+      "INSERT OR IGNORE INTO accounts(id,email,created) VALUES(?,?,0)",
+    )
+      .bind(id, "fixture@example.test")
+      .run();
+  return r.headers.has("test-user")
     ? {
         id: r.headers.get("test-user"),
         email: "fixture@example.test",
         private_tester: r.headers.get("test-free") ? 0 : 1,
       }
-    : null,
-);
+    : null;
+});
 const request = (user, path = "", body, free = false) =>
   new Request("https://writeshape.com/api/library" + path, {
     method: body === undefined ? "GET" : "POST",
@@ -260,6 +267,9 @@ test("concurrent duplicate names are rejected without replacing files", async ()
 });
 test("legacy files acquire history on next save without fabricating earlier revisions", async () => {
   const env = testDB();
+  env.sql
+    .prepare("INSERT INTO accounts(id,email,created) VALUES(?,?,0)")
+    .run("alice", "alice@example.test");
   const id = crypto.randomUUID();
   env.sql
     .prepare("INSERT INTO items VALUES (?,?,?,?,?,?,?,?)")

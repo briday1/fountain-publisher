@@ -1,4 +1,6 @@
+import { accountDeletionRoutes } from "./account-deletion.mjs";
 import { liveRoutes } from "./live-routes.mjs";
+import { sendPendingFeedback } from "./cancellation-feedback.mjs";
 import { withComplimentaryAccess, accessCodeRoutes } from "./access-codes.mjs";
 import { accountBilling } from "./billing-mode.mjs";
 import { driveRoutes } from "./drive.mjs";
@@ -9,7 +11,7 @@ import { resolveAccount, accountRoutes } from "./accounts.mjs";
 import { billingConfigured, billingRoutes, stripeWebhook } from "./billing.mjs";
 import { json, HttpError } from "./http.mjs";
 export function createHandler(authenticate = resolveAccount) {
-  return async function handle(request, env) {
+  return async function handle(request, env, ctx) {
     const url = new URL(request.url);
     if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
     try {
@@ -19,6 +21,45 @@ export function createHandler(authenticate = resolveAccount) {
         accountBilling(await authenticate(request, env), env),
         env,
       );
+      // Keep checkout creation and erasure in the same per-account queue. Otherwise a
+      // checkout that started earlier could create a customer after deletion checked billing.
+      if (
+        user &&
+        env.LIVE_ROOMS &&
+        !env.INTERNAL_ACCOUNT_OPERATION &&
+        (url.pathname === "/api/account/delete" ||
+          url.pathname.startsWith("/api/billing/"))
+      ) {
+        const target = new URL("https://room.internal/account-operation");
+        target.searchParams.set("path", url.pathname);
+        return env.LIVE_ROOMS.get(
+          env.LIVE_ROOMS.idFromName("writeshape-account-v1:" + user.id),
+        ).fetch(new Request(target, request));
+      }
+      const deletion = await accountDeletionRoutes(request, env, user);
+      if (deletion) return deletion;
+      if (
+        user &&
+        (await env.DB.prepare(
+          "SELECT account_id FROM deleting_accounts WHERE account_id=?",
+        )
+          .bind(user.id)
+          .first())
+      ) {
+        if (!(
+          [
+            "/api/account",
+            "/api/auth/logout",
+            "/api/billing/status",
+            "/api/billing/cancel",
+          ].includes(url.pathname) ||
+          (request.method === "GET" && url.pathname.startsWith("/api/library"))
+        ))
+          throw new HttpError(
+            409,
+            "Account deletion is pending. Retry deletion in Account. Your local files are preserved.",
+          );
+      }
       const liveResponse = await liveRoutes(request, env, user);
       if (liveResponse) return liveResponse;
       const codeResponse = await accessCodeRoutes(request, env, user);
@@ -30,7 +71,13 @@ export function createHandler(authenticate = resolveAccount) {
         billingConfigured(env),
       );
       if (accountResponse) return accountResponse;
-      const billingResponse = await billingRoutes(request, env, user);
+      const billingResponse = await billingRoutes(
+        request,
+        env,
+        user,
+        undefined,
+        ctx,
+      );
       if (billingResponse) return billingResponse;
       const driveResponse = await driveRoutes(request, env, user);
       if (driveResponse) return driveResponse;
@@ -110,4 +157,16 @@ export function createHandler(authenticate = resolveAccount) {
     }
   };
 }
-export default { fetch: createHandler() };
+export default {
+  fetch: createHandler(),
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(
+      Promise.all([
+        sendPendingFeedback(env),
+        env.DB.prepare("DELETE FROM revoked_access WHERE expires<=?")
+          .bind(Math.floor(Date.now() / 1000))
+          .run(),
+      ]),
+    );
+  },
+};

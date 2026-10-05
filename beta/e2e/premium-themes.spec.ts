@@ -1,0 +1,326 @@
+import { expect, test, type Page } from "@playwright/test";
+
+test.use({ serviceWorkers: "block" });
+const account = {
+  id: "code-recipient",
+  email: "writer@example.test",
+  displayName: "Alex Writer",
+  privateTester: false,
+  googleLinked: true,
+  billingStatus: "none",
+  cancelAtPeriodEnd: false,
+  premiumUntil: 0,
+};
+async function setup(page: Page) {
+  await page.route("**/src/product.ts*", (route) =>
+    route.fulfill({
+      contentType: "text/javascript",
+      body: "export const isWriteShape = true;",
+    }),
+  );
+}
+async function settings(page: Page) {
+  const button = page.getByRole("button", { name: "Settings", exact: true });
+  if (!(await button.isVisible()))
+    await page.getByRole("button", { name: "File", exact: true }).click();
+  await button.click();
+  return page.getByRole("dialog", { name: "Settings", exact: true });
+}
+
+test("Premium shows the complete sample beat sheet, graph and character timeline", async ({
+  page,
+}, testInfo) => {
+  await setup(page);
+  await page.route("**/api/account", (route) =>
+    route.fulfill({
+      json: { account, premium: false, billingAvailable: false },
+    }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Explore Premium…", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: "WriteShape Premium",
+    exact: true,
+  });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator(".sample-beat-grid article")).toHaveCount(3);
+  await expect(
+    dialog.locator('[data-sample-feature="Beat Sheet"]'),
+  ).toHaveCount(1);
+  await expect(
+    dialog.locator('[data-sample-feature="Beat Guide"]'),
+  ).toHaveCount(0);
+  expect(
+    await dialog.locator(".sample-gantt svg rect").count(),
+  ).toBeGreaterThan(3);
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await dialog.locator(".sample-gantt").scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: testInfo.outputPath(`character-gantt-${width}.png`),
+    });
+    const sheet = dialog.locator(".sample-beat-sheet");
+    await sheet.scrollIntoViewIfNeeded();
+    const cards = (await sheet.locator(".sample-beat-grid").boundingBox())!;
+    const graph = (await sheet.locator("svg").boundingBox())!;
+    expect(graph.y).toBeGreaterThanOrEqual(cards.y + cards.height);
+    expect(graph.width).toBeLessThanOrEqual(width);
+    await page.screenshot({
+      path: testInfo.outputPath(`all-beats-${width}.png`),
+    });
+  }
+});
+for (const width of [390, 1024]) {
+  test(`code applies Premium once and persists on reload at ${width}px`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 844 });
+    await setup(page);
+    let claimed = false;
+    const until = Math.floor(Date.now() / 1000) + 7 * 86400;
+    let submissions = 0;
+    await page.route("**/api/account", (route) =>
+      route.fulfill({
+        json: {
+          account: {
+            ...account,
+            complimentaryIndefinite: claimed && width === 1024,
+            complimentaryUntil: claimed && width === 390 ? until : 0,
+          },
+          premium: claimed,
+          accessCodesAvailable: true,
+          manageAccessCodes: false,
+          billingAvailable: false,
+          billingMode: "live",
+          privateMode: false,
+        },
+      }),
+    );
+    await page.route("**/api/access-codes/redeem", async (route) => {
+      submissions++;
+      if (route.request().postDataJSON().code !== "READERS-TEST")
+        return route.fulfill({
+          status: 400,
+          json: { error: "This code cannot be used." },
+        });
+      claimed = true;
+      await route.fulfill({
+        json: { ok: true, expiresAt: width === 390 ? until : null },
+      });
+    });
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: "WriteShape account", exact: true })
+      .click();
+    const profile = page.getByRole("dialog", { name: "Account", exact: true });
+    await expect(
+      profile.locator(".account-identity .account-badge"),
+    ).toHaveText("Free");
+    await expect(
+      profile.getByLabel("Premium code", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      profile.getByText("Complimentary Premium", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      profile.getByText("Manage codes", { exact: true }),
+    ).toHaveCount(0);
+    await profile.getByRole("button", { name: "Have a code?" }).click();
+    await profile
+      .getByLabel("Premium code", { exact: true })
+      .fill("INVALID-CODE");
+    await profile.getByRole("button", { name: "Apply code" }).click();
+    await expect(profile.getByRole("status")).toHaveText(
+      "This code cannot be used.",
+    );
+    await expect(
+      profile.locator(".account-identity .account-badge"),
+    ).toHaveText("Free");
+    await profile
+      .getByLabel("Premium code", { exact: true })
+      .fill(" READERS-TEST ");
+    await profile.getByRole("button", { name: "Apply code" }).click();
+    await expect(
+      profile.locator(".account-identity .account-badge"),
+    ).toHaveText("Premium");
+    await expect(profile.getByRole("status")).toHaveText("Premium activated.");
+    await expect(
+      profile.getByLabel("Premium code", { exact: true }),
+    ).toHaveCount(0);
+    await expect(profile.locator(".account-plan-end")).toHaveCount(
+      width === 390 ? 1 : 0,
+    );
+    await page.screenshot({
+      path: testInfo.outputPath(`premium-${width}.png`),
+    });
+    await page.reload();
+    await page
+      .getByRole("button", { name: "WriteShape account", exact: true })
+      .click();
+    await expect(
+      profile.locator(".account-identity .account-badge"),
+    ).toHaveText("Premium");
+    await expect(profile.getByRole("status")).toHaveCount(0);
+    expect(submissions).toBe(2);
+  });
+}
+
+test("new palettes coordinate UI colors, remain readable, and persist", async ({
+  page,
+}, testInfo) => {
+  await setup(page);
+  await page.route("**/api/account", (route) =>
+    route.fulfill({
+      json: {
+        account,
+        premium: true,
+        accessCodesAvailable: true,
+        billingAvailable: false,
+      },
+    }),
+  );
+  await page.goto("/");
+  await page
+    .getByRole("textbox", { name: "Screenplay editor" })
+    .fill(
+      "INT. WRITING ROOM - EVENING\n\nA fresh page waits.\n\nALEX\nLet's begin.",
+    );
+  for (const theme of ["sage", "rose", "dusk", "ocean"]) {
+    const dialog = await settings(page);
+    await dialog
+      .getByRole("combobox", { name: "Theme", exact: true })
+      .selectOption(theme);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    // Read the actual theme tokens from the rendered stylesheet, including foreground/background contrast.
+    const colors = await page.evaluate(() => {
+      const style = getComputedStyle(document.documentElement);
+      const value = (name: string) => style.getPropertyValue(name).trim();
+      const luminance = (color: string) => {
+        const rgb = color
+          .replace("#", "")
+          .match(/.{2}/g)!
+          .map((v) => parseInt(v, 16) / 255)
+          .map((v) =>
+            v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4,
+          );
+        return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+      };
+      const contrast = (a: string, b: string) => {
+        const x = luminance(value(a)),
+          y = luminance(value(b));
+        return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+      };
+      return {
+        accent: value("--accent"),
+        secondary: value("--accent-secondary"),
+        tertiary: value("--accent-tertiary"),
+        contrasts: [
+          contrast("--ink", "--panel"),
+          contrast("--muted", "--surface"),
+          contrast("--paper-ink", "--paper"),
+          contrast("--accent-contrast", "--accent"),
+        ],
+      };
+    });
+    expect(
+      new Set([colors.accent, colors.secondary, colors.tertiary]).size,
+    ).toBe(3);
+    for (const ratio of colors.contrasts)
+      expect(ratio).toBeGreaterThanOrEqual(4.5);
+    const heading = dialog.locator(".modal-header");
+    const headingTop = (await heading.boundingBox())!.y;
+    await dialog.evaluate((el) => {
+      el.scrollTop = 120;
+    });
+    expect(await dialog.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+    expect(
+      Math.abs((await heading.boundingBox())!.y - headingTop),
+    ).toBeLessThan(1);
+    await dialog.getByRole("button", { name: "Close dialog" }).click();
+    await page.screenshot({ path: testInfo.outputPath(`${theme}-editor.png`) });
+  }
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "ocean");
+  await page.setViewportSize({ width: 390, height: 844 });
+  const dialog = await settings(page);
+  await expect(
+    dialog.getByRole("combobox", { name: "Theme", exact: true }),
+  ).toHaveValue("ocean");
+  await page.screenshot({
+    path: testInfo.outputPath("ocean-mobile-settings.png"),
+  });
+});
+
+for (const width of [390, 834, 1280]) {
+  test(`dialog headings stay fixed and panels clear controls at ${width}px`, async ({
+    page,
+  }, testInfo) => {
+    await setup(page);
+    await page.setViewportSize({ width, height: 844 });
+    await page.route("**/api/account", (route) =>
+      route.fulfill({
+        json: {
+          account,
+          premium: true,
+          billingAvailable: false,
+          privateMode: false,
+        },
+      }),
+    );
+    await page.goto("/");
+    await page
+      .getByRole("textbox", { name: "Screenplay editor" })
+      .fill("INT. ROOM - DAY\n\nA writer opens the window.");
+    await page
+      .getByRole("button", { name: "WriteShape account", exact: true })
+      .click();
+    const profile = page.getByRole("dialog", { name: "Account", exact: true }),
+      header = profile.locator(".modal-header");
+    await profile.evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    const before = await header.boundingBox();
+    await profile.evaluate((el) => {
+      el.scrollTop = 120;
+    });
+    const after = await header.boundingBox();
+    expect(Math.abs(after!.y - before!.y)).toBeLessThan(1);
+    await profile.getByRole("button", { name: "Close dialog" }).click();
+    const mobile = width <= 950;
+    const controls = page
+      .locator(mobile ? ".app-header" : ".document-pane-header")
+      .first();
+    const bounds = (await controls.boundingBox())!;
+    for (const [selector, label] of [
+      [".outline-panel", "Outline"],
+      [".insights-panel", "Insights"],
+    ]) {
+      const panel = page.locator(selector);
+      if (mobile) {
+        await page.getByRole("button", { name: "File", exact: true }).click();
+        await page
+          .locator(".mobile-command-panel")
+          .getByRole("button", { name: label, exact: true })
+          .click();
+      } else if (!(await panel.isVisible())) {
+        await page
+          .getByRole("button", {
+            name: label === "Outline" ? "Toggle outline" : label,
+            exact: true,
+          })
+          .click();
+      }
+      await expect(panel).toBeVisible();
+      await expect
+        .poll(async () => (await panel.boundingBox())!.y)
+        .toBeGreaterThanOrEqual(bounds.y + bounds.height - 1);
+      await page.screenshot({
+        path: testInfo.outputPath(`${label.toLowerCase()}-${width}.png`),
+      });
+    }
+    await page.screenshot({ path: testInfo.outputPath(`panels-${width}.png`) });
+  });
+}

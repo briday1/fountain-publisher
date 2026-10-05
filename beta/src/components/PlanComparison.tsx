@@ -9,19 +9,13 @@ const features: { title: PremiumFeature; benefit: string; caption: string }[] =
       title: "Insights",
       benefit: "Dialogue and character statistics",
       caption:
-        "Compare dialogue and action. See how much each character speaks, which scenes they appear in, and the estimated length of their dialogue.",
+        "Compare dialogue and action. See how much each character speaks and where their dialogue falls in the character Gantt chart.",
     },
     {
       title: "Beat Sheet",
       benefit: "Outline your story",
       caption:
-        "Write a premise, arrange beats by act, and add sub-beats. Link each beat to the lines where it happens and check the pacing graph.",
-    },
-    {
-      title: "Beat Guide",
-      benefit: "Beats beside the editor",
-      caption:
-        "Keep the beat you are working on beside the page. Select the relevant lines, assign them to that beat, and move to the next one.",
+        "See the whole story laid out by act, then check its pacing graph. Link beats to screenplay lines and keep the Beat Guide beside your page as you write.",
     },
   ];
 export function PlanComparison({

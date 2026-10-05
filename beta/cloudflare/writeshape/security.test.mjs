@@ -4,9 +4,14 @@ import { DatabaseSync } from "node:sqlite";
 import { createHandler, identity } from "./worker.mjs";
 import { testDB } from "./test-db.mjs";
 const setup = testDB;
-const handler = createHandler(async (req) => {
+const handler = createHandler(async (req, env) => {
   const id = req.headers.get("test-user");
   if (!id) return null;
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO accounts(id,email,created) VALUES(?,?,0)",
+  )
+    .bind(id, id + "@example.test")
+    .run();
   return { id, email: id + "@example.test", private_tester: 1 };
 });
 const request = (user, path = "", body, origin = "https://writeshape.com") =>

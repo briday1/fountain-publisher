@@ -210,7 +210,7 @@ it("failed save keeps the dialog open and never acknowledges or loses the draft"
     await close();
   }
 });
-it("history restore uses the current revision, creates a new version, and does not open or overwrite the local draft", async () => {
+it("review compares against current, saves only after decisions, and creates a new version without replacing the open draft", async () => {
   const old = {
     id: "file:1",
     revision: 1,
@@ -227,31 +227,25 @@ it("history restore uses the current revision, creates a new version, and does n
     current: true,
     content: "Latest draft",
   };
-  let restored = false;
+  let saved = false;
   api.mockImplementation(async (path: string, body: any) => {
-    if (path.endsWith("/restore")) {
-      expect(body).toEqual({ versionId: "file:1", revision: 3 });
-      restored = true;
+    if (body) {
+      expect(path).toBe("");
+      expect(body).toMatchObject({
+        id: "file",
+        revision: 3,
+        content: "Earlier draft",
+      });
+      saved = true;
       return { ...file, revision: 4, versionId: "file:4" };
     }
-    if (path.endsWith("/versions"))
-      return {
-        file: { ...file, revision: restored ? 4 : 3 },
-        versions: restored
-          ? [{ ...latest, id: "file:4", revision: 4 }, old]
-          : [latest, old],
-      };
-    return path.endsWith("file%3A1")
-      ? old
-      : {
-          ...latest,
-          id: restored ? "file:4" : "file:3",
-          revision: restored ? 4 : 3,
-        };
+    if (path.endsWith("/versions")) return { file, versions: [latest, old] };
+    if (path === "/file") return { ...file, content: "Latest draft" };
+    return path.endsWith("file%3A1") ? old : latest;
   });
   const opened = vi.fn(async () => {}),
     changed = vi.fn();
-  const { node, close } = await mount(
+  const h = await mount(
     <LibraryHistory
       file={file}
       canWrite
@@ -262,25 +256,29 @@ it("history restore uses the current revision, creates a new version, and does n
   );
   try {
     const oldButton = [
-      ...node.querySelectorAll(".library-version-list button"),
-    ].find((b) => b.textContent?.startsWith("Version 1"))!;
-    await act(async () => (oldButton as HTMLElement).click());
-    expect(node.querySelector(".version-diff-paper")?.textContent).toBe(
-      "Earlier draft",
-    );
-    await click(node, "Restore as new version");
-    expect(node.textContent).toContain(
-      "Current version 3 and all history will be kept",
-    );
-    await click(node, "Confirm restore");
-    expect(node.textContent).toContain("Version 1 restored as version 4");
+      ...h.node.querySelectorAll(".library-version-list button"),
+    ].find((b) => b.textContent?.startsWith("Version 1")) as HTMLElement;
+    await act(async () => oldButton.click());
+    expect(
+      h.node.querySelector(".version-diff-paper del")?.textContent,
+    ).toContain("Earlier");
+    expect(
+      h.node.querySelector(".version-diff-paper ins")?.textContent,
+    ).toContain("Latest");
+    await click(h.node, "See changes");
+    expect(button(h.node, "Save new version").disabled).toBe(true);
+    await click(h.node, "Use saved version");
+    expect(saved).toBe(false);
+    await click(h.node, "Save new version");
+    expect(saved).toBe(true);
     expect(changed).toHaveBeenCalledOnce();
     expect(opened).not.toHaveBeenCalled();
+    expect(h.node.textContent).toContain("Saved as version 4");
   } finally {
-    await close();
+    await h.close();
   }
 });
-it("history conflicts preserve the preview and require refreshing before a successful restore", async () => {
+it("a history revision conflict preserves every review choice and never reports success", async () => {
   const old = {
     id: "file:1",
     revision: 1,
@@ -290,17 +288,21 @@ it("history conflicts preserve the preview and require refreshing before a succe
     current: false,
     content: "Original",
   };
-  api.mockImplementation(async (path: string) => {
-    if (path.endsWith("/restore"))
+  api.mockImplementation(async (path: string, body: any) => {
+    if (body)
       throw new LibraryError(
-        "A newer version exists.",
+        "A newer version exists. Refresh versions to compare again.",
         409,
         "REVISION_CONFLICT",
       );
-    return path.endsWith("/versions") ? { file, versions: [old] } : old;
+    return path.endsWith("/versions")
+      ? { file, versions: [old] }
+      : path === "/file"
+        ? { ...file, content: "Current" }
+        : old;
   });
   const changed = vi.fn();
-  const { node, close } = await mount(
+  const h = await mount(
     <LibraryHistory
       file={file}
       canWrite
@@ -310,17 +312,16 @@ it("history conflicts preserve the preview and require refreshing before a succe
     />,
   );
   try {
-    await click(node, "Restore as new version");
-    await click(node, "Confirm restore");
-    expect(node.querySelector("[role=alert]")?.textContent).toContain(
-      "A newer version exists.",
+    await click(h.node, "See changes");
+    await click(h.node, "Use saved version");
+    await click(h.node, "Save new version");
+    expect(h.node.querySelector("[role=alert]")?.textContent).toContain(
+      "A newer version exists",
     );
-    expect(node.querySelector(".version-diff-paper")?.textContent).toBe(
-      "Original",
-    );
+    expect(h.node.querySelector(".review-change.reviewed")).not.toBeNull();
     expect(changed).not.toHaveBeenCalled();
   } finally {
-    await close();
+    await h.close();
   }
 });
 it("private pilot sharing explains its disabled state and never presents a public link", async () => {

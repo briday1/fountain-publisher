@@ -6,6 +6,7 @@ import {
 } from "./billing-mode.mjs";
 import { HttpError, bodyJson, json, now, sameOrigin } from "./http.mjs";
 import { randomToken } from "./accounts.mjs";
+import { sendPendingFeedback } from "./cancellation-feedback.mjs";
 
 // Explicit catalogs; live activation requires separate credentials and approval.
 export const TEST_PLANS = Object.freeze({
@@ -464,7 +465,7 @@ async function portalConfiguration(
     );
   return config.id;
 }
-export async function billingRoutes(request, env, account, stripe) {
+export async function billingRoutes(request, env, account, stripe, ctx) {
   const path = new URL(request.url).pathname;
   account = accountBilling(account, env);
   const catalog = billingCatalog(env),
@@ -478,6 +479,7 @@ export async function billingRoutes(request, env, account, stripe) {
       "/api/billing/portal",
       "/api/billing/refresh",
       "/api/billing/status",
+      "/api/billing/cancel",
     ].includes(path)
   )
     return null;
@@ -502,6 +504,93 @@ export async function billingRoutes(request, env, account, stripe) {
       ? await subscriptionsFor(account.stripe_customer, stripe, catalog)
       : [];
     return json(billingSummary(subscriptions, catalog));
+  }
+  if (path === "/api/billing/cancel") {
+    const data = await bodyJson(request);
+    if (
+      typeof data.requestId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        data.requestId,
+      ) ||
+      (data.reason !== undefined &&
+        (typeof data.reason !== "string" || data.reason.length > 3000))
+    )
+      throw new HttpError(
+        400,
+        "Please try again with a reason of 3,000 characters or fewer.",
+      );
+    const subscriptions = await syncBilling(account.id, env, stripe);
+    const summary = billingSummary(subscriptions, catalog);
+    const current = subscriptions.find(
+      (sub) => sub.id === summary.subscriptionId,
+    );
+    if (
+      !current ||
+      !summary.hasSubscription ||
+      objectId(current.customer) !== account.stripe_customer ||
+      !summary.plan ||
+      (!summary.canCancel && !summary.cancelAtPeriodEnd)
+    )
+      throw new HttpError(
+        409,
+        "There is no subscription available to cancel. Refresh your account.",
+      );
+    // Persist optional feedback before the provider call; retrying never creates another notice.
+    if (!summary.cancelAtPeriodEnd) {
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO cancellation_feedback(id,account_id,subscription_id,billing_mode,reason,created)
+         VALUES(?,?,?,?,?,?)`,
+      )
+        .bind(
+          data.requestId,
+          account.id,
+          current.id,
+          billingMode(env),
+          (data.reason || "").trim(),
+          now(),
+        )
+        .run();
+      const updated = await stripe.subscriptions.update(
+        current.id,
+        {
+          cancel_at_period_end: true,
+          proration_behavior: "none",
+        },
+        {
+          idempotencyKey: `writeshape-cancel-${billingMode(env)}-${account.id}-${current.id}-${data.requestId}`,
+        },
+      );
+      if (
+        updated.id !== current.id ||
+        updated.livemode !== catalog.livemode ||
+        objectId(updated.customer) !== account.stripe_customer ||
+        !cancellationScheduled(updated)
+      )
+        throw new HttpError(
+          502,
+          "Could not confirm cancellation. Please refresh your account and try again.",
+        );
+      Object.assign(current, updated);
+    }
+    await env.DB.prepare(
+      "UPDATE cancellation_feedback SET confirmed_at=COALESCE(confirmed_at,?) WHERE id=? AND account_id=? AND subscription_id=? AND billing_mode=?",
+    )
+      .bind(now(), data.requestId, account.id, current.id, billingMode(env))
+      .run();
+    // The provider confirmed cancellation; never turn an email failure into a cancellation failure.
+    await env.DB.prepare(
+      `UPDATE accounts SET ${columns.cancel}=1,${columns.version}=${columns.version}+1 WHERE id=?`,
+    )
+      .bind(account.id)
+      .run();
+    const delivery = sendPendingFeedback(env).catch(() => {
+      console.error(
+        JSON.stringify({ event: "cancellation_feedback_delivery_pending" }),
+      );
+    });
+    if (ctx?.waitUntil) ctx.waitUntil(delivery);
+    else await delivery;
+    return json({ ok: true, billing: billingSummary(subscriptions, catalog) });
   }
   if (path === "/api/billing/portal") {
     if (!account.stripe_customer)

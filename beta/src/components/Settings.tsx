@@ -98,6 +98,10 @@ export function Settings({
               ["solarized-light", "Solarized light"],
               ["solarized-dark", "Solarized dark"],
               ["sepia", "Sepia"],
+              ["sage", "Sage"],
+              ["rose", "Rose"],
+              ["dusk", "Dusk"],
+              ["ocean", "Ocean"],
             ].map(([v, l]) => (
               <option value={v} key={v}>
                 {l}
@@ -105,6 +109,12 @@ export function Settings({
             ))}
           </select>
         </label>
+        <div className="theme-palette" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
         <label className="workspace-background-setting">
           Workspace background
           <select

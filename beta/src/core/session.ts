@@ -247,6 +247,22 @@ export class DocumentSession {
     this.markChanged();
     this.onSnapshot(this.capture());
   }
+  /** A review never touches the session until every choice is resolved and Save is pressed. */
+  async commitReviewed(
+    screenplay: Screenplay,
+    expected: { id: string; epoch: number },
+  ) {
+    await this.flush();
+    this.assertCurrent(expected);
+    const saved = await this.repository.save(
+      { ...this.current, screenplay },
+      this.revisions.get(expected.id) ?? null,
+      { checkpoint: true },
+    );
+    // No user edits can be silently replaced while IndexedDB is committing.
+    this.assertCurrent(expected);
+    await this.adoptWorkspace(saved);
+  }
   async adoptWorkspace(saved: WorkspaceDocument) {
     if (
       this.dirty ||

@@ -157,7 +157,7 @@ it("unsupported native directory access offers honest local fallback while Drive
     account: { authenticated: false, premium: false },
     providers: { local, drive: provider(false) },
   });
-  expect(h.node.textContent).toContain("Folder browsing is not supported");
+  expect(h.node.textContent).toContain("Autosaved on this device");
   await act(async () => button(h.node, "Open a local file").click());
   expect(h.props.onOpenLocalFile).toHaveBeenCalledOnce();
   await act(async () => button(h.node, "Google Drive").click());

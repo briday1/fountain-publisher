@@ -1,3 +1,5 @@
+// @ts-ignore JavaScript account router
+import { createHandler } from "./worker.mjs";
 import { LiveScreenplayRoom, type LiveRoomContext } from "../liveRoom";
 import { LiveError } from "../liveDrive";
 import type { LiveEnvironment } from "../liveDrive";
@@ -8,6 +10,9 @@ import { serializeDocument } from "../../src/core/documentFormat";
 // @ts-ignore JavaScript Worker module
 import { WriteShapeLiveStorage } from "./live-storage.mjs";
 export class WriteShapeLiveRoom extends LiveScreenplayRoom {
+  private accountQueue: Promise<unknown> = Promise.resolve();
+  private maintenanceEnv: any;
+  private accountStorage: any;
   constructor(context: LiveRoomContext, env: LiveEnvironment) {
     const storage = new WriteShapeLiveStorage(env);
     const wrap =
@@ -48,5 +53,84 @@ export class WriteShapeLiveRoom extends LiveScreenplayRoom {
         return serializeDocument(doc);
       },
     });
+    this.maintenanceEnv = env;
+    this.accountStorage = storage;
+  }
+  async fetch(request: Request): Promise<Response> {
+    const action = new URL(request.url).pathname;
+    if (action === "/account-operation") {
+      const path = new URL(request.url).searchParams.get("path") || "";
+      if (
+        !(path === "/api/account/delete" || path.startsWith("/api/billing/")) ||
+        path === "/api/billing/webhook"
+      )
+        return new Response("Not found", { status: 404 });
+      const task = this.accountQueue.then(() =>
+        createHandler()(new Request("https://writeshape.com" + path, request), {
+          ...this.maintenanceEnv,
+          INTERNAL_ACCOUNT_OPERATION: true,
+        }),
+      );
+      this.accountQueue = task.catch(() => {});
+      return task;
+    }
+    // The public router has a strict action allowlist and never forwards either maintenance action.
+    if (request.method === "POST" && action === "/register-legacy") {
+      const fileId = await this.storedFileId();
+      if (fileId)
+        await this.maintenanceEnv.DB.prepare(
+          "INSERT OR IGNORE INTO live_room_registry(file_id,legacy) VALUES(?,1)",
+        )
+          .bind(fileId)
+          .run();
+      return Response.json({ ok: true });
+    }
+    if (request.method === "POST" && action === "/delete-account") {
+      const { accountId } = (await request.json()) as { accountId: string };
+      if (
+        typeof accountId !== "string" ||
+        !(await this.maintenanceEnv.DB.prepare(
+          "SELECT account_id FROM deleting_accounts WHERE account_id=?",
+        )
+          .bind(accountId)
+          .first())
+      )
+        return new Response("Forbidden", { status: 403 });
+      const fileId = await this.storedFileId();
+      if (!fileId) return Response.json({ ok: true });
+      const owner = fileId.startsWith("library_")
+        ? await this.maintenanceEnv.DB.prepare(
+            "SELECT owner FROM items WHERE id=?",
+          )
+            .bind(fileId.slice(8))
+            .first()
+        : null;
+      const registered = await this.maintenanceEnv.DB.prepare(
+        "SELECT file_id FROM live_room_registry WHERE file_id=? AND (legacy=1 OR EXISTS(SELECT 1 FROM live_room_members WHERE file_id=? AND account_id=?))",
+      )
+        .bind(fileId, fileId, accountId)
+        .first();
+      if (owner?.owner !== accountId && !registered)
+        return new Response("Forbidden", { status: 403 });
+      try {
+        await this.purgeStoredRoom(owner?.owner !== accountId, (enabled) => {
+          this.accountStorage.deletionCheckpoint = enabled;
+        });
+        await this.maintenanceEnv.DB.batch([
+          this.maintenanceEnv.DB.prepare(
+            "DELETE FROM live_room_members WHERE file_id=?",
+          ).bind(fileId),
+          this.maintenanceEnv.DB.prepare(
+            "DELETE FROM live_room_registry WHERE file_id=?",
+          ).bind(fileId),
+        ]);
+        return Response.json({ ok: true });
+      } catch {
+        return new Response("Cleanup pending", { status: 503 });
+      } finally {
+        this.accountStorage.deletionCheckpoint = false;
+      }
+    }
+    return super.fetch(request);
   }
 }

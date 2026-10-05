@@ -21,6 +21,7 @@
     {
       "binding": "DB",
       "database_name": "writeshape-documents",
+      "migrations_dir": "cloudflare/writeshape/migrations",
       "database_id": "a9982175-df6d-46ad-bebd-f52e9fe650ad"
     }
   ],
@@ -42,6 +43,13 @@
       "invocation_logs": false
     }
   },
+  "send_email": [
+    {
+      "name": "SUPPORT_EMAIL",
+      "destination_address": "writeshape-support@agentmail.to"
+    }
+  ],
+  "triggers": { "crons": ["*/15 * * * *"] },
   "durable_objects": {
     "bindings": [
       {

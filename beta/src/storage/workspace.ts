@@ -208,6 +208,7 @@ export class WorkspaceRepository {
   async save(
     input: DocumentInput,
     expectedRevision: number | null,
+    options: { checkpoint?: boolean } = {},
   ): Promise<WorkspaceDocument> {
     try {
       const db = await this.db();
@@ -255,7 +256,11 @@ export class WorkspaceRepository {
           history.index("documentId").getAll(input.id),
         )) as Snapshot[];
         previous.sort((a, b) => b.createdAt - a.createdAt);
-        if (!previous[0] || now - previous[0].createdAt >= 60_000) {
+        if (
+          options.checkpoint ||
+          !previous[0] ||
+          now - previous[0].createdAt >= 60_000
+        ) {
           history.put({
             id: crypto.randomUUID(),
             documentId: current.id,
@@ -267,6 +272,15 @@ export class WorkspaceRepository {
           for (const old of previous.slice(49)) history.delete(old.id);
         }
       }
+      if (options.checkpoint)
+        tx.objectStore("snapshots").put({
+          id: crypto.randomUUID(),
+          documentId: next.id,
+          name: next.name,
+          screenplay: next.screenplay,
+          revision: next.revision,
+          createdAt: now + 1,
+        } satisfies Snapshot);
       documents.put(next);
       tx.objectStore("tabRecovery").delete(`${input.id}:${this.writerId}`);
       await completion;

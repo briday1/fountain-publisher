@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useId } from "react";
+import { useLayoutEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
 import { useModalScrollLock } from "./useModalScrollLock";
@@ -22,7 +22,6 @@ export function Modal({
   suspended?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const id = useId();
   useModalScrollLock(ref);
   useLayoutEffect(() => {
     const el = ref.current!;
@@ -33,7 +32,7 @@ export function Modal({
     <dialog
       ref={ref}
       className={`modal ${wide ? "wide" : ""} ${className}`}
-      aria-labelledby={id}
+      aria-label={title}
       onCancel={(e) => {
         if (e.target !== e.currentTarget) return;
         e.preventDefault();
@@ -49,13 +48,11 @@ export function Modal({
             {eyebrow && <small>{eyebrow}</small>}
             {titleAside ? (
               <div className="modal-title-row">
-                <h2 id={id} title={title}>
-                  {title}
-                </h2>
+                <h2 title={title}>{title}</h2>
                 {titleAside}
               </div>
             ) : (
-              <h2 id={id}>{title}</h2>
+              <h2>{title}</h2>
             )}
           </div>
           <button

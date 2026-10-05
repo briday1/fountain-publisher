@@ -145,10 +145,12 @@ it("shows actual monthly subscription despite yearly prospective intent, with no
       path: "/api/billing/portal",
       body: { intent: "change" },
     });
-    await h.click("Cancel subscription");
-    expect(h.requests.at(-1)).toEqual({
-      path: "/api/billing/portal",
-      body: { intent: "cancel" },
+    await h.click("Cancel Premium");
+    expect(h.node.textContent).toContain("Care to tell us why you’re leaving?");
+    await h.click("Confirm Cancellation");
+    expect(h.requests.at(-1)).toMatchObject({
+      path: "/api/billing/cancel",
+      body: { reason: "", requestId: expect.any(String) },
     });
   } finally {
     await h.close();

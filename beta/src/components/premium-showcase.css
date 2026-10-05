@@ -166,20 +166,157 @@
   margin: 24px 0;
 }
 
-.collaboration-concept { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--paper); }
-.collaboration-presence { display: flex; align-items: center; gap: 10px; padding: 16px 20px; font-size: 12px; background: var(--panel); }
-.collaboration-presence small { display: block; opacity: .6; font-size: 10px; margin-top: 3px; }
-.collaborator-avatar { width: 28px; height: 28px; border-radius: 50%; background: #d3ede2; color: #225b46; display: grid; place-items: center; }
-.collaborator-avatar.second { background: #eee0f8; color: #6c3888; margin-left: -15px; border: 2px solid var(--paper); }
-.collaboration-page { position: relative; }
-.concept-cursor { position: absolute; left: 24%; top: 29%; padding: 4px 8px; border-left: 2px solid #39765e; background: #d3ede2; color: #225b46; font: 10px system-ui; }
-.concept-cursor.second { left: 64%; top: 62%; border-color: #87559c; background: #eee0f8; color: #6c3888; }
+.collaboration-concept {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--paper);
+}
+.collaboration-presence {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  font-size: 12px;
+  background: var(--panel);
+}
+.collaboration-presence small {
+  display: block;
+  opacity: 0.6;
+  font-size: 10px;
+  margin-top: 3px;
+}
+.collaborator-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #d3ede2;
+  color: #225b46;
+  display: grid;
+  place-items: center;
+}
+.collaborator-avatar.second {
+  background: #eee0f8;
+  color: #6c3888;
+  margin-left: -15px;
+  border: 2px solid var(--paper);
+}
+.collaboration-page {
+  position: relative;
+}
+.concept-cursor {
+  position: absolute;
+  left: 24%;
+  top: 29%;
+  padding: 4px 8px;
+  border-left: 2px solid #39765e;
+  background: #d3ede2;
+  color: #225b46;
+  font: 10px system-ui;
+}
+.concept-cursor.second {
+  left: 64%;
+  top: 62%;
+  border-color: #87559c;
+  background: #eee0f8;
+  color: #6c3888;
+}
 
-.access-code-manager summary { cursor:pointer; padding:12px 0; font-weight:600; }
-.access-code-fields { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-.access-code-fields input { min-width:0; width:100%; }
-.access-code-list { list-style:none; padding:0; }
-.access-code-list li { display:grid; gap:8px; padding:16px 0; border-top:1px solid var(--border); }
-.access-code-list li > span { font-size:13px; }
-.access-code-list button { justify-self:start; }
-.access-code-manager input { max-width:100%; box-sizing:border-box; }
+.access-code-manager summary {
+  cursor: pointer;
+  padding: 12px 0;
+  font-weight: 600;
+}
+.access-code-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.access-code-fields input {
+  min-width: 0;
+  width: 100%;
+}
+.access-code-list {
+  list-style: none;
+  padding: 0;
+}
+.access-code-list li {
+  display: grid;
+  gap: 8px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+.access-code-list li > span {
+  font-size: 13px;
+}
+.access-code-list button {
+  justify-self: start;
+}
+.access-code-manager input {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.sample-beat-sheet,
+.sample-gantt {
+  padding: 22px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.sample-beat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 24px 0;
+}
+.sample-beat-grid article {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-top: 4px solid;
+  border-radius: 6px;
+  background: var(--surface);
+}
+.sample-beat-grid h4 {
+  margin: 12px 0;
+  font-size: 16px;
+}
+.sample-beat-grid p {
+  margin: 0;
+  line-height: 1.6;
+  font-size: 13px;
+}
+.sample-beat-grid small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.sample-beat-sheet svg,
+.sample-gantt svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  fill: var(--ink);
+  font:
+    12px system-ui,
+    sans-serif;
+}
+.sample-gantt {
+  margin-top: 24px;
+}
+.sample-beat-sheet > p,
+.sample-gantt > p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+@media (max-width: 600px) {
+  .sample-beat-sheet svg,
+  .sample-gantt svg {
+    font-size: 26px;
+  }
+  .sample-beat-grid {
+    grid-template-columns: 1fr;
+  }
+  .sample-beat-sheet,
+  .sample-gantt {
+    padding: 14px;
+  }
+}

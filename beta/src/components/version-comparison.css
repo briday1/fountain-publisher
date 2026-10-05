@@ -101,8 +101,63 @@
 .version-comparison del + ins {
   margin-left: 0.2em;
 }
-.novel-comparison .version-diff-paper { font-family:Georgia,serif; font-size:16px; line-height:1.8; }
-.novel-comparison .diff-section { font-size:1.4em; font-weight:600; margin:1.8em 0 1em; }
-.novel-comparison .diff-dialogue { margin:1em 7%; padding-left:16px; border-left:2px solid var(--border); }
-.novel-comparison .diff-parenthetical { margin:0 8% 1.8em; text-align:right; }
-.novel-comparison .diff-centered { font-style:italic; }
+.novel-comparison .version-diff-paper {
+  font-family: Georgia, serif;
+  font-size: 16px;
+  line-height: 1.8;
+}
+.novel-comparison .diff-section {
+  font-size: 1.4em;
+  font-weight: 600;
+  margin: 1.8em 0 1em;
+}
+.novel-comparison .diff-dialogue {
+  margin: 1em 7%;
+  padding-left: 16px;
+  border-left: 2px solid var(--border);
+}
+.novel-comparison .diff-parenthetical {
+  margin: 0 8% 1.8em;
+  text-align: right;
+}
+.novel-comparison .diff-centered {
+  font-style: italic;
+}
+.version-review-dialog {
+  width: min(1000px, calc(100vw - 24px));
+}
+.review-source {
+  white-space: pre-wrap;
+  color: var(--paper-ink, var(--ink));
+}
+.review-change {
+  cursor: pointer;
+  border-radius: 2px;
+}
+.review-change.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.review-change.reviewed {
+  border-bottom: 2px solid var(--accent);
+}
+.review-change .not-kept {
+  opacity: 0.45;
+}
+.review-details {
+  display: block;
+  margin: 20px 0;
+  font-family: system-ui, sans-serif;
+}
+.review-choices {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.review-choices [aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+.version-review-dialog .version-diff-paper {
+  max-height: 48dvh;
+}

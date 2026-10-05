@@ -1,6 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import { recordDiagnostic } from "../support/diagnostics";
-import { AccessCodes } from "./AccessCodes";
+import { AccessCodes, AccessCodeManager } from "./AccessCodes";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isWriteShape } from "../product";
 import { Modal } from "./Modal";
@@ -17,6 +17,7 @@ export interface AccountState {
     cancelAtPeriodEnd: boolean;
     premiumUntil: number;
     complimentaryUntil?: number;
+    complimentaryIndefinite?: boolean;
   };
   billingMode?: "test" | "live";
   accessCodesAvailable?: boolean;
@@ -137,6 +138,12 @@ export function WriteShapeAccount({
   const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [billingError, setBillingError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleted, setDeleted] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelRequest, setCancelRequest] = useState("");
   const generation = useRef(0);
   const loadBilling = useCallback(async () => {
     const current = ++generation.current;
@@ -215,6 +222,39 @@ export function WriteShapeAccount({
     !["none", "canceled", "incomplete_expired"].includes(status);
   const end = billing?.cancelAt || billing?.periodEnd || 0;
   const disabled = busy || loading;
+  const hasCodeAccess =
+    !!account?.complimentaryIndefinite ||
+    (account?.complimentaryUntil || 0) > Date.now() / 1000;
+  const premiumEnd =
+    !account?.privateTester &&
+    !account?.complimentaryIndefinite &&
+    hasCodeAccess
+      ? Math.max(
+          account?.complimentaryUntil || 0,
+          state.premium ? account?.premiumUntil || 0 : 0,
+        )
+      : 0;
+  if (deleted)
+    return (
+      <Modal title="Account deleted" onClose={onClose}>
+        <p>
+          Your WriteShape account, cloud documents, and version history have
+          been removed. Premium billing has stopped. Your Drive files and local
+          copies remain.
+        </p>
+        <footer className="dialog-actions">
+          <button
+            className="primary"
+            onClick={() => {
+              if (state.privateMode) location.assign("/cdn-cgi/access/logout");
+              else onClose();
+            }}
+          >
+            Back to writing
+          </button>
+        </footer>
+      </Modal>
+    );
   if (!account)
     return (
       <Modal
@@ -239,10 +279,160 @@ export function WriteShapeAccount({
         {!state.googleAvailable && (
           <p>Google sign-in is currently unavailable.</p>
         )}
+
         <footer className="account-footer">
           <p>Your drafts are saved on this device before signing in.</p>
           <button onClick={onClose}>Back to writing</button>
         </footer>
+      </Modal>
+    );
+  if (deleteOpen)
+    return (
+      <Modal
+        title="Delete account"
+        onClose={() => {
+          if (!busy) setDeleteOpen(false);
+        }}
+      >
+        <p>
+          This permanently deletes your WriteShape account, all cloud documents
+          and folders, version history, sharing permissions, and
+          connected-account credentials. Your cloud work cannot be restored in
+          WriteShape.
+        </p>
+        <p>
+          <strong>
+            Any Premium subscription will be canceled immediately. You will lose
+            Premium access and will not be charged again.
+          </strong>
+        </p>
+        <p>
+          Files in Google Drive and copies saved on your device are kept. Copies
+          other people already saved are kept too.
+        </p>
+        <p>
+          Before deleting, open Files → WriteShape, select your documents and
+          folders, and choose Download to keep a backup. Download any older
+          versions you want from Version history.
+        </p>
+        <details>
+          <summary>Data removal details</summary>
+          <p>
+            Account data is removed from active WriteShape servers. Provider
+            backups expire within 30 days. A temporary security record blocks
+            old sign-ins for up to 30 days. Stripe may retain required
+            transaction records. Previously sent support emails are separate
+            from your account.
+          </p>
+        </details>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (busy || deleteConfirmation !== "DELETE") return;
+            void run(async () => {
+              await beforeNavigate();
+              await accountRequest("/api/account/delete", {
+                confirmation: deleteConfirmation,
+              });
+              setDeleted(true);
+              await refresh();
+            });
+          }}
+        >
+          <label className="delete-confirmation">
+            Type DELETE to confirm
+            <input
+              autoComplete="off"
+              spellCheck={false}
+              value={deleteConfirmation}
+              onChange={(e) => setDeleteConfirmation(e.target.value)}
+              disabled={busy}
+            />
+          </label>
+          {notice && <p role="alert">{notice}</p>}
+          <footer className="dialog-actions">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setDeleteOpen(false);
+                setNotice("");
+              }}
+            >
+              Back
+            </button>
+            <button
+              className="danger"
+              disabled={busy || deleteConfirmation !== "DELETE"}
+            >
+              {busy ? "Deleting…" : "Permanently delete account"}
+            </button>
+          </footer>
+        </form>
+      </Modal>
+    );
+  if (cancelOpen)
+    return (
+      <Modal
+        title="Cancel Premium"
+        className="writeshape-account account-cancellation"
+        onClose={() => {
+          if (!busy) setCancelOpen(false);
+        }}
+      >
+        <p>
+          Your subscription will stop renewing
+          {end ? ` on ${dateLabel(end)}` : " at the end of your billing period"}
+          . Your documents stay in your account.
+        </p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (busy) return;
+            void run(async () => {
+              const result = await accountRequest("/api/billing/cancel", {
+                reason: cancelReason,
+                requestId: cancelRequest,
+              });
+              setBilling(result.billing);
+              await refresh();
+              setCancelOpen(false);
+              setCancelReason("");
+              setNotice(
+                "Premium cancellation confirmed. Your subscription will not renew.",
+              );
+            });
+          }}
+        >
+          <label>
+            Care to tell us why you’re leaving?
+            <textarea
+              rows={4}
+              maxLength={3000}
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Optional"
+              disabled={busy}
+            />
+          </label>
+          <p className="muted">Your feedback goes to support@writeshape.com.</p>
+          {notice && <p role="status">{notice}</p>}
+          <div className="dialog-actions">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setCancelOpen(false);
+                setNotice("");
+              }}
+            >
+              Back
+            </button>
+            <button className="primary" disabled={busy}>
+              {busy ? "Canceling…" : "Confirm Cancellation"}
+            </button>
+          </div>
+        </form>
       </Modal>
     );
   return (
@@ -261,6 +451,11 @@ export function WriteShapeAccount({
           <span className="account-badge">
             {state.premium ? "Premium" : "Free"}
           </span>
+          {premiumEnd > 0 && (
+            <span className="account-plan-end">
+              Until {dateLabel(premiumEnd)}
+            </span>
+          )}
         </div>
       </div>
       {(error || notice) && (
@@ -313,6 +508,26 @@ export function WriteShapeAccount({
           </button>
         )}
       </section>
+      {state.accessCodesAvailable && <AccessCodes refresh={refresh} />}
+      {billing?.canCancel && (
+        <button
+          className="account-cancel-button"
+          disabled={disabled}
+          onClick={() => {
+            setCancelRequest(crypto.randomUUID());
+            setNotice("");
+            setCancelOpen(true);
+          }}
+        >
+          Cancel Premium
+        </button>
+      )}
+      {billing?.cancelAtPeriodEnd && (
+        <p className="account-cancellation-status">
+          Subscription ends
+          {end ? ` ${dateLabel(end)}` : " at the end of this billing period"}.
+        </p>
+      )}
       <details
         className="account-section"
         id="account-subscription"
@@ -433,14 +648,6 @@ export function WriteShapeAccount({
               >
                 Change plan
               </button>
-              {billing?.canCancel && (
-                <button
-                  disabled={disabled || !state.portalAvailable}
-                  onClick={() => manage("cancel")}
-                >
-                  Cancel subscription
-                </button>
-              )}
             </div>
             {!billing?.canChange && billing?.changeReason && (
               <p>{billing.changeReason}</p>
@@ -453,7 +660,7 @@ export function WriteShapeAccount({
               existing cloud files; new cloud saves need Premium.
             </p>
           </>
-        ) : (
+        ) : !hasCodeAccess || showBilling ? (
           <>
             <h4>
               {testBilling
@@ -496,7 +703,7 @@ export function WriteShapeAccount({
               </button>
             )}
           </>
-        )}
+        ) : null}
         {state.billingAvailable && account && (
           <button
             className="account-refresh"
@@ -514,13 +721,6 @@ export function WriteShapeAccount({
           </button>
         )}
       </details>
-      {account && state.accessCodesAvailable && (
-        <AccessCodes
-          owner={!!state.manageAccessCodes}
-          until={account.complimentaryUntil || 0}
-          refresh={refresh}
-        />
-      )}
       <section className="account-section" aria-label="Support">
         <h3>Support</h3>
         <p>
@@ -530,6 +730,24 @@ export function WriteShapeAccount({
           Tell us what happened and what you expected. Please leave out private
           writing, passwords, and payment details.
         </p>
+      </section>
+      {state.accessCodesAvailable && state.manageAccessCodes && (
+        <AccessCodeManager refresh={refresh} />
+      )}
+      <section className="account-section account-delete">
+        <h3>Delete account</h3>
+        <p>Permanently remove your account and WriteShape cloud work.</p>
+        <button
+          className="danger"
+          disabled={busy}
+          onClick={() => {
+            setNotice("");
+            setDeleteConfirmation("");
+            setDeleteOpen(true);
+          }}
+        >
+          Delete account…
+        </button>
       </section>
       <footer className="account-footer">
         <p>
