@@ -10,11 +10,9 @@ test("the app carries readable and downloadable licenses, including when install
   ).toBeVisible();
   // The brand opens Help on both compact and desktop layouts.
   await page.locator("button.brand").click();
-  const link = page.getByRole("link", {
-    name: "Third-party licenses",
-    exact: true,
-  });
-  await expect(link).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Third-party licenses", exact: true }),
+  ).toHaveCount(0);
   if (process.env.TEST_BASE_URL) {
     await expect
       .poll(() => page.evaluate(() => !!navigator.serviceWorker.controller), {
@@ -23,9 +21,8 @@ test("the app carries readable and downloadable licenses, including when install
       .toBe(true);
     await context.setOffline(true);
   }
-  const popup = page.waitForEvent("popup");
-  await link.click();
-  const licenses = await popup;
+  const licenses = await context.newPage();
+  await licenses.goto("/licenses.html");
   await expect(
     licenses.getByRole("heading", { name: "Third-party licenses" }),
   ).toBeVisible();

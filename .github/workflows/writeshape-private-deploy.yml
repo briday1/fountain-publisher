@@ -48,8 +48,12 @@ jobs:
         run: npm run build:writeshape
       - name: Validate Worker bundle
         run: npx wrangler deploy --config wrangler.writeshape.json --dry-run
+      - name: Apply additive account migrations
+        run: npx wrangler d1 migrations apply writeshape-documents --remote --config wrangler.writeshape.json
       - name: Deploy private WriteShape
         run: npx wrangler deploy --config wrangler.writeshape.json
+      - name: Index earlier live rooms for complete account cleanup
+        run: node ../.github/scripts/index-writeshape-rooms.mjs
       - name: Record source revision
         if: success()
         run: echo "Private WriteShape deployed from \`$GITHUB_SHA\`" >> "$GITHUB_STEP_SUMMARY"

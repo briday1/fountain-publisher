@@ -82,9 +82,6 @@ export function Help({
         <a href="/terms.html" target="_blank" rel="noopener noreferrer">
           Terms
         </a>
-        <a href="/licenses.html" target="_blank" rel="noopener noreferrer">
-          Third-party licenses
-        </a>
       </nav>
       <footer className="dialog-actions">
         <button className="primary" onClick={onClose}>

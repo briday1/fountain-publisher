@@ -39,12 +39,23 @@ export function premium(account) {
   return (
     !!account &&
     (account.private_tester === 1 ||
+      account.complimentary_indefinite === true ||
       account.complimentary_until > now() ||
       (account.premium_until > now() &&
         ["active", "past_due"].includes(account.billing_status)))
   );
 }
 export async function accessAccount(user, env) {
+  const revoked = await env.DB.prepare(
+    "SELECT before_iat FROM revoked_access WHERE subject_hash=? AND expires>?",
+  )
+    .bind(await hash(user.id), now())
+    .first();
+  if (
+    revoked &&
+    (!Number.isFinite(user.issuedAt) || user.issuedAt <= revoked.before_iat)
+  )
+    return null;
   // Use the existing signed Access subject as account ID: no owner migration or email-based takeover.
   await env.DB.prepare(
     "INSERT OR IGNORE INTO accounts (id,email,private_tester,created) VALUES (?,?,1,?)",
@@ -184,6 +195,7 @@ export async function accountRoutes(request, env, account, billingAvailable) {
             cancelAtPeriodEnd: !!account.cancel_at_period_end,
             premiumUntil: account.premium_until,
             complimentaryUntil: account.complimentary_until || 0,
+            complimentaryIndefinite: account.complimentary_indefinite === true,
           }
         : null,
       premium: premium(account),

@@ -1,3 +1,4 @@
+import { VersionReview } from "./components/VersionReview";
 import { DocumentStatusBar } from "./components/DocumentStatusBar";
 import { cloudRequest } from "./storage/writeshapeLibrary";
 import { ReportProblem } from "./components/ReportProblem";
@@ -19,6 +20,7 @@ import { WriteShapeMark } from "./components/WriteShapeMark";
 import { createFileProviders } from "./storage/fileProviders";
 import { destinationKey, destinationLabel } from "./storage/destinations";
 import { useDestinationSync } from "./hooks/useDestinationSync";
+import { usePanelBounds } from "./hooks/usePanelBounds";
 import { captureWriteShapeSave } from "./core/writeShapeSave";
 import { libraryRequest } from "./components/WriteShapeLibrary";
 import type { LibraryFile } from "./components/WriteShapeLibrary";
@@ -166,6 +168,7 @@ export default function App() {
     );
   const documentWorkspace = useRef<DocumentWorkspace | null>(null);
   const [workspaceReady, setWorkspaceReady] = useState(!isWriteShape);
+  const panelBounds = usePanelBounds();
   const [, updateWorkspace] = useState(0);
   const [workspaceAnnotation, setWorkspaceAnnotation] = useState<{
     controller: EditorController;
@@ -339,6 +342,11 @@ export default function App() {
   const [match, setMatch] = useState({ index: 0, total: 0 });
   const [library, setLibrary] = useState<WorkspaceDocument[]>([]);
   const [history, setHistory] = useState<Snapshot[]>([]);
+  const [historyReview, setHistoryReview] = useState<{
+    older: Snapshot;
+    current: string;
+    token: { id: string; epoch: number };
+  }>();
   const [recoveries, setRecoveries] = useState<Recovery[]>([]);
   const [rename, setRename] = useState("");
   const editor = useRef<EditorController | null>(null);
@@ -1519,7 +1527,7 @@ export default function App() {
       // dismiss them and discard a draft title or other unsaved form changes.
       if (
         cmd &&
-        ["o", "f"].includes(e.key.toLowerCase()) &&
+        ["o", "f", "s"].includes(e.key.toLowerCase()) &&
         document.querySelector("dialog[open]")
       )
         return;
@@ -2147,7 +2155,11 @@ export default function App() {
           )}
         </div>
       )}
-      <div className={`workspace${novel ? " novel-mode" : ""}`}>
+      {!mobile && !workspaceEmpty && writingControls}
+      <div
+        ref={panelBounds}
+        className={`workspace${novel ? " novel-mode" : ""}`}
+      >
         {preferences.outline && !zen && !workspaceEmpty && (
           <>
             <aside
@@ -2288,7 +2300,6 @@ export default function App() {
               <ZenExitButton onExit={toggleZen} />
             </div>
           )}
-          {!mobile && !workspaceEmpty && writingControls}
           {searchOpen && (
             <div className="search-panel">
               <form
@@ -3267,12 +3278,13 @@ export default function App() {
       {dialog === "history" && (
         <Modal
           title="Version history"
-          eyebrow="LOCAL RECOVERY"
+          eyebrow="SAVED ON THIS DEVICE"
+          suspended={!!historyReview}
           onClose={() => setDialog(null)}
         >
           <p>
-            Earlier versions are kept while you work. Restoring opens a new
-            copy.
+            Compare a saved version with your current document and choose which
+            changes to keep.
           </p>
           <div className="version-list">
             {history.map((h) => (
@@ -3282,21 +3294,16 @@ export default function App() {
                   <small>{h.name}</small>
                 </span>
                 <button
-                  onClick={() =>
-                    void run(async () => {
-                      await session.open(
-                        h.screenplay,
-                        h.name.replace(/\.(fountain|md|markdown|txt)$/i, "") +
-                          (h.screenplay.metadata.format === "markdown"
-                            ? " restored.md"
-                            : " restored.fountain"),
-                      );
-                      file.current = undefined;
-                      setDialog(null);
-                    })
-                  }
+                  onClick={() => {
+                    const current = session.capture();
+                    setHistoryReview({
+                      older: h,
+                      current: serializeDocument(current.screenplay),
+                      token: session.token(),
+                    });
+                  }}
                 >
-                  Restore copy
+                  See changes
                 </button>
               </div>
             ))}
@@ -3307,6 +3314,23 @@ export default function App() {
             )}
           </div>
         </Modal>
+      )}
+      {historyReview && (
+        <VersionReview
+          older={serializeDocument(historyReview.older.screenplay)}
+          current={historyReview.current}
+          olderLabel={new Date(historyReview.older.createdAt).toLocaleString()}
+          onClose={() => setHistoryReview(undefined)}
+          onSave={async (content) => {
+            const reviewed = importScreenplay(content, snapshot.name);
+            await session.commitReviewed(
+              reviewed.screenplay,
+              historyReview.token,
+            );
+            setHistory(await workspace.snapshots(session.current.id));
+            tell("Saved a new version. Earlier versions are kept.");
+          }}
+        />
       )}
       {cloudDialog && isWriteShape && (
         <Modal title="Cloud storage" onClose={() => setCloudDialog(null)}>

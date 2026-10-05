@@ -1,4 +1,4 @@
-import { BeatBoard } from "./BeatBoard";
+import { SampleBeatSheet, SampleCharacterGantt } from "./PremiumStoryExamples";
 import { BeatGuide } from "./BeatGuide";
 import { premiumSample, sampleInsights as insights } from "./premiumSampleData";
 import "./premium-showcase.css";
@@ -118,16 +118,12 @@ export function PremiumSample({ feature }: { feature: PremiumFeature }) {
       data-sample-feature={feature}
     >
       {feature === "Insights" ? (
-        <SampleInsights />
+        <>
+          <SampleInsights />
+          <SampleCharacterGantt />
+        </>
       ) : feature === "Beat Sheet" ? (
-        <BeatBoard
-          doc={premiumSample}
-          onChange={noop}
-          onAssign={noop}
-          onRange={noop}
-          onExport={noop}
-          onExportCsv={noop}
-        />
+        <SampleBeatSheet />
       ) : (
         <div className="sample-guide">
           <BeatGuide

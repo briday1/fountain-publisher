@@ -3,7 +3,6 @@ import {
   ArrowLeft,
   Download,
   History,
-  RotateCcw,
   RefreshCw,
   FileText,
 } from "lucide-react";
@@ -11,9 +10,9 @@ import {
   libraryRequest,
   formatBytes,
   formatModified,
-  LibraryError,
 } from "../storage/writeshapeLibrary";
 import type { LibraryFile, LibraryVersion } from "../storage/writeshapeLibrary";
+import { VersionReview } from "./VersionReview";
 import { VersionComparison } from "./VersionComparison";
 import { downloadFile } from "../storage/files";
 export function LibraryHistory({
@@ -39,13 +38,12 @@ export function LibraryHistory({
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [confirm, setConfirm] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
   const [reload, setReload] = useState(0);
   useEffect(() => {
     let active = true;
     setLoading(true);
     setError("");
-    setConfirm(false);
     libraryRequest(`/${file.id}/versions`)
       .then((data) => {
         if (!active) return;
@@ -72,20 +70,23 @@ export function LibraryHistory({
     setPreview(undefined);
     setBaseline(undefined);
     setComparisonLoading(!!selected);
-    setConfirm(false);
     if (selected)
       libraryRequest(`/${file.id}/versions/${encodeURIComponent(selected)}`)
         .then(async (data: LibraryVersion) => {
           if (!active) return;
           setPreview(data);
-          const previous = versions
-            .filter((v) => v.revision < data.revision)
-            .sort((a, b) => b.revision - a.revision)[0];
-          if (previous) {
-            const older = await libraryRequest(
-              `/${file.id}/versions/${encodeURIComponent(previous.id)}`,
-            );
-            if (active) setBaseline(older);
+          const latest = await libraryRequest(`/${file.id}`);
+          if (active) {
+            setCurrent(latest);
+            setBaseline({
+              id: `${latest.id}:${latest.revision}`,
+              revision: latest.revision,
+              name: latest.name,
+              content: latest.content,
+              current: true,
+              savedAt: latest.updated,
+              bytes: latest.bytes,
+            });
           }
         })
         .catch((e) => {
@@ -98,28 +99,18 @@ export function LibraryHistory({
       active = false;
     };
   }, [file.id, selected, versions]);
-  async function restore() {
-    if (!preview) return;
-    setBusy(true);
-    setError("");
-    try {
-      const restored = await libraryRequest(`/${file.id}/restore`, {
-        versionId: preview.id,
-        revision: current.revision,
-      });
-      setNotice(
-        `Version ${preview.revision} restored as version ${restored.revision}. Your open draft is unchanged.`,
-      );
-      setSelected(restored.versionId);
-      setReload((n) => n + 1);
-      onChanged();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Restore failed.");
-      if (e instanceof LibraryError && e.code === "REVISION_CONFLICT")
-        setConfirm(false);
-    } finally {
-      setBusy(false);
-    }
+  async function saveReview(content: string) {
+    const saved = await libraryRequest("", {
+      ...current,
+      content,
+      kind: "file",
+    });
+    setNotice(
+      `Saved as version ${saved.revision}. All earlier versions are kept. Your open draft is unchanged.`,
+    );
+    setSelected(saved.versionId);
+    setReload((n) => n + 1);
+    onChanged();
   }
   return (
     <section className="library-history" aria-label="Cloud version history">
@@ -218,16 +209,13 @@ export function LibraryHistory({
             )}
           </div>
           {preview && !comparisonLoading ? (
-            <VersionComparison novel={/\.(md|markdown)$/i.test(preview.name)}
+            <VersionComparison
+              novel={/\.(md|markdown)$/i.test(preview.name)}
               key={`${preview.id}:${baseline?.id || "first"}`}
-              older={baseline?.content ?? preview.content ?? ""}
-              newer={preview.content ?? ""}
-              olderLabel={
-                baseline
-                  ? `Version ${baseline.revision} · ${formatModified(baseline.savedAt)}`
-                  : "First saved version"
-              }
-              newerLabel={`Version ${preview.revision} · ${formatModified(preview.savedAt)}`}
+              older={preview.content ?? ""}
+              newer={baseline?.content ?? ""}
+              olderLabel={`Version ${preview.revision} · ${formatModified(preview.savedAt)}`}
+              newerLabel={`Current version ${baseline?.revision || current.revision}`}
             />
           ) : (
             <p role="status">Loading saved comparison…</p>
@@ -240,70 +228,49 @@ export function LibraryHistory({
         </div>
       </div>
       <div className="library-history-footer">
-        {confirm ? (
-          <div
-            className="library-restore-confirm"
-            role="group"
-            aria-label="Confirm restore"
-          >
-            <p>
-              Restore version {preview?.revision} as a new version? Current
-              version {current.revision} and all history will be kept. Your open
-              draft stays unchanged.
-            </p>
-            <div>
-              <button disabled={busy} onClick={() => setConfirm(false)}>
-                Cancel
-              </button>
-              <button
-                className="primary"
-                disabled={busy || loading}
-                onClick={() => void restore()}
-              >
-                {busy ? "Restoring…" : "Confirm restore"}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <p>
-              {canWrite
-                ? "Restoring saves a new version. Nothing is erased."
-                : "Your versions are available to read and download. Premium is required to restore."}
-            </p>
-            <div>
-              <button
-                disabled={
-                  busy ||
-                  loading ||
-                  !preview ||
-                  versions.find((v) => v.id === preview.id)?.current ||
-                  !canWrite
-                }
-                onClick={() => setConfirm(true)}
-              >
-                <RotateCcw size={15} />
-                Restore as new version
-              </button>
-              <button
-                className="primary"
-                disabled={busy || loading}
-                onClick={() => {
-                  setBusy(true);
-                  void libraryRequest("/" + file.id)
-                    .then(onOpen)
-                    .catch((e) => {
-                      setError(e.message);
-                      setBusy(false);
-                    });
-                }}
-              >
-                Open current file
-              </button>
-            </div>
-          </>
-        )}
+        <p>
+          Compare with the current version, choose what to keep, and save a new
+          version.
+        </p>
+        <button
+          className="primary"
+          disabled={
+            busy ||
+            loading ||
+            comparisonLoading ||
+            !preview ||
+            !baseline ||
+            preview.id === baseline.id ||
+            !canWrite
+          }
+          onClick={() => setReviewing(true)}
+        >
+          See changes
+        </button>
+        <button
+          disabled={busy || loading}
+          onClick={() => {
+            setBusy(true);
+            void libraryRequest("/" + file.id)
+              .then(onOpen)
+              .catch((e) => {
+                setError(e.message);
+                setBusy(false);
+              });
+          }}
+        >
+          Open current file
+        </button>
       </div>
+      {reviewing && preview && baseline && (
+        <VersionReview
+          older={preview.content || ""}
+          current={baseline.content || ""}
+          olderLabel={`Version ${preview.revision}`}
+          onSave={saveReview}
+          onClose={() => setReviewing(false)}
+        />
+      )}
     </section>
   );
 }

@@ -9,12 +9,16 @@ export const accessCodeOwner = (account, env) =>
 export async function withComplimentaryAccess(account, env) {
   if (!account) return account;
   const grant = await env.DB.prepare(
-    `SELECT MAX(r.expires_at) AS until FROM access_redemptions r
- JOIN access_codes c ON c.id=r.code_id WHERE r.account_id=? AND c.revoked_at IS NULL AND r.expires_at>?`,
+    `SELECT MAX(r.expires_at) AS until, MAX(c.indefinite) AS indefinite FROM access_redemptions r
+ JOIN access_codes c ON c.id=r.code_id WHERE r.account_id=? AND c.revoked_at IS NULL AND (c.indefinite=1 OR r.expires_at>?)`,
   )
     .bind(account.id, now())
     .first();
-  return { ...account, complimentary_until: grant?.until || 0 };
+  return {
+    ...account,
+    complimentary_until: grant?.until || 0,
+    complimentary_indefinite: grant?.indefinite === 1,
+  };
 }
 function normalizeCode(value) {
   if (typeof value !== "string" || !/^[A-Za-z0-9-]{8,48}$/.test(value.trim()))
@@ -64,15 +68,15 @@ export async function accessCodeRoutes(request, env, account) {
     // retries idempotent, including competing requests from another device.
     await env.DB.prepare(
       `INSERT OR IGNORE INTO access_redemptions(code_id,account_id,granted_at,expires_at)
-   SELECT c.id,?,?,?+c.duration_days*86400 FROM access_codes c WHERE c.code_hash=?
+   SELECT c.id,?,?,CASE WHEN c.indefinite=1 THEN 0 ELSE ?+c.duration_days*86400 END FROM access_codes c WHERE c.code_hash=?
    AND c.revoked_at IS NULL AND c.expires_at>? AND
-   (SELECT COUNT(*) FROM access_redemptions r WHERE r.code_id=c.id)<c.max_redemptions`,
+   c.total_redemptions<c.max_redemptions`,
     )
       .bind(account.id, time, time, hashed, time)
       .run();
     const grant = await env.DB.prepare(
-      `SELECT r.expires_at FROM access_redemptions r JOIN access_codes c ON c.id=r.code_id
-   WHERE c.code_hash=? AND r.account_id=? AND c.revoked_at IS NULL AND r.expires_at>?`,
+      `SELECT r.expires_at,c.indefinite FROM access_redemptions r JOIN access_codes c ON c.id=r.code_id
+   WHERE c.code_hash=? AND r.account_id=? AND c.revoked_at IS NULL AND (c.indefinite=1 OR r.expires_at>?)`,
     )
       .bind(hashed, account.id, time)
       .first();
@@ -81,15 +85,18 @@ export async function accessCodeRoutes(request, env, account) {
         400,
         "This code is invalid, expired, revoked or fully redeemed.",
       );
-    return json({ ok: true, expiresAt: grant.expires_at });
+    return json({
+      ok: true,
+      expiresAt: grant.indefinite ? null : grant.expires_at,
+    });
   }
   if (!accessCodeOwner(account, env))
     throw new HttpError(403, "Only the account owner can manage access codes.");
   if (path === "/api/access-codes" && request.method === "GET") {
     const codes = await env.DB.prepare(
-      `SELECT c.id,c.label,c.duration_days AS durationDays,c.expires_at AS expiresAt,
+      `SELECT c.id,c.label,CASE WHEN c.indefinite=1 THEN NULL ELSE c.duration_days END AS durationDays,c.expires_at AS expiresAt,
    c.max_redemptions AS maxRedemptions,c.revoked_at AS revokedAt,c.created,
-   (SELECT COUNT(*) FROM access_redemptions r WHERE r.code_id=c.id) AS redemptions
+   c.total_redemptions AS redemptions
    FROM access_codes c ORDER BY c.created DESC,c.id LIMIT 200`,
     ).all();
     return json({ codes: codes.results });
@@ -102,9 +109,10 @@ export async function accessCodeRoutes(request, env, account) {
       !data.label.trim() ||
       data.label.length > 80 ||
       /[\x00-\x1f]/.test(data.label) ||
-      !Number.isInteger(data.durationDays) ||
-      data.durationDays < 1 ||
-      data.durationDays > 3650 ||
+      (data.durationDays !== null &&
+        (!Number.isInteger(data.durationDays) ||
+          data.durationDays < 1 ||
+          data.durationDays > 3650)) ||
       !Number.isInteger(data.maxRedemptions) ||
       data.maxRedemptions < 1 ||
       data.maxRedemptions > 10000 ||
@@ -114,7 +122,7 @@ export async function accessCodeRoutes(request, env, account) {
     )
       throw new HttpError(
         400,
-        "Choose a label, 1–3650 access days, 1–10,000 uses, and a future redemption deadline within ten years.",
+        "Choose a name, 1–3650 days or no end date, 1–10,000 uses, and a future redemption deadline within ten years.",
       );
     const code = data.code
       ? normalizeCode(data.code)
@@ -126,14 +134,15 @@ export async function accessCodeRoutes(request, env, account) {
     const hashed = await codeHash(code, env),
       id = crypto.randomUUID();
     const inserted = await env.DB.prepare(
-      `INSERT OR IGNORE INTO access_codes(id,label,code_hash,duration_days,expires_at,max_redemptions,created_by,created)
-   VALUES(?,?,?,?,?,?,?,?)`,
+      `INSERT OR IGNORE INTO access_codes(id,label,code_hash,duration_days,indefinite,expires_at,max_redemptions,created_by,created)
+   VALUES(?,?,?,?,?,?,?,?,?)`,
     )
       .bind(
         id,
         data.label.trim(),
         hashed,
-        data.durationDays,
+        data.durationDays ?? 1,
+        data.durationDays === null ? 1 : 0,
         data.expiresAt,
         data.maxRedemptions,
         account.id,

@@ -300,3 +300,53 @@ test("ordinary grant recipient can save then download after revocation; other ac
     false,
   );
 });
+
+test("indefinite Premium is claimed once, survives the claim deadline and remains revocable", async () => {
+  const h = setup();
+  const c = await h.create({ durationDays: null });
+  const first = await (
+    await h.route("alice", "/redeem", { code: c.code })
+  ).json();
+  assert.equal(first.expiresAt, null);
+  h.env.sql
+    .prepare("UPDATE access_codes SET expires_at=1 WHERE id=?")
+    .run(c.id);
+  const account = await withComplimentaryAccess(h.account("alice"), h.env);
+  assert.equal(account.complimentary_indefinite, true);
+  assert.equal(account.complimentary_until, 0);
+  assert.equal(premium(account), true);
+  assert.deepEqual(
+    await (await h.route("alice", "/redeem", { code: c.code })).json(),
+    first,
+  );
+  await assert.rejects(
+    h.route("bob", "/redeem", { code: c.code }),
+    (e) => e.status === 400,
+  );
+  const listing = await (await h.route("owner", "")).json();
+  assert.equal(listing.codes[0].durationDays, null);
+  assert.equal(listing.codes[0].redemptions, 1);
+  const { accountRoutes } = await import("./accounts.mjs");
+  const state = await (
+    await accountRoutes(request("/api/account"), h.env, account, false)
+  ).json();
+  assert.equal(state.premium, true);
+  assert.equal(state.account.complimentaryIndefinite, true);
+  // A shorter code never replaces the existing indefinite entitlement.
+  await h.create({ code: "SHORTER-CODE", durationDays: 7 });
+  await h.route("alice", "/redeem", { code: "SHORTER-CODE" });
+  assert.equal(
+    (await withComplimentaryAccess(h.account("alice"), h.env))
+      .complimentary_indefinite,
+    true,
+  );
+  await h.route("owner", "/revoke", { id: c.id });
+  const remaining = await withComplimentaryAccess(h.account("alice"), h.env);
+  assert.equal(remaining.complimentary_indefinite, false);
+  assert.equal(premium(remaining), true);
+  h.env.sql.prepare("UPDATE access_redemptions SET expires_at=1").run();
+  assert.equal(
+    premium(await withComplimentaryAccess(h.account("alice"), h.env)),
+    false,
+  );
+});

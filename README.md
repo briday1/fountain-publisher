@@ -6,7 +6,7 @@ Fountain Publisher is a screenplay editor built around a continuous, formatted w
 
 The application lives in [`beta/`](beta/). That directory name is retained for repository continuity; `main` publishes it as the production application. Root commands and commands inside `beta/` use this same editor and PDF engine. The previous Python application, Screenplain renderer, and Python command-line compiler have been retired.
 
-Every release includes third-party copyright notices and full license terms in `licenses.html` and `THIRD_PARTY_NOTICES.txt`, accessible through Help and cached with the installed app. These are part of the distributed application, independent of repository visibility. See [dependency licensing](beta/docs/third-party-licenses.md).
+Every release includes third-party copyright notices and full license terms in `licenses.html` and `THIRD_PARTY_NOTICES.txt`, cached with the installed app. These are part of the distributed application, independent of repository visibility. See [dependency licensing](beta/docs/third-party-licenses.md).
 
 ## Run locally
 

@@ -39,6 +39,8 @@ interface Storage {
   delete(key: string): Promise<unknown>;
   transaction<T>(operation: (storage: Storage) => Promise<T>): Promise<T>;
   setAlarm(time: number): Promise<void>;
+  deleteAlarm?(): Promise<void>;
+  deleteAll?(): Promise<void>;
 }
 export interface LiveRoomContext {
   storage: Storage;
@@ -325,6 +327,48 @@ export class LiveScreenplayRoom {
     });
     this.queue = task.catch(() => {});
     return task;
+  }
+
+  protected storedFileId() {
+    return this.run(async () => this.meta?.fileId);
+  }
+  /** Internal maintenance only; callers must verify an account-deletion lock. */
+  protected purgeStoredRoom(
+    preserveUnsaved: boolean,
+    checkpointAccess?: (enabled: boolean) => void,
+  ) {
+    return this.run(async () => {
+      if (
+        preserveUnsaved &&
+        this.meta &&
+        this.meta.revision > this.meta.savedRevision
+      ) {
+        if (!this.meta.checkpointCookie) throw new Error("Uncheckpointed room");
+        checkpointAccess?.(true);
+        try {
+          const auth = await this.drive.authorize(
+            this.meta.fileId,
+            this.meta.checkpointCookie,
+          );
+          await this.checkpoint(auth);
+        } finally {
+          checkpointAccess?.(false);
+        }
+      }
+      for (const socket of this.context.getWebSockets())
+        socket.close(
+          1008,
+          "Account data removed. Reopen this document to reconnect.",
+        );
+      await this.context.storage.deleteAlarm?.();
+      if (!this.context.storage.deleteAll)
+        throw new Error("Complete room cleanup is unavailable");
+      await this.context.storage.deleteAll();
+      this.document?.destroy();
+      this.document = null;
+      this.meta = null;
+      this.chunks = 0;
+    });
   }
 
   private async persist(document: Y.Doc, meta: RoomMeta) {

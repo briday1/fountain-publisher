@@ -265,7 +265,7 @@ export function createFileProviders(options: {
         label: root?.name || "Local folder",
         message: directorySupported()
           ? "Choose a folder on this device. Local files do not sync across devices."
-          : "This browser supports opening files and downloading copies. Folder autosave is unavailable.",
+          : "Your writing autosaves on this device. Open it again below; download a copy when you want a separate file in Files or another app.",
         writable: true,
       };
     },

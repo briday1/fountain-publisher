@@ -16,6 +16,12 @@
   --border: #ced1d3;
   --accent: #3974c2;
   --accent-soft: #e3ecf8;
+  --accent-contrast: var(--panel);
+  --accent-secondary: #a383ae;
+  --accent-tertiary: #b58b58;
+  --chart-a: #799bb6;
+  --chart-b: #b191b9;
+  --chart-c: #91a37b;
   --paper: #fff;
   --paper-ink: #151719;
   --shadow: 0 8px 30px #20242620;
@@ -85,6 +91,94 @@
   --paper: #fffaef;
   --paper-ink: #3b3328;
   --line: #bfb5a4;
+}
+:root[data-theme="sage"] {
+  color-scheme: light;
+  --bg: #d8e0d7;
+  --panel: #e9eee5;
+  --surface: #f1f4ed;
+  --raised: #fafcf6;
+  --ink: #293a30;
+  --muted: #596c5e;
+  --border: #bdccba;
+  --accent: #38634c;
+  --accent-soft: #d5e5d5;
+  --accent-contrast: #ffffff;
+  --accent-secondary: #94573f;
+  --accent-tertiary: #6e5a82;
+  --chart-a: #38634c;
+  --chart-b: #94573f;
+  --chart-c: #6e5a82;
+  --paper: #fcfdf8;
+  --paper-ink: #29372e;
+  --line: #a6bba5;
+  --shadow: 0 9px 36px #243a2c26;
+}
+:root[data-theme="rose"] {
+  color-scheme: light;
+  --bg: #e4d7dc;
+  --panel: #f0e6eb;
+  --surface: #f7f0f3;
+  --raised: #fff9fc;
+  --ink: #41303d;
+  --muted: #776171;
+  --border: #d3bbc9;
+  --accent: #80516f;
+  --accent-soft: #eddae5;
+  --accent-contrast: #ffffff;
+  --accent-secondary: #3c716d;
+  --accent-tertiary: #936339;
+  --chart-a: #80516f;
+  --chart-b: #3c716d;
+  --chart-c: #936339;
+  --paper: #fffafb;
+  --paper-ink: #3f3038;
+  --line: #c3a7b8;
+  --shadow: 0 9px 36px #4a283d25;
+}
+:root[data-theme="dusk"] {
+  color-scheme: dark;
+  --bg: #1c1d30;
+  --panel: #25263b;
+  --surface: #2e3047;
+  --raised: #393b54;
+  --ink: #eeeaf5;
+  --muted: #b5b1cb;
+  --border: #4a4b65;
+  --accent: #bcb0f3;
+  --accent-soft: #403951;
+  --accent-contrast: #242037;
+  --accent-secondary: #e6ad90;
+  --accent-tertiary: #8fc9be;
+  --chart-a: #bcb0f3;
+  --chart-b: #e6ad90;
+  --chart-c: #8fc9be;
+  --paper: #262638;
+  --paper-ink: #eeeaf2;
+  --line: #44455f;
+  --shadow: 0 9px 36px #09091166;
+}
+:root[data-theme="ocean"] {
+  color-scheme: dark;
+  --bg: #12282e;
+  --panel: #1a343c;
+  --surface: #23414a;
+  --raised: #2d4e58;
+  --ink: #e5f1ee;
+  --muted: #a4c2c3;
+  --border: #41636a;
+  --accent: #90d1c5;
+  --accent-soft: #2b514f;
+  --accent-contrast: #14332f;
+  --accent-secondary: #eeac96;
+  --accent-tertiary: #c2bddf;
+  --chart-a: #90d1c5;
+  --chart-b: #eeac96;
+  --chart-c: #c2bddf;
+  --paper: #1b343b;
+  --paper-ink: #e7f0ed;
+  --line: #385c64;
+  --shadow: 0 9px 36px #06191e66;
 }
 * {
   box-sizing: border-box;
@@ -199,7 +293,7 @@ hr {
 .primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--panel);
+  color: var(--accent-contrast);
   font-weight: 600;
 }
 .primary:hover {
@@ -541,13 +635,13 @@ hr {
   color: var(--accent);
 }
 .element-colors p[data-kind="character"] {
-  color: #a383ae;
+  color: var(--accent-secondary);
 }
 .element-colors p[data-kind="parenthetical"] {
   color: var(--muted);
 }
 .element-colors p[data-kind="transition"] {
-  color: #b58b58;
+  color: var(--accent-tertiary);
 }
 
 .title-preview {
@@ -619,16 +713,16 @@ hr {
   border-radius: 5px;
   padding: 14px 5px 11px;
   text-align: center;
-  background: color-mix(in srgb, #799bb6 18%, var(--panel));
-  color: color-mix(in srgb, #799bb6 60%, var(--ink));
+  background: color-mix(in srgb, var(--chart-a) 18%, var(--panel));
+  color: color-mix(in srgb, var(--chart-a) 60%, var(--ink));
 }
 .metrics > div:nth-child(2) {
-  background: color-mix(in srgb, #b191b9 18%, var(--panel));
-  color: color-mix(in srgb, #b191b9 60%, var(--ink));
+  background: color-mix(in srgb, var(--chart-b) 18%, var(--panel));
+  color: color-mix(in srgb, var(--chart-b) 60%, var(--ink));
 }
 .metrics > div:nth-child(3) {
-  background: color-mix(in srgb, #91a37b 18%, var(--panel));
-  color: color-mix(in srgb, #91a37b 60%, var(--ink));
+  background: color-mix(in srgb, var(--chart-c) 18%, var(--panel));
+  color: color-mix(in srgb, var(--chart-c) 60%, var(--ink));
 }
 .metrics strong {
   display: block;
@@ -663,13 +757,13 @@ hr {
 .balance-bar {
   height: 8px;
   border-radius: 3px;
-  background: #bec5ad;
+  background: var(--chart-c);
   overflow: hidden;
 }
 .balance-bar span {
   display: block;
   height: 100%;
-  background: #7c9cb9;
+  background: var(--chart-a);
 }
 .chart-key {
   display: flex;
@@ -687,11 +781,11 @@ hr {
   width: 6px;
   height: 6px;
   display: block;
-  background: #7c9cb9;
+  background: var(--chart-a);
   border-radius: 2px;
 }
 .chart-key span + span i {
-  background: #bec5ad;
+  background: var(--chart-c);
 }
 .character-row {
   display: block;
@@ -2585,4 +2679,149 @@ hr {
   .writeshape-account .account-profile {
     padding: 16px;
   }
+}
+
+/* Code entry is a single, optional action in the profile. */
+.account-code-entry {
+  margin: 0 0 16px;
+}
+.account-code-toggle {
+  padding: 6px 0;
+  color: var(--accent);
+  border: 0;
+  background: transparent;
+}
+.account-code-toggle:hover {
+  background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.account-code-entry form {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+.account-code-entry label {
+  flex: 1;
+  min-width: 0;
+}
+.account-code-entry label,
+.access-code-manager label {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+}
+.account-code-entry input {
+  width: 100%;
+}
+.account-code-entry form button {
+  align-self: stretch;
+  margin-top: 22px;
+}
+.account-code-entry p {
+  color: var(--accent);
+  margin: 8px 0;
+}
+.account-plan-end {
+  color: var(--muted);
+  font-size: 12px;
+  margin-left: 10px;
+  white-space: nowrap;
+}
+.access-code-manager form {
+  display: grid;
+  gap: 14px;
+}
+.access-code-manager form > button {
+  justify-self: start;
+}
+.access-code-options > label {
+  margin: 12px 0;
+}
+.access-code-manager .account-included {
+  margin-top: 16px;
+}
+.theme-palette {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 0 0 12px;
+}
+.theme-palette span {
+  width: 24px;
+  height: 8px;
+  border-radius: 8px;
+  background: var(--accent);
+}
+.theme-palette span:nth-child(2) {
+  background: var(--accent-secondary);
+}
+.theme-palette span:nth-child(3) {
+  background: var(--accent-tertiary);
+}
+.theme-palette span:nth-child(4) {
+  background: var(--paper);
+  border: 1px solid var(--border);
+}
+
+.account-cancellation form > label {
+  display: grid;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.account-cancellation textarea {
+  width: 100%;
+}
+.account-cancellation form > .muted {
+  margin-top: 8px;
+}
+.account-cancel-button {
+  margin-bottom: 12px;
+}
+.account-cancellation-status {
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+/* Keep document controls and tabs clear of both side panels at every width. */
+.workspace {
+  position: relative;
+}
+.workspace > .outline-panel,
+.workspace > .insights-panel,
+.workspace > .panel-resizer {
+  margin-top: var(--panel-top, 37px);
+}
+@media (max-width: 950px) {
+  .workspace > .outline-panel {
+    top: var(--panel-top, 37px);
+    bottom: 0;
+    margin-top: 0;
+  }
+}
+@media (max-width: 720px) {
+  .workspace > .insights-panel {
+    top: var(--panel-top, 37px);
+    bottom: 0;
+    margin-top: 0;
+  }
+}
+.delete-confirmation {
+  display: grid;
+  gap: 8px;
+  margin: 24px 0;
+}
+.account-delete .danger,
+button.danger {
+  color: var(--danger, #a33c3c);
+  border-color: currentColor;
+}
+.files-device-drafts {
+  flex: 0 0 auto;
+}
+.files-device-drafts .library-list {
+  max-height: 38dvh;
+  overflow: auto;
 }

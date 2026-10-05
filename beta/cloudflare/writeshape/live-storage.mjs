@@ -63,6 +63,15 @@ export class WriteShapeLiveStorage {
       this.env,
     );
     if (!account) throw new HttpError(401, "Sign in again.");
+    if (
+      !this.deletionCheckpoint &&
+      (await this.env.DB.prepare(
+        "SELECT account_id FROM deleting_accounts WHERE account_id=?",
+      )
+        .bind(account.id)
+        .first())
+    )
+      throw new HttpError(403, "Account deletion is pending.");
     const [, provider, id] = match;
     let file, canEdit;
     if (provider === "drive") {
@@ -111,6 +120,15 @@ export class WriteShapeLiveStorage {
       canEdit = !!(own || edit) && premium(owner);
       file = { ...file, etag: String(file.revision), canEdit };
     }
+    if (!this.deletionCheckpoint)
+      await this.env.DB.batch([
+        this.env.DB.prepare(
+          "INSERT OR IGNORE INTO live_room_registry(file_id) VALUES(?)",
+        ).bind(fileId),
+        this.env.DB.prepare(
+          "INSERT OR IGNORE INTO live_room_members(file_id,account_id) SELECT ?,? WHERE NOT EXISTS(SELECT 1 FROM deleting_accounts WHERE account_id=?)",
+        ).bind(fileId, account.id, account.id),
+      ]);
     return {
       self: {
         id: account.id,

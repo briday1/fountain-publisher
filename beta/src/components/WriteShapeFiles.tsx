@@ -171,6 +171,16 @@ export function WriteShapeFiles(props: WriteShapeFilesProps) {
         aria-labelledby={`${id}-${destination}`}
         tabIndex={0}
       >
+        {destination === "local" && props.deviceDrafts && (
+          <details
+            className="files-device-drafts"
+            aria-label="Autosaved documents and recovery"
+            open
+          >
+            <summary>Autosaved on this device</summary>
+            {props.deviceDrafts}
+          </details>
+        )}
         {destination === "writeshape" ? (
           !props.account.authenticated ? (
             <LocationIntro
@@ -227,15 +237,6 @@ export function WriteShapeFiles(props: WriteShapeFilesProps) {
                 : props.onDownloadLocal
             }
           />
-        )}
-        {destination === "local" && props.deviceDrafts && (
-          <details
-            className="files-device-drafts"
-            aria-label="Browser drafts and recovery"
-          >
-            <summary>Saved in this browser</summary>
-            {props.deviceDrafts}
-          </details>
         )}
       </div>
     </Modal>
@@ -570,7 +571,9 @@ function DestinationBrowser({
           title={
             drive
               ? "Your screenplays in Google Drive"
-              : "Choose a folder on this device"
+              : status?.available
+                ? "Choose a folder on this device"
+                : "Autosaved on this device"
           }
           description={
             status?.message ||
@@ -578,7 +581,7 @@ function DestinationBrowser({
               ? "Connect Google Drive to browse your folders, screenplays and Markdown books here."
               : status?.available
                 ? "Choose a folder once, then browse its screenplays and save directly from WriteShape."
-                : "Folder browsing is not supported in this browser. You can still open a file or download your screenplay.")
+                : "Your writing autosaves here. Download a copy to keep a separate file in Files or another app.")
           }
           action={
             drive ? (

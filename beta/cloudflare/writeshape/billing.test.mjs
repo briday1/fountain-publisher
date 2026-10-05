@@ -110,6 +110,12 @@ function setup() {
   const stripe = {
     webhooks: actualStripe.webhooks,
     subscriptions: {
+      update: async (id, params, options) => {
+        calls.push(["cancel", id, params, options]);
+        const subscription = subscriptions.find((s) => s.id === id);
+        Object.assign(subscription, params);
+        return { ...subscription };
+      },
       list: ({ customer }) => {
         listCalls++;
         return (async function* () {
@@ -946,4 +952,58 @@ test("flexible portal cancellation with cancel_at but no period-end flag is disp
   assert.equal(summary.canChange, false);
   assert.equal(summary.canCancel, false);
   assert.match(summary.changeReason, /Cancellation is scheduled/);
+});
+
+test("direct cancellation stops renewal, keeps paid access and sends optional feedback once", async () => {
+  const f = setup();
+  f.setSubscriptions([sub()]);
+  const emails = [];
+  f.env.SUPPORT_EMAIL = { send: async (message) => emails.push(message) };
+  const requestId = crypto.randomUUID();
+  const cancel = () =>
+    billingRoutes(
+      request("/api/billing/cancel", {
+        requestId,
+        reason: "Less time to write",
+      }),
+      f.env,
+      f.account("alice"),
+      f.stripe,
+    );
+  const response = await cancel();
+  assert.equal(response.status, 200);
+  const summary = (await response.json()).billing;
+  assert.equal(summary.cancelAtPeriodEnd, true);
+  assert.equal(summary.canCancel, false);
+  assert.equal(premium(f.account("alice")), true);
+  await cancel();
+  assert.equal(f.calls.filter((c) => c[0] === "cancel").length, 1);
+  assert.equal(emails.length, 1);
+  assert.equal(emails[0].to, "writeshape-support@agentmail.to");
+  assert.match(emails[0].text, /Less time to write/);
+});
+test("email delivery failure is queued and never prevents successful cancellation", async () => {
+  const f = setup();
+  f.setSubscriptions([sub()]);
+  f.env.SUPPORT_EMAIL = {
+    send: async () => {
+      throw Error("mail unavailable");
+    },
+  };
+  const response = await billingRoutes(
+    request("/api/billing/cancel", {
+      requestId: crypto.randomUUID(),
+      reason: "",
+    }),
+    f.env,
+    f.account("alice"),
+    f.stripe,
+  );
+  assert.equal(response.status, 200);
+  const feedback = f.env.sql
+    .prepare("SELECT * FROM cancellation_feedback")
+    .get();
+  assert.ok(feedback.confirmed_at);
+  assert.equal(feedback.sent_at, null);
+  assert.ok(feedback.next_attempt > feedback.created);
 });
