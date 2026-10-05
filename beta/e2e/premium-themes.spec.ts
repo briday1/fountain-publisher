@@ -21,8 +21,8 @@ async function setup(page: Page) {
 }
 async function settings(page: Page) {
   const button = page.getByRole("button", { name: "Settings", exact: true });
-  if (!(await button.isVisible()))
-    await page.getByRole("button", { name: "File", exact: true }).click();
+  if (page.viewportSize()!.width <= 950)
+    await page.locator(".mobile-file-trigger").click();
   await button.click();
   return page.getByRole("dialog", { name: "Settings", exact: true });
 }
