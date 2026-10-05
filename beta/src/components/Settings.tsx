@@ -272,7 +272,7 @@ export function Settings({
             ["bookFont", "Book font", bookFonts],
           ] as const
         ).map(([key, label, choices]) => (
-          <div key={key} className="settings-field">
+          <div key={key} className="settings-field settings-font-field">
             <label>
               <span>{label}</span>
               <select

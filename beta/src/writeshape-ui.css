@@ -172,11 +172,23 @@
   :root[data-product="writeshape"] .settings-form > p {
     font-size: 12px;
   }
+  :root[data-product="writeshape"] .settings-font-field > label {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  :root[data-product="writeshape"] .settings-font-field select {
+    width: 100%;
+    max-width: none;
+  }
 }
 @media (max-width: 380px) {
-  :root[data-product="writeshape"] .settings-form > label:has(select),
+  :root[data-product="writeshape"]
+    .settings-form
+    > label:has(select):not(.workspace-background-setting),
   :root[data-product="writeshape"] .settings-field > label:has(select) {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
   }
   :root[data-product="writeshape"] .settings-form select {

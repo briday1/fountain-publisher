@@ -5,7 +5,7 @@
 }
 .premium-example .beat-board.beat-sheet-paper {
   width: 100%;
-  margin: 0;
+  margin: 0 auto;
   min-height: 0;
 }
 .modal.writeshape-plans {
@@ -273,6 +273,7 @@
 }
 .sample-story-outline {
   max-width: 340px;
+  margin: 0 auto;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -285,7 +286,8 @@
   background: transparent;
 }
 .sample-beat-sheet .beat-pacing {
-  margin-top: 24px;
+  max-width: 816px;
+  margin: 24px auto 0;
 }
 .sample-gantt {
   margin-top: 24px;
