@@ -408,6 +408,47 @@ it("WriteShape accounts collaborate on a Book through real D1, Worker and durabl
     expect(((await reopened.json()) as any).content).toContain(
       "Durable after close.",
     );
+    await db
+      .prepare(
+        "INSERT INTO maintenance_state VALUES('live_inventory_complete','1')",
+      )
+      .run();
+    const erased = await call("owner", "/api/account/delete", {
+      confirmation: "DELETE",
+    });
+    expect(erased.status, await erased.clone().text()).toBe(200);
+    expect(
+      await db.prepare("SELECT id FROM accounts WHERE id='owner'").first(),
+    ).toBeNull();
+    expect(
+      await db.prepare("SELECT id FROM items WHERE owner='owner'").first(),
+    ).toBeNull();
+    expect(
+      await db
+        .prepare("SELECT id FROM file_versions WHERE owner='owner'")
+        .first(),
+    ).toBeNull();
+    expect(
+      await db.prepare("SELECT file_id FROM live_room_registry").first(),
+    ).toBeNull();
+    expect((await call("writer", path + "/bootstrap", {})).status).toBe(404);
+    const rooms = (await runtime.getDurableObjectNamespace(
+      "LIVE_ROOMS",
+    )) as unknown as {
+      idFromName(name: string): unknown;
+      get(id: unknown): { fetch(request: Request): Promise<Response> };
+    };
+    await rooms.get(rooms.idFromName("writeshape-v1:" + room)).fetch(
+      new Request("https://room.internal/register-legacy", {
+        method: "POST",
+      }),
+    );
+    expect(
+      await db
+        .prepare("SELECT file_id FROM live_room_registry WHERE file_id=?")
+        .bind(room)
+        .first(),
+    ).toBeNull();
   } finally {
     sockets.forEach((ws) => {
       try {
@@ -649,6 +690,47 @@ it("WriteShape Drive rooms use independent encrypted connections and provider pe
     });
     expect(recovery.status).toBe(200);
     expect(await recovery.text()).not.toContain("Rejected");
+    await db
+      .prepare(
+        "INSERT INTO maintenance_state VALUES('live_inventory_complete','1')",
+      )
+      .run();
+    const beforeDeletion = await (
+      await remote.fetch("https://provider/control/status")
+    ).json();
+    const erased = await runtime.dispatchFetch(origin + "/api/account/delete", {
+      method: "POST",
+      headers: headers("owner"),
+      body: JSON.stringify({ confirmation: "DELETE" }),
+    });
+    expect(erased.status, await erased.clone().text()).toBe(200);
+    expect(
+      await (await remote.fetch("https://provider/control/status")).json(),
+    ).toEqual(beforeDeletion);
+    expect(
+      await db
+        .prepare(
+          "SELECT account_id FROM drive_connections WHERE account_id='owner'",
+        )
+        .first(),
+    ).toBeNull();
+    const rooms = (await runtime.getDurableObjectNamespace(
+      "LIVE_ROOMS",
+    )) as unknown as {
+      idFromName(name: string): unknown;
+      get(id: unknown): { fetch(request: Request): Promise<Response> };
+    };
+    await rooms.get(rooms.idFromName("writeshape-v1:" + room)).fetch(
+      new Request("https://room.internal/register-legacy", {
+        method: "POST",
+      }),
+    );
+    expect(
+      await db
+        .prepare("SELECT file_id FROM live_room_registry WHERE file_id=?")
+        .bind(room)
+        .first(),
+    ).toBeNull();
   } finally {
     sockets.forEach((ws) => {
       try {

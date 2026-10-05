@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { testDB, request } from "./test-db.mjs";
 import { accessCodeRoutes, withComplimentaryAccess } from "./access-codes.mjs";
+import { accountDeletionRoutes } from "./account-deletion.mjs";
 import { premium, googleAccount } from "./accounts.mjs";
 const future = () => Math.floor(Date.now() / 1000) + 86400;
 function setup() {
@@ -348,5 +349,29 @@ test("indefinite Premium is claimed once, survives the claim deadline and remain
   assert.equal(
     premium(await withComplimentaryAccess(h.account("alice"), h.env)),
     false,
+  );
+});
+
+test("deleting a claimant removes their personal redemption data without releasing a used code", async () => {
+  const h = setup();
+  const code = await h.create();
+  await h.route("alice", "/redeem", { code: code.code });
+  await accountDeletionRoutes(
+    request("/api/account/delete", { confirmation: "DELETE" }),
+    h.env,
+    h.account("alice"),
+  );
+  assert.equal(
+    h.env.sql.prepare("SELECT count(*) AS n FROM access_redemptions").get().n,
+    0,
+  );
+  assert.equal(
+    h.env.sql.prepare("SELECT total_redemptions FROM access_codes").get()
+      .total_redemptions,
+    1,
+  );
+  await assert.rejects(
+    h.route("bob", "/redeem", { code: code.code }),
+    (e) => e.status === 400,
   );
 });

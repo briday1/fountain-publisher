@@ -122,7 +122,7 @@ export function AccessCodeManager({
     <details
       className="account-section access-code-manager"
       onToggle={(e) => {
-        if (e.currentTarget.open) void load();
+        if (e.target === e.currentTarget && e.currentTarget.open) void load();
       }}
     >
       <summary>Manage codes</summary>

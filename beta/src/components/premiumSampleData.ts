@@ -64,6 +64,7 @@ premiumSample.metadata = {
       description: "Eli offers their father's gear; Mara must accept his help.",
       act: "Act II",
       color: "#c29ad0",
+      sceneId: scenes[1].id,
     },
     {
       id: "sample-return",
@@ -71,6 +72,7 @@ premiumSample.metadata = {
       description: "Together they turn the light toward the last boat.",
       act: "Act III",
       color: "#91b378",
+      sceneId: scenes[2].id,
     },
   ],
 };

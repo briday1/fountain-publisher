@@ -26,6 +26,53 @@ async function settings(page: Page) {
   await button.click();
   return page.getByRole("dialog", { name: "Settings", exact: true });
 }
+
+test("Premium shows the complete sample beat sheet, graph and character timeline", async ({
+  page,
+}, testInfo) => {
+  await setup(page);
+  await page.route("**/api/account", (route) =>
+    route.fulfill({
+      json: { account, premium: false, billingAvailable: false },
+    }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Explore Premium…", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: "WriteShape Premium",
+    exact: true,
+  });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator(".sample-beat-grid article")).toHaveCount(3);
+  await expect(
+    dialog.locator('[data-sample-feature="Beat Sheet"]'),
+  ).toHaveCount(1);
+  await expect(
+    dialog.locator('[data-sample-feature="Beat Guide"]'),
+  ).toHaveCount(0);
+  expect(
+    await dialog.locator(".sample-gantt svg rect").count(),
+  ).toBeGreaterThan(3);
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await dialog.locator(".sample-gantt").scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: testInfo.outputPath(`character-gantt-${width}.png`),
+    });
+    const sheet = dialog.locator(".sample-beat-sheet");
+    await sheet.scrollIntoViewIfNeeded();
+    const cards = (await sheet.locator(".sample-beat-grid").boundingBox())!;
+    const graph = (await sheet.locator("svg").boundingBox())!;
+    expect(graph.y).toBeGreaterThanOrEqual(cards.y + cards.height);
+    expect(graph.width).toBeLessThanOrEqual(width);
+    await page.screenshot({
+      path: testInfo.outputPath(`all-beats-${width}.png`),
+    });
+  }
+});
 for (const width of [390, 1024]) {
   test(`code applies Premium once and persists on reload at ${width}px`, async ({
     page,
@@ -181,6 +228,15 @@ test("new palettes coordinate UI colors, remain readable, and persist", async ({
     ).toBe(3);
     for (const ratio of colors.contrasts)
       expect(ratio).toBeGreaterThanOrEqual(4.5);
+    const heading = dialog.locator(".modal-header");
+    const headingTop = (await heading.boundingBox())!.y;
+    await dialog.evaluate((el) => {
+      el.scrollTop = 120;
+    });
+    expect(await dialog.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+    expect(
+      Math.abs((await heading.boundingBox())!.y - headingTop),
+    ).toBeLessThan(1);
     await dialog.getByRole("button", { name: "Close dialog" }).click();
     await page.screenshot({ path: testInfo.outputPath(`${theme}-editor.png`) });
   }
@@ -231,23 +287,37 @@ for (const width of [390, 834, 1280]) {
     const after = await header.boundingBox();
     expect(Math.abs(after!.y - before!.y)).toBeLessThan(1);
     await profile.getByRole("button", { name: "Close dialog" }).click();
-    const dialog = await settings(page);
-    // Settings control the same panels on desktop and touch layouts.
-    const outline = dialog.getByLabel("Show outline", { exact: true });
-    const insights = dialog.getByLabel("Show insights", { exact: true });
-    if (await outline.count()) await outline.check();
-    if (await insights.count()) await insights.check();
-    await dialog.getByRole("button", { name: "Close dialog" }).click();
-    const tabs = await page
-      .locator(".document-pane-header")
-      .first()
-      .boundingBox();
-    for (const selector of [".outline-panel", ".insights-panel"]) {
+    const mobile = width <= 950;
+    const controls = page
+      .locator(mobile ? ".app-header" : ".document-pane-header")
+      .first();
+    const bounds = (await controls.boundingBox())!;
+    for (const [selector, label] of [
+      [".outline-panel", "Outline"],
+      [".insights-panel", "Insights"],
+    ]) {
       const panel = page.locator(selector);
-      if (await panel.isVisible())
-        expect((await panel.boundingBox())!.y).toBeGreaterThanOrEqual(
-          tabs!.y + tabs!.height - 1,
-        );
+      if (mobile) {
+        await page.getByRole("button", { name: "File", exact: true }).click();
+        await page
+          .locator(".mobile-command-panel")
+          .getByRole("button", { name: label, exact: true })
+          .click();
+      } else if (!(await panel.isVisible())) {
+        await page
+          .getByRole("button", {
+            name: label === "Outline" ? "Toggle outline" : label,
+            exact: true,
+          })
+          .click();
+      }
+      await expect(panel).toBeVisible();
+      await expect
+        .poll(async () => (await panel.boundingBox())!.y)
+        .toBeGreaterThanOrEqual(bounds.y + bounds.height - 1);
+      await page.screenshot({
+        path: testInfo.outputPath(`${label.toLowerCase()}-${width}.png`),
+      });
     }
     await page.screenshot({ path: testInfo.outputPath(`panels-${width}.png`) });
   });
