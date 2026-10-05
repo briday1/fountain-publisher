@@ -8,7 +8,13 @@ import type {
   WriteShapeFilesProps,
 } from "../src/components/WriteShapeFiles";
 beforeAll(() => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  Object.assign(globalThis, {
+    IS_REACT_ACT_ENVIRONMENT: true,
+    ResizeObserver: class {
+      observe() {}
+      disconnect() {}
+    },
+  });
   HTMLDialogElement.prototype.showModal = function () {
     this.open = true;
   };
@@ -285,6 +291,13 @@ it("local Copy creates a separate file and keeps the browser and active draft op
     await act(async () =>
       h.node.querySelector<HTMLElement>('[role="option"]')!.click(),
     );
+    await act(async () =>
+      h.node
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Actions for Scene.fountain"]',
+        )!
+        .click(),
+    );
     await act(async () => button(h.node, "Copy").click());
     expect(
       h.node.querySelector<HTMLInputElement>('[aria-label="Copy name"]')?.value,
@@ -300,6 +313,44 @@ it("local Copy creates a separate file and keeps the browser and active draft op
     expect(h.node.querySelector('[role="status"]')?.textContent).toContain(
       "Created “Scene copy.fountain”",
     );
+  } finally {
+    await h.close();
+  }
+});
+
+it("local folders expose Copy and Delete in the item menu, and delete requires confirmation", async () => {
+  const local = provider();
+  const folder = { id: "folder", name: "Book", kind: "folder" as const };
+  local.list = vi.fn(async () => ({ items: [folder], breadcrumbs: [] }));
+  local.copy = vi.fn(async () => {});
+  local.remove = vi.fn(async () => {});
+  const h = await mount({ providers: { local, drive: provider() } });
+  const menu = () =>
+    h.node.querySelector<HTMLButtonElement>('[aria-label="Actions for Book"]')!;
+  try {
+    expect(h.node.querySelector(".library-actionbar")).toBeNull();
+    await act(async () => menu().click());
+    expect(
+      h.node.querySelector(".anchored-menu-popup")?.closest("dialog"),
+    ).not.toBeNull();
+    await act(async () => button(h.node, "Copy").click());
+    expect(
+      h.node.querySelector<HTMLInputElement>('[aria-label="Copy name"]')?.value,
+    ).toBe("Book copy");
+    await act(async () => button(h.node, "Create copy").click());
+    expect(local.copy).toHaveBeenCalledWith({
+      item: folder,
+      name: "Book copy",
+      parent: "",
+    });
+    await act(async () => menu().click());
+    await act(async () => button(h.node, "Delete").click());
+    expect(local.remove).not.toHaveBeenCalled();
+    expect(h.node.textContent).toContain("and everything inside it");
+    await act(async () => button(h.node, "Delete folder").click());
+    expect(local.remove).toHaveBeenCalledWith({ item: folder, parent: "" });
+    expect(local.open).not.toHaveBeenCalled();
+    expect(h.props.onClose).not.toHaveBeenCalled();
   } finally {
     await h.close();
   }

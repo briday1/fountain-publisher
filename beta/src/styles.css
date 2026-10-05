@@ -2450,3 +2450,139 @@ hr {
 .account-section[open] .account-section-chevron {
   transform: rotate(180deg);
 }
+
+/* The account opens as a personal profile, with billing in its own disclosure. */
+.modal.writeshape-account.wide {
+  width: min(540px, calc(100vw - 32px));
+}
+.writeshape-account > .modal-content {
+  padding: 26px 30px;
+}
+.writeshape-account .modal-header {
+  margin-bottom: 12px;
+}
+.writeshape-account .modal-header small {
+  display: none;
+}
+.writeshape-account .modal-header h2 {
+  font-size: 16px;
+  font-weight: 500;
+}
+.writeshape-account .account-heading {
+  flex-direction: column;
+  text-align: center;
+  gap: 14px;
+  padding: 16px 0 28px;
+  margin: 0;
+}
+.writeshape-account .account-heading > .account-avatar {
+  width: 80px;
+  height: 80px;
+  flex-basis: 80px;
+  font-size: 28px;
+  font-weight: 500;
+  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
+}
+.writeshape-account .account-identity h3 {
+  font-size: 25px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+.writeshape-account .account-identity p {
+  margin: 6px 0 12px;
+  font-size: 12px;
+}
+.writeshape-account .account-identity .account-badge {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 0;
+  color: var(--accent);
+  font-size: 10px;
+  padding: 5px 11px;
+}
+.writeshape-account .account-profile {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+.writeshape-account .account-profile h3 {
+  font-size: 14px;
+  font-weight: 550;
+  margin-bottom: 4px;
+}
+.writeshape-account .account-profile-hint {
+  color: var(--muted);
+  font-size: 11px;
+}
+.writeshape-account .account-profile-form {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  margin: 16px 0 0;
+}
+.writeshape-account .account-profile-form label {
+  font-size: 11px;
+  color: var(--muted);
+}
+.writeshape-account .account-profile-form input {
+  min-height: 42px;
+  font-size: 14px;
+  color: var(--ink);
+}
+.writeshape-account .account-profile-form button {
+  align-self: flex-end;
+  min-height: 36px;
+  font-size: 12px;
+  padding: 8px 14px;
+}
+.writeshape-account .account-section {
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+.writeshape-account .account-section-title {
+  align-items: center;
+  font-size: 13px;
+  min-height: 28px;
+}
+.writeshape-account .account-section > h3 {
+  font-size: 13px;
+  font-weight: 550;
+}
+.writeshape-account .account-section p {
+  color: var(--muted);
+  font-size: 11px;
+}
+.writeshape-account .account-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+.writeshape-account .account-footer p {
+  flex: 1 0 100%;
+  color: var(--muted);
+  font-size: 10px;
+  margin: 0 0 8px;
+}
+.writeshape-account .account-footer button {
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  padding: 6px 0;
+  min-height: 36px;
+}
+@media (max-width: 600px) {
+  .writeshape-account > .modal-content {
+    padding: 18px 20px;
+  }
+  .writeshape-account .account-heading {
+    padding-top: 8px;
+    gap: 12px;
+  }
+  .writeshape-account .account-profile {
+    padding: 16px;
+  }
+}

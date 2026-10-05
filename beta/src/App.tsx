@@ -16,7 +16,6 @@ import { WritingGoals } from "./components/WritingGoals";
 import { useWritingGoals } from "./components/useWritingGoals";
 import { WriteShapeFiles } from "./components/WriteShapeFiles";
 import { WriteShapeMark } from "./components/WriteShapeMark";
-import { AccountAvatar } from "./components/AccountAvatar";
 import { createFileProviders } from "./storage/fileProviders";
 import { destinationKey, destinationLabel } from "./storage/destinations";
 import { useDestinationSync } from "./hooks/useDestinationSync";
@@ -1768,14 +1767,7 @@ export default function App() {
           }
         >
           {isWriteShape ? (
-            mobile ? (
-              <AccountAvatar
-                name={account.state.account?.displayName}
-                email={account.state.account?.email}
-              />
-            ) : (
-              <WriteShapeMark size={28} />
-            )
+            <WriteShapeMark size={28} />
           ) : (
             <span className="brand-mark">F</span>
           )}
@@ -2075,21 +2067,6 @@ export default function App() {
           >
             <Download size={15} />
             <span>Save</span>
-          </button>
-        )}
-        {isWriteShape && !mobile && (
-          <button
-            className="account-trigger"
-            aria-label={accountId ? "Your account" : "Sign in to WriteShape"}
-            aria-haspopup="dialog"
-            title={account.state.account?.email || "Sign in to WriteShape"}
-            onClick={() => setAccountOpen(true)}
-          >
-            <AccountAvatar
-              name={account.state.account?.displayName}
-              email={account.state.account?.email}
-            />
-            <span>{accountId ? "Account" : "Sign in"}</span>
           </button>
         )}
       </header>

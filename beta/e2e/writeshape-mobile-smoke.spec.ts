@@ -550,17 +550,25 @@ test("mobile file browser selects downloads and renames without replacing the dr
   await page.getByRole("button", { name: "File", exact: true }).click();
   await page.getByRole("button", { name: "Files…", exact: true }).click();
   await page
-    .getByRole("checkbox", { name: "Select all visible files and folders" })
-    .check();
+    .getByRole("button", { name: "Folder actions", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Select all", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Folder actions", exact: true })
+    .click();
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Download selected", exact: true })
+    .click();
   expect((await downloadPromise).suggestedFilename()).toBe(
     "WriteShape-files.zip",
   );
   await page
     .getByRole("option", { name: "Fountain file: One.fountain" })
     .click();
-  await page.getByLabel("More file actions", { exact: true }).click();
+  await page
+    .getByRole("button", { name: "Actions for One.fountain", exact: true })
+    .click();
   await page.getByRole("button", { name: "Rename", exact: true }).click();
   await page
     .getByRole("textbox", { name: "New item name" })
@@ -571,6 +579,9 @@ test("mobile file browser selects downloads and renames without replacing the dr
   ).toBeVisible();
   await page
     .getByRole("option", { name: "Fountain file: Renamed.fountain" })
+    .click();
+  await page
+    .getByRole("button", { name: "Actions for Renamed.fountain", exact: true })
     .click();
   await page.getByRole("button", { name: "Copy", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Copy name" })).toHaveValue(
@@ -585,4 +596,121 @@ test("mobile file browser selects downloads and renames without replacing the dr
   await page.screenshot({ path: "test-results/writeshape-file-browser.png" });
   await page.getByRole("button", { name: "Close dialog" }).click();
   await expect(editor).toHaveText("Keep my active draft.");
+});
+
+test("Finder folder menus copy nested folders and move complete folders to Trash and back", async ({
+  page,
+}) => {
+  await page.route("**/api/account", (route) =>
+    route.fulfill({
+      json: {
+        account: {
+          id: "folder-owner",
+          email: "writer@example.test",
+          displayName: "Writer",
+          privateTester: true,
+          googleLinked: false,
+        },
+        premium: true,
+        privateMode: true,
+        googleAvailable: false,
+        billingAvailable: false,
+      },
+    }),
+  );
+  let copied = false;
+  const book = {
+    id: "book",
+    name: "Book",
+    parent: "",
+    kind: "folder",
+    revision: 1,
+  };
+  const copy = {
+    id: "book-copy",
+    name: "Book copy",
+    parent: "",
+    kind: "folder",
+    revision: 1,
+  };
+  await page.route("**/api/library**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/library/book/copy") {
+      expect(route.request().postDataJSON()).toMatchObject({
+        revision: 1,
+        name: "Book copy",
+        parent: "",
+      });
+      copied = true;
+      return route.fulfill({ json: copy });
+    }
+    if (url.pathname === "/api/library/book/manage") {
+      const input = route.request().postDataJSON();
+      expect(input.revision).toBe(book.revision);
+      book.parent = input.action === "trash" ? "__trash__" : input.parent;
+      book.revision++;
+      return route.fulfill({ json: book });
+    }
+    const parent = url.searchParams.get("parent") || "";
+    return route.fulfill({
+      json: {
+        items: [book, ...(copied ? [copy] : [])].filter(
+          (item) => item.parent === parent,
+        ),
+        breadcrumbs:
+          parent === "__trash__" ? [{ id: "__trash__", name: "Trash" }] : [],
+        canWrite: true,
+      },
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page.getByRole("button", { name: "Files…", exact: true }).click();
+  await expect(page.locator(".library-actionbar")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Actions for Book", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Copy", exact: true }).click();
+  await page.getByRole("button", { name: "Create copy", exact: true }).click();
+  await expect(
+    page.getByRole("option", { name: "Folder: Book copy", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Actions for Book", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Move to trash", exact: true })
+    .click();
+  await expect(
+    page.getByText("A folder and everything inside it will move together.", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Confirm move to trash", exact: true })
+    .click();
+  await expect(
+    page.getByRole("option", { name: "Folder: Book", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .locator(".library-sidebar")
+    .getByRole("button", { name: "Trash", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Actions for Book", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Restore / move", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Apply", exact: true }).click();
+  await page
+    .locator(".library-sidebar")
+    .getByRole("button", { name: "My Storage", exact: true })
+    .click();
+  await expect(
+    page.getByRole("option", { name: "Folder: Book", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("option", { name: "Folder: Book copy", exact: true }),
+  ).toBeVisible();
 });

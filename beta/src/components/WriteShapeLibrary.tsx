@@ -23,8 +23,8 @@ import {
   Pencil,
   FolderInput,
   Trash2,
-  X,
 } from "lucide-react";
+import { Menu } from "./Menu";
 import { Modal } from "./Modal";
 import { LibrarySharing, SharedWithMe } from "./LibrarySharing";
 import { LibraryHistory } from "./LibraryHistory";
@@ -63,27 +63,11 @@ export function WriteShapeLibrary({
   const [management, setManagement] = useState<
     "rename" | "move" | "copy" | "trash"
   >();
-  const actionsMenu = useRef<HTMLDetailsElement>(null);
-  useEffect(() => {
-    function outside(event: PointerEvent) {
-      if (!actionsMenu.current?.contains(event.target as Node))
-        dismissActions();
-    }
-    function escape(event: KeyboardEvent) {
-      if (event.key === "Escape" && actionsMenu.current?.open) {
-        event.preventDefault();
-        event.stopPropagation();
-        dismissActions();
-        actionsMenu.current.querySelector("summary")?.focus();
-      }
-    }
-    document.addEventListener("pointerdown", outside);
-    document.addEventListener("keydown", escape, true);
-    return () => {
-      document.removeEventListener("pointerdown", outside);
-      document.removeEventListener("keydown", escape, true);
-    };
-  }, []);
+  const [context, setContext] = useState<{
+    id: string;
+    x: number;
+    y: number;
+  }>();
   const [notice, setNotice] = useState("");
   const [manageName, setManageName] = useState("");
   const [moveParent, setMoveParent] = useState("");
@@ -160,13 +144,15 @@ export function WriteShapeLibrary({
           (item) =>
             item.id === (checked.size === 1 ? [...checked][0] : selected),
         );
+  const inTrash =
+    parent === "__trash__" || breadcrumbs.some((c) => c.id === "__trash__");
   const selection = checked.size
     ? items.filter((item) => checked.has(item.id))
     : choice
       ? [choice]
       : [];
   function dismissActions() {
-    if (actionsMenu.current) actionsMenu.current.open = false;
+    setContext(undefined);
   }
   function selectItem(id: string) {
     setSelected(id);
@@ -412,14 +398,6 @@ export function WriteShapeLibrary({
                   </span>
                 ))}
               </nav>
-              <button
-                className="icon-button"
-                aria-label="Refresh library"
-                disabled={busy || loading}
-                onClick={() => setReload((n) => n + 1)}
-              >
-                <RefreshCw size={16} />
-              </button>
             </div>
             <div className="library-tools">
               <label className="library-search">
@@ -437,24 +415,11 @@ export function WriteShapeLibrary({
                   }}
                 />
               </label>
-              <label className="library-sort">
-                <span>Sort</span>
-                <select
-                  aria-label="Sort files"
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value)}
-                >
-                  <option value="name">Name</option>
-                  <option value="updated">Last modified</option>
-                  <option value="size">Size</option>
-                </select>
-              </label>
               <button
-                disabled={
-                  busy || loading || !canWrite || parent === "__trash__"
-                }
+                className="finder-new"
+                disabled={busy || loading || !canWrite || inTrash}
                 onClick={() => {
-                  setNewFile((value) => !value);
+                  setNewFile((v) => !v);
                   setNewFolder(false);
                   setManagement(undefined);
                 }}
@@ -462,19 +427,60 @@ export function WriteShapeLibrary({
                 <Plus size={16} />
                 New
               </button>
-              <button
-                disabled={
-                  busy || loading || !canWrite || parent === "__trash__"
-                }
-                onClick={() => {
-                  setNewFolder((v) => !v);
-                  setNewFile(false);
-                  setManagement(undefined);
-                }}
+              <Menu
+                label="Folder actions"
+                anchored
+                disabled={busy || loading}
+                triggerContent={<MoreHorizontal size={19} />}
               >
-                <FolderPlus size={16} />
-                <span>New folder</span>
-              </button>
+                <button
+                  disabled={!canWrite || inTrash}
+                  onClick={() => {
+                    setNewFolder(true);
+                    setNewFile(false);
+                    setManagement(undefined);
+                  }}
+                >
+                  <FolderPlus size={16} />
+                  New folder
+                </button>
+                <button
+                  disabled={!visible.length}
+                  onClick={() => {
+                    setChecked(new Set(visible.map((i) => i.id)));
+                    setSelected(undefined);
+                    setManagement(undefined);
+                  }}
+                >
+                  Select all
+                </button>
+                <button
+                  disabled={!selection.length}
+                  onClick={() => {
+                    setChecked(new Set());
+                    setSelected(undefined);
+                  }}
+                >
+                  Clear selection
+                </button>
+                <button
+                  disabled={!(selection.length || items.length)}
+                  onClick={() =>
+                    void run(() =>
+                      downloadLibraryItems(
+                        selection.length ? selection : items,
+                      ),
+                    )
+                  }
+                >
+                  <Download size={16} />
+                  {selection.length ? "Download selected" : "Download folder"}
+                </button>
+                <button onClick={() => setReload((n) => n + 1)}>
+                  <RefreshCw size={16} />
+                  Refresh
+                </button>
+              </Menu>
             </div>
             {newFile && (
               <NewFileForm
@@ -497,139 +503,6 @@ export function WriteShapeLibrary({
                   })
                 }
               />
-            )}
-            {mode === "open" && (
-              <div className="library-actionbar" aria-label="File actions">
-                <label className="library-select-all">
-                  <input
-                    type="checkbox"
-                    aria-label="Select all visible files and folders"
-                    checked={
-                      visible.length > 0 &&
-                      visible.every((i) => checked.has(i.id))
-                    }
-                    disabled={busy || loading || !visible.length}
-                    onChange={(e) => {
-                      setChecked(
-                        e.target.checked
-                          ? new Set(visible.map((i) => i.id))
-                          : new Set(),
-                      );
-                      setSelected(undefined);
-                      setManagement(undefined);
-                      dismissActions();
-                    }}
-                  />
-                  <span>
-                    {selection.length
-                      ? `${selection.length} selected`
-                      : "Select all"}
-                  </span>
-                </label>
-                {selection.length > 0 && (
-                  <button
-                    className="icon-button"
-                    aria-label="Clear selection"
-                    disabled={busy}
-                    onClick={() => {
-                      setChecked(new Set());
-                      setSelected(undefined);
-                      setManagement(undefined);
-                      dismissActions();
-                    }}
-                  >
-                    <X size={15} />
-                  </button>
-                )}
-                <div className="spacer" />
-                {choice && parent !== "__trash__" && (
-                  <button
-                    disabled={busy || !canWrite}
-                    onClick={() => void manage("copy")}
-                  >
-                    <Copy size={15} />
-                    Copy
-                  </button>
-                )}
-                <button
-                  disabled={
-                    busy || loading || !(selection.length || items.length)
-                  }
-                  onClick={() =>
-                    void run(() =>
-                      downloadLibraryItems(
-                        selection.length ? selection : items,
-                      ),
-                    )
-                  }
-                >
-                  <Download size={15} />
-                  {selection.length ? "Download" : "Download folder"}
-                </button>
-                {choice && (
-                  <details className="library-item-menu" ref={actionsMenu}>
-                    <summary
-                      aria-label="More file actions"
-                      onClick={(e) => {
-                        if (busy) e.preventDefault();
-                      }}
-                    >
-                      <MoreHorizontal size={18} />
-                      <span>More</span>
-                    </summary>
-                    <div className="library-item-menu-panel">
-                      <button
-                        disabled={busy || !canWrite}
-                        onClick={() => void manage("rename")}
-                      >
-                        <Pencil size={15} />
-                        Rename
-                      </button>
-                      <button
-                        disabled={busy || !canWrite}
-                        onClick={() => void manage("move")}
-                      >
-                        <FolderInput size={15} />
-                        {parent === "__trash__" ? "Restore / move" : "Move"}
-                      </button>
-                      {choice.kind === "file" && parent !== "__trash__" && (
-                        <>
-                          <button
-                            disabled={busy}
-                            onClick={() => {
-                              dismissActions();
-                              setSharing(choice);
-                            }}
-                          >
-                            <Share2 size={15} />
-                            Share
-                          </button>
-                          <button
-                            disabled={busy}
-                            onClick={() => {
-                              dismissActions();
-                              setHistory(choice);
-                            }}
-                          >
-                            <History size={15} />
-                            Version history
-                          </button>
-                        </>
-                      )}
-                      {parent !== "__trash__" && (
-                        <button
-                          className="library-trash-action"
-                          disabled={busy || !canWrite}
-                          onClick={() => void manage("trash")}
-                        >
-                          <Trash2 size={15} />
-                          Move to trash
-                        </button>
-                      )}
-                    </div>
-                  </details>
-                )}
-              </div>
             )}
             {management && choice && (
               <form
@@ -698,7 +571,7 @@ export function WriteShapeLibrary({
                 ) : (
                   <p>
                     Move “{choice.name}” to Trash? Files can be restored from
-                    Trash. Folders must be empty.
+                    Trash. A folder and everything inside it will move together.
                   </p>
                 )}
                 {management === "copy" && (
@@ -784,10 +657,29 @@ export function WriteShapeLibrary({
                 <span>{error}</span>
               </div>
             )}
-            <div className="library-column-head" aria-hidden="true">
-              <span>Name</span>
-              <span>Modified</span>
-              <span>Size</span>
+            <div className="library-column-head">
+              <button
+                aria-label="Sort by name"
+                aria-pressed={sort === "name"}
+                onClick={() => setSort("name")}
+              >
+                Name
+              </button>
+              <button
+                aria-label="Sort by modified"
+                aria-pressed={sort === "updated"}
+                onClick={() => setSort("updated")}
+              >
+                Modified
+              </button>
+              <button
+                aria-label="Sort by size"
+                aria-pressed={sort === "size"}
+                onClick={() => setSort("size")}
+              >
+                Size
+              </button>
+              <span />
             </div>
             <div
               className="library-files"
@@ -795,6 +687,17 @@ export function WriteShapeLibrary({
               aria-label="Files and folders"
               aria-busy={loading}
               aria-multiselectable={mode === "open"}
+              onKeyDown={(e) => {
+                if (
+                  mode === "open" &&
+                  (e.ctrlKey || e.metaKey) &&
+                  e.key.toLowerCase() === "a"
+                ) {
+                  e.preventDefault();
+                  setChecked(new Set(visible.map((i) => i.id)));
+                  setSelected(undefined);
+                }
+              }}
             >
               {loading ? (
                 <div className="library-empty">
@@ -818,15 +721,38 @@ export function WriteShapeLibrary({
                         : -1
                     }
                     className="library-file-row"
-                    onClick={() => !busy && selectItem(item.id)}
+                    onClick={(e) => {
+                      if (busy) return;
+                      if (
+                        mode === "open" &&
+                        (e.metaKey || e.ctrlKey || e.shiftKey)
+                      ) {
+                        const next = new Set(
+                          checked.size ? checked : selected ? [selected] : [],
+                        );
+                        if (e.shiftKey && selected) {
+                          const start = visible.findIndex(
+                            (i) => i.id === selected,
+                          );
+                          visible
+                            .slice(
+                              Math.min(start, index),
+                              Math.max(start, index) + 1,
+                            )
+                            .forEach((i) => next.add(i.id));
+                        } else
+                          next.has(item.id)
+                            ? next.delete(item.id)
+                            : next.add(item.id);
+                        setChecked(next);
+                        setManagement(undefined);
+                      } else selectItem(item.id);
+                    }}
                     onContextMenu={(e) => {
                       if (mode !== "open" || busy) return;
                       e.preventDefault();
                       selectItem(item.id);
-                      requestAnimationFrame(() => {
-                        if (actionsMenu.current)
-                          actionsMenu.current.open = true;
-                      });
+                      setContext({ id: item.id, x: e.clientX, y: e.clientY });
                     }}
                     onDoubleClick={() => {
                       if (!busy) void open(item);
@@ -863,28 +789,6 @@ export function WriteShapeLibrary({
                     }}
                   >
                     <div className="library-file-name">
-                      {mode === "open" && (
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${item.name}`}
-                          checked={checked.has(item.id)}
-                          disabled={busy}
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => e.stopPropagation()}
-                          onChange={(e) =>
-                            setChecked((before) => {
-                              const next = new Set(before);
-                              e.target.checked
-                                ? next.add(item.id)
-                                : next.delete(item.id);
-                              setSelected(undefined);
-                              setManagement(undefined);
-                              return next;
-                            })
-                          }
-                        />
-                      )}
-
                       {item.kind === "folder" ? (
                         <Folder className="library-folder-icon" size={27} />
                       ) : (
@@ -895,7 +799,7 @@ export function WriteShapeLibrary({
                         <small>
                           {item.kind === "folder"
                             ? "Folder"
-                            : `${/\.(md|markdown)$/i.test(item.name) ? "Markdown book" : "Fountain screenplay"} · v${item.revision}`}
+                            : `${/\.(md|markdown)$/i.test(item.name) ? "Markdown book" : "Fountain screenplay"}`}
                         </small>
                       </span>
                     </div>
@@ -907,6 +811,86 @@ export function WriteShapeLibrary({
                         ? "—"
                         : formatBytes(item.bytes || 0)}
                     </span>
+                    <div
+                      className="finder-row-menu"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (selected !== item.id || checked.size)
+                          selectItem(item.id);
+                      }}
+                      onDoubleClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <Menu
+                        label={`Actions for ${item.name}`}
+                        anchored
+                        disabled={busy}
+                        restoreFocusOnSelect={false}
+                        triggerContent={<MoreHorizontal size={18} />}
+                        contextMenu={
+                          context?.id === item.id ? context : undefined
+                        }
+                        onDismiss={() => setContext(undefined)}
+                      >
+                        <button onClick={() => void open(item)}>
+                          <ArrowRight size={16} />
+                          {item.kind === "folder" ? "Open folder" : "Open file"}
+                        </button>
+                        {!inTrash && (
+                          <button
+                            disabled={!canWrite}
+                            onClick={() => void manage("copy")}
+                          >
+                            <Copy size={16} />
+                            Copy
+                          </button>
+                        )}
+                        <button
+                          disabled={!canWrite}
+                          onClick={() => void manage("rename")}
+                        >
+                          <Pencil size={16} />
+                          Rename
+                        </button>
+                        <button
+                          disabled={!canWrite}
+                          onClick={() => void manage("move")}
+                        >
+                          <FolderInput size={16} />
+                          {inTrash ? "Restore / move" : "Move"}
+                        </button>
+                        <button
+                          onClick={() =>
+                            void run(() => downloadLibraryItems([item]))
+                          }
+                        >
+                          <Download size={16} />
+                          Download
+                        </button>
+                        {item.kind === "file" && !inTrash && (
+                          <>
+                            <button onClick={() => setSharing(item)}>
+                              <Share2 size={16} />
+                              Share
+                            </button>
+                            <button onClick={() => setHistory(item)}>
+                              <History size={16} />
+                              Version history
+                            </button>
+                          </>
+                        )}
+                        {!inTrash && (
+                          <button
+                            className="finder-delete"
+                            disabled={!canWrite}
+                            onClick={() => void manage("trash")}
+                          >
+                            <Trash2 size={16} />
+                            Move to trash
+                          </button>
+                        )}
+                      </Menu>
+                    </div>
                   </div>
                 ))
               ) : (
@@ -964,8 +948,9 @@ export function WriteShapeLibrary({
               ) : (
                 <div className="library-open-actions">
                   <p>
-                    {choice?.name ||
-                      `${visible.length} items · Select a file or folder.`}
+                    {checked.size > 1
+                      ? `${checked.size} items selected`
+                      : choice?.name || `${visible.length} items`}
                   </p>
                   <button
                     className="primary"

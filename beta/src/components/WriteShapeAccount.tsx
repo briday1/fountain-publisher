@@ -262,22 +262,6 @@ export function WriteShapeAccount({
             {state.premium ? "Premium" : "Free"}
           </span>
         </div>
-        <button
-          disabled={busy}
-          onClick={() =>
-            void run(async () => {
-              await beforeNavigate();
-              await accountRequest("/api/auth/logout", {});
-              if (state.privateMode) location.assign("/cdn-cgi/access/logout");
-              else {
-                await refresh();
-                onClose();
-              }
-            })
-          }
-        >
-          Sign out
-        </button>
       </div>
       {(error || notice) && (
         <p className="account-notice" role="status">
@@ -289,7 +273,8 @@ export function WriteShapeAccount({
         id="account-profile"
         aria-label="Profile"
       >
-        <h3>Profile</h3>
+        <h3>Your profile</h3>
+        <p className="account-profile-hint">A name to make WriteShape yours.</p>
         <form
           className="account-profile-form"
           onSubmit={(e) => {
@@ -312,7 +297,12 @@ export function WriteShapeAccount({
               maxLength={80}
             />
           </label>
-          <button disabled={busy}>Save profile</button>
+          <button
+            className="primary"
+            disabled={busy || name === (account.displayName || "")}
+          >
+            Save profile
+          </button>
         </form>
         {!account.googleLinked && state.googleAvailable && (
           <button
@@ -546,6 +536,22 @@ export function WriteShapeAccount({
           Your drafts are saved on this device before leaving for Google or
           Stripe.
         </p>
+        <button
+          disabled={busy}
+          onClick={() =>
+            void run(async () => {
+              await beforeNavigate();
+              await accountRequest("/api/auth/logout", {});
+              if (state.privateMode) location.assign("/cdn-cgi/access/logout");
+              else {
+                await refresh();
+                onClose();
+              }
+            })
+          }
+        >
+          Sign out
+        </button>
         <button onClick={onClose}>Back to writing</button>
       </footer>
     </Modal>

@@ -11,6 +11,7 @@ import {
   readDirectoryFile,
   createDirectoryFile,
   ensureLocalWritePermission,
+  copyDirectoryEntry,
 } from "./localDirectory";
 import type { DirectoryHandle, FileHandle } from "./localDirectory";
 import type { WriteShapeDestination } from "./destinations";
@@ -194,18 +195,61 @@ export function createFileProviders(options: {
     },
   };
   const local: FilesProvider = {
+    async mkdir({ name, parent }) {
+      assertCurrent();
+      const target = folders.get(parent || "root");
+      if (!target) throw new Error("Choose a local folder.");
+      if (!name.trim() || name === "." || name === ".." || /[/\\\0]/.test(name))
+        throw new Error("Choose a valid folder name.");
+      if (!(await ensureLocalWritePermission(target)))
+        throw new Error("Folder write permission is required.");
+      for await (const [existing] of target.entries())
+        if (existing.toLocaleLowerCase() === name.toLocaleLowerCase())
+          throw new Error("An item with this name already exists.");
+      assertCurrent();
+      await target.getDirectoryHandle(name, { create: true });
+    },
+    async remove({ item, parent }) {
+      assertCurrent();
+      const target = folders.get(parent || "root");
+      const source =
+        item.kind === "folder" ? folders.get(item.id) : files.get(item.id);
+      if (!target?.removeEntry || !source)
+        throw new Error("Choose this item and folder again.");
+      if (!(await ensureLocalWritePermission(target)))
+        throw new Error("Folder write permission is required to delete here.");
+      const binding = session.current.destination;
+      const currentHandle =
+        binding?.provider === "local" ? binding.handle : undefined;
+      const containsOpenFile =
+        !!currentHandle &&
+        (source.kind === "directory"
+          ? !!(await source.resolve?.(currentHandle))
+          : source === currentHandle ||
+            !!(await source.isSameEntry?.(currentHandle)));
+      await session.flush();
+      assertCurrent();
+      await target.removeEntry(item.name, {
+        recursive: item.kind === "folder",
+      });
+      // Keep the open writing as a device draft, without autosaving to a deleted file.
+      if (containsOpenFile && session.current.destination === binding) {
+        session.setDestination(undefined);
+        await session.flush();
+      }
+    },
     async copy({ item, name, parent }) {
       assertCurrent();
-      const source = files.get(item.id);
+      const source =
+        item.kind === "folder" ? folders.get(item.id) : files.get(item.id);
       const destination = folders.get(parent || "root");
       if (!source || !destination)
         throw new Error("Choose this file and folder again.");
       const permission = ensureLocalWritePermission(destination);
       if (!(await permission))
         throw new Error("Folder write permission is required to copy here.");
-      const data = await readDirectoryFile(source);
       assertCurrent();
-      await createDirectoryFile(destination, name, data.content);
+      await copyDirectoryEntry(source, destination, name, assertCurrent);
     },
     async download(item) {
       const source = files.get(item.id);

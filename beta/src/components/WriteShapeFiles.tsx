@@ -22,7 +22,10 @@ import {
   Search,
   Copy,
   Download,
+  MoreHorizontal,
+  Trash2,
 } from "lucide-react";
+import { Menu } from "./Menu";
 import { Modal } from "./Modal";
 import { WriteShapeLibrary } from "./WriteShapeLibrary";
 import { WriteShapeMark } from "./WriteShapeMark";
@@ -77,6 +80,7 @@ export interface FilesProvider {
     parent: string;
   }) => Promise<void>;
   download?: (item: DestinationItem) => Promise<void>;
+  remove?: (input: { item: DestinationItem; parent: string }) => Promise<void>;
 }
 export interface WriteShapeFilesProps extends Omit<
   ComponentProps<typeof WriteShapeLibrary>,
@@ -160,9 +164,6 @@ export function WriteShapeFiles(props: WriteShapeFilesProps) {
           </button>
         ))}
       </div>
-      {destination === "writeshape" && props.account.email && (
-        <div className="files-account">WriteShape · {props.account.email}</div>
-      )}
       <div
         className="files-region"
         role="tabpanel"
@@ -321,6 +322,12 @@ function DestinationBrowser({
   const [newFolder, setNewFolder] = useState(false);
   const [newFile, setNewFile] = useState(false);
   const [copyName, setCopyName] = useState<string>();
+  const [deleteItem, setDeleteItem] = useState<DestinationItem>();
+  const [context, setContext] = useState<{
+    id: string;
+    x: number;
+    y: number;
+  }>();
   const [notice, setNotice] = useState("");
   const [folderName, setFolderName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -433,6 +440,8 @@ function DestinationBrowser({
     setNewFolder(false);
     setNewFile(false);
     setCopyName(undefined);
+    setDeleteItem(undefined);
+    setContext(undefined);
     setNotice("");
     setError("");
   }
@@ -707,14 +716,6 @@ function DestinationBrowser({
                   </span>
                 ))}
               </nav>
-              <button
-                className="icon-button"
-                aria-label="Refresh folder"
-                disabled={busy || loading}
-                onClick={() => setReload((value) => value + 1)}
-              >
-                <RefreshCw size={16} />
-              </button>
             </div>
             <div className="library-tools">
               <label className="library-search">
@@ -729,78 +730,48 @@ function DestinationBrowser({
                   aria-label="Search this folder"
                 />
               </label>
-              <label className="library-sort">
-                Sort
-                <select
-                  value={sort}
-                  onChange={(event) => setSort(event.target.value)}
-                >
-                  <option value="name">Name</option>
-                  <option value="modified">Last modified</option>
-                  <option value="size">Size</option>
-                </select>
-              </label>
               {provider.create && (
                 <button
+                  className="finder-new"
                   disabled={busy || loading || !writable}
                   onClick={() => {
-                    setNewFile((value) => !value);
+                    setNewFile((v) => !v);
                     setNewFolder(false);
                     setCopyName(undefined);
+                    setDeleteItem(undefined);
                   }}
                 >
                   <Plus size={16} />
                   New
                 </button>
               )}
-              {provider.mkdir && (
-                <button
-                  disabled={busy || loading || !writable}
-                  onClick={() => {
-                    setNewFolder((value) => !value);
-                    setNewFile(false);
-                    setCopyName(undefined);
-                  }}
-                >
-                  <FolderPlus size={16} />
-                  New folder
+              <Menu
+                label="Folder actions"
+                anchored
+                disabled={busy || loading}
+                triggerContent={<MoreHorizontal size={19} />}
+              >
+                {provider.mkdir && (
+                  <button
+                    disabled={!writable}
+                    onClick={() => {
+                      setNewFolder(true);
+                      setNewFile(false);
+                      setCopyName(undefined);
+                      setDeleteItem(undefined);
+                    }}
+                  >
+                    <FolderPlus size={16} />
+                    New folder
+                  </button>
+                )}
+                <button onClick={() => setReload((n) => n + 1)}>
+                  <RefreshCw size={16} />
+                  Refresh
                 </button>
-              )}
+              </Menu>
             </div>
-            {mode === "open" &&
-              choice?.kind === "file" &&
-              (provider.copy || provider.download) && (
-                <div className="library-actionbar" aria-label="File actions">
-                  <span className="files-selected-name">{choice.name}</span>
-                  <div className="spacer" />
-                  {provider.copy &&
-                    /\.(fountain|txt|md|markdown)$/i.test(choice.name) && (
-                      <button
-                        disabled={busy || !writable}
-                        onClick={() => {
-                          setCopyName(availableCopyName(choice, items));
-                          setNewFile(false);
-                          setNewFolder(false);
-                        }}
-                      >
-                        <Copy size={15} />
-                        Copy
-                      </button>
-                    )}
-                  {provider.download && (
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        void run(() => latest.current.download!(choice))
-                      }
-                    >
-                      <Download size={15} />
-                      Download
-                    </button>
-                  )}
-                </div>
-              )}
-            {copyName !== undefined && choice?.kind === "file" && (
+            {copyName !== undefined && choice && (
               <form
                 className="library-new-folder"
                 onSubmit={(e) => {
@@ -837,6 +808,41 @@ function DestinationBrowser({
                   type="button"
                   disabled={busy}
                   onClick={() => setCopyName(undefined)}
+                >
+                  Cancel
+                </button>
+              </form>
+            )}
+            {deleteItem && (
+              <form
+                className="library-new-folder finder-confirm"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!latest.current.remove || !writable) return;
+                  void run(async () => {
+                    await latest.current.remove!({ item: deleteItem, parent });
+                    if (!active.current) return;
+                    setNotice(`Deleted “${deleteItem.name}”.`);
+                    setDeleteItem(undefined);
+                    setSelected(undefined);
+                    setReload((n) => n + 1);
+                  });
+                }}
+              >
+                <p>
+                  Delete “{deleteItem.name}”
+                  {deleteItem.kind === "folder"
+                    ? " and everything inside it"
+                    : ""}
+                  ? This permanently removes it from this device.
+                </p>
+                <button className="primary" disabled={busy}>
+                  Delete {deleteItem.kind === "folder" ? "folder" : "file"}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setDeleteItem(undefined)}
                 >
                   Cancel
                 </button>
@@ -890,10 +896,29 @@ function DestinationBrowser({
                 </button>
               </form>
             )}
-            <div className="library-column-head" aria-hidden="true">
-              <span>Name</span>
-              <span>Modified</span>
-              <span>Size</span>
+            <div className="library-column-head">
+              <button
+                aria-label="Sort by name"
+                aria-pressed={sort === "name"}
+                onClick={() => setSort("name")}
+              >
+                Name
+              </button>
+              <button
+                aria-label="Sort by modified"
+                aria-pressed={sort === "modified"}
+                onClick={() => setSort("modified")}
+              >
+                Modified
+              </button>
+              <button
+                aria-label="Sort by size"
+                aria-pressed={sort === "size"}
+                onClick={() => setSort("size")}
+              >
+                Size
+              </button>
+              <span />
             </div>
             <div
               className="library-files"
@@ -941,6 +966,12 @@ function DestinationBrowser({
                         setSelected(item.id);
                         setCopyName(undefined);
                       }
+                    }}
+                    onContextMenu={(e) => {
+                      if (busy) return;
+                      e.preventDefault();
+                      setSelected(item.id);
+                      setContext({ id: item.id, x: e.clientX, y: e.clientY });
                     }}
                     onDoubleClick={() => {
                       if (!busy) open(item);
@@ -1000,6 +1031,71 @@ function DestinationBrowser({
                         ? formatBytes(item.size)
                         : "—"}
                     </span>
+                    <div
+                      className="finder-row-menu"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelected(item.id);
+                      }}
+                      onDoubleClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <Menu
+                        label={`Actions for ${item.name}`}
+                        anchored
+                        disabled={busy}
+                        restoreFocusOnSelect={false}
+                        triggerContent={<MoreHorizontal size={18} />}
+                        contextMenu={
+                          context?.id === item.id ? context : undefined
+                        }
+                        onDismiss={() => setContext(undefined)}
+                      >
+                        <button onClick={() => open(item)}>
+                          <ArrowRight size={16} />
+                          {item.kind === "folder" ? "Open folder" : "Open file"}
+                        </button>
+                        {provider.copy && (
+                          <button
+                            disabled={!writable}
+                            onClick={() => {
+                              setCopyName(availableCopyName(item, items));
+                              setDeleteItem(undefined);
+                              setNewFile(false);
+                              setNewFolder(false);
+                            }}
+                          >
+                            <Copy size={16} />
+                            Copy
+                          </button>
+                        )}
+                        {item.kind === "file" && provider.download && (
+                          <button
+                            onClick={() =>
+                              void run(() => latest.current.download!(item))
+                            }
+                          >
+                            <Download size={16} />
+                            Download
+                          </button>
+                        )}
+                        {provider.remove && (
+                          <button
+                            className="finder-delete"
+                            disabled={!writable}
+                            onClick={() => {
+                              setDeleteItem(item);
+                              setCopyName(undefined);
+                              setNewFile(false);
+                              setNewFolder(false);
+                            }}
+                          >
+                            <Trash2 size={16} />
+                            Delete
+                          </button>
+                        )}
+                      </Menu>
+                    </div>
                   </div>
                 ))
               )}
@@ -1043,10 +1139,7 @@ function DestinationBrowser({
                 </form>
               ) : (
                 <div className="library-open-actions">
-                  <p>
-                    {choice?.name ||
-                      `${visible.length} items · Select a file or folder.`}
-                  </p>
+                  <p>{choice?.name || `${visible.length} items`}</p>
                   <button
                     className="primary"
                     disabled={busy || loading || !choice}

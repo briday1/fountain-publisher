@@ -9,8 +9,10 @@ export function Menu({
   triggerContent,
   contextMenu,
   onDismiss,
+  disabled = false,
 }: {
   label: string;
+  disabled?: boolean;
   children: ReactNode;
   anchored?: boolean;
   restoreFocusOnSelect?: boolean;
@@ -154,6 +156,7 @@ export function Menu({
       }}
     >
       <button
+        disabled={disabled}
         aria-label={label}
         title={label}
         aria-expanded={open}
@@ -181,7 +184,13 @@ export function Menu({
       >
         {triggerContent ?? label}
       </button>
-      {anchored && popup ? createPortal(popup, document.body) : popup}
+      {anchored && popup
+        ? createPortal(
+            popup,
+            ref.current?.closest("dialog")?.querySelector(".modal-content") ??
+              document.body,
+          )
+        : popup}
     </div>
   );
 }

@@ -389,7 +389,7 @@ test("file management preserves versions, rejects stale/cross-account edits, and
   assert.equal(response.status, 200);
   assert.equal((await versions(env, file)).versions.length, 4);
 });
-test("folder management rejects cycles and nonempty deletion", async () => {
+test("folder management rejects cycles and trashes and restores a complete nested tree", async () => {
   const env = testDB();
   const folder = await (
     await call(env, "alice", "", { kind: "folder", parent: "", name: "Parent" })
@@ -404,7 +404,6 @@ test("folder management rejects cycles and nonempty deletion", async () => {
   for (const input of [
     { action: "move", parent: child.id },
     { action: "move", parent: folder.id },
-    { action: "trash" },
   ]) {
     assert.equal(
       (
@@ -416,15 +415,35 @@ test("folder management rejects cycles and nonempty deletion", async () => {
       409,
     );
   }
+  const file = await create(env, "Nested writing", child.id, "Nested.fountain");
+  const trashed = await call(env, "alice", `/${folder.id}/manage`, {
+    action: "trash",
+    revision: 1,
+  });
+  assert.equal(trashed.status, 200);
+  assert.equal((await trashed.json()).parent, "__trash__");
+  const trash = await (await call(env, "alice", "?parent=__trash__")).json();
+  assert.equal(trash.items[0].id, folder.id);
+  const nested = await (await call(env, "alice", `?parent=${child.id}`)).json();
+  assert.deepEqual(
+    nested.breadcrumbs.map((c) => c.name),
+    ["Trash", "Parent", "Child"],
+  );
+  assert.equal(nested.items[0].id, file.id);
+  const restored = await call(env, "alice", `/${folder.id}/manage`, {
+    action: "move",
+    revision: 2,
+    parent: "",
+  });
+  assert.equal(restored.status, 200);
   assert.equal(
-    (
-      await call(env, "alice", `/${child.id}/manage`, {
-        action: "move",
-        parent: "",
-        revision: 1,
-      })
-    ).status,
-    200,
+    (await (await call(env, "alice", `/${file.id}`)).json()).content,
+    "Nested writing",
+  );
+  assert.equal(
+    (await (await call(env, "alice", `?parent=${child.id}`)).json())
+      .breadcrumbs[0].name,
+    "Parent",
   );
 });
 

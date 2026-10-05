@@ -664,3 +664,349 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Finder: storage tabs above a quiet navigation rail and a single file list. */
+.writeshape-files .files-destinations {
+  display: flex;
+  gap: 24px;
+  padding: 0 24px;
+  background: var(--surface);
+}
+.writeshape-files .files-destinations > button {
+  position: relative;
+  min-height: 46px;
+  padding: 9px 0;
+  gap: 7px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 500;
+}
+.writeshape-files .files-destinations > button[aria-selected="true"] {
+  color: var(--ink);
+  background: transparent;
+}
+.writeshape-files .files-destinations > button[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.writeshape-files .files-destinations svg {
+  width: 17px;
+  height: 17px;
+}
+.writeshape-files .library-shell,
+.writeshape-files .files-browser {
+  grid-template-columns: 185px minmax(0, 1fr);
+}
+.writeshape-files .library-sidebar,
+.writeshape-files .files-provider-sidebar {
+  background: color-mix(in srgb, var(--panel) 55%, var(--surface));
+  padding: 20px 12px 14px;
+  gap: 5px;
+}
+.writeshape-files .library-sidebar-label {
+  padding: 0 10px 10px;
+  letter-spacing: 0.08em;
+  font-size: 9px;
+}
+.writeshape-files .library-location {
+  padding: 9px 10px;
+  gap: 9px;
+  font-size: 12px;
+  border: 0;
+  border-radius: 6px;
+  min-height: 38px;
+}
+.writeshape-files .library-location[aria-current] {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  color: var(--ink);
+}
+.writeshape-files .library-location svg {
+  width: 16px;
+  height: 16px;
+}
+.writeshape-files .library-storage {
+  padding: 16px 10px 0;
+  gap: 6px;
+}
+.writeshape-files .library-storage > strong {
+  font-size: 14px;
+  letter-spacing: 0;
+}
+.writeshape-files .library-storage > strong small,
+.writeshape-files .library-allowance {
+  font-size: 10px;
+  color: var(--muted);
+}
+.writeshape-files .library-storage-details {
+  font-size: 10px;
+}
+.writeshape-files .library-pathbar {
+  padding: 10px 16px 0;
+  border: 0;
+  gap: 6px;
+}
+.writeshape-files .library-pathbar > button {
+  border: 0;
+  background: transparent;
+}
+.writeshape-files .library-pathbar nav button {
+  font-size: 11px;
+}
+.writeshape-files .library-tools {
+  padding: 10px 16px 14px;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+.writeshape-files .library-search {
+  border: 0;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  border-radius: 7px;
+  min-width: 0;
+}
+.writeshape-files .library-search input {
+  padding: 9px 0;
+  font-size: 12px;
+}
+.writeshape-files .finder-new {
+  background: var(--panel);
+  border-color: var(--border);
+  min-height: 34px;
+  padding: 7px 10px;
+}
+.writeshape-files .library-tools .menu-trigger,
+.writeshape-files .finder-row-menu .menu-trigger {
+  display: grid;
+  place-items: center;
+  min-height: 32px;
+  width: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--muted);
+}
+.writeshape-files .menu-trigger:hover,
+.writeshape-files .menu-trigger.active {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  color: var(--ink);
+}
+.writeshape-files .library-column-head,
+.writeshape-files .library-file-row {
+  grid-template-columns: minmax(0, 1fr) 110px 60px 32px;
+  gap: 10px;
+}
+.writeshape-files .library-column-head {
+  padding: 8px 20px;
+  background: transparent;
+  border-top: 1px solid var(--border);
+}
+.writeshape-files .library-column-head > button {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 10px;
+  justify-content: flex-start;
+}
+.writeshape-files .library-column-head > button[aria-pressed="true"] {
+  color: var(--ink);
+}
+.writeshape-files .library-column-head > button:nth-child(3) {
+  justify-content: flex-end;
+}
+.writeshape-files .library-files {
+  padding: 5px 8px;
+}
+.writeshape-files .library-file-row {
+  min-height: 51px;
+  padding: 7px 11px;
+  border: 0;
+  border-radius: 5px;
+}
+.writeshape-files
+  .library-file-row:nth-child(even):not([aria-selected="true"]):not(:hover) {
+  background: color-mix(in srgb, var(--ink) 2%, transparent);
+}
+.writeshape-files .library-file-row[aria-selected="true"] {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.writeshape-files .library-file-name {
+  gap: 10px;
+}
+.writeshape-files .library-file-name svg {
+  width: 22px;
+  height: 24px;
+}
+.writeshape-files .library-file-name > span {
+  gap: 2px;
+}
+.writeshape-files .library-file-name strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.writeshape-files .library-file-name small {
+  font-size: 9px;
+}
+.writeshape-files .finder-row-menu {
+  opacity: 0;
+}
+.writeshape-files .library-file-row:hover .finder-row-menu,
+.writeshape-files .library-file-row:focus-within .finder-row-menu,
+.writeshape-files .library-file-row[aria-selected="true"] .finder-row-menu {
+  opacity: 1;
+}
+.writeshape-files .anchored-menu-popup {
+  width: 215px;
+  padding: 5px;
+  border-radius: 9px;
+}
+.writeshape-files .anchored-menu-popup button {
+  min-height: 36px;
+  justify-content: flex-start;
+  gap: 11px;
+  border-radius: 5px;
+}
+.writeshape-files .finder-delete {
+  color: #c46767;
+}
+.writeshape-files .library-footer {
+  background: var(--surface);
+  padding: 11px 18px;
+}
+.writeshape-files .library-open-actions p {
+  font-size: 11px;
+}
+.writeshape-files .library-footer button {
+  min-height: 36px;
+  font-size: 12px;
+}
+.writeshape-files .library-new-folder,
+.writeshape-files .library-new-file {
+  margin: 0 16px 12px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  flex: 0 0 auto;
+}
+.writeshape-files .library-new-folder p {
+  width: 100%;
+  margin: 0 0 4px;
+}
+.writeshape-files .files-provider-heading {
+  gap: 7px;
+  padding: 0 8px 10px;
+}
+.writeshape-files .files-provider-heading strong {
+  font-size: 12px;
+}
+.writeshape-files .files-connected {
+  margin: 0 8px 8px;
+  font-size: 9px;
+  color: var(--muted);
+}
+.writeshape-files .files-provider-sidebar > button {
+  border: 0;
+  background: transparent;
+  padding: 8px;
+  font-size: 11px;
+}
+.writeshape-files .files-sidebar-fallback {
+  padding: 12px 8px 0;
+}
+@media (pointer: coarse) {
+  .writeshape-files .finder-row-menu {
+    opacity: 1;
+  }
+  .writeshape-files .finder-row-menu .menu-trigger {
+    min-height: 40px;
+    width: 36px;
+  }
+}
+@media (max-width: 760px) {
+  .writeshape-files .files-destinations {
+    gap: 20px;
+    padding: 0 16px;
+  }
+  .writeshape-files .files-destinations > button {
+    min-height: 43px;
+    font-size: 11px;
+  }
+  .writeshape-files .library-shell,
+  .writeshape-files .files-browser {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .writeshape-files .library-sidebar {
+    padding: 7px 10px;
+    gap: 3px;
+  }
+  .writeshape-files .library-location {
+    font-size: 10px;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 5px;
+    min-height: 32px;
+  }
+  .writeshape-files .library-storage {
+    display: none;
+  }
+  .writeshape-files .library-pathbar {
+    padding: 7px 10px 0;
+  }
+  .writeshape-files .library-tools {
+    padding: 8px 12px 10px;
+  }
+  .writeshape-files .library-column-head,
+  .writeshape-files .library-file-row {
+    grid-template-columns: minmax(0, 1fr) 36px;
+  }
+  .writeshape-files .library-column-head > button:nth-child(2),
+  .writeshape-files .library-column-head > button:nth-child(3),
+  .writeshape-files .library-file-row > time,
+  .writeshape-files .library-file-row > .library-file-size {
+    display: none;
+  }
+  .writeshape-files .library-column-head {
+    padding: 7px 19px;
+  }
+  .writeshape-files .finder-row-menu {
+    opacity: 1;
+  }
+  .writeshape-files .library-file-row {
+    min-height: 54px;
+  }
+  .writeshape-files .files-provider-sidebar {
+    padding: 8px 12px;
+    gap: 2px 8px;
+  }
+  .writeshape-files .files-provider-heading {
+    padding: 0;
+    gap: 3px 7px;
+  }
+  .writeshape-files .files-provider-heading > svg {
+    display: none;
+  }
+  .writeshape-files .files-provider-heading > strong,
+  .writeshape-files .files-provider-heading > span {
+    grid-column: 1 / -1;
+  }
+  .writeshape-files .files-connected {
+    display: none;
+  }
+  .writeshape-files .files-provider-sidebar > button {
+    grid-row: 1;
+  }
+  .writeshape-files .files-provider-sidebar > small {
+    grid-row: 2;
+    font-size: 9px;
+  }
+}

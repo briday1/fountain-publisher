@@ -56,6 +56,10 @@ async function ancestors(env, owner, parent) {
   const result = [];
   const seen = new Set();
   while (parent) {
+    if (parent === "__trash__") {
+      result.unshift({ id: "__trash__", name: "Trash" });
+      break;
+    }
     if (seen.has(parent) || result.length >= 100)
       throw new HttpError(400, "Folder path is unavailable.");
     seen.add(parent);
@@ -486,13 +490,12 @@ export async function libraryRoutes(request, env, user) {
     if (parent && parent !== "__trash__") await ancestors(env, user.id, parent);
     const policy = storagePolicy(env);
     const bytes = item.kind === "file" ? item.bytes : 0;
-    // Folder-cycle and nonempty-folder checks happen inside the conditional write.
+    // Cycle checks happen in the write; a trashed folder keeps its entire subtree.
     // Trash is reversible; immutable file history is preserved by the existing trigger.
     const result = await env.DB.prepare(
       `UPDATE items SET name=?,parent=?,revision=revision+1,updated=? WHERE owner=? AND id=? AND revision=?
       AND NOT EXISTS(SELECT 1 FROM items other WHERE other.owner=? AND other.parent=? AND other.name=? COLLATE NOCASE AND other.id!=?)
       AND NOT EXISTS(WITH RECURSIVE chain(id,parent) AS (SELECT id,parent FROM items WHERE owner=? AND id=? UNION SELECT i.id,i.parent FROM items i JOIN chain c ON i.id=c.parent WHERE i.owner=?) SELECT 1 FROM chain WHERE id=?)
-      AND (?!='trash' OR kind!='folder' OR NOT EXISTS(SELECT 1 FROM items child WHERE child.owner=? AND child.parent=items.id))
       AND (? IS NULL OR ${usageExpression}+?<=?)
       AND (kind!='file' OR ? IS NULL OR (SELECT COUNT(*) FROM file_versions WHERE owner=? AND file_id=items.id)<?)`,
     )
@@ -511,8 +514,6 @@ export async function libraryRoutes(request, env, user) {
         parent,
         user.id,
         item.id,
-        input.action,
-        user.id,
         policy.quotaBytes,
         user.id,
         user.id,
@@ -526,7 +527,7 @@ export async function libraryRoutes(request, env, user) {
     if (!result.meta.changes)
       fail(
         409,
-        "Could not change this item. Refresh and check the name, destination, storage limit, or whether the folder is empty. A folder cannot move inside itself.",
+        "Could not change this item. Refresh and check the name, destination, or storage limit. A folder cannot move inside itself.",
         "MANAGE_CONFLICT",
       );
     return json(

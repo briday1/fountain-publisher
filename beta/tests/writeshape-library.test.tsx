@@ -17,7 +17,13 @@ vi.mock("../src/storage/writeshapeLibrary", async (original) => ({
   cloudRequest: api,
 }));
 beforeAll(() => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  Object.assign(globalThis, {
+    IS_REACT_ACT_ENVIRONMENT: true,
+    ResizeObserver: class {
+      observe() {}
+      disconnect() {}
+    },
+  });
   HTMLDialogElement.prototype.showModal = function () {
     this.open = true;
   };
@@ -483,6 +489,13 @@ it("Copy uses the stored file and a fresh name without touching the editor draft
         .querySelector<HTMLElement>('[aria-label="Markdown file: Light.md"]')!
         .click(),
     );
+    await act(async () =>
+      h.node
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Actions for Light.md"]',
+        )!
+        .click(),
+    );
     await click(h.node, "Copy");
     expect(
       h.node.querySelector<HTMLInputElement>('[aria-label="Copy name"]')!.value,
@@ -501,6 +514,62 @@ it("Copy uses the stored file and a fresh name without touching the editor draft
     expect(opened).not.toHaveBeenCalled();
     expect(closed).not.toHaveBeenCalled();
     expect(h.node.querySelectorAll('[role="option"]')).toHaveLength(3);
+  } finally {
+    await h.close();
+  }
+});
+
+it("cloud folders can be copied and moved to Trash through their context menu", async () => {
+  api.mockImplementation(async (path: string, body?: any) =>
+    body
+      ? { ...folder, id: "copy", name: body.name }
+      : { items: [folder], breadcrumbs: [], usage, canWrite: true },
+  );
+  const opened = vi.fn(async () => {});
+  const h = await mount(
+    <WriteShapeLibrary
+      mode="open"
+      name="Draft"
+      captureSave={() => ({ content: "", onSaved() {} })}
+      onOpen={opened}
+      onClose={() => {}}
+    />,
+  );
+  try {
+    const row = h.node.querySelector<HTMLElement>('[role="option"]')!;
+    await act(async () =>
+      row.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 200,
+          clientY: 120,
+        }),
+      ),
+    );
+    const popup = h.node.querySelector<HTMLElement>(".anchored-menu-popup")!;
+    expect(popup.closest("dialog")).not.toBeNull();
+    await click(h.node, "Copy");
+    await click(h.node, "Create copy");
+    expect(api).toHaveBeenCalledWith("/folder/copy", {
+      action: "copy",
+      revision: 1,
+      name: "Scripts copy",
+      parent: "",
+    });
+    await act(async () =>
+      h.node
+        .querySelector<HTMLButtonElement>('[aria-label="Actions for Scripts"]')!
+        .click(),
+    );
+    await click(h.node, "Move to trash");
+    expect(h.node.textContent).toContain("everything inside it");
+    await click(h.node, "Confirm move to trash");
+    expect(api).toHaveBeenCalledWith(
+      "/folder/manage",
+      expect.objectContaining({ action: "trash", revision: 1 }),
+    );
+    expect(opened).not.toHaveBeenCalled();
   } finally {
     await h.close();
   }
