@@ -1,4 +1,4 @@
-import { footnoteRuns, type FootnoteRun } from "./footnotes";
+import { withoutFootnotes, footnoteRuns, type FootnoteRun } from "./footnotes";
 import { bookFrontMatter, type PublicationBlock } from "./book";
 import { zipSync, strToU8 } from "fflate";
 import type { Screenplay, ScriptBlock, TextSpan } from "./model";
@@ -17,7 +17,7 @@ const spans = (b: ScriptBlock): TextSpan[] =>
     : [{ text: b.text }];
 const title = (doc: Screenplay) =>
   doc.titlePage.title ||
-  doc.blocks.find((b) => b.kind === "section")?.text ||
+  withoutFootnotes(doc.blocks.find((b) => b.kind === "section")?.text || "") ||
   "Book";
 const level = (b: ScriptBlock) => Math.max(1, Math.min(6, b.level || 2));
 function htmlBlock(
@@ -149,7 +149,7 @@ export function novelEpub(doc: Screenplay): Uint8Array {
   const headings = doc.blocks.flatMap((b, i) =>
     b.kind === "section" ? [{ b, i }] : [],
   );
-  const nav = `<nav epub:type="toc" id="toc"><h1>Contents</h1><ol>${(headings.length ? headings : [{ b: { text: title(doc) } as ScriptBlock, i: 0 }]).map(({ b, i }) => `<li><a href="book.xhtml#p${i}">${xml(b.text || "Untitled section")}</a></li>`).join("")}</ol></nav>`;
+  const nav = `<nav epub:type="toc" id="toc"><h1>Contents</h1><ol>${(headings.length ? headings : [{ b: { text: title(doc) } as ScriptBlock, i: 0 }]).map(({ b, i }) => `<li><a href="book.xhtml#p${i}">${xml(withoutFootnotes(b.text) || "Untitled section")}</a></li>`).join("")}</ol></nav>`;
   return zipSync({
     mimetype: [strToU8("application/epub+zip"), { level: 0 }],
     "META-INF/container.xml": strToU8(

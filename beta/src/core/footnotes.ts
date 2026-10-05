@@ -42,3 +42,6 @@ export function footnoteRuns(
   slice(end, block.text.length);
   return result;
 }
+
+export const withoutFootnotes = (text: string) =>
+  text.replace(footnotePattern(), "");

@@ -1,5 +1,5 @@
 import { Plugin, PluginKey, TextSelection } from "prosemirror-state";
-import { Decoration, DecorationSet } from "prosemirror-view";
+import { type EditorView, Decoration, DecorationSet } from "prosemirror-view";
 import { footnotePattern, decodeFootnote } from "../core/footnotes";
 export interface FootnoteTarget {
   from: number;
@@ -8,6 +8,48 @@ export interface FootnoteTarget {
   deleted?: boolean;
 }
 export const footnoteKey = new PluginKey<FootnoteTarget | null>("bookFootnote");
+
+function atomicKey(
+  view: EditorView,
+  event: {
+    key: string;
+    shiftKey?: boolean;
+    ctrlKey?: boolean;
+    metaKey?: boolean;
+    altKey?: boolean;
+  },
+) {
+  if (
+    !view.state.selection.empty ||
+    event.shiftKey ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.altKey
+  )
+    return false;
+  const backward = event.key === "Backspace" || event.key === "ArrowLeft";
+  const forward = event.key === "Delete" || event.key === "ArrowRight";
+  if (!backward && !forward) return false;
+  const { $from } = view.state.selection;
+  for (const m of $from.parent.textContent.matchAll(footnotePattern())) {
+    const from = $from.start() + m.index!,
+      to = from + m[0].length;
+    if (
+      (backward && $from.pos > from && $from.pos <= to) ||
+      (forward && $from.pos >= from && $from.pos < to)
+    ) {
+      const tr = view.state.tr;
+      if (event.key === "Backspace" || event.key === "Delete") {
+        if (!view.editable) return false;
+        tr.delete(from, to);
+      } else
+        tr.setSelection(TextSelection.create(tr.doc, backward ? from : to));
+      view.dispatch(tr.scrollIntoView());
+      return true;
+    }
+  }
+  return false;
+}
 export function footnotePlugin(
   open: (from: number, to: number, text: string) => void,
 ) {
@@ -29,40 +71,48 @@ export function footnotePlugin(
         };
       },
     },
-    props: {
-      handleKeyDown(view, event) {
-        if (
-          !view.state.selection.empty ||
-          event.shiftKey ||
-          event.ctrlKey ||
-          event.metaKey ||
-          event.altKey
-        )
-          return false;
-        const backward = event.key === "Backspace" || event.key === "ArrowLeft";
-        const forward = event.key === "Delete" || event.key === "ArrowRight";
-        if (!backward && !forward) return false;
-        const { $from } = view.state.selection;
-        for (const m of $from.parent.textContent.matchAll(footnotePattern())) {
-          const from = $from.start() + m.index!,
-            to = from + m[0].length;
-          if (
-            (backward && $from.pos > from && $from.pos <= to) ||
-            (forward && $from.pos >= from && $from.pos < to)
-          ) {
-            const tr = view.state.tr;
-            if (event.key === "Backspace" || event.key === "Delete") {
-              if (!view.editable) return false;
-              tr.delete(from, to);
-            } else
-              tr.setSelection(
-                TextSelection.create(tr.doc, backward ? from : to),
-              );
-            view.dispatch(tr.scrollIntoView());
-            return true;
+    appendTransaction(transactions, _previous, state) {
+      if (!transactions.some((tr) => tr.selectionSet)) return null;
+      const selection = state.selection;
+      let from = selection.from,
+        to = selection.to;
+      state.doc.forEach((node, pos) => {
+        for (const m of node.textContent.matchAll(footnotePattern())) {
+          const start = pos + 1 + m.index!,
+            end = start + m[0].length;
+          if (selection.empty && from > start && from < end) {
+            from = to = end;
+          } else {
+            if (from > start && from < end) from = start;
+            if (to > start && to < end) to = end;
           }
         }
-        return false;
+      });
+      if (from === selection.from && to === selection.to) return null;
+      return state.tr.setSelection(
+        TextSelection.create(
+          state.doc,
+          selection.anchor > selection.head ? to : from,
+          selection.anchor > selection.head ? from : to,
+        ),
+      );
+    },
+    props: {
+      handleKeyDown: atomicKey,
+      handleDOMEvents: {
+        beforeinput(view, event) {
+          const key =
+            event.inputType === "deleteContentBackward"
+              ? "Backspace"
+              : event.inputType === "deleteContentForward"
+                ? "Delete"
+                : "";
+          if (key && atomicKey(view, { key })) {
+            event.preventDefault();
+            return true;
+          }
+          return false;
+        },
       },
       decorations(state) {
         const decorations: Decoration[] = [];

@@ -1,4 +1,9 @@
-import { type FootnoteRun, footnoteRuns, footnotePattern, encodeFootnote } from "./footnotes";
+import {
+  type FootnoteRun,
+  footnoteRuns,
+  footnotePattern,
+  encodeFootnote,
+} from "./footnotes";
 import MarkdownIt from "markdown-it";
 import type { Token } from "markdown-it";
 import {

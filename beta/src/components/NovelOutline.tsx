@@ -1,3 +1,4 @@
+import { withoutFootnotes } from "../core/footnotes";
 import { type ReactNode, useState } from "react";
 import { ChevronDown, Plus } from "lucide-react";
 import type { Screenplay } from "../core/model";
@@ -42,7 +43,7 @@ export function NovelOutline({
                 {children ? (
                   <button
                     className="icon-button"
-                    aria-label={`${folded.has(heading.id) ? "Expand" : "Collapse"} ${heading.text}`}
+                    aria-label={`${folded.has(heading.id) ? "Expand" : "Collapse"} ${withoutFootnotes(heading.text)}`}
                     aria-expanded={!folded.has(heading.id)}
                     onClick={() =>
                       setFolded((current) => {
@@ -62,7 +63,7 @@ export function NovelOutline({
                   className="novel-outline-jump"
                   onClick={() => onJump(heading.id)}
                 >
-                  {heading.text || "Untitled heading"}
+                  {withoutFootnotes(heading.text) || "Untitled heading"}
                   <small>
                     {level === 1 ? "Book" : level === 2 ? "Chapter" : "Section"}
                   </small>

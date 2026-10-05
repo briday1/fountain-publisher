@@ -72,6 +72,29 @@ it("inserts, edits, deletes and undoes a numbered inline note without exposing s
   expect(
     mount.querySelector(".book-footnote-marker")?.getAttribute("title"),
   ).toBe("Revised source.");
+  const text = editor.getBlocks()[0].text;
+  const start = text.indexOf("^[") + 1;
+  const end = start + encodeFootnote("Revised source.").length;
+  editor.view.dispatch(
+    editor.view.state.tr.setSelection(
+      TextSelection.create(editor.view.state.doc, end, end - 1),
+    ),
+  );
+  expect(editor.view.state.selection.from).toBe(start);
+  editor.view.dispatch(
+    editor.view.state.tr.setSelection(
+      TextSelection.create(editor.view.state.doc, end),
+    ),
+  );
+  editor.view.dom.dispatchEvent(
+    new InputEvent("beforeinput", {
+      bubbles: true,
+      cancelable: true,
+      inputType: "deleteContentBackward",
+    }),
+  );
+  expect(editor.getBlocks()[0].text).not.toContain("^[");
+  expect(editor.getBlocks()[0].text).toContain("New A claim.");
   editor.destroy();
   mount.remove();
 });
