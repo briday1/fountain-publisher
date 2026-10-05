@@ -16,7 +16,7 @@
 :root[data-product="writeshape"] .modal-header {
   position: sticky;
   top: 0;
-  z-index: 3;
+  z-index: 4;
   background: var(--panel);
 }
 :root[data-product="writeshape"] .beat-sheet-dialog-heading {
