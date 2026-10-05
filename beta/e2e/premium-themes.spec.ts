@@ -468,16 +468,19 @@ test("Book starts clean, saves front matter, numbers headings and keeps colored 
   });
   const fontSettings = await settings(page);
   await expect(
-    fontSettings.getByLabel("Book font", { exact: true }),
+    fontSettings.getByRole("combobox", { name: "Book font", exact: true }),
   ).toHaveValue("georgia");
   await expect(
-    fontSettings.getByLabel("Screenplay font", { exact: true }),
+    fontSettings.getByRole("combobox", {
+      name: "Screenplay font",
+      exact: true,
+    }),
   ).toHaveValue("courier");
   await fontSettings
-    .getByLabel("Book font", { exact: true })
+    .getByRole("combobox", { name: "Book font", exact: true })
     .selectOption("serif");
   await fontSettings
-    .getByLabel("Screenplay font", { exact: true })
+    .getByRole("combobox", { name: "Screenplay font", exact: true })
     .selectOption("mono");
   await fontSettings.getByRole("button", { name: "Done", exact: true }).click();
   await expect(editor).toHaveCSS("font-family", /DejaVu Serif/);

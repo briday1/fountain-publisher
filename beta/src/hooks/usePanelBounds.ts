@@ -20,7 +20,7 @@ export function usePanelBounds() {
       }
       const headers = [
         ...root.querySelectorAll(
-          ".document-pane-header, .search-panel, .writing-beat-guide",
+          ".document-pane-header, .section-focus-bar, .search-panel, .writing-beat-guide",
         ),
       ];
       const bottom = Math.max(
@@ -34,7 +34,7 @@ export function usePanelBounds() {
     observer.observe(root);
     root
       .querySelectorAll(
-        ".document-pane-header, .search-panel, .writing-beat-guide, .outline-panel, .insights-panel",
+        ".document-pane-header, .section-focus-bar, .search-panel, .writing-beat-guide, .outline-panel, .insights-panel",
       )
       .forEach((el) => observer.observe(el));
     return () => observer.disconnect();
