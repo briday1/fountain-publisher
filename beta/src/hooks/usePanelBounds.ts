@@ -18,7 +18,11 @@ export function usePanelBounds() {
           panel ? `${panel.getBoundingClientRect().width + 4}px` : "0px",
         );
       }
-      const headers = [...root.querySelectorAll(".document-pane-header")];
+      const headers = [
+        ...root.querySelectorAll(
+          ".document-pane-header, .search-panel, .writing-beat-guide",
+        ),
+      ];
       const bottom = Math.max(
         top,
         ...headers.map((el) => el.getBoundingClientRect().bottom),

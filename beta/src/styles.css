@@ -2849,12 +2849,14 @@ button.danger {
   right: calc(var(--insights-space) - 4px);
 }
 @media (min-width: 951px) {
+  .workspace .writing-viewport > .writing-scroll,
   .workspace .document-pane:first-child > .writing-scroll,
   .workspace .document-pane:first-child > .empty-document-pane {
     margin-left: var(--outline-space, 0px);
   }
 }
 @media (min-width: 721px) {
+  .workspace .writing-viewport > .writing-scroll,
   .workspace .document-pane:last-of-type > .writing-scroll,
   .workspace .document-pane:last-of-type > .empty-document-pane {
     margin-right: var(--insights-space, 0px);
