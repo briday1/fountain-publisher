@@ -600,13 +600,9 @@ test("Premium chapter focus edits the same book and navigates on desktop and pho
   await editor.pressSequentially(" Revised.");
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 900 });
-    // Close a mobile overlay if the desktop outline preference was retained.
-    const closeOutline = page.getByRole("button", {
-      name: "Close outline",
-      exact: true,
-    });
-    if (width === 390 && (await closeOutline.isVisible()))
-      await closeOutline.click();
+    // Entering the mobile layout closes the outline asynchronously. Wait for
+    // that transition instead of clicking a button that is being unmounted.
+    if (width === 390) await expect(outline).toBeHidden();
     await focus
       .getByRole("button", { name: "Next section", exact: true })
       .click();
