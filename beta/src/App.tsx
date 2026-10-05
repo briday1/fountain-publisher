@@ -2304,6 +2304,27 @@ export default function App() {
               ) : (
                 <>
                   <SceneOutline
+                    doc={doc}
+                    onAddAct={() => {
+                      const acts =
+                        editor.current
+                          ?.getBlocks()
+                          .filter(
+                            (block) =>
+                              block.kind === "section" &&
+                              (block.level || 1) === 1,
+                          ) || [];
+                      const numbers = acts.map((block) =>
+                        Number(
+                          /^ACT\s+(\d+)$/i.exec(block.text.trim())?.[1] || 0,
+                        ),
+                      );
+                      editor.current?.insertBlock(
+                        "section",
+                        `ACT ${Math.max(acts.length, ...numbers, 0) + 1}`,
+                        1,
+                      );
+                    }}
                     insights={insights}
                     onJump={scene}
                     onAdd={() => insert("scene")}

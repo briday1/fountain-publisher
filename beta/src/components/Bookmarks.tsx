@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { BookmarkPlus, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
+import {
+  BookmarkPlus,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Pencil,
+} from "lucide-react";
 import { bookmarks, type Bookmark } from "../core/bookmarks";
 import { newId, type Screenplay, type TextAnchor } from "../core/model";
 import { Modal } from "./Modal";
@@ -25,6 +31,7 @@ export function Bookmarks({
   readOnly?: boolean;
 }) {
   const items = bookmarks(doc);
+  const [expanded, setExpanded] = useState(true);
   const [draft, setDraft] = useState<Bookmark>();
   const [active, setActive] = useState<string>();
   const [notice, setNotice] = useState("");
@@ -58,74 +65,81 @@ export function Bookmarks({
   };
   return (
     <section className="outline-bookmarks" aria-label="Bookmarks">
-      <div className="outline-section">
+      <button
+        className="outline-section bookmark-heading"
+        aria-expanded={expanded}
+        onClick={() => setExpanded(!expanded)}
+      >
+        <ChevronDown size={14} className={expanded ? "" : "collapsed"} />
         <small>BOOKMARKS</small>
         <span>{items.length}</span>
-      </div>
-      {items.length ? (
-        <ul>
-          {items.map((b) => (
-            <li key={b.id}>
-              <button
-                className="bookmark-jump"
-                disabled={!usable.includes(b)}
-                onClick={() => jump(b)}
-                aria-current={active === b.id ? "location" : undefined}
-              >
-                <i style={{ background: b.color }} />
-                <span>
-                  {b.name}
-                  {!usable.includes(b) && <small>Text removed</small>}
-                </span>
-              </button>
-              {!readOnly && (
+      </button>
+      <div hidden={!expanded}>
+        {items.length ? (
+          <ul>
+            {items.map((b) => (
+              <li key={b.id}>
                 <button
-                  className="icon-button"
-                  aria-label={`Edit bookmark ${b.name}`}
-                  onClick={() => setDraft({ ...b })}
+                  className="bookmark-jump"
+                  disabled={!usable.includes(b)}
+                  onClick={() => jump(b)}
+                  aria-current={active === b.id ? "location" : undefined}
                 >
-                  <Pencil size={13} />
+                  <i style={{ background: b.color }} />
+                  <span>
+                    {b.name}
+                    {!usable.includes(b) && <small>Text removed</small>}
+                  </span>
                 </button>
-              )}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="panel-empty">Keep a place to return to.</p>
-      )}
-      <div className="bookmark-actions">
-        <button
-          className="subtle-button"
-          disabled={readOnly}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
-            const anchor = onCapture();
-            if (anchor) {
-              setNotice("");
-              setDraft({ id: newId(), name: "", color: colors[0], anchor });
-            } else setNotice("Place the cursor in your document first.");
-          }}
-        >
-          <BookmarkPlus size={15} /> Add bookmark
-        </button>
-        <button
-          className="icon-button"
-          aria-label="Previous bookmark"
-          disabled={!usable.length}
-          onClick={() => move(-1)}
-        >
-          <ChevronLeft size={15} />
-        </button>
-        <button
-          className="icon-button"
-          aria-label="Next bookmark"
-          disabled={!usable.length}
-          onClick={() => move(1)}
-        >
-          <ChevronRight size={15} />
-        </button>
+                {!readOnly && (
+                  <button
+                    className="icon-button"
+                    aria-label={`Edit bookmark ${b.name}`}
+                    onClick={() => setDraft({ ...b })}
+                  >
+                    <Pencil size={13} />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="panel-empty">Keep a place to return to.</p>
+        )}
+        <div className="bookmark-actions">
+          <button
+            className="subtle-button"
+            disabled={readOnly}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              const anchor = onCapture();
+              if (anchor) {
+                setNotice("");
+                setDraft({ id: newId(), name: "", color: colors[0], anchor });
+              } else setNotice("Place the cursor in your document first.");
+            }}
+          >
+            <BookmarkPlus size={15} /> Add bookmark
+          </button>
+          <button
+            className="icon-button"
+            aria-label="Previous bookmark"
+            disabled={!usable.length}
+            onClick={() => move(-1)}
+          >
+            <ChevronLeft size={15} />
+          </button>
+          <button
+            className="icon-button"
+            aria-label="Next bookmark"
+            disabled={!usable.length}
+            onClick={() => move(1)}
+          >
+            <ChevronRight size={15} />
+          </button>
+        </div>
+        {notice && <p role="status">{notice}</p>}
       </div>
-      {notice && <p role="status">{notice}</p>}
       {draft && (
         <Modal
           title={

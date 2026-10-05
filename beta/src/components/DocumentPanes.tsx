@@ -406,6 +406,26 @@ export function DocumentPanes({
         finishDrag();
       }}
       style={{ "--pane-ratio": `${model.ratio}%` } as React.CSSProperties}
+      onKeyDownCapture={(event) => {
+        if (
+          event.key !== "Tab" ||
+          !event.ctrlKey ||
+          event.altKey ||
+          event.metaKey ||
+          event.nativeEvent.isComposing
+        )
+          return;
+        const pane = model.panes[model.activePane];
+        if (!pane.tabs.length) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const index = pane.tabs.indexOf(pane.selected || "");
+        const step = event.shiftKey ? -1 : 1;
+        const id =
+          pane.tabs[(index + step + pane.tabs.length) % pane.tabs.length];
+        model.activate(id);
+        requestAnimationFrame(() => model.views.get(id)?.controller.focus());
+      }}
       onKeyDown={(event) => {
         if (
           event.nativeEvent.isComposing ||

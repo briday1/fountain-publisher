@@ -14,20 +14,18 @@ export function Help({
       onClose={onClose}
     >
       {onReport && (
-        <button className="primary" onClick={onReport}>
+        <button
+          className="primary"
+          style={{ marginBottom: 24 }}
+          onClick={onReport}
+        >
           Report a problem or contact support
         </button>
       )}
       <p>
-        Click the page and start typing. Scene headings such as INT. or EXT.
-        format themselves. Enter moves naturally through character cues and
-        dialogue; an empty line returns to action.
-      </p>
-      <p>
-        Choose an element in the toolbar whenever you want to be explicit. Tab
-        completes matching character names; use the arrow keys to choose a
-        match. Otherwise, Tab cycles screenplay elements. Native selection,
-        clipboard, spellcheck, and undo work across the whole document.
+        Just Write. {onReport ? "WriteShape" : "Fountain Publisher"} will format
+        as you go, but additional formatting and styles are provided in the menu
+        bar.
       </p>
       <table className="shortcut-table">
         <tbody>
@@ -39,6 +37,7 @@ export function Help({
             [`${mod} B / I / U`, "Bold / italic / underline"],
             [`${mod} F`, "Find and replace"],
             ["Tab / Shift Tab", "Complete character / cycle element"],
+            ["Ctrl Tab / Ctrl Shift Tab", "Next / previous document tab"],
             ["Escape", "Close a dialog or exit Zen mode"],
           ].map(([key, label]) => (
             <tr key={key}>

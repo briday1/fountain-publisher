@@ -32,7 +32,13 @@ export function SampleOutline() {
             Title page<small>Edit details</small>
           </span>
         </button>
-        <SceneOutline insights={sampleInsights} onJump={noop} onAdd={noop} />
+        <SceneOutline
+          doc={premiumSample}
+          onAddAct={noop}
+          insights={sampleInsights}
+          onJump={noop}
+          onAdd={noop}
+        />
       </div>
     </div>
   );

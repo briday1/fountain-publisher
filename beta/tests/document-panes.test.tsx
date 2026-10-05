@@ -283,3 +283,34 @@ it("touch dragging the final tab to another pane closes its empty pane without e
     delete (document as Partial<Document>).elementFromPoint;
   }
 });
+
+it("cycles document tabs from inside the editor in both directions and wraps", async () => {
+  const first = await setup();
+  await act(async () => {
+    model.duplicate(first.id);
+    model.duplicate(first.id);
+  });
+  const tabs = [...model.panes[0].tabs];
+  const before = model.activeView!.controller.getBlocks();
+  for (const [shiftKey, expected] of [
+    [false, tabs[0]],
+    [true, tabs[2]],
+    [true, tabs[1]],
+  ] as const) {
+    const event = new KeyboardEvent("keydown", {
+      key: "Tab",
+      ctrlKey: true,
+      shiftKey,
+      bubbles: true,
+      cancelable: true,
+    });
+    await act(async () => {
+      model.activeView!.controller.view.dom.dispatchEvent(event);
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    });
+    expect(event.defaultPrevented).toBe(true);
+    expect(model.activeView!.id).toBe(expected);
+    expect(model.activeView!.controller.view.hasFocus()).toBe(true);
+    expect(model.activeView!.controller.getBlocks()).toEqual(before);
+  }
+});
