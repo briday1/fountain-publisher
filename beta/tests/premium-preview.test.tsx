@@ -54,3 +54,20 @@ it("describes live writing only when the deployment enables it", () => {
   expect(html).toContain("Start live editing");
   expect(html).not.toContain("Not enabled");
 });
+
+it("shows a dedicated Book tab with real book components and relevant features", () => {
+  const el = document.createElement("div");
+  el.innerHTML = renderToStaticMarkup(
+    <PlanComparison initialMode="book" onClose={() => {}} />,
+  );
+  expect(
+    el.querySelector('[role="tab"][aria-selected="true"]')?.textContent,
+  ).toBe("Book");
+  expect(el.querySelector(".book-front-matter h1")?.textContent).toBe(
+    "The Last Light",
+  );
+  expect(el.querySelectorAll(".novel-outline li")).toHaveLength(4);
+  expect(el.querySelectorAll(".beat-flow-row")).toHaveLength(3);
+  expect(el.textContent).not.toContain("Mobile PDF formatting");
+  expect(el.textContent).toContain("Character profiles");
+});

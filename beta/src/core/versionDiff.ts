@@ -1,3 +1,4 @@
+import { footnoteRuns } from "./footnotes";
 import { parseMarkdown } from "./markdown";
 import { parseFountain } from "./fountain";
 import type { BlockKind, TextSpan } from "./model";
@@ -82,9 +83,23 @@ function visible(source: string, novel = false) {
         key !== "extra" && typeof value === "string" && value.trim(),
     )
     .map(([, text]) => ({ kind: "centered" as BlockKind, text: String(text) }));
+  const counter = { value: 0 };
+  const body = novel
+    ? doc.blocks.map((b) => {
+        const parts = footnoteRuns(b, counter).map((s) =>
+          s.note
+            ? {
+                text: ` (Footnote ${s.note.number}: ${s.note.text})`,
+                marks: ["italic" as const],
+              }
+            : s,
+        );
+        return { ...b, text: parts.map((s) => s.text).join(""), spans: parts };
+      })
+    : doc.blocks;
   return [
     ...title,
-    ...doc.blocks.filter(
+    ...body.filter(
       (b) =>
         !(
           novel

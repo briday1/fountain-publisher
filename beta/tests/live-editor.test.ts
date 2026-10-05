@@ -1,3 +1,4 @@
+import { bookmarks } from "../src/core/bookmarks";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 import { Awareness } from "y-protocols/awareness";
@@ -555,4 +556,42 @@ describe("live screenplay editing", () => {
     expect(getBlocks).not.toHaveBeenCalled();
     expect(performance.now() - start).toBeLessThan(1500);
   });
+});
+
+it("collaborative bookmarks follow remote edits without appearing in the beat sheet", () => {
+  const base = fixture();
+  base.metadata.bookmarks = [
+    {
+      id: "mark",
+      name: "Opening",
+      color: "#3974c2",
+      anchor: { blockId: "opening", offset: 7 },
+    },
+  ];
+  const { a, b, sync } = pair(base);
+  select(a.editor, 1);
+  type(a.editor, "New ");
+  sync();
+  expect(bookmarks(b.current())[0].anchor).toEqual({
+    blockId: "opening",
+    offset: 11,
+  });
+  expect(b.current().metadata.beats).toEqual([]);
+  a.editor.undo();
+  sync();
+  expect(bookmarks(b.current())[0].anchor?.offset).toBe(7);
+  const previous = b.current();
+  const next = {
+    ...previous,
+    metadata: {
+      ...previous.metadata,
+      bookmarks: bookmarks(previous).map((m) => ({
+        ...m,
+        name: "The beginning",
+      })),
+    },
+  };
+  b.editor.updateBeatRanges(next, previous.metadata.beats, previous);
+  sync();
+  expect(bookmarks(a.current())[0].name).toBe("The beginning");
 });

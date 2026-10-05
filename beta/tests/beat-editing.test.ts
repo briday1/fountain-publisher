@@ -1,3 +1,4 @@
+import { bookmarks } from "../src/core/bookmarks";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AllSelection, TextSelection } from "prosemirror-state";
 import { closeHistory } from "prosemirror-history";
@@ -276,4 +277,52 @@ describe("beat anchors under compound editing", () => {
     expect(editor.redo()).toBe(true);
     expect(assignment(editor, cleared)).toBeUndefined();
   });
+});
+
+it("bookmarks track their cursor position through typing, deletion, undo and new metadata", () => {
+  const doc = emptyScreenplay();
+  doc.blocks = [{ id: "p", kind: "action", text: "Before the light." }];
+  doc.metadata.bookmarks = [
+    {
+      id: "mark",
+      name: "Return here",
+      color: "#3974c2",
+      anchor: { blockId: "p", offset: 7 },
+    },
+  ];
+  const editor = mount(doc);
+  editor.view.dispatch(editor.view.state.tr.insertText("New ", 1));
+  expect(bookmarks(editor.getDocument(doc))[0].anchor).toEqual({
+    blockId: "p",
+    offset: 11,
+  });
+  editor.undo();
+  expect(bookmarks(editor.getDocument(doc))[0].anchor?.offset).toBe(7);
+  editor.redo();
+  expect(bookmarks(editor.getDocument(doc))[0].anchor?.offset).toBe(11);
+  editor.view.dispatch(closeHistory(editor.view.state.tr));
+  editor.view.dispatch(
+    editor.view.state.tr.delete(1, editor.view.state.doc.content.size - 1),
+  );
+  expect(bookmarks(editor.getDocument(doc))[0].anchor).toBeUndefined();
+  editor.undo();
+  expect(bookmarks(editor.getDocument(doc))[0].anchor?.offset).toBe(11);
+  const previous = editor.getDocument(doc);
+  const next = {
+    ...previous,
+    metadata: {
+      ...previous.metadata,
+      bookmarks: [
+        ...bookmarks(previous),
+        {
+          id: "second",
+          name: "Opening",
+          color: "#54824d",
+          anchor: { blockId: "p", offset: 0 },
+        },
+      ],
+    },
+  };
+  editor.updateBeatRanges(next, previous.metadata.beats, previous);
+  expect(bookmarks(editor.getDocument(next))).toHaveLength(2);
 });

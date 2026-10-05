@@ -1,3 +1,4 @@
+import { BookPremiumExamples } from "./BookPremiumExamples";
 import { useState } from "react";
 import { BillingPlanChoice, type BillingPlan } from "./BillingPlanChoice";
 import { Modal } from "./Modal";
@@ -24,13 +25,16 @@ export function PlanComparison({
   collaborationAvailable = false,
   billingMode = "test",
   privateMode = true,
+  initialMode = "screenplay",
 }: {
   onClose: () => void;
   onAccount?: (plan?: BillingPlan) => void;
   collaborationAvailable?: boolean;
   billingMode?: "test" | "live";
   privateMode?: boolean;
+  initialMode?: "screenplay" | "book";
 }) {
+  const [mode, setMode] = useState(initialMode);
   const [plan, setPlan] = useState<BillingPlan>("monthly");
   return (
     <Modal
@@ -49,48 +53,97 @@ export function PlanComparison({
       <p className="sample-label">
         The examples use fictional sample content from The Last Light.
       </p>
-      <div className="premium-showcase">
-        {features.map((feature) => (
-          <section className="showcase-feature" key={feature.title}>
-            <small className="showcase-kicker">{feature.title}</small>
-            <h3>{feature.benefit}</h3>
-            <p>{feature.caption}</p>
-            <figure>
-              <PremiumSample feature={feature.title} />
-              <figcaption>{feature.title} example</figcaption>
-            </figure>
-          </section>
+      <div
+        className="premium-mode-tabs"
+        role="tablist"
+        aria-label="Writing format"
+      >
+        {(["screenplay", "book"] as const).map((item, index) => (
+          <button
+            key={item}
+            role="tab"
+            id={`premium-${item}-tab`}
+            aria-selected={mode === item}
+            aria-controls="premium-mode-panel"
+            tabIndex={mode === item ? 0 : -1}
+            onClick={() => setMode(item)}
+            onKeyDown={(event) => {
+              if (
+                ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)
+              ) {
+                event.preventDefault();
+                const next =
+                  event.key === "Home"
+                    ? 0
+                    : event.key === "End"
+                      ? 1
+                      : 1 - index;
+                setMode(next === 0 ? "screenplay" : "book");
+                (
+                  event.currentTarget.parentElement?.children[
+                    next
+                  ] as HTMLElement
+                )?.focus();
+              }
+            }}
+          >
+            {item === "book" ? "Book" : "Screenplay"}
+          </button>
         ))}
-        <section className="showcase-feature">
-          <small className="showcase-kicker">Mobile PDF</small>
-          <h3>PDFs for phone screens</h3>
-          <p>
-            Export a screenplay PDF with narrower pages for reading on a phone.
-            Each mobile page contains the same text as its corresponding
-            standard PDF page.
-          </p>
-          <figure className="sample-phone">
-            <div inert aria-hidden="true">
-              <SampleScript mobile />
-            </div>
-            <figcaption>Mobile PDF example</figcaption>
-          </figure>
-        </section>
-        <section className="showcase-feature">
-          <small className="showcase-kicker">Character highlighting</small>
-          <h3>Highlight character cues</h3>
-          <p>
-            Choose characters and colors for the exported PDF. Their cues are
-            highlighted throughout the script, making parts easier to find
-            during a read-through.
-          </p>
-          <figure>
-            <div inert aria-hidden="true">
-              <SampleScript highlight />
-            </div>
-            <figcaption>Mara's cues highlighted</figcaption>
-          </figure>
-        </section>
+      </div>
+      <div
+        id="premium-mode-panel"
+        role="tabpanel"
+        aria-labelledby={`premium-${mode}-tab`}
+        className="premium-showcase"
+      >
+        {mode === "book" ? (
+          <BookPremiumExamples />
+        ) : (
+          <>
+            {features.map((feature) => (
+              <section className="showcase-feature" key={feature.title}>
+                <small className="showcase-kicker">{feature.title}</small>
+                <h3>{feature.benefit}</h3>
+                <p>{feature.caption}</p>
+                <figure>
+                  <PremiumSample feature={feature.title} />
+                  <figcaption>{feature.title} example</figcaption>
+                </figure>
+              </section>
+            ))}
+            <section className="showcase-feature">
+              <small className="showcase-kicker">Mobile PDF</small>
+              <h3>PDFs for phone screens</h3>
+              <p>
+                Export a screenplay PDF with narrower pages for reading on a
+                phone. Each mobile page contains the same text as its
+                corresponding standard PDF page.
+              </p>
+              <figure className="sample-phone">
+                <div inert aria-hidden="true">
+                  <SampleScript mobile />
+                </div>
+                <figcaption>Mobile PDF example</figcaption>
+              </figure>
+            </section>
+            <section className="showcase-feature">
+              <small className="showcase-kicker">Character highlighting</small>
+              <h3>Highlight character cues</h3>
+              <p>
+                Choose characters and colors for the exported PDF. Their cues
+                are highlighted throughout the script, making parts easier to
+                find during a read-through.
+              </p>
+              <figure>
+                <div inert aria-hidden="true">
+                  <SampleScript highlight />
+                </div>
+                <figcaption>Mara's cues highlighted</figcaption>
+              </figure>
+            </section>
+          </>
+        )}
         <section className="showcase-feature">
           <small className="showcase-kicker">Writing goals</small>
           <h3>Word and time targets</h3>
@@ -175,19 +228,32 @@ export function PlanComparison({
           </tr>
         </thead>
         <tbody>
-          {[
-            "Writing without signing in",
-            "Local saves",
-            "Standard PDF export",
-            "Mobile PDF formatting",
-            "Character highlighting",
-            "Insights",
-            "Beat Sheet",
-            "Beat Guide",
-            "Cloud library",
-            "Writing goals",
-            "Live collaboration",
-          ].map((feature, i) => (
+          {(mode === "book"
+            ? [
+                "Writing without signing in",
+                "Local saves",
+                "PDF, Word, EPUB and RTF exports",
+                "Character profiles",
+                "Beat Sheet",
+                "Beat Guide",
+                "Cloud library",
+                "Writing goals",
+                "Live collaboration",
+              ]
+            : [
+                "Writing without signing in",
+                "Local saves",
+                "Standard PDF export",
+                "Mobile PDF formatting",
+                "Character highlighting",
+                "Insights",
+                "Beat Sheet",
+                "Beat Guide",
+                "Cloud library",
+                "Writing goals",
+                "Live collaboration",
+              ]
+          ).map((feature, i) => (
             <tr key={feature}>
               <th scope="row">{feature}</th>
               <td>{i < 3 ? "Included" : "—"}</td>

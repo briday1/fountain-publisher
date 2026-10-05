@@ -1,3 +1,10 @@
+import { footnotePlugin, footnoteKey } from "./footnotes";
+import { encodeFootnote } from "../core/footnotes";
+import {
+  anchoredItems,
+  bookmarkBeats,
+  bookmarksFromBeats,
+} from "../core/bookmarks";
 import { Mapping } from "prosemirror-transform";
 import { sectionBounds, sectionFocusPlugin } from "./sectionFocus";
 import { isNovel, parseMarkdown } from "../core/markdown";
@@ -585,6 +592,13 @@ export class EditorController {
               yUndoPlugin({ undoManager: this.live.undoManager }),
             ]
           : []),
+        ...(this.prose
+          ? [
+              footnotePlugin((from, to, text) =>
+                this.openFootnote(from, to, text),
+              ),
+            ]
+          : []),
         annotationPlugin(
           (id) => this.openAnnotation(id),
           () => this.writable,
@@ -1003,7 +1017,54 @@ export class EditorController {
     });
   }
 
+  insertFootnote(): void {
+    if (!this.prose || !this.writable) return;
+    syncNativeSelection(this.view);
+    const pos = this.view.state.selection.head;
+    this.openFootnote(pos, pos, "");
+  }
+
+  openFootnote(from: number, to: number, text: string): void {
+    const state = this.view.state;
+    this.view.dispatch(
+      state.tr.setMeta(footnoteKey, {
+        from,
+        to,
+        source: state.doc.textBetween(from, to),
+      }),
+    );
+    this.callbacks.onAnnotation?.({
+      footnote: true,
+      blockId: state.doc.resolve(from).parent.attrs.id,
+      noteId: from !== to ? "footnote" : undefined,
+      text,
+      canEdit: this.writable,
+    });
+  }
+
   saveAnnotation(target: AnnotationTarget, value: string | null): void {
+    if (target.footnote) {
+      if (!this.writable) throw new Error("This book is view only.");
+      const range = footnoteKey.getState(this.view.state);
+      if (
+        !range ||
+        range.deleted ||
+        this.view.state.doc.textBetween(range.from, range.to) !== range.source
+      )
+        throw new Error(
+          "This passage changed. Close this dialog and select the footnote again.",
+        );
+      if (value !== null && !value.trim()) throw new Error("Enter a footnote.");
+      const tr = closeHistory(this.view.state.tr)
+        .insertText(
+          value === null ? "" : encodeFootnote(value),
+          range.from,
+          range.to,
+        )
+        .setMeta(footnoteKey, null);
+      this.view.dispatch(tr);
+      return;
+    }
     if (!this.writable) throw new Error("This screenplay is view only.");
     const text = value
       ?.trim()
@@ -1058,6 +1119,17 @@ export class EditorController {
       blocks: this.getBlocks(),
       metadata: {
         ...base.metadata,
+        ...(Object.hasOwn(base.metadata, "bookmarks")
+          ? {
+              bookmarks: bookmarksFromBeats(
+                rangesFromAnchors(
+                  this.view.state.doc,
+                  bookmarkBeats(base),
+                  beatAnchorKey.getState(this.view.state)!,
+                ),
+              ),
+            }
+          : {}),
         beats: rangesFromAnchors(
           this.view.state.doc,
           base.metadata.beats,
@@ -1090,7 +1162,12 @@ export class EditorController {
     }
     const { state } = this.view;
     const current = beatAnchorKey.getState(state)!;
-    const anchors = updateBeatAnchors(state.doc, screenplay, previous, current);
+    const anchors = updateBeatAnchors(
+      state.doc,
+      screenplay,
+      previousDocument ? anchoredItems(previousDocument) : previous,
+      current,
+    );
     if (anchors === current) return;
     this.view.dispatch(
       closeHistory(state.tr)
@@ -1133,6 +1210,10 @@ export class EditorController {
       last.start() + (endBreak < 0 ? endText.length : endBreak),
     );
     return start && end ? { start, end } : undefined;
+  }
+
+  cursorAnchor() {
+    return textAnchor(this.view.state.doc, this.view.state.selection.head);
   }
 
   focusRange(range: BeatRange): boolean {
@@ -1203,14 +1284,14 @@ export class EditorController {
     return true;
   }
 
-  insertBlock(kind: BlockKind, text = ""): string {
+  insertBlock(kind: BlockKind, text = "", level?: number): string {
     const id = newId();
     if (this.view.composing || !this.writable) return "";
     const { state } = this.view;
     const position = state.selection.$to.depth
       ? state.selection.$to.after(1)
       : state.doc.content.size;
-    const node = blockToNode({ id, kind, text });
+    const node = blockToNode({ id, kind, text, ...(level ? { level } : {}) });
     const tr = closeHistory(state.tr).insert(position, node);
     tr.setSelection(TextSelection.create(tr.doc, position + 1 + text.length));
     this.view.dispatch(tr.scrollIntoView());

@@ -11,7 +11,7 @@ export function NovelOutline({
   viewActions?: (id: string) => ReactNode;
   doc: Screenplay;
   onJump: (id: string) => void;
-  onAdd: () => void;
+  onAdd: (level?: 1 | 2) => void;
   onBeats: () => void;
 }) {
   const [folded, setFolded] = useState(new Set<string>());
@@ -63,7 +63,9 @@ export function NovelOutline({
                   onClick={() => onJump(heading.id)}
                 >
                   {heading.text || "Untitled heading"}
-                  <small>Level {level}</small>
+                  <small>
+                    {level === 1 ? "Book" : level === 2 ? "Chapter" : "Section"}
+                  </small>
                 </button>
                 {viewActions?.(heading.id)}
               </div>
@@ -81,10 +83,16 @@ export function NovelOutline({
           Book, chapter and section headings appear here as you write.
         </p>
       )}
-      <button className="subtle-button add-scene" onClick={onAdd}>
+      <button className="subtle-button add-scene" onClick={() => onAdd(2)}>
         <Plus size={15} />
         Add chapter
       </button>
+      <button className="subtle-button add-scene" onClick={() => onAdd(1)}>
+        <Plus size={15} /> Add book
+      </button>
+      <p className="book-numbering-hint">
+        New books and chapters use the next number. You can rename any heading.
+      </p>
     </>
   );
 }

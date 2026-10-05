@@ -109,6 +109,7 @@ export function annotationPlugin(
 }
 
 export interface AnnotationTarget {
+  footnote?: boolean;
   blockId: string;
   noteId?: string;
   text: string;

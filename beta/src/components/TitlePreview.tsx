@@ -1,14 +1,47 @@
 import { Pencil } from "lucide-react";
-import { hasTitlePage } from "../core/titlePage";
+import { hasTitlePage, titlePageExtra } from "../core/titlePage";
 import type { TitlePage } from "../core/model";
 
 export function TitlePreview({
   value,
   onEdit,
+  novel = false,
 }: {
+  novel?: boolean;
   value: TitlePage;
   onEdit: () => void;
 }) {
+  if (novel)
+    return (
+      <section className="book-front-matter" aria-label="Book title page">
+        <button
+          className="title-preview-edit"
+          onClick={onEdit}
+          aria-label="Edit title page"
+        >
+          <Pencil size={12} /> Edit
+        </button>
+        {value.title ? (
+          <h1>{value.title}</h1>
+        ) : (
+          <button className="book-title-placeholder" onClick={onEdit}>
+            Add a title
+          </button>
+        )}
+        {value.author ? (
+          <p className="book-author">{value.author}</p>
+        ) : (
+          <button className="book-author-placeholder" onClick={onEdit}>
+            Add author
+          </button>
+        )}
+        {titlePageExtra(value, "Dedication") && (
+          <p className="book-dedication">
+            {titlePageExtra(value, "Dedication")}
+          </p>
+        )}
+      </section>
+    );
   if (!hasTitlePage(value)) return null;
   const fields = [
     ["title", value.title],

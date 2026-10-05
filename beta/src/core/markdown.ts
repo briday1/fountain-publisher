@@ -1,3 +1,4 @@
+import { type FootnoteRun, footnoteRuns, footnotePattern, encodeFootnote } from "./footnotes";
 import MarkdownIt from "markdown-it";
 import type { Token } from "markdown-it";
 import {
@@ -65,6 +66,23 @@ export function parseMarkdown(input: string): Screenplay {
     } catch {
       /* Retain unrecognized comments as source. */
     }
+  // Standard Markdown reference notes are stored inline internally so edits and undo move them together.
+  const definitions = new Map<string, string>();
+  source = source.replace(
+    /^\[\^([^\]\n]+)\]:[ \t]*(.*)(?:\n(?:[ \t]{4}|\t).*)*/gm,
+    (definition) => {
+      const match = definition.match(/^\[\^([^\]]+)\]:[ \t]*([\s\S]*)$/)!;
+      const raw = match[2].replace(/\n(?: {4}|\t)/g, " ");
+      const parsed = inline(markdown.parseInline(raw, {})[0]?.children || null);
+      definitions.set(match[1], parsed?.map((s) => s.text).join("") ?? raw);
+      return "";
+    },
+  );
+  source = source.replace(/\[\^([^\]\n]+)\]/g, (match, id) =>
+    definitions.has(id)
+      ? escapeText(encodeFootnote(definitions.get(id)!))
+      : match,
+  );
   const doc = emptyScreenplay();
   doc.blocks = [];
   const raw: Record<string, string> = {};
@@ -214,6 +232,12 @@ export function parseMarkdown(input: string): Screenplay {
         if (typeof saved.titlePage[key] === "string")
           doc.titlePage[key] = saved.titlePage[key];
   }
+  if (saved?.titlePage?.extra && typeof saved.titlePage.extra === "object")
+    doc.titlePage.extra = Object.fromEntries(
+      Object.entries(saved.titlePage.extra).filter(
+        ([, value]) => typeof value === "string",
+      ),
+    ) as Record<string, string>;
   doc.metadata.format = "markdown";
   doc.metadata.markdownRaw = raw;
   return doc;
@@ -221,13 +245,22 @@ export function parseMarkdown(input: string): Screenplay {
 function escapeText(text: string): string {
   return text.replace(/([\\`*_{}\[\]<>])/g, "\\$1").replace(/\n/g, "  \n");
 }
-export function markdownInline(block: ScriptBlock): string {
-  const spans =
-    block.spans?.map((s) => s.text).join("") === block.text
+export function markdownInline(
+  block: ScriptBlock,
+  counter?: { value: number },
+  notes?: { number: number; text: string }[],
+): string {
+  const spans: FootnoteRun[] | undefined = counter
+    ? footnoteRuns(block, counter)
+    : block.spans?.map((s) => s.text).join("") === block.text
       ? block.spans
       : [{ text: block.text }];
   return (spans || [])
     .map((s) => {
+      if (s.note) {
+        notes?.push(s.note);
+        return `[^${s.note.number}]`;
+      }
       const leading = s.text.match(/^\s*/)?.[0] || "",
         trailing = s.text.slice(leading.length).match(/\s*$/)?.[0] || "";
       let core = escapeText(
@@ -245,28 +278,36 @@ export function markdownInline(block: ScriptBlock): string {
 }
 export function serializeMarkdown(doc: Screenplay): string {
   const raw = (doc.metadata.markdownRaw || {}) as Record<string, string>;
+  const counter = { value: 0 },
+    notes: { number: number; text: string }[] = [];
   const body = doc.blocks
     .map((block) => {
       if (
+        !footnotePattern().test(block.text) &&
         raw[block.id] === block.text &&
         block.kind === "action" &&
         !block.spans?.some((s) => s.marks?.length)
       )
         return raw[block.id];
-      let text = markdownInline(block);
+      let text =
+        block.kind === "centered" ? "" : markdownInline(block, counter, notes);
       if (block.kind === "section")
         return (
           "#".repeat(Math.max(1, Math.min(6, block.level || 2))) + " " + text
         );
       if (block.kind === "pageBreak") return "---";
       if (block.kind === "centered") {
-        text = markdownInline({
-          ...block,
-          spans: (block.spans || [{ text: block.text }]).map((s) => ({
-            ...s,
-            marks: [...new Set([...(s.marks || []), "italic" as const])],
-          })),
-        });
+        text = markdownInline(
+          {
+            ...block,
+            spans: (block.spans || [{ text: block.text }]).map((s) => ({
+              ...s,
+              marks: [...new Set([...(s.marks || []), "italic" as const])],
+            })),
+          },
+          counter,
+          notes,
+        );
       }
       if (block.kind === "parenthetical") text = "— " + text;
       if (["dialogue", "centered", "parenthetical"].includes(block.kind))
@@ -292,16 +333,21 @@ export function serializeMarkdown(doc: Screenplay): string {
   })
     .replace(/</g, "\\u003c")
     .replace(/--/g, "\\u002d\\u002d");
-  return body + "\n\n<!-- WriteShape metadata\n" + envelope + "\n-->\n";
+  const definitions = notes
+    .map((n) => `[^${n.number}]: ${escapeText(n.text)}`)
+    .join("\n");
+  return (
+    body +
+    (definitions ? "\n\n" + definitions : "") +
+    "\n\n<!-- WriteShape metadata\n" +
+    envelope +
+    "\n-->\n"
+  );
 }
 export function createNovel(): Screenplay {
   const doc = emptyScreenplay();
   doc.metadata.format = "markdown";
   doc.titlePage.credit = "";
-  doc.blocks = [
-    { id: newId(), kind: "section", level: 1, text: "Untitled book" },
-    { id: newId(), kind: "section", level: 2, text: "Chapter 1" },
-    { id: newId(), kind: "action", text: "" },
-  ];
+  doc.blocks = [{ id: newId(), kind: "action", text: "" }];
   return doc;
 }

@@ -66,9 +66,7 @@ export function BeatGuide({
   const assignAndNext = () => {
     const selection = editor?.selectedLines();
     if (!beat || !selection) {
-      setNotice(
-        "Place the cursor in a screenplay line, or select a passage to assign.",
-      );
+      setNotice("Place the cursor in a line, or select a passage to assign.");
       return;
     }
     if (!onAssign(beat.id, selection)) return;
@@ -134,7 +132,7 @@ export function BeatGuide({
                 aria-label="Assign + Next"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={assignAndNext}
-                title="Assign the selected screenplay lines to this beat, then advance"
+                title="Assign the selected lines to this beat, then advance"
               >
                 <span className="writing-beat-assign-full" aria-hidden="true">
                   Assign + Next

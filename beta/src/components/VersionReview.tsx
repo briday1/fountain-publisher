@@ -18,6 +18,10 @@ function detailText(source: string) {
     const metadata = data.metadata || {};
     return (
       [
+        data.titlePage?.title && `Title: ${data.titlePage.title}`,
+        data.titlePage?.author && `Author: ${data.titlePage.author}`,
+        data.titlePage?.extra?.Dedication &&
+          `Dedication: ${data.titlePage.extra.Dedication}`,
         metadata.notes && `Story notes: ${metadata.notes}`,
         metadata.premise && `Premise: ${metadata.premise}`,
         ...(metadata.beats || []).map(

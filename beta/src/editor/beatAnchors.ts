@@ -1,3 +1,4 @@
+import { anchoredItems, bookmarkPrefix } from "../core/bookmarks";
 import type { Node, Schema } from "prosemirror-model";
 import { Plugin, PluginKey } from "prosemirror-state";
 import { Step, StepResult } from "prosemirror-transform";
@@ -144,7 +145,7 @@ export function initialBeatAnchors(
   screenplay: Screenplay,
 ): BeatAnchors {
   const anchors: BeatAnchors = Object.create(null);
-  for (const beat of screenplay.metadata.beats) {
+  for (const beat of anchoredItems(screenplay)) {
     const range =
       beat.range ??
       (beat.sceneId ? sceneBeatRange(screenplay, beat.sceneId) : undefined);
@@ -162,7 +163,9 @@ export function mapBeatAnchors(
   for (const [id, anchor] of Object.entries(anchors)) {
     if (!anchor || !("from" in anchor)) continue;
     const start = mapping.mapResult(anchor.from, 1);
-    const end = mapping.mapResult(anchor.to, -1);
+    const end = id.startsWith(bookmarkPrefix)
+      ? start
+      : mapping.mapResult(anchor.to, -1);
     let next: StoredAnchor;
     // A range swallowed inside a broader replacement no longer names that passage.
     // Replacing exactly its boundaries still maps to the replacement text.
@@ -214,14 +217,14 @@ export function updateBeatAnchors(
 ): BeatAnchors {
   const before = new Map(previous.map((beat) => [beat.id, beat]));
   let result = anchors;
-  const currentIds = new Set(next.metadata.beats.map((beat) => beat.id));
+  const currentIds = new Set(anchoredItems(next).map((beat) => beat.id));
   for (const id of Object.keys(anchors)) {
     if (currentIds.has(id)) continue;
     if (result === anchors)
       result = Object.assign(Object.create(null), anchors);
     delete result[id];
   }
-  for (const beat of next.metadata.beats) {
+  for (const beat of anchoredItems(next)) {
     const old = before.get(beat.id);
     if (
       old &&

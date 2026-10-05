@@ -1,3 +1,4 @@
+import { isNovel } from "../core/markdown";
 import { useId, useMemo, useState } from "react";
 import { ArrowUpRight, Download } from "lucide-react";
 import type { BeatRange, Screenplay } from "../core/model";
@@ -25,6 +26,7 @@ export function BeatPacing({
   onClose: () => void;
   onRange: (range: BeatRange) => void;
 }) {
+  const documentLabel = isNovel(doc) ? "manuscript" : "screenplay";
   const { total, positions } = useMemo(() => beatPacing(doc), [doc]);
   const [selected, setSelected] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -72,7 +74,7 @@ export function BeatPacing({
       ctx.fillText("Beat pacing", 28, 37);
       ctx.font = "12px system-ui, sans-serif";
       ctx.fillStyle = palette.muted;
-      ctx.fillText("Cumulative screenplay words at each beat", 28, 60);
+      ctx.fillText(`Cumulative ${documentLabel} words at each beat`, 28, 60);
       ctx.save();
       ctx.translate(24, 84);
       ctx.font = "11px ui-monospace, monospace";
@@ -147,14 +149,14 @@ export function BeatPacing({
     <>
       <div className="beat-pacing">
         <p>
-          Cumulative screenplay words at each beat. Grey circles estimate the
-          position of beats not yet assigned to the screenplay.
+          Cumulative {documentLabel} words at each beat. Grey circles estimate
+          the position of beats not yet assigned to the {documentLabel}.
         </p>
         {positions.length ? (
           <>
             <section
               className="beat-pacing-plot"
-              aria-label="Beat pacing by cumulative screenplay words"
+              aria-label={`Beat pacing by cumulative ${documentLabel} words`}
             >
               <header>
                 <strong>Pacing</strong>
@@ -320,7 +322,9 @@ export function BeatPacing({
               <summary>View pacing data</summary>
               <div>
                 <table>
-                  <caption>Cumulative screenplay words at each beat</caption>
+                  <caption>
+                    Cumulative {documentLabel} words at each beat
+                  </caption>
                   <thead>
                     <tr>
                       <th scope="col">Beat</th>

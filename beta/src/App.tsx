@@ -1,3 +1,5 @@
+import { Bookmarks } from "./components/Bookmarks";
+import { nextBookHeading } from "./core/book";
 import { SceneOutline } from "./components/SceneOutline";
 import { VersionReview } from "./components/VersionReview";
 import { DocumentStatusBar } from "./components/DocumentStatusBar";
@@ -1055,7 +1057,7 @@ export default function App() {
     }
     await session.open(
       format === "novel" ? createNovel() : emptyScreenplay(),
-      format === "novel" ? "Untitled.md" : "Untitled.fountain",
+      format === "novel" ? "New book.md" : "Untitled.fountain",
     );
     file.current = undefined;
     setDialog(null);
@@ -1976,6 +1978,11 @@ export default function App() {
             </MenuItem>
           </Menu>
           <Menu label="Insert">
+            {novel && (
+              <MenuItem onClick={() => editor.current?.insertFootnote()}>
+                Footnote…
+              </MenuItem>
+            )}
             <MenuItem onClick={() => setDialog("title")}>Title page…</MenuItem>
             {(novel
               ? (Object.keys(proseLabels) as BlockKind[])
@@ -2209,9 +2216,12 @@ export default function App() {
                         )
                       : undefined
                   }
-                  onAdd={() => {
-                    insert("section");
-                    editor.current?.setHeadingLevel(2);
+                  onAdd={(level = 2) => {
+                    editor.current?.insertBlock(
+                      "section",
+                      nextBookHeading(doc, level),
+                      level,
+                    );
                   }}
                   onBeats={() => openView("beats")}
                 />
@@ -2234,6 +2244,20 @@ export default function App() {
                   />
                 </>
               )}
+              <Bookmarks
+                doc={doc}
+                onChange={changeDoc}
+                readOnly={cloudReadOnly || liveStatus?.canEdit === false}
+                onCapture={() => editor.current?.cursorAnchor()}
+                onJump={(anchor) => {
+                  flushSync(() => {
+                    if (matchMedia("(max-width: 950px)").matches)
+                      setPreferences((p) => ({ ...p, outline: false }));
+                  });
+                  editor.current?.focusBlock(anchor.blockId);
+                  editor.current?.focusRange({ start: anchor, end: anchor });
+                }}
+              />
               <div className="outline-bottom">
                 {!isWriteShape && (
                   <button onClick={() => void run(listWorkspace)}>
@@ -2422,6 +2446,7 @@ export default function App() {
                     aria-label={novel ? "Manuscript page" : "Screenplay page"}
                   >
                     <TitlePreview
+                      novel={novel}
                       value={doc.titlePage}
                       onEdit={() => setDialog("title")}
                     />
@@ -2978,6 +3003,7 @@ export default function App() {
       )}
       {plansOpen && (
         <PlanComparison
+          initialMode={novel ? "book" : "screenplay"}
           collaborationAvailable={account.state.collaborationAvailable}
           billingMode={account.state.billingMode}
           privateMode={account.state.privateMode}
@@ -3170,6 +3196,7 @@ export default function App() {
       )}
       {dialog === "title" && (
         <TitleDialog
+          novel={novel}
           value={doc.titlePage}
           readOnly={cloudReadOnly || liveStatus?.canEdit === false}
           onSave={(titlePage, original) =>
