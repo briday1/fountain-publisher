@@ -22,7 +22,7 @@ for (const title of ["Insights", "Beat Sheet", "Beat Guide"] as const) {
       title === "Insights"
         ? ".balance-bar"
         : title === "Beat Sheet"
-          ? ".sample-beat-grid"
+          ? ".beat-board .beat-flow-list"
           : ".writing-beat-guide";
     expect(el.querySelector(selector)).not.toBeNull();
   });
