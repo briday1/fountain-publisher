@@ -1,3 +1,4 @@
+import { FocusPremiumExample } from "./FocusPremiumExample";
 import { BookPremiumExamples } from "./BookPremiumExamples";
 import { useState } from "react";
 import { BillingPlanChoice, type BillingPlan } from "./BillingPlanChoice";
@@ -97,6 +98,7 @@ export function PlanComparison({
         aria-labelledby={`premium-${mode}-tab`}
         className="premium-showcase"
       >
+        <FocusPremiumExample mode={mode} />
         {mode === "book" ? (
           <BookPremiumExamples />
         ) : (
@@ -236,6 +238,7 @@ export function PlanComparison({
                 "Character profiles",
                 "Beat Sheet",
                 "Beat Guide",
+                "Focus mode",
                 "Cloud library",
                 "Writing goals",
                 "Live collaboration",
@@ -249,6 +252,7 @@ export function PlanComparison({
                 "Insights",
                 "Beat Sheet",
                 "Beat Guide",
+                "Focus mode",
                 "Cloud library",
                 "Writing goals",
                 "Live collaboration",

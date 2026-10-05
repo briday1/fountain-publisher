@@ -16,7 +16,7 @@ beforeAll(() => {
 afterEach(() => {
   models.splice(0).forEach((m) => m.dispose());
 });
-function setup() {
+function setup(canFocus?: () => boolean) {
   const activity = vi.fn();
   const session = new DocumentSession({
     id: crypto.randomUUID(),
@@ -27,6 +27,7 @@ function setup() {
     epoch: 0,
   });
   const model = new DocumentWorkspace(session, {
+    canFocus,
     changed: () => {},
     activated: () => {},
     selection: () => {},
@@ -631,4 +632,30 @@ it("an unsuccessful final live save keeps the shared session and draft editable"
   expect(first.session.current.destination?.live).toBe(true);
   expect(first.model.activeView!.controller.writable).toBe(true);
   expect(first.model.activeBuffer!.endingLive).toBe(false);
+});
+
+it("Premium focus gates both section switches and new focused views without blocking the full document", () => {
+  let premium = false;
+  const { model, session } = setup(() => premium);
+  const base = model.activeView!;
+  const one = session.current.screenplay.blocks[1].id;
+  model.focusSection(base.id, one);
+  expect(base.controller.focusedSection).toBeUndefined();
+  const other = model.duplicate(base.id, false, one, true)!;
+  expect(other.controller.focusedSection).toBeUndefined();
+  premium = true;
+  model.focusSection(base.id, one);
+  expect(base.controller.focusedSection).toBe(one);
+  const two = session.current.screenplay.blocks.find(
+    (b) => b.text === "Two",
+  )!.id;
+  model.focusSection(base.id, two);
+  expect(base.controller.focusedSection).toBe(two);
+  expect(base.controller.getBlocks().map((b) => b.text)).toContain(
+    "First words.",
+  );
+  premium = false;
+  model.focusSection(base.id);
+  expect(base.controller.focusedSection).toBeUndefined();
+  expect(base.host.querySelectorAll("[aria-hidden=true]")).toHaveLength(0);
 });

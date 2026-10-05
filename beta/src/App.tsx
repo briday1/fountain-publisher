@@ -354,8 +354,16 @@ export default function App() {
   const [rename, setRename] = useState("");
   const editor = useRef<EditorController | null>(null);
   const file = useRef<FileHandle | undefined>(undefined);
-  const latest = useRef({ preferences, zen });
-  latest.current = { preferences, zen };
+  const latest = useRef({ preferences, zen, premium: account.state.premium });
+  latest.current = { preferences, zen, premium: account.state.premium };
+  useEffect(() => {
+    if (!isWriteShapeFree || !workspaceReady) return;
+    const model = documentWorkspace.current;
+    if (!model) return;
+    for (const view of model.views.values()) {
+      if (view.controller.focusedSection) model.focusSection(view.id);
+    }
+  }, [isWriteShapeFree, workspaceReady]);
   useLayoutEffect(() => {
     const view = editor.current?.view;
     // Reflow can move the caret far down a long paragraph. Reveal the current
@@ -620,6 +628,7 @@ export default function App() {
       };
       if (isWriteShape && !restoredLive) {
         documentWorkspace.current = new DocumentWorkspace(s, {
+          canFocus: () => latest.current.premium,
           changed: refreshWorkspace,
           edited: ({ controller }) => {
             if (!latest.current.preferences.typewriter) return;
@@ -1706,6 +1715,40 @@ export default function App() {
     if (next === "beats") setGuideTarget(undefined);
     setDialog(next);
   };
+  const focusCurrentSection = () => {
+    if (isWriteShapeFree) {
+      setPlansOpen(true);
+      return;
+    }
+    const model = documentWorkspace.current;
+    const view = model?.activeView;
+    if (!model || !view) return;
+    if (view.controller.focusedSection) {
+      model.focusSection(view.id);
+      return;
+    }
+    const blocks = view.controller.getBlocks();
+    const cursor = view.controller.cursorAnchor();
+    const index = blocks.findIndex((block) => block.id === cursor?.blockId);
+    const preceding = blocks.slice(0, index + 1);
+    const heading = preceding
+      .reverse()
+      .find((block) =>
+        novel
+          ? block.kind === "section" && (block.level || 1) <= 2
+          : block.kind === "scene",
+      );
+    if (!heading) {
+      tell(
+        novel
+          ? "Place the cursor in a chapter, or choose a heading in Outline to focus on it."
+          : "Place the cursor in a scene, or choose a scene in Outline to focus on it.",
+      );
+      return;
+    }
+    model.focusSection(view.id, heading.id);
+    view.controller.focus();
+  };
   const toggleFullscreen = () => {
     void setBrowserFullscreen(!fullscreenElement()).catch(report);
   };
@@ -1990,6 +2033,13 @@ export default function App() {
             <MenuItem onClick={() => openView("beats")}>Beat sheet</MenuItem>
             <MenuItem onClick={() => openView("pdf")}>PDF pages</MenuItem>
             <hr />
+            {documentWorkspace.current && (
+              <MenuItem onClick={focusCurrentSection}>
+                {documentWorkspace.current.activeView?.controller.focusedSection
+                  ? "Exit Focus mode"
+                  : `${novel ? "Focus on this chapter" : "Focus on this scene"}${isWriteShapeFree ? " · Premium" : ""}`}
+              </MenuItem>
+            )}
             <MenuItem onClick={toggleZen}>
               {zen ? "Exit Zen mode" : "Enter Zen mode"}
             </MenuItem>
@@ -2227,11 +2277,21 @@ export default function App() {
                   doc={doc}
                   onJump={scene}
                   viewActions={
-                    !mobile && documentWorkspace.current
+                    documentWorkspace.current
                       ? (id) => (
                           <OutlineViewActions
                             model={documentWorkspace.current!}
                             sectionId={id}
+                            premium={!isWriteShapeFree}
+                            mobile={mobile}
+                            onPremium={() => setPlansOpen(true)}
+                            onFocused={() => {
+                              if (mobile)
+                                setPreferences({
+                                  ...preferences,
+                                  outline: false,
+                                });
+                            }}
                           />
                         )
                       : undefined
@@ -2248,11 +2308,21 @@ export default function App() {
                     onJump={scene}
                     onAdd={() => insert("scene")}
                     viewActions={
-                      documentWorkspace.current && !mobile
+                      documentWorkspace.current
                         ? (id) => (
                             <OutlineViewActions
                               model={documentWorkspace.current!}
                               sectionId={id}
+                              premium={!isWriteShapeFree}
+                              mobile={mobile}
+                              onPremium={() => setPlansOpen(true)}
+                              onFocused={() => {
+                                if (mobile)
+                                  setPreferences({
+                                    ...preferences,
+                                    outline: false,
+                                  });
+                              }}
                             />
                           )
                         : undefined

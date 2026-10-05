@@ -532,3 +532,137 @@ test("Book starts clean, saves front matter, numbers headings and keeps colored 
     1,
   );
 });
+
+test("Premium chapter focus edits the same book and navigates on desktop and phone", async ({
+  page,
+}, testInfo) => {
+  await setup(page);
+  await page.route("**/api/account", (route) =>
+    route.fulfill({
+      json: {
+        account: { ...account, privateTester: true },
+        premium: true,
+        billingAvailable: false,
+      },
+    }),
+  );
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "New document", exact: true })
+    .getByRole("button", { name: /^Book/ })
+    .click();
+  const editor = page.locator(".novel-editor");
+  const outline = page.getByRole("complementary", {
+    name: "Book outline",
+    exact: true,
+  });
+  if (!(await outline.isVisible()))
+    await page
+      .getByRole("button", { name: "Toggle outline", exact: true })
+      .click();
+  for (const text of [
+    "First chapter stays connected.",
+    "Second chapter stays safe.",
+  ]) {
+    await outline
+      .getByRole("button", { name: "Add chapter", exact: true })
+      .click();
+    await editor.press("End");
+    await editor.press("Enter");
+    await editor.pressSequentially(text);
+  }
+  await outline
+    .locator(".novel-outline li")
+    .first()
+    .getByRole("button", { name: "Section view actions", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Focus this section", exact: true })
+    .click();
+  const focus = page.getByRole("navigation", {
+    name: "Focus mode",
+    exact: true,
+  });
+  await expect(focus).toContainText("Chapter 1");
+  await expect(
+    editor.getByText("Second chapter stays safe.", { exact: true }),
+  ).toBeHidden();
+  await editor
+    .getByText("First chapter stays connected.", { exact: true })
+    .click();
+  await editor.press("End");
+  await editor.pressSequentially(" Revised.");
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    // Close a mobile overlay if the desktop outline preference was retained.
+    const closeOutline = page.getByRole("button", {
+      name: "Close outline",
+      exact: true,
+    });
+    if (width === 390 && (await closeOutline.isVisible()))
+      await closeOutline.click();
+    await focus
+      .getByRole("button", { name: "Next section", exact: true })
+      .click();
+    await expect(focus).toContainText("Chapter 2");
+    await expect(
+      editor.getByText("Second chapter stays safe.", { exact: true }),
+    ).toBeVisible();
+    await focus
+      .getByRole("button", { name: "Previous section", exact: true })
+      .click();
+    await expect(
+      editor.getByText("First chapter stays connected. Revised.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath(`chapter-focus-${width}.png`),
+    });
+  }
+  await focus
+    .getByRole("button", { name: "Whole document", exact: true })
+    .click();
+  await expect(focus).toHaveCount(0);
+  await expect(
+    editor.getByText("First chapter stays connected. Revised.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    editor.getByText("Second chapter stays safe.", { exact: true }),
+  ).toBeVisible();
+});
+
+test("Free focus opens the Premium examples without changing the document", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.route("**/api/account", (route) =>
+    route.fulfill({
+      json: { account, premium: false, billingAvailable: false },
+    }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "View", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Focus on this scene · Premium", exact: true })
+    .click();
+  const plans = page.getByRole("dialog", {
+    name: "WriteShape Premium",
+    exact: true,
+  });
+  await expect(
+    plans.getByRole("img", { name: /lantern room scene is isolated/ }),
+  ).toBeVisible();
+  await plans.getByRole("tab", { name: "Book", exact: true }).click();
+  await expect(
+    plans.getByRole("img", { name: /Chapter 2 is isolated/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Focus mode", exact: true }),
+  ).toHaveCount(0);
+});

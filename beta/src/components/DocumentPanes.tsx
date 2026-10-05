@@ -19,6 +19,7 @@ import {
   destinationLabel,
 } from "../storage/destinations";
 import type { Preferences } from "./Settings";
+import { SectionFocusBar } from "./SectionFocusBar";
 import { TitlePreview } from "./TitlePreview";
 import { Menu, MenuItem } from "./Menu";
 import "./document-panes.css";
@@ -141,6 +142,7 @@ function DocumentCanvas({
   const focus = view.controller.focusedSection;
   return (
     <>
+      <SectionFocusBar model={model} view={view} />
       <div
         ref={scroll}
         className="writing-scroll"

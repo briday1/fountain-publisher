@@ -42,6 +42,7 @@ export interface WorkspacePane {
   selected?: string;
 }
 interface WorkspaceOptions {
+  canFocus?(): boolean;
   changed(): void;
   edited?(view: DocumentView): void;
   activated(buffer: DocumentBuffer, view: DocumentView): void;
@@ -193,12 +194,14 @@ export class DocumentWorkspace {
   }
   private attachLiveView(buffer: DocumentBuffer, view: DocumentView) {
     const client = buffer.live!;
+    const focused = view.controller.focusedSection;
     view.controller.attachCollaboration({
       doc: client.doc,
       awareness: client.awareness,
       canEdit: client.self.canEdit,
     });
-    if (view.sectionId) view.controller.setSectionFocus(view.sectionId);
+    if (focused && this.options.canFocus?.() !== false)
+      view.controller.setSectionFocus(focused);
   }
   async endLive(bufferId: string) {
     const buffer = this.buffers.get(bufferId);
@@ -528,7 +531,8 @@ export class DocumentWorkspace {
     this.panes[pane].tabs.push(id);
     // A session captures one linked view; all view document/history states agree.
     if (!buffer.session.editor) buffer.session.editor = controller;
-    if (focus) controller.setSectionFocus(sectionId);
+    if (focus && this.options.canFocus?.() !== false)
+      controller.setSectionFocus(sectionId);
     if (sectionId) controller.focusBlock(sectionId);
     this.activate(id);
     return view;
@@ -688,9 +692,10 @@ export class DocumentWorkspace {
   }
   focusSection(id: string, sectionId?: string) {
     const view = this.views.get(id);
-    if (!view) return;
+    if (!view || (sectionId && this.options.canFocus?.() === false)) return;
     view.sectionId = sectionId;
     view.controller.setSectionFocus(sectionId);
+    this.saveLayout();
     this.options.changed();
   }
   dispose() {

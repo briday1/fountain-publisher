@@ -27,10 +27,10 @@ for (const title of ["Insights", "Beat Sheet", "Beat Guide"] as const) {
     expect(el.querySelector(selector)).not.toBeNull();
   });
 }
-it("places all six sample showcases before comparison and describes unavailable purchases", () => {
+it("places all seven sample showcases before comparison and describes unavailable purchases", () => {
   const el = document.createElement("div");
   el.innerHTML = renderToStaticMarkup(<PlanComparison onClose={() => {}} />);
-  expect(el.querySelectorAll(".showcase-feature")).toHaveLength(6);
+  expect(el.querySelectorAll(".showcase-feature")).toHaveLength(7);
   expect(
     el
       .querySelector(".premium-showcase")!
@@ -43,6 +43,9 @@ it("places all six sample showcases before comparison and describes unavailable 
     "Live collaboration is not enabled for this deployment",
   );
   expect(el.querySelector(".collaboration-concept")).not.toBeNull();
+  expect(
+    el.querySelector('.focus-diagram[role="img"]')?.getAttribute("aria-label"),
+  ).toContain("scene is isolated from Act II");
   expect(el.querySelector("mark")?.textContent).toBe("MARA");
 });
 
@@ -70,4 +73,7 @@ it("shows a dedicated Book tab with real book components and relevant features",
   expect(el.querySelectorAll(".beat-flow-row")).toHaveLength(3);
   expect(el.textContent).not.toContain("Mobile PDF formatting");
   expect(el.textContent).toContain("Character profiles");
+  expect(
+    el.querySelector('.focus-diagram[role="img"]')?.getAttribute("aria-label"),
+  ).toContain("Chapter 2 is isolated from Book 1");
 });
