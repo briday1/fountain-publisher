@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeAll, expect, it, vi } from "vitest";
 import { WriteShapeLibrary } from "../src/components/WriteShapeLibrary";
+import { VersionReview } from "../src/components/VersionReview";
 import { LibraryHistory } from "../src/components/LibraryHistory";
 import { LibrarySharing, SharedWithMe } from "../src/components/LibrarySharing";
 import {
@@ -571,6 +572,39 @@ it("cloud folders can be copied and moved to Trash through their context menu", 
       expect.objectContaining({ action: "trash", revision: 1 }),
     );
     expect(opened).not.toHaveBeenCalled();
+  } finally {
+    await h.close();
+  }
+});
+
+it("reviews forced Fountain cues as formatted dialogue and saves the exact chosen source", async () => {
+  const older = ".INT. ROOM - DAY\n\n@Mara\nStay **here**.";
+  const current = ".INT. ROOM - DAY\n\n@Mara\nStay *here*.";
+  const save = vi.fn(async () => {});
+  const h = await mount(
+    <VersionReview
+      older={older}
+      current={current}
+      olderLabel="Yesterday"
+      onSave={save}
+      onClose={() => {}}
+    />,
+  );
+  try {
+    expect(h.node.querySelector(".diff-character")?.textContent).toBe("Mara");
+    expect(h.node.querySelector(".diff-dialogue del")?.textContent).toContain(
+      "here",
+    );
+    expect(h.node.querySelector(".diff-dialogue ins")?.textContent).toContain(
+      "here",
+    );
+    expect(
+      h.node.querySelector(".version-diff-paper")?.textContent,
+    ).not.toMatch(/[@*]/);
+    expect(save).not.toHaveBeenCalled();
+    await click(h.node, "Use saved version");
+    await click(h.node, "Save new version");
+    expect(save).toHaveBeenCalledWith(older);
   } finally {
     await h.close();
   }

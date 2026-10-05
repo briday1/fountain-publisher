@@ -298,3 +298,12 @@
     padding: 14px;
   }
 }
+
+.sample-beat-sheet .beat-pacing-scroll svg {
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .sample-beat-sheet .beat-pacing-scroll svg text {
+    font-size: 28px;
+  }
+}
