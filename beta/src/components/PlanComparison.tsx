@@ -5,6 +5,7 @@ import { BillingPlanChoice, type BillingPlan } from "./BillingPlanChoice";
 import { Modal } from "./Modal";
 import { PremiumSample, SampleScript } from "./PremiumSample";
 import type { PremiumFeature } from "./PremiumSample";
+import { SampleOutline } from "./PremiumStoryExamples";
 const features: { title: PremiumFeature; benefit: string; caption: string }[] =
   [
     {
@@ -15,9 +16,9 @@ const features: { title: PremiumFeature; benefit: string; caption: string }[] =
     },
     {
       title: "Beat Sheet",
-      benefit: "Outline your story",
+      benefit: "Develop the moments within each act",
       caption:
-        "See the whole story laid out by act, then check its pacing graph. Link beats to screenplay lines and keep the Beat Guide beside your page as you write.",
+        "Break each act into story beats, group them under scenes, and link each beat to its passage. The pacing graph below follows those same beats through the screenplay.",
     },
   ];
 export function PlanComparison({
@@ -103,6 +104,19 @@ export function PlanComparison({
           <BookPremiumExamples />
         ) : (
           <>
+            <section className="showcase-feature">
+              <small className="showcase-kicker">Outline · Included</small>
+              <h3>Find your way through the scenes</h3>
+              <p>
+                Your scene headings form the Outline as you write. Jump to a
+                scene or the title page, add scenes, and bookmark places to
+                revisit.
+              </p>
+              <figure>
+                <SampleOutline />
+                <figcaption>Scene outline from The Last Light</figcaption>
+              </figure>
+            </section>
             {features.map((feature) => (
               <section className="showcase-feature" key={feature.title}>
                 <small className="showcase-kicker">{feature.title}</small>

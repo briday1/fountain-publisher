@@ -4,9 +4,34 @@ import { NovelCharacters } from "./NovelCharacters";
 import { TitlePreview } from "./TitlePreview";
 import { BeatBoard } from "./BeatBoard";
 import { BeatPacing } from "./BeatPacing";
+import { createSampleBeats } from "./premiumSampleData";
 const noop = () => {};
 export const sampleBook = parseMarkdown(
-  `# Book 1 — The Coast\n\n## Chapter 1 — The dark\n\nMara counted the windows across the bay. One by one, their lights vanished. At the foot of the lighthouse, Eli waited with a brass gear in his hand.\n\n## Chapter 2 — The promise\n\nShe had spent years refusing his help. Tonight, with a boat lost in the channel, she could no longer afford to.\n\n## Chapter 3 — The light\n\nTogether they turned the crank. The beam swept out over the water, and a bell answered from the dark.`,
+  `# Book 1 — The Coast
+
+## Chapter 1 — The dark
+
+Mara counted the windows across the bay. One by one, their lights vanished.
+
+The fishing crews were still out there. She had promised them a light, and the beacon had never missed a night.
+
+Eli came back from the flooded generator. Mara pointed him toward the hand crank: they would have to find another way.
+
+## Chapter 2 — The promise
+
+At the foot of the lighthouse, Eli waited with a brass gear in his hand. Their father had saved it for this moment.
+
+Mara had spent years refusing his help. Now she asked him to lift the mechanism with her.
+
+June called from the window. A boat was drifting toward the rocks, blind to the channel.
+
+## Chapter 3 — The light
+
+Together they turned the crank. The beam swept out over the water.
+
+A bell answered from the dark. June watched the first boat slip safely past the rocks.
+
+Mara kept her hands on the crank. There was one more boat out there, and they would keep turning until it was home.`,
 );
 sampleBook.titlePage = {
   ...sampleBook.titlePage,
@@ -18,15 +43,7 @@ sampleBook.titlePage = {
 const chapters = sampleBook.blocks.filter(
   (b) => b.kind === "section" && b.level === 2,
 );
-sampleBook.metadata.beats = chapters.map((b, i) => ({
-  id: `book-beat-${i}`,
-  title: ["The bay goes dark", "Accept the help", "Bring them home"][i],
-  description: "",
-  act: `Act ${["I", "II", "III"][i]}`,
-  color: ["#3974c2", "#7b5eb5", "#54824d"][i],
-  sceneId: b.id,
-  groupSceneId: b.id,
-}));
+sampleBook.metadata.beats = createSampleBeats(sampleBook, chapters);
 sampleBook.metadata.proseCharacters = [
   {
     id: "mara",

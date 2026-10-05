@@ -3,6 +3,18 @@ import { expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PremiumPreview } from "../src/components/PremiumPreview";
 import { PlanComparison } from "../src/components/PlanComparison";
+import { premiumSample } from "../src/components/premiumSampleData";
+import { sampleBook } from "../src/components/BookPremiumExamples";
+import { resolveBeatRange } from "../src/core/beatRanges";
+it("links every sample beat to a distinct passage in both formats", () => {
+  for (const doc of [premiumSample, sampleBook]) {
+    const ranges = doc.metadata.beats.map((beat) =>
+      resolveBeatRange(doc, beat.range!),
+    );
+    expect(ranges.every(Boolean)).toBe(true);
+    expect(new Set(ranges.map((range) => range!.words)).size).toBe(9);
+  }
+});
 for (const title of ["Insights", "Beat Sheet", "Beat Guide"] as const) {
   it(`${title} renders a distinct inert sample below its upgrade overlay`, () => {
     const el = document.createElement("div");
@@ -27,10 +39,18 @@ for (const title of ["Insights", "Beat Sheet", "Beat Guide"] as const) {
     expect(el.querySelector(selector)).not.toBeNull();
   });
 }
-it("places all seven sample showcases before comparison and describes unavailable purchases", () => {
+it("places separate outline and planning showcases before comparison and describes unavailable purchases", () => {
   const el = document.createElement("div");
   el.innerHTML = renderToStaticMarkup(<PlanComparison onClose={() => {}} />);
-  expect(el.querySelectorAll(".showcase-feature")).toHaveLength(7);
+  expect(el.querySelectorAll(".showcase-feature")).toHaveLength(8);
+  expect(
+    el.querySelector(".sample-beat-sheet .sample-story-outline"),
+  ).toBeNull();
+  expect(
+    el.querySelector('[data-sample-feature="Outline"] .scene-list'),
+  ).not.toBeNull();
+  for (const act of el.querySelectorAll(".sample-beat-sheet .beat-act"))
+    expect(act.querySelectorAll(".beat-flow-row")).toHaveLength(3);
   expect(
     el
       .querySelector(".premium-showcase")!
@@ -70,7 +90,7 @@ it("shows a dedicated Book tab with real book components and relevant features",
     "The Last Light",
   );
   expect(el.querySelectorAll(".novel-outline li")).toHaveLength(4);
-  expect(el.querySelectorAll(".beat-flow-row")).toHaveLength(3);
+  expect(el.querySelectorAll(".beat-flow-row")).toHaveLength(9);
   expect(el.textContent).not.toContain("Mobile PDF formatting");
   expect(el.textContent).toContain("Character profiles");
   expect(

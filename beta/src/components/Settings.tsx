@@ -101,35 +101,37 @@ export function Settings({
     <Modal title="Settings" className="settings-dialog" onClose={onClose}>
       <div className="settings-form">
         <h3 className="settings-section-title">Appearance</h3>
-        <label>
-          Theme
-          <select
-            value={value.theme}
-            onChange={(e) => patch({ theme: e.target.value })}
-          >
-            {[
-              ["system", "Match system"],
-              ["light", "Light"],
-              ["dark", "Dark"],
-              ["solarized-light", "Solarized light"],
-              ["solarized-dark", "Solarized dark"],
-              ["sepia", "Sepia"],
-              ["sage", "Sage"],
-              ["rose", "Rose"],
-              ["dusk", "Dusk"],
-              ["ocean", "Ocean"],
-            ].map(([v, l]) => (
-              <option value={v} key={v}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="theme-palette" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-          <span />
+        <div className="settings-field settings-theme-field">
+          <label>
+            <span>Theme</span>
+            <select
+              value={value.theme}
+              onChange={(e) => patch({ theme: e.target.value })}
+            >
+              {[
+                ["system", "Match system"],
+                ["light", "Light"],
+                ["dark", "Dark"],
+                ["solarized-light", "Solarized light"],
+                ["solarized-dark", "Solarized dark"],
+                ["sepia", "Sepia"],
+                ["sage", "Sage"],
+                ["rose", "Rose"],
+                ["dusk", "Dusk"],
+                ["ocean", "Ocean"],
+              ].map(([v, l]) => (
+                <option value={v} key={v}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="theme-palette" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
         </div>
         <label className="workspace-background-setting">
           Workspace background
@@ -270,9 +272,9 @@ export function Settings({
             ["bookFont", "Book font", bookFonts],
           ] as const
         ).map(([key, label, choices]) => (
-          <div key={key}>
+          <div key={key} className="settings-field">
             <label>
-              {label}
+              <span>{label}</span>
               <select
                 value={value[key]}
                 onChange={(e) =>

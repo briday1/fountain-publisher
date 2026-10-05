@@ -4,19 +4,42 @@ import { premiumSample } from "./premiumSampleData";
 import { BeatBoard } from "./BeatBoard";
 import { BeatPacing } from "./BeatPacing";
 import { buildCharacterAnalytics } from "../core/characterAnalytics";
+import { FileText } from "lucide-react";
 const palette = [
   "var(--accent)",
   "var(--accent-secondary)",
   "var(--accent-tertiary)",
 ];
 const noop = () => {};
+export function SampleOutline() {
+  return (
+    <div
+      className="premium-example"
+      inert
+      aria-hidden="true"
+      data-sample-feature="Outline"
+    >
+      <div className="sample-story-outline">
+        <div className="panel-heading">
+          <div>
+            <small>YOUR STORY</small>
+            <h2>Outline</h2>
+          </div>
+        </div>
+        <button className="outline-title" onClick={noop}>
+          <FileText size={17} />
+          <span>
+            Title page<small>Edit details</small>
+          </span>
+        </button>
+        <SceneOutline insights={sampleInsights} onJump={noop} onAdd={noop} />
+      </div>
+    </div>
+  );
+}
 export function SampleBeatSheet() {
   return (
     <div className="sample-beat-sheet">
-      <div className="sample-story-outline">
-        <h4>Scene outline</h4>
-        <SceneOutline insights={sampleInsights} onJump={noop} onAdd={noop} />
-      </div>
       <BeatBoard
         doc={premiumSample}
         onChange={noop}

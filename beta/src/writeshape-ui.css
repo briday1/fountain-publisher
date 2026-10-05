@@ -60,13 +60,15 @@
   color: var(--accent);
   text-underline-offset: 3px;
 }
-:root[data-product="writeshape"] .modal :is(button, input, select, textarea) {
+:root[data-product="writeshape"]
+  .modal
+  :is(button, input, select, textarea):not([inert] *) {
   border-radius: 8px;
 }
 :root[data-product="writeshape"] .modal button:not([inert] *) {
   min-height: 36px;
 }
-:root[data-product="writeshape"] .modal .icon-button {
+:root[data-product="writeshape"] .modal .icon-button:not([inert] *) {
   width: 36px;
   height: 36px;
   padding: 8px;
@@ -88,12 +90,16 @@
 :root[data-product="writeshape"] .settings-section-title:first-child {
   margin-top: 0;
 }
-:root[data-product="writeshape"] .settings-form > label {
+:root[data-product="writeshape"] .settings-form > label,
+:root[data-product="writeshape"] .settings-form > .settings-field {
   min-height: 54px;
   padding: 9px 0;
   border-bottom: 1px solid var(--border);
   font-size: 13px;
   line-height: 1.4;
+}
+:root[data-product="writeshape"] .settings-field > label {
+  font-size: inherit;
 }
 :root[data-product="writeshape"] .settings-form select {
   width: 48%;
@@ -148,7 +154,7 @@
   :root[data-product="writeshape"] .modal button:not([inert] *) {
     min-height: 44px;
   }
-  :root[data-product="writeshape"] .modal .icon-button {
+  :root[data-product="writeshape"] .modal .icon-button:not([inert] *) {
     width: 44px;
     height: 44px;
   }
@@ -156,7 +162,8 @@
     min-height: 44px;
     font-size: 16px;
   }
-  :root[data-product="writeshape"] .settings-form > label {
+  :root[data-product="writeshape"] .settings-form > label,
+  :root[data-product="writeshape"] .settings-form > .settings-field {
     min-height: 64px;
   }
   :root[data-product="writeshape"] .settings-form .background-controls {
@@ -167,7 +174,8 @@
   }
 }
 @media (max-width: 380px) {
-  :root[data-product="writeshape"] .settings-form > label:has(select) {
+  :root[data-product="writeshape"] .settings-form > label:has(select),
+  :root[data-product="writeshape"] .settings-field > label:has(select) {
     display: grid;
     gap: 8px;
   }

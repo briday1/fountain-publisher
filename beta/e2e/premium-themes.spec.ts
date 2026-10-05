@@ -47,8 +47,16 @@ test("Premium shows the complete sample beat sheet, graph and character timeline
   });
   await expect(dialog).toBeVisible();
   await expect(dialog.locator(".sample-beat-sheet .beat-flow-row")).toHaveCount(
-    3,
+    9,
   );
+  await expect(
+    dialog.locator(".sample-beat-sheet .sample-story-outline"),
+  ).toHaveCount(0);
+  await expect(
+    dialog.locator('[data-sample-feature="Outline"] .scene-list li'),
+  ).toHaveCount(3);
+  for (const act of await dialog.locator(".sample-beat-sheet .beat-act").all())
+    await expect(act.locator(".beat-flow-row")).toHaveCount(3);
   await expect(
     dialog.locator('[data-sample-feature="Beat Sheet"]'),
   ).toHaveCount(1);
@@ -257,6 +265,43 @@ test("new palettes coordinate UI colors, remain readable, and persist", async ({
   await page.screenshot({
     path: testInfo.outputPath("ocean-mobile-settings.png"),
   });
+  for (const width of [360, 390, 834]) {
+    await page.setViewportSize({ width, height: 844 });
+    const theme = dialog.locator(".settings-theme-field");
+    await theme.scrollIntoViewIfNeeded();
+    const row = (await theme.boundingBox())!;
+    const select = (await theme.locator("select").boundingBox())!;
+    const dots = await theme.locator(".theme-palette span").evaluateAll((els) =>
+      els.map((el) => {
+        const { x, y, width, height } = el.getBoundingClientRect();
+        return { x, y, width, height };
+      }),
+    );
+    expect(dots).toHaveLength(4);
+    for (const dot of dots) {
+      expect(dot.y).toBeGreaterThan(select.y + select.height);
+      expect(dot.y + dot.height).toBeLessThan(row.y + row.height);
+      expect(Math.abs(dot.y - dots[0].y)).toBeLessThan(1);
+      expect(Math.abs(dot.width - dot.height)).toBeLessThan(1);
+    }
+    expect(
+      Math.abs(dots[3].x + dots[3].width - select.x - select.width),
+    ).toBeLessThan(1);
+    await page.screenshot({
+      path: testInfo.outputPath(`settings-alignment-${width}.png`),
+    });
+    for (const name of ["Screenplay font", "Book font"]) {
+      const control = dialog.getByRole("combobox", { name, exact: true });
+      const field = dialog.locator(".settings-field").filter({ has: control });
+      await field.scrollIntoViewIfNeeded();
+      const label = (await field.locator("label > span").boundingBox())!;
+      const input = (await control.boundingBox())!;
+      // Narrow phones stack the control; wider screens align it beside its label.
+      expect(
+        label.y + label.height <= input.y || label.x + label.width <= input.x,
+      ).toBe(true);
+    }
+  }
 });
 
 for (const width of [390, 834, 1280]) {

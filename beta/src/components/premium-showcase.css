@@ -7,7 +7,9 @@
   width: 100%;
   margin: 0;
   min-height: 0;
-  box-shadow: none;
+}
+.modal.writeshape-plans {
+  width: min(1000px, calc(100vw - 32px));
 }
 .sample-insights {
   max-width: 440px;
@@ -134,9 +136,6 @@
   background: color-mix(in srgb, var(--panel) 72%, transparent);
 }
 @media (max-width: 600px) {
-  .premium-example .beat-board.beat-sheet-paper {
-    padding: 14px;
-  }
   .sample-insights {
     padding: 12px;
   }
@@ -275,8 +274,15 @@
 .sample-story-outline {
   max-width: 340px;
   background: var(--panel);
-  padding: 16px;
-  margin-bottom: 24px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding-bottom: 16px;
+}
+.sample-beat-sheet {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .sample-beat-sheet .beat-pacing {
   margin-top: 24px;
@@ -293,7 +299,6 @@
   .sample-gantt svg {
     font-size: 26px;
   }
-  .sample-beat-sheet,
   .sample-gantt {
     padding: 14px;
   }
