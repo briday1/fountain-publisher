@@ -190,7 +190,9 @@ test("new palettes coordinate UI colors, remain readable, and persist", async ({
     );
   for (const theme of ["sage", "rose", "dusk", "ocean"]) {
     const dialog = await settings(page);
-    await dialog.getByLabel("Theme", { exact: true }).selectOption(theme);
+    await dialog
+      .getByRole("combobox", { name: "Theme", exact: true })
+      .selectOption(theme);
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
     // Read the actual theme tokens from the rendered stylesheet, including foreground/background contrast.
     const colors = await page.evaluate(() => {
@@ -244,9 +246,9 @@ test("new palettes coordinate UI colors, remain readable, and persist", async ({
   await expect(page.locator("html")).toHaveAttribute("data-theme", "ocean");
   await page.setViewportSize({ width: 390, height: 844 });
   const dialog = await settings(page);
-  await expect(dialog.getByLabel("Theme", { exact: true })).toHaveValue(
-    "ocean",
-  );
+  await expect(
+    dialog.getByRole("combobox", { name: "Theme", exact: true }),
+  ).toHaveValue("ocean");
   await page.screenshot({
     path: testInfo.outputPath("ocean-mobile-settings.png"),
   });
