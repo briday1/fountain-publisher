@@ -292,7 +292,7 @@ test("new palettes coordinate UI colors, remain readable, and persist", async ({
     });
     for (const name of ["Screenplay font", "Book font"]) {
       const control = dialog.getByRole("combobox", { name, exact: true });
-      const field = dialog.locator(".settings-field").filter({ has: control });
+      const field = control.locator("xpath=../..");
       await field.scrollIntoViewIfNeeded();
       const label = (await field.locator("label > span").boundingBox())!;
       const input = (await control.boundingBox())!;
