@@ -35,6 +35,14 @@
     box-shadow: none;
   }
 
+  /* The mobile canvas has no gutter for desktop margin numbers. Keep them
+     in the heading's text flow so every digit stays inside the scroll area. */
+  .numbers-margin .screenplay-editor p[data-kind="scene"]::before {
+    position: static;
+    margin-right: 0.5em;
+    font-size: inherit;
+  }
+
   .settings-form > .workspace-background-setting {
     display: none;
   }
