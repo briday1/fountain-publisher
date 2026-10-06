@@ -104,6 +104,9 @@
 .new-document-options button {
   padding: 26px 18px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
+  align-content: start;
   gap: 12px;
   text-align: left;
 }
@@ -113,8 +116,9 @@
 }
 .new-document-options small {
   font-size: 12px;
+  font-weight: 400;
+  letter-spacing: normal;
   line-height: 1.6;
-  opacity: 0.7;
 }
 @media (max-width: 500px) {
   .new-document-options {
