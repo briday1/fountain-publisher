@@ -88,7 +88,7 @@ it("brands real WriteShape builds and offline installs without changing default 
         expect(html).toContain('href="/writeshape-icon.svg"');
         expect(html).toContain('href="/writeshape-manifest.webmanifest"');
         expect(html).toContain(
-          'href="https://fountain-publisher.com/writeshape-apple-touch-icon.png?v=keyboard5"',
+          'href="https://fountain-publisher.com/writeshape-apple-touch-icon.png?v=keyboard6"',
         );
         expect(html).toContain('crossorigin="use-credentials"');
         expect(shell).toBe(html);
@@ -103,7 +103,7 @@ it("brands real WriteShape builds and offline installs without changing default 
         expect(installed.theme_color).toBe("#80516f");
         expect(installed.background_color).toBe("#fff9fc");
         for (const icon of installed.icons) {
-          expect(new URL(icon.src).searchParams.get("v")).toBe("keyboard5");
+          expect(new URL(icon.src).searchParams.get("v")).toBe("keyboard6");
           expect(new URL(icon.src).origin).toBe(
             "https://fountain-publisher.com",
           );

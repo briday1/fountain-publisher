@@ -54,6 +54,6 @@ export const keyboardGlyphs = {
 export const keyboardRows = [
   { letters: "234", x: 262, y: -194 },
   { letters: "QWE", x: 278, y: 138 },
-  { letters: "ASD", x: 314, y: 467 },
-  { letters: "ZXC", x: 386, y: 796 },
+  { letters: "ASD", x: 350, y: 467 },
+  { letters: "ZXC", x: 422, y: 796 },
 ] as const;
