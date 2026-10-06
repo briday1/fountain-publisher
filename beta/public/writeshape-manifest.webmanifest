@@ -6,29 +6,29 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#e4d7dc",
+  "background_color": "#fff9fc",
   "theme_color": "#80516f",
   "icons": [
     {
-      "src": "https://fountain-publisher.com/writeshape-icon.svg?v=wasd4",
+      "src": "https://fountain-publisher.com/writeshape-icon.svg?v=keyboard5",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "https://fountain-publisher.com/writeshape-icon-192.png?v=wasd4",
+      "src": "https://fountain-publisher.com/writeshape-icon-192.png?v=keyboard5",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://fountain-publisher.com/writeshape-icon-512.png?v=wasd4",
+      "src": "https://fountain-publisher.com/writeshape-icon-512.png?v=keyboard5",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://fountain-publisher.com/writeshape-maskable-512.png?v=wasd4",
+      "src": "https://fountain-publisher.com/writeshape-maskable-512.png?v=keyboard5",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

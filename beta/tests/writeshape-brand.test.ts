@@ -88,7 +88,7 @@ it("brands real WriteShape builds and offline installs without changing default 
         expect(html).toContain('href="/writeshape-icon.svg"');
         expect(html).toContain('href="/writeshape-manifest.webmanifest"');
         expect(html).toContain(
-          'href="https://fountain-publisher.com/writeshape-apple-touch-icon.png?v=wasd4"',
+          'href="https://fountain-publisher.com/writeshape-apple-touch-icon.png?v=keyboard5"',
         );
         expect(html).toContain('crossorigin="use-credentials"');
         expect(shell).toBe(html);
@@ -101,9 +101,9 @@ it("brands real WriteShape builds and offline installs without changing default 
         expect(installed.short_name).toBe("WriteShape");
         expect(installed.start_url).toBe("/");
         expect(installed.theme_color).toBe("#80516f");
-        expect(installed.background_color).toBe("#e4d7dc");
+        expect(installed.background_color).toBe("#fff9fc");
         for (const icon of installed.icons) {
-          expect(new URL(icon.src).searchParams.get("v")).toBe("wasd4");
+          expect(new URL(icon.src).searchParams.get("v")).toBe("keyboard5");
           expect(new URL(icon.src).origin).toBe(
             "https://fountain-publisher.com",
           );
@@ -166,14 +166,15 @@ it("uses the approved keycap geometry for the themed editor and Rose install ico
   expect(component).toContain('width="28"');
   expect(component).not.toContain("<text");
   expect(component).toContain("var(--accent, #80516f)");
-  expect(component.match(/opacity="0.55"/g)).toHaveLength(2);
+  expect(component.match(/data-key="[WS]"/g)).toHaveLength(2);
+  expect(component).not.toMatch(/<linearGradient|<radialGradient|<filter/);
   const rose = renderToStaticMarkup(
     createElement(WriteShapeMark, { colors: writeShapeRoseColors }),
   );
   const artwork = rose.replace(/^<svg[^>]*>/, "").replace(/<\/svg>$/, "");
   expect(asset).toContain(artwork);
   expect(asset).not.toContain("var(--");
-  expect(asset).toContain('fill="#e4d7dc"');
+  expect(asset).toContain('fill="#fff9fc"');
   const maskable = await readFile(
     resolve(repo, "public/writeshape-maskable.svg"),
     "utf8",
@@ -183,7 +184,8 @@ it("uses the approved keycap geometry for the themed editor and Rose install ico
     [...svg.matchAll(/points="([^"]+)"/g)].map((match) => match[1]);
   expect(points(maskable)).toEqual(points(asset));
   expect(maskable).toContain("scale(.90)");
-  expect(maskable).toContain('<rect width="900" height="900" fill="#958d92"');
+  expect(maskable).toContain('<path d="M0 0H900V900H0Z" fill="#fff9fc"');
+  expect(asset).not.toContain("<rect");
   for (const [file, size] of [
     ["writeshape-icon-192.png", 192],
     ["writeshape-icon-512.png", 512],

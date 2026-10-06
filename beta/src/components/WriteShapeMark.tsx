@@ -1,74 +1,95 @@
 import { useId, type SVGProps } from "react";
-import {
-  keycapIconTransform,
-  keycapFullTransform,
-  wordmarkPath,
-  wordmarkTransform,
-  wordmarkViewBox,
-  writeShapeKeycaps,
-} from "./writeShapeKeycaps";
+import { wordmarkPath } from "./writeShapeKeycaps";
+import { keyboardGlyphs, keyboardRows } from "./writeShapeKeyboard";
 import { writeShapeThemes } from "../branding/writeShapeThemes";
 
 const themeColors = {
-  bg: "var(--bg, #e4d7dc)",
+  bg: "var(--logo-bg, #fff9fc)",
   face: "var(--raised, #fff9fc)",
-  right: "color-mix(in srgb, var(--panel, #f0e6eb) 91%, black)",
-  left: "color-mix(in srgb, var(--panel, #f0e6eb) 98%, black)",
+  right: "var(--panel, #f0e6eb)",
+  left: "var(--panel, #f0e6eb)",
   accent: "var(--accent, #80516f)",
   outline: "var(--logo-outline, #958d92)",
 };
 export type WriteShapeColors = typeof themeColors;
-/** Installed icons always use Rose; in-app branding follows the active theme. */
 export const writeShapeRoseColors: WriteShapeColors = writeShapeThemes.find(
   (t) => t.id === "rose",
 )!.colors;
 
-function Keycaps({ colors }: { colors: WriteShapeColors }) {
+function background(colors: WriteShapeColors) {
+  if (!colors.bg.startsWith("#")) return colors.bg;
+  const rgb = [1, 3, 5].map((i) => parseInt(colors.bg.slice(i, i + 2), 16));
+  return Math.max(...rgb) < 100 ? colors.bg : colors.face;
+}
+function muted(colors: WriteShapeColors, bg: string) {
+  if (!bg.startsWith("#"))
+    return `color-mix(in srgb, ${colors.outline} 20%, ${bg})`;
+  return (
+    "#" +
+    [1, 3, 5]
+      .map((i) =>
+        Math.round(
+          parseInt(bg.slice(i, i + 2), 16) * 0.8 +
+            parseInt(colors.outline.slice(i, i + 2), 16) * 0.2,
+        )
+          .toString(16)
+          .padStart(2, "0"),
+      )
+      .join("")
+  );
+}
+function cap(x: number, y: number) {
+  const w = 344,
+    h = 317,
+    r = 58;
+  return `M${x + r} ${y}H${x + w - r}Q${x + w} ${y} ${x + w} ${y + r}V${y + h - r}Q${x + w} ${y + h} ${x + w - r} ${y + h}H${x + r}Q${x} ${y + h} ${x} ${y + h - r}V${y + r}Q${x} ${y} ${x + r} ${y}Z`;
+}
+function Keyboard({ colors, bg }: { colors: WriteShapeColors; bg: string }) {
+  const off = muted(colors, bg);
   return (
     <>
-      {writeShapeKeycaps.map((key) => (
-        <g key={key.letter} opacity={key.outline ? 0.55 : undefined}>
-          <polygon
-            points={key.body}
-            fill={key.outline ? "none" : colors.left}
-            stroke={colors.outline}
-            strokeWidth=".018"
-            strokeLinejoin="round"
-          />
-          {key.right && <polygon points={key.right} fill={colors.right} />}
-          <path
-            d={key.seam}
-            stroke={colors.outline}
-            strokeWidth=".018"
-            strokeLinecap="round"
-          />
-          <polygon
-            points={key.face}
-            fill={key.outline ? "none" : colors.face}
-            stroke={key.outline ? colors.outline : colors.accent}
-            strokeWidth=".018"
-            strokeLinejoin="round"
-          />
-          <path
-            d={key.glyph}
-            transform={key.glyphTransform}
-            fill={key.outline ? "none" : colors.accent}
-            stroke={key.outline ? colors.outline : undefined}
-            strokeWidth={key.outline ? 50 : undefined}
-            strokeLinejoin={key.outline ? "round" : undefined}
-          />
-        </g>
-      ))}
+      {keyboardRows.flatMap((row) =>
+        [...row.letters].map((letter, column) => {
+          const x = row.x + (column - 1) * 360,
+            y = row.y;
+          const active = letter === "W" || letter === "S";
+          const glyph = keyboardGlyphs[letter as keyof typeof keyboardGlyphs];
+          const [left, bottom, right, top] = glyph.bounds;
+          const scale = 0.106;
+          const tx = x + 172 - ((left + right) * scale) / 2;
+          const ty = y + 158.5 + ((bottom + top) * scale) / 2;
+          const ink = active ? bg : off;
+          return (
+            <g key={letter} data-key={letter}>
+              <path
+                d={cap(x, y)}
+                fill={active ? colors.accent : "none"}
+                stroke={active ? "none" : off}
+                strokeWidth={12}
+              />
+              <path
+                d={glyph.path}
+                transform={`translate(${tx} ${ty}) scale(${scale} ${-scale})`}
+                fill={ink}
+                stroke={ink}
+                strokeWidth={28}
+                strokeLinejoin="round"
+                paintOrder="stroke"
+              />
+            </g>
+          );
+        }),
+      )}
     </>
   );
 }
 
-/** Decorative beside the app name; the containing account control supplies its label. */
+/** The account control supplies its accessible name. This is a borderless zoomed crop. */
 export function WriteShapeMark({
   size = 36,
   colors = themeColors,
   maskable = false,
-  opaque = false,
+  opaque: _opaque = false,
   ...props
 }: SVGProps<SVGSVGElement> & {
   size?: number;
@@ -76,6 +97,7 @@ export function WriteShapeMark({
   maskable?: boolean;
   opaque?: boolean;
 }) {
+  const bg = background(colors);
   const clipId = `writeshape-${useId()}`;
   return (
     <svg
@@ -83,22 +105,17 @@ export function WriteShapeMark({
       height={size}
       viewBox="0 0 900 900"
       fill="none"
+      overflow="hidden"
       aria-hidden="true"
       focusable="false"
       {...props}
     >
       <defs>
         <clipPath id={clipId}>
-          <rect x="12" y="12" width="876" height="876" rx="185" />
+          <path d="M0 0H900V900H0Z" />
         </clipPath>
       </defs>
-      <rect
-        width="900"
-        height="900"
-        rx={maskable || opaque ? undefined : 197}
-        fill={colors.outline}
-      />
-      <rect x="12" y="12" width="876" height="876" rx="185" fill={colors.bg} />
+      <path d="M0 0H900V900H0Z" fill={bg} />
       <g clipPath={`url(#${clipId})`}>
         <g
           transform={
@@ -107,42 +124,37 @@ export function WriteShapeMark({
               : undefined
           }
         >
-          <g transform={keycapIconTransform}>
-            <Keycaps colors={colors} />
-          </g>
+          <Keyboard colors={colors} bg={bg} />
         </g>
       </g>
     </svg>
   );
 }
 
-/** Uncropped four-key logo with outlined wordmark paths, no tile, frame or backdrop. */
+/** Uncropped keyboard neighborhood with the Courier Prime wordmark; transparent outside the keys. */
 export function WriteShapeLogo({
   width = 180,
   colors = themeColors,
   ...props
 }: SVGProps<SVGSVGElement> & { colors?: WriteShapeColors }) {
-  const height =
-    typeof width === "number"
-      ? (width * Number(wordmarkViewBox.split(" ")[3])) / 900
-      : undefined;
+  const bg = background(colors);
   return (
     <svg
       width={width}
-      height={height}
-      viewBox={wordmarkViewBox}
+      height={typeof width === "number" ? width : undefined}
+      viewBox="0 0 900 900"
       fill="none"
       role="img"
       aria-label="WriteShape"
       focusable="false"
       {...props}
     >
-      <g transform={keycapFullTransform}>
-        <Keycaps colors={colors} />
+      <g transform="translate(142 20) scale(.56) translate(88 200)">
+        <Keyboard colors={colors} bg={bg} />
       </g>
       <path
         d={wordmarkPath}
-        transform={wordmarkTransform}
+        transform="translate(170.91991786447642 841) scale(0.0459958932238193 -0.0459958932238193)"
         fill={colors.accent}
       />
     </svg>
