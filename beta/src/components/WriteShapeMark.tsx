@@ -78,7 +78,7 @@ export function WriteShapeMark({
   size = 36,
   colors = themeColors,
   maskable = false,
-  opaque: _opaque = false,
+  opaque = false,
   ...props
 }: SVGProps<SVGSVGElement> & {
   size?: number;
@@ -98,7 +98,7 @@ export function WriteShapeMark({
       focusable="false"
       {...props}
     >
-      <path d="M0 0H900V900H0Z" fill={bg} />
+      {(opaque || maskable) && <path d="M0 0H900V900H0Z" fill={bg} />}
       <g>
         <g
           transform={

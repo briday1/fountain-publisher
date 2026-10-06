@@ -36,7 +36,11 @@ const iconBoard: string[] = [],
 for (const [i, theme] of writeShapeThemes.entries()) {
   const icon = svg(
     renderToStaticMarkup(
-      createElement(WriteShapeMark, { size: 900, colors: theme.colors }),
+      createElement(WriteShapeMark, {
+        size: 900,
+        colors: theme.colors,
+        opaque: true,
+      }),
     ),
   );
   const logo = svg(

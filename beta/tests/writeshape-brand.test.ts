@@ -161,7 +161,8 @@ it("uses the approved keycap geometry for the themed editor and Rose install ico
   );
   const paths = (svg: string) =>
     [...svg.matchAll(/\bd="([^"]+)"/g)].map((match) => match[1]);
-  expect(paths(component)).toEqual(paths(asset));
+  expect(paths(component)).toEqual(paths(asset).slice(1));
+  expect(component).not.toContain('d="M0 0H900V900H0Z"');
   expect(component).toContain('aria-hidden="true"');
   expect(component).toContain('width="28"');
   expect(component).not.toContain("<text");
@@ -171,7 +172,10 @@ it("uses the approved keycap geometry for the themed editor and Rose install ico
   ).toEqual(["W", "S"]);
   expect(component).not.toMatch(/<linearGradient|<radialGradient|<filter/);
   const rose = renderToStaticMarkup(
-    createElement(WriteShapeMark, { colors: writeShapeRoseColors }),
+    createElement(WriteShapeMark, {
+      colors: writeShapeRoseColors,
+      opaque: true,
+    }),
   );
   const artwork = rose.replace(/^<svg[^>]*>/, "").replace(/<\/svg>$/, "");
   expect(asset).toContain(artwork);
@@ -225,7 +229,7 @@ it("keeps all nine saved icons and transparent uncropped logos in sync with app 
     expect(inner(icon)).toBe(
       inner(
         renderToStaticMarkup(
-          createElement(WriteShapeMark, { colors: theme.colors }),
+          createElement(WriteShapeMark, { colors: theme.colors, opaque: true }),
         ),
       ),
     );
