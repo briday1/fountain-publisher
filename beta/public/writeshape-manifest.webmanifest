@@ -10,25 +10,25 @@
   "theme_color": "#80516f",
   "icons": [
     {
-      "src": "https://fountain-publisher.com/writeshape-icon.svg?v=wasd2",
+      "src": "https://fountain-publisher.com/writeshape-icon.svg?v=wasd3",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "https://fountain-publisher.com/writeshape-icon-192.png?v=wasd2",
+      "src": "https://fountain-publisher.com/writeshape-icon-192.png?v=wasd3",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://fountain-publisher.com/writeshape-icon-512.png?v=wasd2",
+      "src": "https://fountain-publisher.com/writeshape-icon-512.png?v=wasd3",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://fountain-publisher.com/writeshape-maskable-512.png?v=wasd2",
+      "src": "https://fountain-publisher.com/writeshape-maskable-512.png?v=wasd3",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

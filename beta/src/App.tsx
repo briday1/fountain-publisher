@@ -19,7 +19,7 @@ import "./components/novel.css";
 import { WritingGoals } from "./components/WritingGoals";
 import { useWritingGoals } from "./components/useWritingGoals";
 import { WriteShapeFiles } from "./components/WriteShapeFiles";
-import { WriteShapeMark } from "./components/WriteShapeMark";
+import { WriteShapeMark, WriteShapeLogo } from "./components/WriteShapeMark";
 import { createFileProviders } from "./storage/fileProviders";
 import { destinationKey, destinationLabel } from "./storage/destinations";
 import { useDestinationSync } from "./hooks/useDestinationSync";
@@ -1593,7 +1593,7 @@ export default function App() {
     return (
       <main className="loading">
         {isWriteShape ? (
-          <WriteShapeMark size={36} />
+          <WriteShapeLogo width={180} />
         ) : (
           <span className="brand-mark">F</span>
         )}

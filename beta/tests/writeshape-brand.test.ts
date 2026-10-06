@@ -14,8 +14,11 @@ import {
 } from "../build-tools/writeshapeBrand";
 import {
   WriteShapeMark,
+  WriteShapeLogo,
   writeShapeRoseColors,
 } from "../src/components/WriteShapeMark";
+
+import { writeShapeThemes } from "../src/branding/writeShapeThemes";
 
 const repo = resolve(import.meta.dirname, "..");
 it("brands real WriteShape builds and offline installs without changing default or beta Fountain builds", async () => {
@@ -85,7 +88,7 @@ it("brands real WriteShape builds and offline installs without changing default 
         expect(html).toContain('href="/writeshape-icon.svg"');
         expect(html).toContain('href="/writeshape-manifest.webmanifest"');
         expect(html).toContain(
-          'href="https://fountain-publisher.com/writeshape-apple-touch-icon.png?v=wasd2"',
+          'href="https://fountain-publisher.com/writeshape-apple-touch-icon.png?v=wasd3"',
         );
         expect(html).toContain('crossorigin="use-credentials"');
         expect(shell).toBe(html);
@@ -100,7 +103,7 @@ it("brands real WriteShape builds and offline installs without changing default 
         expect(installed.theme_color).toBe("#80516f");
         expect(installed.background_color).toBe("#e4d7dc");
         for (const icon of installed.icons) {
-          expect(new URL(icon.src).searchParams.get("v")).toBe("wasd2");
+          expect(new URL(icon.src).searchParams.get("v")).toBe("wasd3");
           expect(new URL(icon.src).origin).toBe(
             "https://fountain-publisher.com",
           );
@@ -175,8 +178,12 @@ it("uses the approved keycap geometry for the themed editor and Rose install ico
     resolve(repo, "public/writeshape-maskable.svg"),
     "utf8",
   );
-  expect(maskable).toContain(artwork);
-  expect(maskable).toContain('<rect width="512" height="512"  fill="#e4d7dc"');
+  expect(paths(maskable)).toEqual(paths(asset));
+  const points = (svg: string) =>
+    [...svg.matchAll(/points="([^"]+)"/g)].map((match) => match[1]);
+  expect(points(maskable)).toEqual(points(asset));
+  expect(maskable).toContain("scale(.90)");
+  expect(maskable).toContain('<rect width="900" height="900" fill="#80516f"');
   for (const [file, size] of [
     ["writeshape-icon-192.png", 192],
     ["writeshape-icon-512.png", 512],
@@ -187,5 +194,55 @@ it("uses the approved keycap geometry for the themed editor and Rose install ico
     expect(png.subarray(1, 4).toString()).toBe("PNG");
     expect(png.readUInt32BE(16)).toBe(size);
     expect(png.readUInt32BE(20)).toBe(size);
+  }
+});
+
+it("keeps all nine saved icons and transparent uncropped logos in sync with app geometry", async () => {
+  const inner = (svg: string) =>
+    svg
+      .trim()
+      .replace(/^<svg[^>]*>/, "")
+      .replace(/<\/svg>$/, "");
+  for (const theme of writeShapeThemes) {
+    const icon = await readFile(
+      resolve(
+        repo,
+        `public/branding/writeshape/icons/writeshape-${theme.id}.svg`,
+      ),
+      "utf8",
+    );
+    const logo = await readFile(
+      resolve(
+        repo,
+        `public/branding/writeshape/logos/writeshape-${theme.id}.svg`,
+      ),
+      "utf8",
+    );
+    expect(inner(icon)).toBe(
+      inner(
+        renderToStaticMarkup(
+          createElement(WriteShapeMark, { colors: theme.colors }),
+        ),
+      ),
+    );
+    expect(inner(logo)).toBe(
+      inner(
+        renderToStaticMarkup(
+          createElement(WriteShapeLogo, { colors: theme.colors }),
+        ),
+      ),
+    );
+    expect(logo).not.toContain("<clipPath");
+    expect(logo).not.toContain("<rect");
+    expect(logo).not.toContain("<text");
+    expect(logo).toContain('aria-label="WriteShape"');
+    const png = await readFile(
+      resolve(
+        repo,
+        `public/branding/writeshape/logos/writeshape-${theme.id}.png`,
+      ),
+    );
+    expect(png.readUInt32BE(16)).toBe(900);
+    expect(png[25]).toBe(6); // RGBA export retains a transparent background.
   }
 });
