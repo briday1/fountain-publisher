@@ -96,7 +96,7 @@ export function WriteShapeMark({
         width="900"
         height="900"
         rx={maskable || opaque ? undefined : 197}
-        fill={colors.accent}
+        fill={colors.outline}
       />
       <rect x="12" y="12" width="876" height="876" rx="185" fill={colors.bg} />
       <g clipPath={`url(#${clipId})`}>

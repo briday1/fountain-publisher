@@ -144,6 +144,55 @@ test.use({
     "Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
 });
 
+test("mobile title page stays centered in the writing canvas across zoom and keyboard focus", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Screenplay editor" });
+  await expect(editor).toBeVisible();
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page.getByRole("button", { name: "Title page…", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Title page", exact: true });
+  await dialog.getByRole("textbox", { name: "Title", exact: true }).fill("Aaa");
+  await dialog
+    .getByRole("button", { name: "Save title page", exact: true })
+    .click();
+  const title = page.getByRole("region", { name: "Title page preview" });
+  const canvas = page.getByRole("region", {
+    name: "Current document",
+    exact: true,
+  });
+  for (const width of [320, 390, 430]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const zoom of [60, 100, 125, 200]) {
+      await page.getByRole("button", { name: "File", exact: true }).click();
+      await page
+        .locator(".mobile-command-panel")
+        .getByRole("combobox", { name: "Zoom", exact: true })
+        .selectOption(String(zoom));
+      await page
+        .locator(".mobile-command-panel")
+        .getByRole("button", { name: "Close dialog", exact: true })
+        .click();
+      await editor.focus();
+      const bounds = await title.boundingBox();
+      const frame = await canvas.boundingBox();
+      expect(
+        Math.abs(bounds!.x + bounds!.width / 2 - frame!.x - frame!.width / 2),
+      ).toBeLessThanOrEqual(1);
+      expect(bounds!.x).toBeGreaterThanOrEqual(frame!.x);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(
+        frame!.x + frame!.width + 1,
+      );
+      expect(
+        await canvas.evaluate(
+          (node) => node.scrollWidth <= node.clientWidth + 1,
+        ),
+      ).toBe(true);
+    }
+  }
+});
+
 test("private build keeps mobile editor text at 16px on focus", async ({
   page,
 }) => {

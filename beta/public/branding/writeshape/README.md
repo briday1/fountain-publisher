@@ -2,7 +2,7 @@
 
 The approved nine theme palettes use the same rounded, subtly tapered WASD geometry. W/S share the primary accent; A/D are neutral outlines at 55% opacity.
 
-- icons/: cropped square icons with a thin primary-color frame.
+- icons/: cropped square icons with a thin frame matching the neutral key outlines.
 - logos/: full uncropped key layout and WriteShape underneath, with no outer frame or background. PNGs have transparency.
 - *-comparison: all nine variants together. Comparison backdrops are for display only.
 - writeshape-brand-vectors.zip: all SVGs, comparison sheets and this guide.

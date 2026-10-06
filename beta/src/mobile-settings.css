@@ -21,13 +21,17 @@
   }
 
   .paper-wrap,
-  .zen .paper-wrap {
+  .document-pane .paper-wrap,
+  .app.zen .paper-wrap,
+  .app.is-fullscreen:not(.zen) .paper-wrap {
     width: 100%;
     max-width: none;
     margin: 0;
   }
 
-  .screenplay-paper {
+  .screenplay-paper,
+  .document-pane .screenplay-paper {
+    padding-inline: 24px;
     box-shadow: none;
   }
 

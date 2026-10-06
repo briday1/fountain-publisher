@@ -88,7 +88,7 @@ it("brands real WriteShape builds and offline installs without changing default 
         expect(html).toContain('href="/writeshape-icon.svg"');
         expect(html).toContain('href="/writeshape-manifest.webmanifest"');
         expect(html).toContain(
-          'href="https://fountain-publisher.com/writeshape-apple-touch-icon.png?v=wasd3"',
+          'href="https://fountain-publisher.com/writeshape-apple-touch-icon.png?v=wasd4"',
         );
         expect(html).toContain('crossorigin="use-credentials"');
         expect(shell).toBe(html);
@@ -103,7 +103,7 @@ it("brands real WriteShape builds and offline installs without changing default 
         expect(installed.theme_color).toBe("#80516f");
         expect(installed.background_color).toBe("#e4d7dc");
         for (const icon of installed.icons) {
-          expect(new URL(icon.src).searchParams.get("v")).toBe("wasd3");
+          expect(new URL(icon.src).searchParams.get("v")).toBe("wasd4");
           expect(new URL(icon.src).origin).toBe(
             "https://fountain-publisher.com",
           );
@@ -183,7 +183,7 @@ it("uses the approved keycap geometry for the themed editor and Rose install ico
     [...svg.matchAll(/points="([^"]+)"/g)].map((match) => match[1]);
   expect(points(maskable)).toEqual(points(asset));
   expect(maskable).toContain("scale(.90)");
-  expect(maskable).toContain('<rect width="900" height="900" fill="#80516f"');
+  expect(maskable).toContain('<rect width="900" height="900" fill="#958d92"');
   for (const [file, size] of [
     ["writeshape-icon-192.png", 192],
     ["writeshape-icon-512.png", 512],
