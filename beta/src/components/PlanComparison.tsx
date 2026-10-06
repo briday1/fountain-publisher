@@ -368,12 +368,12 @@ export function PlanComparison({
         <tbody>
           {(mode === "book"
             ? [
-                "Writing without signing in",
                 "Local saves",
                 "PDF, Word, EPUB and RTF exports",
                 "Book outline & title page",
                 "Multiple tabs",
                 "Split panes",
+                "Zen mode",
                 "Character profiles",
                 "Beat Sheet",
                 "Beat Guide",
@@ -383,12 +383,12 @@ export function PlanComparison({
                 "Live collaboration",
               ]
             : [
-                "Writing without signing in",
                 "Local saves",
                 "Standard PDF export",
                 "Scene outline & title page",
                 "Multiple tabs",
                 "Split panes",
+                "Zen mode",
                 "Mobile PDF formatting",
                 "Character highlighting",
                 "Insights",

@@ -10,11 +10,8 @@ import { serializeDocument } from "../../src/core/documentFormat";
 // @ts-ignore JavaScript Worker module
 import { WriteShapeLiveStorage } from "./live-storage.mjs";
 // @ts-ignore JavaScript Worker module
-import {
-  sendBackupNotices,
-  purgeExpiredCloud,
-  freshBackupAccount,
-} from "./cloud-backup.mjs";
+import * as cloudBackups from "./cloud-backup.mjs";
+const { sendBackupNotices, purgeExpiredCloud, freshBackupAccount } = cloudBackups;
 // @ts-ignore JavaScript Worker module
 import { syncBilling, billingConfigured, stripeClient } from "./billing.mjs";
 export class WriteShapeLiveRoom extends LiveScreenplayRoom {

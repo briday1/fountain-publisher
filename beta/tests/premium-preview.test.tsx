@@ -103,12 +103,16 @@ for (const mode of ["book", "screenplay"] as const) {
       <PlanComparison initialMode={mode} onClose={() => {}} />,
     );
     const rows = [...el.querySelectorAll(".plan-comparison tbody tr")];
+    expect(el.querySelector(".plan-comparison")?.textContent).not.toContain(
+      "Writing without signing in",
+    );
     for (const feature of [
       mode === "book"
         ? "Book outline & title page"
         : "Scene outline & title page",
       "Multiple tabs",
       "Split panes",
+      "Zen mode",
     ]) {
       const row = rows.find(
         (row) => row.querySelector("th")?.textContent === feature,

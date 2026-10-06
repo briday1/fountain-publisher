@@ -47,7 +47,7 @@ test("Premium shows the complete sample beat sheet, graph and character timeline
   });
   await expect(dialog).toBeVisible();
   await expect(dialog.locator(".sample-beat-sheet .beat-flow-row")).toHaveCount(
-    9,
+    4,
   );
   await expect(
     dialog.locator(".sample-beat-sheet .sample-story-outline"),
@@ -56,7 +56,7 @@ test("Premium shows the complete sample beat sheet, graph and character timeline
     dialog.locator('[data-sample-feature="Outline"] .scene-list li'),
   ).toHaveCount(3);
   for (const act of await dialog.locator(".sample-beat-sheet .beat-act").all())
-    await expect(act.locator(".beat-flow-row")).toHaveCount(3);
+    await expect(act.locator(".beat-flow-row")).toHaveCount(4);
   await expect(
     dialog.locator('[data-sample-feature="Beat Sheet"]'),
   ).toHaveCount(1);
@@ -69,6 +69,16 @@ test("Premium shows the complete sample beat sheet, graph and character timeline
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 844 });
     await dialog.locator(".sample-analytics").scrollIntoViewIfNeeded();
+    const chart = (await dialog
+      .locator(".character-analytics-viewport > svg")
+      .boundingBox())!;
+    const viewport = (await dialog
+      .locator(".character-analytics-viewport")
+      .boundingBox())!;
+    expect(chart.x).toBeGreaterThanOrEqual(viewport.x);
+    expect(chart.x + chart.width).toBeLessThanOrEqual(
+      viewport.x + viewport.width,
+    );
     await page.screenshot({
       path: testInfo.outputPath(`character-gantt-${width}.png`),
     });
