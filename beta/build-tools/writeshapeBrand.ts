@@ -100,7 +100,7 @@ export function writeshapeBrand(): Plugin {
                 rel: "apple-touch-icon",
                 sizes: "180x180",
                 // Home-screen icon fetches must not depend on an Access session.
-                href: "https://fountain-publisher.com/writeshape-apple-touch-icon.png?v=wasd1",
+                href: "https://fountain-publisher.com/writeshape-apple-touch-icon.png?v=wasd2",
               },
               injectTo: "head",
             },

@@ -98,7 +98,7 @@ export interface WriteShapeFilesProps extends Omit<
   onDownloadLocal: () => Promise<void> | void;
 }
 const locations: { id: FileDestination; name: string; icon: ReactNode }[] = [
-  { id: "writeshape", name: "WriteShape", icon: <WriteShapeMark size={22} /> },
+  { id: "writeshape", name: "WriteShape", icon: <WriteShapeMark size={28} /> },
   { id: "drive", name: "Google Drive", icon: <HardDrive size={19} /> },
   { id: "local", name: "Local", icon: <Laptop size={19} /> },
 ];

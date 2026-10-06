@@ -20,7 +20,7 @@ export const writeShapeRoseColors: typeof themeColors = {
 
 /** Decorative when beside the WriteShape name; the containing control supplies its label. */
 export function WriteShapeMark({
-  size = 28,
+  size = 36,
   colors = themeColors,
   ...props
 }: SVGProps<SVGSVGElement> & { size?: number; colors?: typeof themeColors }) {
@@ -35,7 +35,11 @@ export function WriteShapeMark({
       {...props}
     >
       {writeShapeKeycaps.map((key) => (
-        <g key={key.letter} opacity={key.outline ? 0.55 : undefined}>
+        <g
+          key={key.letter}
+          transform={key.position}
+          opacity={key.outline ? 0.55 : undefined}
+        >
           {key.walls.map((points, side) => (
             <polygon
               key={side}
@@ -57,7 +61,7 @@ export function WriteShapeMark({
               rx=".12"
               fill={key.outline ? "none" : colors.face}
               stroke={key.outline ? colors.outline : colors.accent}
-              strokeWidth=".023"
+              strokeWidth=".03"
             />
           </g>
           <path

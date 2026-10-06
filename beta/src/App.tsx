@@ -1593,7 +1593,7 @@ export default function App() {
     return (
       <main className="loading">
         {isWriteShape ? (
-          <WriteShapeMark size={28} />
+          <WriteShapeMark size={36} />
         ) : (
           <span className="brand-mark">F</span>
         )}
@@ -1841,7 +1841,7 @@ export default function App() {
           }
         >
           {isWriteShape ? (
-            <WriteShapeMark size={28} />
+            <WriteShapeMark size={36} />
           ) : (
             <span className="brand-mark">F</span>
           )}
