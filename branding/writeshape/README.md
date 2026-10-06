@@ -1,9 +1,9 @@
 # WriteShape branding
 
-The approved flat top-down keyboard design uses a true zoomed crop, with no outer frame. W/S share the theme accent. All surrounding outlines and legends use one faint neutral color at 20% contrast; nothing is blurred or shaded.
+The approved W/S design uses only two staggered keys, with simple depth on the right and bottom. Both share the theme accent. The complete silhouette, including its depth, is centered and fully visible with no rim or outer frame.
 
-- icons/: borderless square keyboard crops in all nine themes.
-- logos/: the same keyboard neighborhood uncropped, with the Courier Prime WriteShape wordmark underneath and a transparent background.
+- icons/: centered W/S icons in all nine themes.
+- logos/: the same two keys uncropped, with the Courier Prime WriteShape wordmark underneath and a transparent background.
 - *-comparison: all nine variants together. Backdrops and labels are for comparison only.
 - writeshape-brand-vectors.zip: all SVGs, comparison sheets, font licenses and this guide.
 
