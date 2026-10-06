@@ -55,7 +55,7 @@ export function writeshapeBrand(): Plugin {
             )
             .replace(
               /(<meta\s+name="theme-color"\s+content=")[^"]*("\s*\/?>)/,
-              "$1#243A35$2",
+              "$1#80516f$2",
             )
             .replace('href="/favicon.svg"', 'href="/writeshape-icon.svg"')
             .replace(
@@ -100,7 +100,7 @@ export function writeshapeBrand(): Plugin {
                 rel: "apple-touch-icon",
                 sizes: "180x180",
                 // Home-screen icon fetches must not depend on an Access session.
-                href: "https://fountain-publisher.com/writeshape-apple-touch-icon.png",
+                href: "https://fountain-publisher.com/writeshape-apple-touch-icon.png?v=wasd1",
               },
               injectTo: "head",
             },

@@ -12,7 +12,10 @@ import {
   writeShapePages,
   writeShapePageAssets,
 } from "../build-tools/writeshapeBrand";
-import { WriteShapeMark } from "../src/components/WriteShapeMark";
+import {
+  WriteShapeMark,
+  writeShapeRoseColors,
+} from "../src/components/WriteShapeMark";
 
 const repo = resolve(import.meta.dirname, "..");
 it("brands real WriteShape builds and offline installs without changing default or beta Fountain builds", async () => {
@@ -82,7 +85,7 @@ it("brands real WriteShape builds and offline installs without changing default 
         expect(html).toContain('href="/writeshape-icon.svg"');
         expect(html).toContain('href="/writeshape-manifest.webmanifest"');
         expect(html).toContain(
-          'href="https://fountain-publisher.com/writeshape-apple-touch-icon.png"',
+          'href="https://fountain-publisher.com/writeshape-apple-touch-icon.png?v=wasd1"',
         );
         expect(html).toContain('crossorigin="use-credentials"');
         expect(shell).toBe(html);
@@ -94,7 +97,10 @@ it("brands real WriteShape builds and offline installs without changing default 
         expect(installed.name).toBe("WriteShape");
         expect(installed.short_name).toBe("WriteShape");
         expect(installed.start_url).toBe("/");
+        expect(installed.theme_color).toBe("#80516f");
+        expect(installed.background_color).toBe("#e4d7dc");
         for (const icon of installed.icons) {
+          expect(new URL(icon.src).searchParams.get("v")).toBe("wasd1");
           expect(new URL(icon.src).origin).toBe(
             "https://fountain-publisher.com",
           );
@@ -142,7 +148,7 @@ it("brands real WriteShape builds and offline installs without changing default 
   }
 }, 20000);
 
-it("uses the same letter-free geometry for the editor mark and favicon", async () => {
+it("uses the approved keycap geometry for the themed editor and Rose install icons", async () => {
   const component = renderToStaticMarkup(
     createElement(WriteShapeMark, { size: 28 }),
   );
@@ -156,4 +162,30 @@ it("uses the same letter-free geometry for the editor mark and favicon", async (
   expect(component).toContain('aria-hidden="true"');
   expect(component).toContain('width="28"');
   expect(component).not.toContain("<text");
+  expect(component).toContain("var(--accent, #80516f)");
+  expect(component.match(/opacity="0.55"/g)).toHaveLength(2);
+  const rose = renderToStaticMarkup(
+    createElement(WriteShapeMark, { colors: writeShapeRoseColors }),
+  );
+  const artwork = rose.replace(/^<svg[^>]*>/, "").replace(/<\/svg>$/, "");
+  expect(asset).toContain(artwork);
+  expect(asset).not.toContain("var(--");
+  expect(asset).toContain('fill="#e4d7dc"');
+  const maskable = await readFile(
+    resolve(repo, "public/writeshape-maskable.svg"),
+    "utf8",
+  );
+  expect(maskable).toContain(artwork);
+  expect(maskable).toContain('<rect width="512" height="512"  fill="#e4d7dc"');
+  for (const [file, size] of [
+    ["writeshape-icon-192.png", 192],
+    ["writeshape-icon-512.png", 512],
+    ["writeshape-maskable-512.png", 512],
+    ["writeshape-apple-touch-icon.png", 180],
+  ] as const) {
+    const png = await readFile(resolve(repo, "public", file));
+    expect(png.subarray(1, 4).toString()).toBe("PNG");
+    expect(png.readUInt32BE(16)).toBe(size);
+    expect(png.readUInt32BE(20)).toBe(size);
+  }
 });

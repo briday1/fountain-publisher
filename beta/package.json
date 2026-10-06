@@ -14,7 +14,8 @@
     "deploy:beta": "npm run check && npm run build:beta && wrangler deploy",
     "test:browser": "playwright test",
     "format": "prettier --write src server cloudflare tests e2e *.json *.ts",
-    "build:writeshape": "tsc -b && vite build --mode writeshape"
+    "build:writeshape": "tsc -b && vite build --mode writeshape",
+    "brand:icons": "node --import tsx scripts/generate-writeshape-icons.ts"
   },
   "dependencies": {
     "@fontsource/courier-prime": "^5.2.0",
