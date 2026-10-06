@@ -194,6 +194,10 @@
   .app-header > .brand > span:last-child {
     display: none;
   }
+  .app-header > .brand > svg {
+    width: 44px;
+    height: 44px;
+  }
   .app-header > .spacer {
     order: 2;
   }
@@ -287,6 +291,10 @@
   }
 }
 @media (max-width: 359px) {
+  .app-header > .brand > svg {
+    width: 36px;
+    height: 36px;
+  }
   .app-header > .brand {
     width: 32px;
     min-width: 32px;
