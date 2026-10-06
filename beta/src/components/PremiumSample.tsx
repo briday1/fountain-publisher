@@ -2,9 +2,7 @@ import { SampleBeatSheet, SampleCharacterGantt } from "./PremiumStoryExamples";
 import { BeatGuide } from "./BeatGuide";
 import { premiumSample, sampleInsights as insights } from "./premiumSampleData";
 import "./premium-showcase.css";
-import { useEffect, useState } from "react";
 import { EditorSurface } from "./EditorSurface";
-import { publishPdf } from "../core/publisher";
 import type { Screenplay } from "../core/model";
 import { InsightsContent } from "./InsightsContent";
 export type PremiumFeature = "Insights" | "Beat Sheet" | "Beat Guide";
@@ -66,45 +64,19 @@ function SamplePdf({
   highlight: boolean;
   mobile: boolean;
 }) {
-  const [url, setUrl] = useState("");
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let cancelled = false;
-    let objectUrl = "";
-    publishPdf(premiumSample, {
-      includeTitlePage: false,
-      mobileLayout: mobile,
-      highlightCharacters: highlight ? ["MARA"] : [],
-    })
-      .then((result) => {
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(
-          new Blob([result.bytes as BlobPart], { type: "application/pdf" }),
-        );
-        setUrl(objectUrl);
-      })
-      .catch(() => {
-        if (!cancelled) setError("The sample PDF could not be loaded.");
-      });
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [highlight, mobile]);
   return (
     <div className={`sample-pdf${mobile ? " sample-pdf-mobile" : ""}`}>
-      {url ? (
-        <iframe
-          src={`${url}#toolbar=0&navpanes=0&view=FitH`}
-          title={
-            mobile
-              ? "Actual mobile PDF export example"
-              : "Actual highlighted PDF export example"
-          }
-        />
-      ) : (
-        <p>{error || "Preparing sample PDF…"}</p>
-      )}
+      <img
+        src={`${import.meta.env.BASE_URL}examples/screenplay-${mobile ? "mobile" : "highlighted"}.png`}
+        alt={
+          mobile
+            ? "First page of the actual mobile PDF export"
+            : highlight
+              ? "First page of the actual PDF export with Mara's character cues highlighted"
+              : "First page of the actual PDF export"
+        }
+        loading="lazy"
+      />
     </div>
   );
 }

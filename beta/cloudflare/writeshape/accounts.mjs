@@ -196,6 +196,7 @@ export async function accountRoutes(request, env, account, billingAvailable) {
             premiumUntil: account.premium_until,
             complimentaryUntil: account.complimentary_until || 0,
             complimentaryIndefinite: account.complimentary_indefinite === true,
+            cloudBackup: account.cloudBackup || null,
           }
         : null,
       premium: premium(account),

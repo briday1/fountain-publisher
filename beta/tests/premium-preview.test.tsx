@@ -4,6 +4,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { PremiumPreview } from "../src/components/PremiumPreview";
 import { PlanComparison } from "../src/components/PlanComparison";
 import { premiumSample } from "../src/components/premiumSampleData";
+import {
+  beatSampleBook,
+  beatSampleScreenplay,
+} from "../src/components/premiumSampleData";
 import { sampleBook } from "../src/components/BookPremiumExamples";
 import { resolveBeatRange } from "../src/core/beatRanges";
 beforeAll(() => {
@@ -45,15 +49,19 @@ for (const title of ["Insights", "Beat Sheet", "Beat Guide"] as const) {
 it("places separate outline and planning showcases before comparison and describes unavailable purchases", () => {
   const el = document.createElement("div");
   el.innerHTML = renderToStaticMarkup(<PlanComparison onClose={() => {}} />);
-  expect(el.querySelectorAll(".showcase-feature")).toHaveLength(8);
+  expect(el.querySelectorAll(".showcase-feature")).toHaveLength(9);
   expect(
     el.querySelector(".sample-beat-sheet .sample-story-outline"),
   ).toBeNull();
   expect(
     el.querySelector('[data-sample-feature="Outline"] .scene-list'),
   ).not.toBeNull();
-  for (const act of el.querySelectorAll(".sample-beat-sheet .beat-act"))
-    expect(act.querySelectorAll(".beat-flow-row")).toHaveLength(3);
+  expect(el.querySelectorAll(".sample-beat-sheet .beat-flow-row")).toHaveLength(
+    4,
+  );
+  expect(
+    el.querySelectorAll(".sample-beat-sheet .beat-scene-heading"),
+  ).toHaveLength(1);
   expect(
     el
       .querySelector(".premium-showcase")!
@@ -66,6 +74,10 @@ it("places separate outline and planning showcases before comparison and describ
     "Live collaboration is not enabled for this deployment",
   );
   expect(el.querySelector(".collaboration-concept")).not.toBeNull();
+  expect(el.querySelector(".showcase-cloud")?.textContent).toContain(
+    "same account",
+  );
+  expect(el.querySelectorAll(".sample-cloud-devices > div")).toHaveLength(3);
   expect(
     el.querySelector('.focus-diagram[role="img"]')?.getAttribute("aria-label"),
   ).toContain("scene is isolated from Act II");
@@ -84,6 +96,42 @@ it("describes live writing only when the deployment enables it", () => {
   expect(html).not.toContain("Not enabled");
 });
 
+for (const mode of ["book", "screenplay"] as const) {
+  it(`${mode} includes outline, tabs and panes in Basic while Focus mode requires Premium`, () => {
+    const el = document.createElement("div");
+    el.innerHTML = renderToStaticMarkup(
+      <PlanComparison initialMode={mode} onClose={() => {}} />,
+    );
+    const rows = [...el.querySelectorAll(".plan-comparison tbody tr")];
+    for (const feature of [
+      mode === "book"
+        ? "Book outline & title page"
+        : "Scene outline & title page",
+      "Multiple tabs",
+      "Split panes",
+    ]) {
+      const row = rows.find(
+        (row) => row.querySelector("th")?.textContent === feature,
+      )!;
+      expect(
+        [...row.querySelectorAll("td")].map((cell) => cell.textContent),
+      ).toEqual(["Included", "Included"]);
+    }
+    const focus = rows.find(
+      (row) => row.querySelector("th")?.textContent === "Focus mode",
+    )!;
+    expect(
+      [...focus.querySelectorAll("td")].map((cell) => cell.textContent),
+    ).toEqual(["—", "Included"]);
+    expect(el.querySelector(".showcase-kicker")?.textContent).toBe(
+      "Focus mode · Premium",
+    );
+    expect(el.textContent).toContain(
+      "Outline, multiple tabs, and split panes are included in Basic",
+    );
+  });
+}
+
 it("shows a dedicated Book tab with real book components and relevant features", () => {
   const el = document.createElement("div");
   el.innerHTML = renderToStaticMarkup(
@@ -100,12 +148,26 @@ it("shows a dedicated Book tab with real book components and relevant features",
   );
   expect(el.querySelector(".insights-panel .novel-character")).not.toBeNull();
   expect(el.querySelector(".book-front-matter .novel-outline")).toBeNull();
-  expect(el.querySelectorAll(".beat-flow-row")).toHaveLength(9);
+  expect(el.querySelectorAll(".beat-flow-row")).toHaveLength(4);
   expect(el.querySelectorAll(".beat-act-heading")).toHaveLength(0);
-  expect(el.querySelectorAll(".beat-scene-heading")).toHaveLength(3);
+  expect(el.querySelectorAll(".beat-scene-heading")).toHaveLength(1);
   expect(el.textContent).not.toContain("Mobile PDF formatting");
   expect(el.textContent).toContain("Character profiles");
   expect(
     el.querySelector('.focus-diagram[role="img"]')?.getAttribute("aria-label"),
   ).toContain("Chapter 2 is isolated from Book 1");
+});
+
+it("assigns four compact beats to four distinct passages in a single scene or chapter", () => {
+  for (const doc of [beatSampleBook, beatSampleScreenplay]) {
+    expect(
+      doc.blocks.filter((b) => b.kind === "scene" || b.kind === "section"),
+    ).toHaveLength(1);
+    expect(doc.metadata.beats).toHaveLength(4);
+    const ranges = doc.metadata.beats.map((beat) =>
+      resolveBeatRange(doc, beat.range!),
+    );
+    expect(ranges.every(Boolean)).toBe(true);
+    expect(new Set(ranges.map((range) => range!.words)).size).toBe(4);
+  }
 });

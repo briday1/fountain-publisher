@@ -8,6 +8,7 @@ import { Modal } from "./Modal";
 import { PremiumSample, SampleScript } from "./PremiumSample";
 import type { PremiumFeature } from "./PremiumSample";
 import { SampleOutline } from "./PremiumStoryExamples";
+import { Cloud, FileText, Laptop, Smartphone, Tablet } from "lucide-react";
 const features: { title: PremiumFeature; benefit: string; caption: string }[] =
   [
     {
@@ -20,7 +21,7 @@ const features: { title: PremiumFeature; benefit: string; caption: string }[] =
       title: "Beat Sheet",
       benefit: "Develop the moments within each act",
       caption:
-        "Break each act into story beats, group them under scenes, and link each beat to its passage. The pacing graph below follows those same beats through the screenplay.",
+        "Link beats to their passages. This example shows one scene with four beats, followed by the matching pacing graph.",
     },
   ];
 export function PlanComparison({
@@ -49,8 +50,9 @@ export function PlanComparison({
     >
       <p className="showcase-intro">Books and screenplays. One Premium plan.</p>
       <p>
-        Writing, local saves, and standard PDF export are free. Premium adds
-        cloud saving and the tools below for both books and screenplays.
+        Writing, local saves, standard exports, Outline, multiple tabs, and
+        split panes are included in Basic. Premium adds scene and chapter Focus
+        mode, cloud saving, and planning tools for both books and screenplays.
       </p>
       <p>
         Both formats are included. Choose an example below, then take a closer
@@ -117,20 +119,22 @@ export function PlanComparison({
           {(mode === "book"
             ? [
                 "Focus mode",
-                "Book outline & title page",
+                "Book outline & title page · Basic",
                 "Character profiles",
                 "Beat Sheet",
                 "Writing goals",
+                "Cloud storage · All your devices",
                 "Live collaboration",
               ]
             : [
                 "Focus mode",
-                "Scene outline",
+                "Scene outline · Basic",
                 "Insights",
                 "Beat Sheet",
                 "Mobile PDF",
                 "Character highlighting",
                 "Writing goals",
+                "Cloud storage · All your devices",
                 "Live collaboration",
               ]
           ).map((label, index) => (
@@ -152,7 +156,7 @@ export function PlanComparison({
         ) : (
           <>
             <section className="showcase-feature">
-              <small className="showcase-kicker">Outline · Included</small>
+              <small className="showcase-kicker">Outline · Basic</small>
               <h3>Find your way through the scenes</h3>
               <p>
                 Your scene headings form the Outline as you write. Jump to a
@@ -257,6 +261,61 @@ export function PlanComparison({
             <figcaption>Example word and time goals</figcaption>
           </figure>
         </section>
+        <section className="showcase-feature showcase-cloud">
+          <small className="showcase-kicker">Cloud storage · Premium</small>
+          <h3>Pick up your draft on any device</h3>
+          <p>
+            Save your books and screenplays to My Storage in WriteShape. Sign in
+            with the same account on your phone, tablet, or computer to open
+            your saved draft and keep writing. Changes become available on your
+            other devices after they are saved to the cloud.
+          </p>
+          <p>
+            Premium includes 1 GB for your cloud files and version history. Keep
+            your current draft plus the newest 50 previous versions per
+            document. Older versions expire as you save; download a copy of
+            anything you want to keep longer. Local files do not use this
+            allowance.
+          </p>
+          <figure>
+            <div className="sample-cloud" inert aria-hidden="true">
+              <div className="sample-cloud-library">
+                <h4>
+                  <Cloud size={18} /> My Storage
+                </h4>
+                <div>
+                  <FileText size={20} />
+                  <span>
+                    The Last Light
+                    <small>
+                      {mode === "book" ? "Book" : "Screenplay"} · Saved to
+                      WriteShape
+                    </small>
+                  </span>
+                </div>
+              </div>
+              <div className="sample-cloud-devices">
+                {[
+                  [Smartphone, "Phone"],
+                  [Tablet, "Tablet"],
+                  [Laptop, "Computer"],
+                ].map(([Icon, label]) => {
+                  const Device = Icon as typeof Smartphone;
+                  return (
+                    <div key={String(label)}>
+                      <Device size={28} />
+                      <span>{String(label)}</span>
+                      <small>Same saved draft</small>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <figcaption>
+              One cloud library, available across your devices
+            </figcaption>
+          </figure>
+        </section>
         <section className="showcase-feature showcase-collaboration">
           <small className="showcase-kicker">
             Live collaboration ·{" "}
@@ -302,7 +361,7 @@ export function PlanComparison({
         <thead>
           <tr>
             <th scope="col">Feature</th>
-            <th scope="col">Free</th>
+            <th scope="col">Basic (Free)</th>
             <th scope="col">Premium</th>
           </tr>
         </thead>
@@ -312,6 +371,9 @@ export function PlanComparison({
                 "Writing without signing in",
                 "Local saves",
                 "PDF, Word, EPUB and RTF exports",
+                "Book outline & title page",
+                "Multiple tabs",
+                "Split panes",
                 "Character profiles",
                 "Beat Sheet",
                 "Beat Guide",
@@ -324,6 +386,9 @@ export function PlanComparison({
                 "Writing without signing in",
                 "Local saves",
                 "Standard PDF export",
+                "Scene outline & title page",
+                "Multiple tabs",
+                "Split panes",
                 "Mobile PDF formatting",
                 "Character highlighting",
                 "Insights",
@@ -337,7 +402,7 @@ export function PlanComparison({
           ).map((feature, i) => (
             <tr key={feature}>
               <th scope="row">{feature}</th>
-              <td>{i < 3 ? "Included" : "—"}</td>
+              <td>{i < 6 ? "Included" : "—"}</td>
               <td>
                 {feature === "Live collaboration"
                   ? collaborationAvailable
@@ -350,9 +415,15 @@ export function PlanComparison({
         </tbody>
       </table>
       <p>
-        If Premium ends, your saved cloud files remain available to open, read,
-        and download. Make a local copy to keep editing. New cloud saves and
-        live editing require Premium.
+        When Premium access ends, you have 30 days to back up your cloud files
+        and version history. They remain read-only and downloadable during that
+        window, then are automatically deleted. The deadline is 11:59:59 p.m.
+        Eastern Time on the final day. Your local files and Google Drive files
+        are preserved.{" "}
+        <a href="/backup.html" target="_blank" rel="noopener noreferrer">
+          Backup instructions
+        </a>
+        .
       </p>
       {billingMode !== "live" && (
         <p>

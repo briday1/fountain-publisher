@@ -9,6 +9,14 @@ import { serializeDocument } from "../../src/core/documentFormat";
 // The adapter is also exercised directly by the Node worker contract tests.
 // @ts-ignore JavaScript Worker module
 import { WriteShapeLiveStorage } from "./live-storage.mjs";
+// @ts-ignore JavaScript Worker module
+import {
+  sendBackupNotices,
+  purgeExpiredCloud,
+  freshBackupAccount,
+} from "./cloud-backup.mjs";
+// @ts-ignore JavaScript Worker module
+import { syncBilling, billingConfigured, stripeClient } from "./billing.mjs";
 export class WriteShapeLiveRoom extends LiveScreenplayRoom {
   private accountQueue: Promise<unknown> = Promise.resolve();
   private maintenanceEnv: any;
@@ -58,6 +66,66 @@ export class WriteShapeLiveRoom extends LiveScreenplayRoom {
   }
   async fetch(request: Request): Promise<Response> {
     const action = new URL(request.url).pathname;
+    if (
+      request.method === "POST" &&
+      ["/backup-notices", "/expire-cloud", "/sync-billing"].includes(action)
+    ) {
+      const input = (await request.json()) as {
+        accountId?: string;
+        account_id?: string;
+        generation?: string;
+      };
+      const id = input.accountId || input.account_id;
+      if (
+        !id ||
+        (action !== "/sync-billing" &&
+          this.maintenanceEnv.CLOUD_BACKUP_POLICY !== "true")
+      )
+        return new Response("Forbidden", { status: 403 });
+      const task = this.accountQueue.then(async () => {
+        if (action === "/sync-billing")
+          return Response.json(
+            await syncBilling(
+              id,
+              {
+                ...this.maintenanceEnv,
+                INTERNAL_BILLING_SYNC: true,
+              },
+              stripeClient(this.maintenanceEnv),
+            ),
+          );
+        const account = await freshBackupAccount(this.maintenanceEnv, id);
+        if (!account) return Response.json({ ok: true });
+        // Provider verification prevents a delayed webhook from deleting renewed data.
+        if (account.stripe_customer) {
+          if (!billingConfigured(this.maintenanceEnv))
+            return new Response("Billing verification pending", {
+              status: 503,
+            });
+          await syncBilling(
+            id,
+            { ...this.maintenanceEnv, INTERNAL_BILLING_SYNC: true },
+            stripeClient(this.maintenanceEnv),
+          );
+        }
+        if (action === "/backup-notices")
+          await sendBackupNotices(this.maintenanceEnv, id);
+        else {
+          if (
+            this.maintenanceEnv.CLOUD_BACKUP_PURGE !== "true" ||
+            !this.maintenanceEnv.CUSTOMER_EMAIL
+          )
+            return new Response("Not enabled", { status: 403 });
+          await purgeExpiredCloud(this.maintenanceEnv, {
+            account_id: id,
+            generation: input.generation,
+          });
+        }
+        return Response.json({ ok: true });
+      });
+      this.accountQueue = task.catch(() => {});
+      return task;
+    }
     if (action === "/account-operation") {
       const path = new URL(request.url).searchParams.get("path") || "";
       if (
@@ -127,6 +195,33 @@ export class WriteShapeLiveRoom extends LiveScreenplayRoom {
         return Response.json({ ok: true });
       } catch {
         return new Response("Cleanup pending", { status: 503 });
+      } finally {
+        this.accountStorage.deletionCheckpoint = false;
+      }
+    }
+    if (request.method === "POST" && action === "/expire-cloud-room") {
+      const { accountId } = (await request.json()) as { accountId: string };
+      const fileId = await this.storedFileId();
+      if (!fileId) return Response.json({ ok: true });
+      const permit = await this.maintenanceEnv.DB.prepare(
+        "SELECT account_id FROM expiring_cloud_accounts WHERE account_id=?",
+      )
+        .bind(accountId)
+        .first();
+      const owner = fileId.startsWith("library_")
+        ? await this.maintenanceEnv.DB.prepare(
+            "SELECT owner FROM items WHERE id=?",
+          )
+            .bind(fileId.slice(8))
+            .first()
+        : null;
+      if (!permit || owner?.owner !== accountId)
+        return new Response("Forbidden", { status: 403 });
+      try {
+        await this.purgeStoredRoom(false, (enabled) => {
+          this.accountStorage.deletionCheckpoint = enabled;
+        });
+        return Response.json({ ok: true });
       } finally {
         this.accountStorage.deletionCheckpoint = false;
       }

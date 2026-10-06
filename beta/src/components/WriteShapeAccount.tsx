@@ -18,6 +18,12 @@ export interface AccountState {
     premiumUntil: number;
     complimentaryUntil?: number;
     complimentaryIndefinite?: boolean;
+    cloudBackup?: {
+      endedAt: number;
+      deadline: number;
+      deadlineLabel: string;
+      backupUrl: string;
+    } | null;
   };
   billingMode?: "test" | "live";
   accessCodesAvailable?: boolean;
@@ -101,6 +107,8 @@ export interface BillingSummary {
   canChange: boolean;
   canCancel: boolean;
   changeReason: string;
+  backupDeadline?: number | null;
+  backupDeadlineLabel?: string | null;
 }
 const dateLabel = (seconds: number) =>
   new Date(seconds * 1000).toLocaleDateString(undefined, {
@@ -383,7 +391,22 @@ export function WriteShapeAccount({
         <p>
           Your subscription will stop renewing
           {end ? ` on ${dateLabel(end)}` : " at the end of your billing period"}
-          . Your documents stay in your account.
+          . You keep Premium until paid access ends. Then you have 30 days to
+          back up your cloud documents and saved version history. They remain
+          read-only and downloadable until the deadline, then are automatically
+          deleted.
+        </p>
+        {billing?.backupDeadlineLabel && (
+          <p>Backup deadline: {billing.backupDeadlineLabel}.</p>
+        )}
+        <p>
+          Your account, local files, and Google Drive files are preserved.{" "}
+          <a href="/backup.html" target="_blank" rel="noopener noreferrer">
+            How to back up your data
+          </a>
+          . We email your account address when the window begins, with 10 days
+          left, and with 1 day left. Reactivating Premium cancels the remaining
+          reminders and deletion.
         </p>
         <form
           onSubmit={(e) => {
@@ -458,6 +481,18 @@ export function WriteShapeAccount({
           )}
         </div>
       </div>
+      {account.cloudBackup && (
+        <p className="account-notice">
+          Your cloud backup window ends {account.cloudBackup.deadlineLabel}.
+          Cloud documents and saved version history are automatically deleted
+          afterward.{" "}
+          <a href="/backup.html" target="_blank" rel="noopener noreferrer">
+            Back up your data
+          </a>
+          . Reactivating Premium before deletion cancels this deadline and
+          remaining reminder emails.
+        </p>
+      )}
       {(error || notice) && (
         <p className="account-notice" role="status">
           {notice || error}

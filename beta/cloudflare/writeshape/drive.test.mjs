@@ -6,6 +6,7 @@ import { testDB, request } from "./test-db.mjs";
 import { verifyGoogleToken } from "./accounts.mjs";
 import { createDriveRoutes, driveConfigured } from "./drive.mjs";
 import { HttpError, json, now } from "./http.mjs";
+import { reconcileBackupGrace } from "./cloud-backup.mjs";
 
 const scope = "https://www.googleapis.com/auth/drive";
 const pair = await generateKeyPair("RS256");
@@ -664,6 +665,55 @@ test("missing or weak ETags fail closed and ambiguous accepted uploads require r
   assert.equal((await result.json()).code, "DRIVE_REOPEN_REQUIRED");
 });
 
+test("grace allows only backups sourced from owned cloud files, while ordinary Drive saves remain premium", async () => {
+  const f = fixture();
+  f.env.CLOUD_BACKUP_POLICY = "true";
+  const source = "INT. ROOM - DAY\n\nSynthetic writing.";
+  f.env.sql
+    .prepare(
+      "INSERT INTO items(id,owner,name,kind,content,updated) VALUES('cloud-source','owner','Scene.fountain','file',?,'2026-10-06')",
+    )
+    .run(source);
+  f.env.sql
+    .prepare(
+      "INSERT INTO items(id,owner,name,kind,content,updated) VALUES('other-source','other','Private.fountain','file',?,'2026-10-06')",
+    )
+    .run("private");
+  await reconcileBackupGrace(f.env, user("owner", true));
+  await f.connect({ free: true });
+  assert.equal(
+    (
+      await f.call(
+        "/api/drive/create",
+        { name: "Scene.fountain", content: "new" },
+        { free: true },
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await f.call(
+        "/api/drive/backup",
+        { fileId: "other-source" },
+        { free: true },
+      )
+    ).status,
+    404,
+  );
+  const result = await f.call(
+    "/api/drive/backup",
+    { fileId: "cloud-source", content: "tampered" },
+    { free: true },
+  );
+  assert.equal(result.status, 201);
+  assert.equal((await result.json()).content, source);
+  const upload = f.calls.find(
+    (c) => c.url.pathname === "/upload/drive/v3/files",
+  );
+  assert.ok(upload.init.body.includes(source));
+  assert.ok(!upload.init.body.includes("tampered"));
+});
 test("create checks folder capability, sends multipart text and reads back exact new content", async () => {
   const f = fixture();
   await f.connect();

@@ -72,6 +72,8 @@ it("WriteShape accounts collaborate on a Book through real D1, Worker and durabl
       "migrations/0002_cancellation_feedback",
       "migrations/0003_account_deletion",
       "migrations/0004_code_claim_counts",
+      "migrations/0005_rolling_history",
+      "migrations/0006_cloud_backup_grace",
     ]) {
       const sql = await readFile(`cloudflare/writeshape/${name}.sql`, "utf8");
       const clean = sql.replace(/--[^\n]*/g, "");
@@ -522,6 +524,8 @@ it("WriteShape Drive rooms use independent encrypted connections and provider pe
       "migrations/0002_cancellation_feedback",
       "migrations/0003_account_deletion",
       "migrations/0004_code_claim_counts",
+      "migrations/0005_rolling_history",
+      "migrations/0006_cloud_backup_grace",
     ]) {
       const sql = (
         await readFile(`cloudflare/writeshape/${name}.sql`, "utf8")

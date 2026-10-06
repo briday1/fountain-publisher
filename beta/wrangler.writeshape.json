@@ -33,7 +33,12 @@
     "STRIPE_MONTHLY_PRICE_ID": "price_1UJI3mCoZzTH3rR02FrxECSY",
     "STRIPE_YEARLY_PRICE_ID": "price_1UJI3rCoZzTH3rR0fHBGdUzU",
     "BILLING_MODE": "test",
-    "LIVE_COLLABORATION": "true"
+    "LIVE_COLLABORATION": "true",
+    "STORAGE_QUOTA_BYTES": "1000000000",
+    "HISTORY_MAX_VERSIONS": "50",
+    "HISTORY_RETENTION_MODE": "rolling",
+    "CLOUD_BACKUP_POLICY": "true",
+    "CLOUD_BACKUP_PURGE": "false"
   },
   "observability": {
     "enabled": true,
@@ -49,7 +54,9 @@
       "destination_address": "writeshape-support@agentmail.to"
     }
   ],
-  "triggers": { "crons": ["*/15 * * * *"] },
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
   "durable_objects": {
     "bindings": [
       {

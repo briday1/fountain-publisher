@@ -639,6 +639,13 @@ it("Premium focus gates both section switches and new focused views without bloc
   const { model, session } = setup(() => premium);
   const base = model.activeView!;
   const one = session.current.screenplay.blocks[1].id;
+  const tab = model.duplicate(base.id, false, one)!;
+  expect(tab.controller.focusedSection).toBeUndefined();
+  expect(model.panes[0].tabs).toContain(tab.id);
+  const pane = model.duplicate(base.id, true, one)!;
+  expect(model.split).toBe(true);
+  expect(model.panes[1].tabs).toContain(pane.id);
+  expect(pane.controller.focusedSection).toBeUndefined();
   model.focusSection(base.id, one);
   expect(base.controller.focusedSection).toBeUndefined();
   const other = model.duplicate(base.id, false, one, true)!;

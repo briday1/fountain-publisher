@@ -60,6 +60,7 @@ it("brands real WriteShape builds and offline installs without changing default 
       );
       const sw = await readFile(resolve(outDir, "sw.js"), "utf8");
       for (const page of writeShapePages) {
+        if (mode !== "writeshape" && page === "backup.html") continue;
         const actual = await readFile(resolve(outDir, page), "utf8");
         const expected = await readFile(
           resolve(

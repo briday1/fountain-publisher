@@ -9,6 +9,7 @@ export const writeShapePages = [
   "about.html",
   "privacy.html",
   "terms.html",
+  "backup.html",
 ] as const;
 export const writeShapePageAssets = [
   ...writeShapePages,

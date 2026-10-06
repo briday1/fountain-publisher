@@ -1,4 +1,5 @@
 import { HttpError, json, sameOrigin, now } from "./http.mjs";
+import { backupAllowed } from "./cloud-backup.mjs";
 import {
   premium,
   randomToken,
@@ -546,7 +547,14 @@ export function createDriveRoutes({
     }
     if (request.method === "POST") {
       sameOrigin(request);
-      if (path !== "/api/drive/disconnect" && !premium(account))
+      if (
+        path !== "/api/drive/disconnect" &&
+        !premium(account) &&
+        !(
+          ["/api/drive/connect", "/api/drive/backup"].includes(path) &&
+          (await backupAllowed(env, account))
+        )
+      )
         throw new HttpError(
           403,
           "Premium is required to connect or save to Google Drive.",
@@ -620,7 +628,7 @@ export function createDriveRoutes({
       return response;
     }
     if (path === "/api/drive/callback" && request.method === "GET") {
-      if (!premium(account))
+      if (!premium(account) && !(await backupAllowed(env, account)))
         throw new HttpError(
           403,
           "Premium is required to connect Google Drive.",
@@ -730,7 +738,9 @@ export function createDriveRoutes({
       (request.method === "GET" &&
         ["/api/drive/browser", "/api/drive/open"].includes(path)) ||
       (request.method === "POST" &&
-        ["/api/drive/save", "/api/drive/create"].includes(path));
+        ["/api/drive/save", "/api/drive/create", "/api/drive/backup"].includes(
+          path,
+        ));
     if (!supported) throw new HttpError(404, "Not found.");
     const current = await connection(env, account);
     if (path === "/api/drive/browser") {
@@ -785,8 +795,33 @@ export function createDriveRoutes({
       return json(
         await open(env, account, current, validId(url.searchParams.get("id"))),
       );
-    const input = await inputBody(request),
-      text = content(input.content);
+    let input = await inputBody(request);
+    if (path === "/api/drive/backup") {
+      // Backup is a narrow exception to the Premium save gate. Content and filename
+      // come from an owned cloud record, never arbitrary browser-provided writing.
+      const source = input.versionId
+        ? await env.DB.prepare(
+            "SELECT name,content FROM file_versions WHERE owner=? AND file_id=? AND id=?",
+          )
+            .bind(
+              account.id,
+              String(input.fileId || ""),
+              String(input.versionId),
+            )
+            .first()
+        : await env.DB.prepare(
+            "SELECT name,content FROM items WHERE owner=? AND id=? AND kind='file'",
+          )
+            .bind(account.id, String(input.fileId || ""))
+            .first();
+      if (!source) throw new HttpError(404, "Cloud file not found.");
+      input = {
+        name: source.name,
+        content: source.content,
+        parent: input.parent || "root",
+      };
+    }
+    const text = content(input.content);
     if (path === "/api/drive/save") {
       const id = validId(input.id);
       if (!validEtag(input.etag))

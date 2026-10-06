@@ -191,6 +191,9 @@ export async function accountDeletionRoutes(
     "access_redemptions",
     "cancellation_feedback",
     "live_room_members",
+    "cloud_backup_notices",
+    "expiring_cloud_accounts",
+    "cloud_backup_grace",
   ])
     statements.push(
       env.DB.prepare(`DELETE FROM ${table} WHERE account_id=?`).bind(id),
@@ -202,6 +205,9 @@ export async function accountDeletionRoutes(
     env.DB.prepare(
       "DELETE FROM live_room_registry WHERE file_id IN (SELECT 'library_'||id FROM items WHERE owner=?)",
     ).bind(id),
+  );
+  statements.push(
+    env.DB.prepare("DELETE FROM file_retention WHERE owner=?").bind(id),
   );
   statements.push(env.DB.prepare("DELETE FROM items WHERE owner=?").bind(id));
   statements.push(

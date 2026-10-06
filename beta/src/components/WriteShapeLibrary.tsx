@@ -25,6 +25,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Menu } from "./Menu";
+import { accountRequest } from "./WriteShapeAccount";
 import { Modal } from "./Modal";
 import { LibrarySharing, SharedWithMe } from "./LibrarySharing";
 import { LibraryHistory } from "./LibraryHistory";
@@ -69,6 +70,9 @@ export function WriteShapeLibrary({
     y: number;
   }>();
   const [notice, setNotice] = useState("");
+  const [cloudBackup, setCloudBackup] = useState<{
+    deadlineLabel: string;
+  } | null>(null);
   const [manageName, setManageName] = useState("");
   const [moveParent, setMoveParent] = useState("");
   const [folders, setFolders] = useState<{ id: string; name: string }[]>([]);
@@ -122,6 +126,7 @@ export function WriteShapeLibrary({
         setBreadcrumbs(data.breadcrumbs);
         setUsage(data.usage);
         setCanWrite(data.canWrite);
+        setCloudBackup(data.cloudBackup || null);
       })
       .catch((e) => {
         if (active) setError(e.message);
@@ -344,6 +349,9 @@ export function WriteShapeLibrary({
                 </p>
                 <small>
                   Usage includes current scripts and saved versions.
+                  {usage.historyMode === "rolling" &&
+                    usage.historyLimit !== null &&
+                    ` Keeps the newest ${usage.historyLimit} previous versions per file; older versions expire as you save.`}
                 </small>
               </details>
             </>
@@ -971,6 +979,66 @@ export function WriteShapeLibrary({
                   Your library is read only. Open or download your scripts;
                   Premium is required for new saves.
                 </p>
+              )}
+              {cloudBackup && (
+                <p className="library-readonly">
+                  Back up your cloud files and version history by{" "}
+                  {cloudBackup.deadlineLabel}. They are automatically deleted
+                  after the deadline.{" "}
+                  <a
+                    href="/backup.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Backup instructions
+                  </a>
+                  .
+                </p>
+              )}
+              {(canWrite || cloudBackup) && mode === "open" && (
+                <button
+                  disabled={
+                    busy ||
+                    loading ||
+                    !items.some(
+                      (item) =>
+                        item.kind === "file" &&
+                        (checked.has(item.id) || selected === item.id),
+                    )
+                  }
+                  onClick={() =>
+                    void run(async () => {
+                      const status = await accountRequest("/api/drive/status");
+                      if (!status.configured)
+                        throw new Error(
+                          "Google Drive is unavailable. Download your files locally instead.",
+                        );
+                      if (!status.connected) {
+                        const connection = await accountRequest(
+                          "/api/drive/connect",
+                          {},
+                        );
+                        window.location.assign(connection.url);
+                        return;
+                      }
+                      const files = items.filter(
+                        (item) =>
+                          item.kind === "file" &&
+                          (checked.has(item.id) ||
+                            (!checked.size && selected === item.id)),
+                      );
+                      for (const file of files)
+                        await accountRequest("/api/drive/backup", {
+                          fileId: file.id,
+                        });
+                      setNotice(
+                        `${files.length} ${files.length === 1 ? "file copied" : "files copied"} to your Google Drive root folder. Cloud originals are preserved.`,
+                      );
+                    })
+                  }
+                >
+                  Copy to Google Drive
+                </button>
               )}
             </footer>
           </>

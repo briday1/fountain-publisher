@@ -1,6 +1,7 @@
 import { accountDeletionRoutes } from "./account-deletion.mjs";
 import { liveRoutes } from "./live-routes.mjs";
 import { sendPendingFeedback } from "./cancellation-feedback.mjs";
+import { reconcileBackupGrace, maintainCloudBackups } from "./cloud-backup.mjs";
 import { withComplimentaryAccess, accessCodeRoutes } from "./access-codes.mjs";
 import { accountBilling } from "./billing-mode.mjs";
 import { driveRoutes } from "./drive.mjs";
@@ -21,6 +22,7 @@ export function createHandler(authenticate = resolveAccount) {
         accountBilling(await authenticate(request, env), env),
         env,
       );
+      if (user) user.cloudBackup = await reconcileBackupGrace(env, user);
       // Keep checkout creation and erasure in the same per-account queue. Otherwise a
       // checkout that started earlier could create a customer after deletion checked billing.
       if (
@@ -163,6 +165,7 @@ export default {
     ctx.waitUntil(
       Promise.all([
         sendPendingFeedback(env),
+        maintainCloudBackups(env),
         env.DB.prepare("DELETE FROM revoked_access WHERE expires<=?")
           .bind(Math.floor(Date.now() / 1000))
           .run(),

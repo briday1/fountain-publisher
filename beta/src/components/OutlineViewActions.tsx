@@ -48,10 +48,10 @@ export function OutlineViewActions({
               Open in other pane
             </MenuItem>
             <MenuItem onClick={() => open(false, true)}>
-              Focus this section in a tab
+              Focus this section in a tab{!premium ? " · Premium" : ""}
             </MenuItem>
             <MenuItem onClick={() => open(true, true)}>
-              Focus this section in other pane
+              Focus this section in other pane{!premium ? " · Premium" : ""}
             </MenuItem>
           </>
         )}

@@ -1,5 +1,5 @@
 import { SceneOutline } from "./SceneOutline";
-import { premiumSample } from "./premiumSampleData";
+import { premiumSample, beatSampleScreenplay } from "./premiumSampleData";
 import { BeatBoard } from "./BeatBoard";
 import { BeatPacing } from "./BeatPacing";
 import { CharacterAnalytics } from "./CharacterAnalytics";
@@ -54,18 +54,22 @@ export function SampleOutline({ doc = premiumSample }: { doc?: Screenplay }) {
     </div>
   );
 }
-export function SampleBeatSheet() {
+export function SampleBeatSheet({
+  doc = beatSampleScreenplay,
+}: {
+  doc?: Screenplay;
+}) {
   return (
     <div className="sample-beat-sheet">
       <BeatBoard
-        doc={premiumSample}
+        doc={doc}
         onChange={noop}
         onAssign={noop}
         onRange={noop}
         onExport={noop}
         onExportCsv={noop}
       />
-      <BeatPacing doc={premiumSample} onClose={noop} onRange={noop} inline />
+      <BeatPacing doc={doc} onClose={noop} onRange={noop} inline compact />
     </div>
   );
 }

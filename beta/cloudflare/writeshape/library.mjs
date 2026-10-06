@@ -23,6 +23,7 @@ export function storagePolicy(env) {
   return {
     quotaBytes: setting(env, "STORAGE_QUOTA_BYTES"),
     historyLimit: setting(env, "HISTORY_MAX_VERSIONS"),
+    historyMode: env.HISTORY_RETENTION_MODE === "rolling" ? "rolling" : "block",
   };
 }
 export async function storageUsage(env, owner) {
@@ -147,7 +148,11 @@ async function failedWrite(env, owner, input, policy) {
       "That name already exists in this folder. Choose a different name to keep both files.",
       "NAME_CONFLICT",
     );
-  if (input.id && policy.historyLimit !== null) {
+  if (
+    input.id &&
+    policy.historyLimit !== null &&
+    policy.historyMode !== "rolling"
+  ) {
     const row = await env.DB.prepare(
       "SELECT COUNT(*) AS count FROM file_versions WHERE owner=? AND file_id=?",
     )
@@ -166,6 +171,36 @@ async function failedWrite(env, owner, input, policy) {
     "QUOTA_EXCEEDED",
   );
 }
+function retainedGrowth(policy, owner, id, bytes) {
+  const rolling =
+    policy.historyMode === "rolling" && policy.historyLimit !== null;
+  return {
+    rolling,
+    sql: rolling
+      ? "(? - COALESCE((SELECT SUM(bytes) FROM (SELECT length(CAST(content AS BLOB)) AS bytes FROM file_versions WHERE owner=? AND file_id=? ORDER BY revision DESC LIMIT -1 OFFSET ?)),0) - CASE WHEN ?=0 THEN length(CAST(COALESCE(items.content,'') AS BLOB)) ELSE 0 END)"
+      : "?",
+    params: rolling
+      ? [
+          bytes,
+          owner,
+          id,
+          Math.max(0, policy.historyLimit - 1),
+          policy.historyLimit,
+        ]
+      : [bytes],
+  };
+}
+async function commitHistoryWrite(env, owner, id, policy, statement) {
+  if (policy.historyMode !== "rolling" || policy.historyLimit === null)
+    return statement.run();
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO file_retention(owner,file_id,max_versions) VALUES(?,?,?) ON CONFLICT(owner,file_id) DO UPDATE SET max_versions=excluded.max_versions",
+    ).bind(owner, id, policy.historyLimit),
+    statement,
+  ]);
+  return results[1];
+}
 async function writeFile(env, owner, input) {
   const policy = storagePolicy(env);
   const updated = new Date().toISOString();
@@ -179,36 +214,38 @@ async function writeFile(env, owner, input) {
       throw new HttpError(400, "A file revision is required.");
     // One SQLite statement: quota, expected revision and retention checks serialize with the write.
     // The BEFORE UPDATE trigger archives the old current content in that same transaction.
-    // Net storage growth is the full NEW content, because the old content is retained as history.
-    result = await env.DB.prepare(
-      `UPDATE items SET content=?,name=?,revision=revision+1,updated=? WHERE id=? AND owner=? AND revision=? AND kind='file' AND parent=? AND (? IS NULL OR owner=? OR EXISTS(SELECT 1 FROM file_edit_shares live_grant WHERE live_grant.file_id=items.id AND live_grant.owner=items.owner AND live_grant.recipient_id=? AND live_grant.revoked_at IS NULL)) AND NOT EXISTS(SELECT 1 FROM items other WHERE other.owner=? AND other.parent=? AND other.name=? COLLATE NOCASE AND other.id!=?) AND (? IS NULL OR ${usageExpression}+?<=?) AND (? IS NULL OR (SELECT COUNT(*) FROM file_versions WHERE owner=? AND file_id=?)<?)`,
-    )
-      .bind(
-        input.content,
-        input.name,
-        updated,
-        id,
-        owner,
-        input.revision,
-        input.parent,
-        env.LIVE_WRITER_ACCOUNT || null,
-        env.LIVE_WRITER_ACCOUNT || null,
-        env.LIVE_WRITER_ACCOUNT || null,
-        owner,
-        input.parent,
-        input.name,
-        id,
-        policy.quotaBytes,
-        owner,
-        owner,
-        bytes,
-        policy.quotaBytes,
-        policy.historyLimit,
-        owner,
-        id,
-        policy.historyLimit,
-      )
-      .run();
+    // Rolling retention removes only the oldest history in the same UPDATE
+    // transaction. Charge the net retained bytes, so a full quota can still
+    // replace an equally sized draft when its oldest version expires.
+    const growth = retainedGrowth(policy, owner, id, bytes);
+    const statement = env.DB.prepare(
+      `UPDATE items SET content=?,name=?,revision=revision+1,updated=? WHERE id=? AND owner=? AND revision=? AND kind='file' AND parent=? AND (? IS NULL OR owner=? OR EXISTS(SELECT 1 FROM file_edit_shares live_grant WHERE live_grant.file_id=items.id AND live_grant.owner=items.owner AND live_grant.recipient_id=? AND live_grant.revoked_at IS NULL)) AND NOT EXISTS(SELECT 1 FROM items other WHERE other.owner=? AND other.parent=? AND other.name=? COLLATE NOCASE AND other.id!=?) AND (? IS NULL OR ${usageExpression}+${growth.sql}<=?) AND (? IS NULL OR (SELECT COUNT(*) FROM file_versions WHERE owner=? AND file_id=?)<?)`,
+    ).bind(
+      input.content,
+      input.name,
+      updated,
+      id,
+      owner,
+      input.revision,
+      input.parent,
+      env.LIVE_WRITER_ACCOUNT || null,
+      env.LIVE_WRITER_ACCOUNT || null,
+      env.LIVE_WRITER_ACCOUNT || null,
+      owner,
+      input.parent,
+      input.name,
+      id,
+      policy.quotaBytes,
+      owner,
+      owner,
+      ...growth.params,
+      policy.quotaBytes,
+      growth.rolling ? null : policy.historyLimit,
+      owner,
+      id,
+      policy.historyLimit,
+    );
+    result = await commitHistoryWrite(env, owner, id, policy, statement);
   } else {
     result = await env.DB.prepare(
       `INSERT INTO items(id,owner,parent,name,kind,content,revision,updated) SELECT ?,?,?,?,?,?,1,? WHERE NOT EXISTS(SELECT 1 FROM items WHERE owner=? AND parent=? AND name=? COLLATE NOCASE) AND (? IS NULL OR ${usageExpression}+?<=?)`,
@@ -277,6 +314,7 @@ export async function libraryRoutes(request, env, user) {
       breadcrumbs,
       usage: await storageUsage(env, user.id),
       canWrite: premium(user),
+      cloudBackup: user.cloudBackup || null,
     });
   }
   if (
@@ -315,6 +353,7 @@ export async function libraryRoutes(request, env, user) {
       },
       versions: history.results.map((v) => ({ ...v, current: !!v.current })),
       historyLimit: storagePolicy(env).historyLimit,
+      historyMode: storagePolicy(env).historyMode,
     });
   }
   if (
@@ -490,40 +529,46 @@ export async function libraryRoutes(request, env, user) {
     if (parent && parent !== "__trash__") await ancestors(env, user.id, parent);
     const policy = storagePolicy(env);
     const bytes = item.kind === "file" ? item.bytes : 0;
+    const growth = retainedGrowth(policy, user.id, item.id, bytes);
     // Cycle checks happen in the write; a trashed folder keeps its entire subtree.
     // Trash is reversible; immutable file history is preserved by the existing trigger.
-    const result = await env.DB.prepare(
+    const statement = env.DB.prepare(
       `UPDATE items SET name=?,parent=?,revision=revision+1,updated=? WHERE owner=? AND id=? AND revision=?
       AND NOT EXISTS(SELECT 1 FROM items other WHERE other.owner=? AND other.parent=? AND other.name=? COLLATE NOCASE AND other.id!=?)
       AND NOT EXISTS(WITH RECURSIVE chain(id,parent) AS (SELECT id,parent FROM items WHERE owner=? AND id=? UNION SELECT i.id,i.parent FROM items i JOIN chain c ON i.id=c.parent WHERE i.owner=?) SELECT 1 FROM chain WHERE id=?)
-      AND (? IS NULL OR ${usageExpression}+?<=?)
+      AND (? IS NULL OR ${usageExpression}+${growth.sql}<=?)
       AND (kind!='file' OR ? IS NULL OR (SELECT COUNT(*) FROM file_versions WHERE owner=? AND file_id=items.id)<?)`,
-    )
-      .bind(
-        name,
-        parent,
-        new Date().toISOString(),
-        user.id,
-        item.id,
-        input.revision,
-        user.id,
-        parent,
-        name,
-        item.id,
-        user.id,
-        parent,
-        user.id,
-        item.id,
-        policy.quotaBytes,
-        user.id,
-        user.id,
-        bytes,
-        policy.quotaBytes,
-        policy.historyLimit,
-        user.id,
-        policy.historyLimit,
-      )
-      .run();
+    ).bind(
+      name,
+      parent,
+      new Date().toISOString(),
+      user.id,
+      item.id,
+      input.revision,
+      user.id,
+      parent,
+      name,
+      item.id,
+      user.id,
+      parent,
+      user.id,
+      item.id,
+      policy.quotaBytes,
+      user.id,
+      user.id,
+      ...growth.params,
+      policy.quotaBytes,
+      growth.rolling ? null : policy.historyLimit,
+      user.id,
+      policy.historyLimit,
+    );
+    const result = await commitHistoryWrite(
+      env,
+      user.id,
+      item.id,
+      policy,
+      statement,
+    );
     if (!result.meta.changes)
       fail(
         409,

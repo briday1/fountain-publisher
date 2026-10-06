@@ -25,12 +25,14 @@
   border: 1px solid var(--border);
   overflow: hidden;
   border-radius: 8px;
+  box-sizing: border-box;
+  width: 100%;
 }
 .sample-guide .writing-beat-guide-row {
   flex-wrap: wrap;
 }
 .sample-guide .writing-beat-prompt {
-  flex-basis: 230px;
+  flex-basis: min(230px, 100%);
 }
 .sample-document {
   overflow: hidden;
@@ -40,17 +42,12 @@
   min-height: 0;
 }
 .sample-pdf {
-  height: 620px;
   background: var(--paper);
 }
-.sample-pdf-mobile {
-  height: 520px;
-}
-.sample-pdf iframe {
+.sample-pdf img {
   display: block;
   width: 100%;
-  height: 100%;
-  border: 0;
+  height: auto;
 }
 .writeshape-plans .showcase-intro {
   font-size: clamp(22px, 4vw, 32px);
@@ -315,14 +312,17 @@
 }
 
 .sample-document {
-  max-height: 460px;
-  overflow: auto;
+  overflow: visible;
+}
+.sample-document .screenplay-paper {
+  padding: 28px 24px;
+  box-sizing: border-box;
 }
 .sample-document .screenplay-editor {
   min-height: 0;
 }
 .focus-diagram-page .sample-document {
-  max-height: 360px;
+  max-height: none;
 }
 
 .premium-feature-picker {
@@ -334,4 +334,161 @@
 }
 .premium-feature-picker select {
   max-width: 100%;
+}
+
+/* Showcase previews fit the available width rather than borrowing desktop
+   editor margins or forcing inert charts into horizontal scrolling. */
+.writeshape-plans .showcase-feature,
+.writeshape-plans .showcase-feature figure {
+  min-width: 0;
+  max-width: 100%;
+}
+.writeshape-plans .premium-example,
+.writeshape-plans .sample-story-outline,
+.writeshape-plans .sample-insights {
+  box-sizing: border-box;
+}
+.writeshape-plans .sample-beat-sheet .beat-pacing-scroll svg {
+  min-width: 0;
+}
+.writeshape-plans .sample-analytics .character-analytics-viewport > svg {
+  width: 100%;
+  height: auto;
+}
+.writeshape-plans .sample-beat-sheet .beat-pacing-scroll-hint {
+  display: none;
+}
+.writeshape-plans .sample-beat-sheet .beat-flow-footer {
+  margin: 20px 0 0;
+  padding: 13px 0;
+}
+.writeshape-plans .sample-beat-sheet .beat-flow-move,
+.writeshape-plans .sample-beat-sheet .beat-flow-disclosure,
+.writeshape-plans .sample-beat-sheet .beat-flow-delete {
+  display: none;
+}
+.writeshape-plans .sample-beat-sheet .beat-flow-title {
+  font-size: 13px;
+}
+@media (max-width: 600px) {
+  .writeshape-plans .sample-document .screenplay-paper {
+    padding: 20px 16px;
+  }
+  .writeshape-plans .sample-document .screenplay-editor {
+    font-size: 13px;
+    line-height: 1.35;
+  }
+  .writeshape-plans .sample-document .screenplay-editor p {
+    line-height: inherit;
+  }
+  .writeshape-plans .beat-board.beat-sheet-paper {
+    padding: 16px 12px;
+  }
+  .writeshape-plans .sample-beat-sheet .beat-flow-tools,
+  .writeshape-plans .sample-beat-sheet .beat-premise-field,
+  .writeshape-plans .sample-analytics .character-analytics-header-actions {
+    display: none;
+  }
+  .writeshape-plans .beat-pacing-plot {
+    padding: 12px 8px;
+  }
+  .writeshape-plans .beat-pacing-plot > header {
+    flex-wrap: wrap;
+  }
+  .writeshape-plans .beat-pacing-legend {
+    margin-left: 0;
+  }
+  .writeshape-plans .sample-analytics .character-analytics-viewport {
+    padding: 8px;
+    max-height: none;
+  }
+  .writeshape-plans .plan-comparison {
+    table-layout: fixed;
+    width: 100%;
+  }
+  .writeshape-plans .plan-comparison th,
+  .writeshape-plans .plan-comparison td {
+    padding: 10px 6px;
+    overflow-wrap: anywhere;
+  }
+  .writeshape-plans .plan-comparison th:first-child {
+    width: 48%;
+  }
+  .writeshape-plans .sample-phone {
+    box-sizing: border-box;
+    width: 100%;
+  }
+}
+
+.sample-cloud {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.sample-cloud-library {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--raised);
+}
+.sample-cloud-library h4,
+.sample-cloud-library > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+.sample-cloud-library > div {
+  margin-top: 20px;
+}
+.sample-cloud-library small {
+  display: block;
+  color: var(--muted);
+  margin-top: 6px;
+  font-size: 11px;
+}
+.sample-cloud-devices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.sample-cloud-devices > div {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 16px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--raised);
+  text-align: center;
+}
+.sample-cloud-devices svg {
+  color: var(--accent);
+}
+.sample-cloud-devices small {
+  font-size: 11px;
+  color: var(--muted);
+}
+@media (max-width: 600px) {
+  .sample-cloud {
+    padding: 12px;
+  }
+  .sample-cloud-devices {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .sample-cloud-devices > div {
+    grid-template-columns: 32px minmax(0, 1fr);
+    justify-items: start;
+    padding: 12px;
+    text-align: left;
+    column-gap: 12px;
+  }
+  .sample-cloud-devices svg {
+    grid-row: span 2;
+    align-self: center;
+  }
 }

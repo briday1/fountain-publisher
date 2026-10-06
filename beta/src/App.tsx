@@ -1852,7 +1852,7 @@ export default function App() {
           accountAction={
             isWriteShape
               ? {
-                  label: account.state.account ? "Account" : "Sign in",
+                  label: "Account",
                   onClick: () => setAccountOpen(true),
                 }
               : undefined
@@ -1866,9 +1866,14 @@ export default function App() {
         >
           <Menu label="File">
             {isWriteShape && (
-              <MenuItem onClick={() => setPlansOpen(true)}>
-                Explore Premium…
-              </MenuItem>
+              <>
+                <MenuItem onClick={() => setAccountOpen(true)}>
+                  Account
+                </MenuItem>
+                <MenuItem onClick={() => setPlansOpen(true)}>
+                  Explore Premium…
+                </MenuItem>
+              </>
             )}
             <small>{novel ? "DOCUMENT" : "SCREENPLAY"}</small>
             <MenuItem onClick={() => void run(newDocument)}>

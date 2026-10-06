@@ -6,7 +6,7 @@ import { downloadFile } from "../storage/files";
 import { Modal } from "./Modal";
 import { beatPacing } from "./beat-pacing";
 
-const chart = {
+const fullChart = {
   width: 900,
   height: 260,
   left: 68,
@@ -20,12 +20,15 @@ export function BeatPacing({
   onClose,
   onRange,
   inline = false,
+  compact = false,
 }: {
   inline?: boolean;
+  compact?: boolean;
   doc: Screenplay;
   onClose: () => void;
   onRange: (range: BeatRange) => void;
 }) {
+  const chart = { ...fullChart, width: compact ? 400 : fullChart.width };
   const documentLabel = isNovel(doc) ? "manuscript" : "screenplay";
   const { total, positions } = useMemo(() => beatPacing(doc), [doc]);
   const [selected, setSelected] = useState<number | null>(null);

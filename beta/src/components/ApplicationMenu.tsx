@@ -313,6 +313,11 @@ export function ApplicationMenu({
                     {files}
                     {renameCommand &&
                       cloneElement(renameCommand, { children: "Rename…" })}
+                    {accountAction && (
+                      <button onClick={dismissThen(accountAction.onClick)}>
+                        {accountAction.label}
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="mobile-command-group">
@@ -360,11 +365,6 @@ export function ApplicationMenu({
                     <button onClick={dismissThen(() => onSettings?.())}>
                       Settings
                     </button>
-                    {accountAction && (
-                      <button onClick={dismissThen(accountAction.onClick)}>
-                        {accountAction.label}
-                      </button>
-                    )}
                     <button onClick={dismissThen(() => onHelp?.())}>
                       Help
                     </button>

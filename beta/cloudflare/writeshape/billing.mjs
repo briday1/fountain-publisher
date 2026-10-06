@@ -7,6 +7,8 @@ import {
 import { HttpError, bodyJson, json, now, sameOrigin } from "./http.mjs";
 import { randomToken } from "./accounts.mjs";
 import { sendPendingFeedback } from "./cancellation-feedback.mjs";
+import { backupDeadline, backupDeadlineLabel } from "./backup-deadline.mjs";
+import { freshBackupAccount, reconcileBackupGrace } from "./cloud-backup.mjs";
 
 // Explicit catalogs; live activation requires separate credentials and approval.
 export const TEST_PLANS = Object.freeze({
@@ -219,6 +221,30 @@ export async function subscriptionsFor(
   return subscriptions;
 }
 export async function syncBilling(accountId, env, stripe) {
+  if (
+    env.LIVE_ROOMS &&
+    !env.INTERNAL_ACCOUNT_OPERATION &&
+    !env.INTERNAL_BILLING_SYNC
+  ) {
+    const response = await env.LIVE_ROOMS.get(
+      env.LIVE_ROOMS.idFromName("writeshape-account-v1:" + accountId),
+    ).fetch(
+      new Request("https://room.internal/sync-billing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId }),
+      }),
+    );
+    if (!response.ok)
+      throw new HttpError(
+        503,
+        "Billing verification is pending. Please retry.",
+      );
+    return response.json();
+  }
+  // Observe the paid window before the provider update overwrites premium_until.
+  if (env.CLOUD_BACKUP_POLICY === "true")
+    await reconcileBackupGrace(env, await freshBackupAccount(env, accountId));
   const catalog = billingCatalog(env),
     columns = billingColumns(env);
   // Read version BEFORE remote state, then CAS. Overlapping events cannot apply an older fetch last.
@@ -264,7 +290,14 @@ export async function syncBilling(accountId, env, stripe) {
         account.billing_version,
       )
       .run();
-    if (result.meta.changes) return subscriptions;
+    if (result.meta.changes) {
+      if (env.CLOUD_BACKUP_POLICY === "true")
+        await reconcileBackupGrace(
+          env,
+          await freshBackupAccount(env, accountId),
+        );
+      return subscriptions;
+    }
   }
   throw new HttpError(503, "Subscription sync is busy. Please retry.");
 }
@@ -503,7 +536,15 @@ export async function billingRoutes(request, env, account, stripe, ctx) {
     const subscriptions = account.stripe_customer
       ? await subscriptionsFor(account.stripe_customer, stripe, catalog)
       : [];
-    return json(billingSummary(subscriptions, catalog));
+    const summary = billingSummary(subscriptions, catalog);
+    const end = summary.cancelAt || summary.periodEnd;
+    return json({
+      ...summary,
+      backupDeadline: end ? backupDeadline(end) : null,
+      backupDeadlineLabel: end
+        ? backupDeadlineLabel(backupDeadline(end))
+        : null,
+    });
   }
   if (path === "/api/billing/cancel") {
     const data = await bodyJson(request);

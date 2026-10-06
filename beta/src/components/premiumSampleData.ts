@@ -1,4 +1,5 @@
 import { parseFountain } from "../core/fountain";
+import { parseMarkdown } from "../core/markdown";
 import { analyzeScreenplay } from "../core/insights";
 import type { Beat, Screenplay, ScriptBlock } from "../core/model";
 
@@ -125,3 +126,54 @@ premiumSample.metadata = {
   beats: createSampleBeats(premiumSample, scenes),
 };
 export const sampleInsights = analyzeScreenplay(premiumSample);
+
+// A compact, linked example: one scene/chapter, four beats and its pacing graph.
+export const beatSampleScreenplay = parseFountain(`Title: The Last Light
+
+INT. LANTERN ROOM - NIGHT
+
+Eli holds a brass gear beside the broken lens. Mara recognizes their father's work.
+
+MARA
+Help me lift it. I cannot do this alone.
+
+JUNE
+A boat is drifting toward the rocks. We are running out of time.
+
+Together they turn the crank. The beam sweeps across the channel.
+`);
+export const beatSampleBook = parseMarkdown(`## Chapter 2 — The promise
+
+Eli held a brass gear beside the broken lens. Mara recognized their father's work.
+
+She asked him to help lift the mechanism. For the first time, she accepted his help.
+
+June called from the window. A boat was drifting toward the rocks, blind to the channel.
+
+Together they turned the crank. The beam swept across the water.
+`);
+for (const doc of [beatSampleScreenplay, beatSampleBook]) {
+  const section = doc.blocks.find(
+    (block) => block.kind === "scene" || block.kind === "section",
+  )!;
+  const passages = doc.blocks.filter(
+    (block) => block.kind === "action" || block.kind === "dialogue",
+  );
+  doc.metadata.beats = [
+    ["The missing gear", "Eli brings the part their father saved."],
+    ["Accept the help", "Mara lets her brother help lift the mechanism."],
+    ["A boat near the rocks", "June spots the boat; time is running out."],
+    ["Restore the beam", "They turn the crank and light the channel."],
+  ].map(([title, description], index) => ({
+    id: `compact-${index}`,
+    title,
+    description,
+    act: "",
+    color: "#76add9",
+    groupSceneId: section.id,
+    range: {
+      start: { blockId: passages[index].id, offset: 0 },
+      end: { blockId: passages[index].id, offset: passages[index].text.length },
+    },
+  }));
+}

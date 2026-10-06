@@ -40,6 +40,7 @@ export function LibraryHistory({
   const [notice, setNotice] = useState("");
   const [reviewing, setReviewing] = useState(false);
   const [reload, setReload] = useState(0);
+  const [retention, setRetention] = useState<number | null>(null);
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -49,6 +50,7 @@ export function LibraryHistory({
         if (!active) return;
         setVersions(data.versions);
         setCurrent(data.file);
+        setRetention(data.historyMode === "rolling" ? data.historyLimit : null);
         setSelected((id) =>
           data.versions.some((v: LibraryVersion) => v.id === id)
             ? id
@@ -106,7 +108,7 @@ export function LibraryHistory({
       kind: "file",
     });
     setNotice(
-      `Saved as version ${saved.revision}. All earlier versions are kept. Your open draft is unchanged.`,
+      `Saved as version ${saved.revision}. Your open draft is unchanged.`,
     );
     setSelected(saved.versionId);
     setReload((n) => n + 1);
@@ -140,6 +142,13 @@ export function LibraryHistory({
             Refresh versions
           </button>
         </div>
+      )}
+      {retention !== null && (
+        <p className="library-message">
+          Your current file and its newest {retention} previous versions are
+          kept. Older versions expire as you save. Download any version you want
+          to keep longer.
+        </p>
       )}
       {notice && (
         <div className="library-message" role="status">

@@ -587,3 +587,90 @@ test("copy preserves originals and rejects collisions, stale revisions, foreign 
     400,
   );
 });
+
+test("rolling history keeps newest versions, preserves current content, and allows further saves at quota", async () => {
+  const env = testDB();
+  env.HISTORY_RETENTION_MODE = "rolling";
+  env.HISTORY_MAX_VERSIONS = "2";
+  env.STORAGE_QUOTA_BYTES = "9";
+  let file = await create(env, "one");
+  for (const content of ["two", "tri", "for", "fiv"]) {
+    const response = await update(env, file, content);
+    assert.equal(response.status, 200);
+    file = await response.json();
+  }
+  const history = await versions(env, file);
+  assert.deepEqual(
+    history.versions.map((v) => v.revision),
+    [5, 4, 3],
+  );
+  assert.equal(history.historyMode, "rolling");
+  assert.equal(
+    (await call(env, "alice", `/${file.id}/versions/${file.id}:1`)).status,
+    404,
+  );
+  assert.equal((await call(env, "alice", `/${file.id}`)).status, 200);
+  const usage = await (await call(env, "alice", "/usage")).json();
+  assert.equal(usage.usedBytes, 9);
+  assert.equal(usage.historyBytes, 6);
+  assert.throws(() => env.sql.exec("DELETE FROM file_versions"), /IMMUTABLE/);
+  const failed = await update(env, file, "too large");
+  assert.equal(failed.status, 413);
+  assert.deepEqual(
+    (await versions(env, file)).versions.map((v) => v.revision),
+    [5, 4, 3],
+  );
+  // Renaming/trashing must remain usable after reaching the history cap.
+  const renamed = await call(env, "alice", `/${file.id}/manage`, {
+    action: "rename",
+    revision: file.revision,
+    name: "Renamed.fountain",
+  });
+  assert.equal(renamed.status, 200);
+  assert.deepEqual(
+    (await versions(env, file)).versions.map((v) => v.revision),
+    [6, 5, 4],
+  );
+});
+
+test("rolling retention isolates owners, rejects stale writes without pruning, and restores as a new bounded revision", async () => {
+  const env = testDB();
+  env.HISTORY_RETENTION_MODE = "rolling";
+  env.HISTORY_MAX_VERSIONS = "1";
+  let file = await create(env, "original");
+  const bob = await create(env, "bob", "", "Bob.fountain", "bob");
+  const stale = file;
+  file = await (await update(env, file, "second")).json();
+  file = await (await update(env, file, "third")).json();
+  assert.equal((await update(env, stale, "stale")).status, 409);
+  assert.equal((await versions(env, file)).versions.length, 2);
+  const restored = await call(env, "alice", `/${file.id}/restore`, {
+    revision: file.revision,
+    versionId: `${file.id}:2`,
+  });
+  assert.equal(restored.status, 200);
+  const current = await (await call(env, "alice", `/${file.id}`)).json();
+  assert.equal(current.content, "second");
+  assert.deepEqual(
+    (await versions(env, file)).versions.map((v) => v.revision),
+    [4, 3],
+  );
+  assert.equal((await versions(env, bob, "bob")).versions.length, 1);
+});
+
+test("rolling zero history retains only the current file", async () => {
+  const env = testDB();
+  env.HISTORY_RETENTION_MODE = "rolling";
+  env.HISTORY_MAX_VERSIONS = "0";
+  env.STORAGE_QUOTA_BYTES = "3";
+  let file = await create(env, "one");
+  file = await (await update(env, file, "two")).json();
+  assert.deepEqual(
+    (await versions(env, file)).versions.map((v) => v.revision),
+    [2],
+  );
+  assert.equal(
+    (await (await call(env, "alice", "/usage")).json()).usedBytes,
+    3,
+  );
+});

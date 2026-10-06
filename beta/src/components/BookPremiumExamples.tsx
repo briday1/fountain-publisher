@@ -1,10 +1,8 @@
 import { parseMarkdown } from "../core/markdown";
-import { SampleOutline } from "./PremiumStoryExamples";
+import { SampleOutline, SampleBeatSheet } from "./PremiumStoryExamples";
 import { NovelCharacters } from "./NovelCharacters";
 import { TitlePreview } from "./TitlePreview";
-import { BeatBoard } from "./BeatBoard";
-import { BeatPacing } from "./BeatPacing";
-import { createSampleBeats } from "./premiumSampleData";
+import { createSampleBeats, beatSampleBook } from "./premiumSampleData";
 const noop = () => {};
 export const sampleBook = parseMarkdown(
   `# Book 1 — The Coast
@@ -65,7 +63,9 @@ export function BookPremiumExamples() {
   return (
     <>
       <section className="showcase-feature">
-        <small className="showcase-kicker">Your book · Included</small>
+        <small className="showcase-kicker">
+          Book outline & title page · Basic
+        </small>
         <h3>A home for the whole manuscript</h3>
         <p>
           Start with your title, author and an optional dedication. Organize
@@ -116,8 +116,8 @@ export function BookPremiumExamples() {
         <small className="showcase-kicker">Beat Sheet · Premium</small>
         <h3>Plan across chapters</h3>
         <p>
-          Arrange beats across chapters, connect them to passages, and follow
-          the shape of your manuscript in the pacing graph.
+          Connect beats to passages and follow their pacing. This example shows
+          one chapter with four beats and the matching pacing graph.
         </p>
         <figure>
           <div
@@ -125,17 +125,11 @@ export function BookPremiumExamples() {
             inert
             aria-hidden="true"
           >
-            <BeatBoard
-              doc={sampleBook}
-              onChange={noop}
-              onAssign={noop}
-              onRange={noop}
-              onExport={noop}
-              onExportCsv={noop}
-            />
-            <BeatPacing doc={sampleBook} onClose={noop} onRange={noop} inline />
+            <SampleBeatSheet doc={beatSampleBook} />
           </div>
-          <figcaption>Book beat sheet and pacing graph</figcaption>
+          <figcaption>
+            One chapter, four beats, and their pacing graph
+          </figcaption>
         </figure>
       </section>
     </>

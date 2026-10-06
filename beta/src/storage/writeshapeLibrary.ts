@@ -16,6 +16,7 @@ export interface StorageUsage {
   historyBytes: number;
   quotaBytes: number | null;
   historyLimit: number | null;
+  historyMode?: "rolling" | "block";
   fileCount: number;
   folderCount: number;
   versionCount: number;
@@ -69,12 +70,12 @@ export async function cloudRequest(path: string, body?: unknown): Promise<any> {
   return result;
 }
 export function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes.toLocaleString()} B`;
+  if (bytes < 1000) return `${bytes.toLocaleString()} B`;
   const units = ["KB", "MB", "GB", "TB"];
-  let size = bytes / 1024,
+  let size = bytes / 1000,
     index = 0;
-  while (size >= 1024 && index < units.length - 1) {
-    size /= 1024;
+  while (size >= 1000 && index < units.length - 1) {
+    size /= 1000;
     index++;
   }
   return `${size.toLocaleString(undefined, { maximumFractionDigits: size < 10 ? 2 : 1 })} ${units[index]}`;

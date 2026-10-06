@@ -314,9 +314,10 @@ for (const signedIn of [false, true]) {
       "Version history…",
       "Export…",
       "Rename…",
+      "Account",
     ]);
     const accountButton = menu.getByRole("button", {
-      name: label,
+      name: "Account",
       exact: true,
     });
     await expect(accountButton).toHaveCount(1);
@@ -367,8 +368,8 @@ for (const signedIn of [false, true]) {
       page.getByRole("button", { name: "Files…", exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: new RegExp(`^${label}…?$`) }),
-    ).toHaveCount(0);
+      page.getByRole("button", { name: "Account", exact: true }),
+    ).toHaveCount(1);
   });
 }
 
@@ -762,4 +763,86 @@ test("Finder folder menus copy nested folders and move complete folders to Trash
   await expect(
     page.getByRole("option", { name: "Folder: Book copy", exact: true }),
   ).toBeVisible();
+});
+
+test("WriteShape plan examples fit phone widths and File exposes Account", async ({
+  page,
+}) => {
+  await page.route("**/api/account", (route) =>
+    route.fulfill({
+      json: {
+        account: null,
+        premium: false,
+        privateMode: true,
+        billingAvailable: false,
+      },
+    }),
+  );
+  for (const width of [320, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/");
+    await page.getByRole("button", { name: "File", exact: true }).click();
+    if (width <= 950) {
+      const files = page.locator(".mobile-command-group").filter({
+        has: page.getByRole("heading", { name: "Files", exact: true }),
+      });
+      await expect(
+        files.getByRole("button", { name: "Account", exact: true }),
+      ).toBeVisible();
+      await files.getByRole("button", { name: "Account", exact: true }).click();
+    } else {
+      await page.getByRole("button", { name: "Account", exact: true }).click();
+    }
+    await expect(
+      page.getByRole("dialog", { name: "Sign in", exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Close dialog", exact: true })
+      .click();
+    await page.getByRole("button", { name: "File", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Explore Premium…", exact: true })
+      .click();
+    const plans = page.getByRole("dialog", {
+      name: "WriteShape Premium",
+      exact: true,
+    });
+    for (const mode of ["Screenplay", "Book"]) {
+      await plans.getByRole("tab", { name: mode, exact: true }).click();
+      await expect(
+        plans.locator(".sample-beat-sheet .beat-flow-row"),
+      ).toHaveCount(4);
+      await expect(
+        plans.locator(".sample-beat-sheet .beat-scene-heading"),
+      ).toHaveCount(1);
+      const overflow = await plans.evaluate((dialog) => {
+        const failures: string[] = [];
+        for (const el of dialog.querySelectorAll<HTMLElement>(
+          "figure, .sample-document, .sample-analytics, .character-analytics-viewport, .beat-pacing-scroll, .plan-comparison",
+        )) {
+          if (el.scrollWidth > el.clientWidth + 2)
+            failures.push(
+              `${el.closest("section")?.querySelector("h3")?.textContent}: ${el.tagName}.${el.className} (${el.firstElementChild?.className}): ${el.scrollWidth}/${el.clientWidth}`,
+            );
+        }
+        for (const img of dialog.querySelectorAll<HTMLImageElement>(
+          ".sample-pdf img",
+        )) {
+          if (img.complete && !img.naturalWidth)
+            failures.push("PDF image did not load");
+        }
+        return failures;
+      });
+      expect(overflow).toEqual([]);
+      if (width === 390) {
+        await plans
+          .locator(".sample-beat-sheet")
+          .first()
+          .scrollIntoViewIfNeeded();
+        await page.screenshot({
+          path: `test-results/plans-${mode.toLowerCase()}-mobile.png`,
+        });
+      }
+    }
+  }
 });
