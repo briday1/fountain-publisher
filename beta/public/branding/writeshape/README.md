@@ -11,4 +11,4 @@ The app uses WriteShapeMark for theme-aware icons and WriteShapeLogo for the ful
 
 Run npm run brand:icons from beta/ after changing the shared geometry or palettes. Requires Inkscape. Sources: src/components/writeShapeKeycaps.ts, src/components/WriteShapeMark.tsx, src/branding/writeShapeThemes.ts, scripts/generate-writeshape-icons.ts.
 
-All letter shapes are vector outlines from the bundled DejaVu Sans Bold font. Its license is included in the vector archive and at src/fonts/LICENSE.txt.
+The WriteShape wordmark uses Courier Prime Bold, matching the screenplay font. Key legends retain the approved DejaVu Sans Bold outlines. Both font licenses are included in the vector archive; Courier Prime’s SIL OFL license is also saved alongside these assets.

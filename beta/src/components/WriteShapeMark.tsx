@@ -122,9 +122,10 @@ export function WriteShapeLogo({
   colors = themeColors,
   ...props
 }: SVGProps<SVGSVGElement> & { colors?: WriteShapeColors }) {
-  const height = typeof width === "number"
-    ? (width * Number(wordmarkViewBox.split(" ")[3])) / 900
-    : undefined;
+  const height =
+    typeof width === "number"
+      ? (width * Number(wordmarkViewBox.split(" ")[3])) / 900
+      : undefined;
   return (
     <svg
       width={width}
