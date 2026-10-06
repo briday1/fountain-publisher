@@ -38,7 +38,7 @@ describe("mobile settings access", () => {
       /\.paper-wrap\s*{[\s\S]*?width:\s*100%;[\s\S]*?max-width:\s*none;[\s\S]*?margin:\s*0;/,
     );
     expect(mobileSettings).toMatch(
-      /\.screenplay-paper\s*{\s*box-shadow:\s*none;/,
+      /\.screenplay-paper\s*{[^}]*box-shadow:\s*none;/,
     );
   });
 
