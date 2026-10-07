@@ -110,6 +110,83 @@ test("Premium shows the complete sample beat sheet, graph and scene Gantt", asyn
     });
   }
 });
+test("collaboration examples anchor writer cursors to book and screenplay text at every width", async ({
+  page,
+}, testInfo) => {
+  await setup(page);
+  await page.route("**/api/account", (route) =>
+    route.fulfill({
+      json: { account, premium: false, billingAvailable: false },
+    }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Explore Premium…", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: "WriteShape Premium",
+    exact: true,
+  });
+  for (const mode of ["Screenplay", "Book"]) {
+    await dialog.getByRole("tab", { name: mode, exact: true }).click();
+    const preview = dialog.locator(".collaboration-concept");
+    await expect(preview.locator(".collaboration-presence")).toContainText(
+      "Alex & Jordan",
+    );
+    await expect(preview.locator(".collaboration-presence")).not.toContainText(
+      /Mara|Eli|Fictional/,
+    );
+    await expect(preview.locator(".concept-cursor")).toHaveCount(0);
+    await expect(preview.locator(".screenplay-editor")).toHaveAttribute(
+      "contenteditable",
+      "false",
+    );
+    await expect(preview.locator(".collaboration-cursor")).toHaveCount(2);
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      await preview.scrollIntoViewIfNeeded();
+      for (const cursor of await preview
+        .locator(".collaboration-cursor")
+        .all()) {
+        const anchor = await cursor.evaluate((element) => {
+          const text = element.previousSibling;
+          if (
+            !text ||
+            text.nodeType !== Node.TEXT_NODE ||
+            !text.textContent?.length
+          )
+            return null;
+          const range = document.createRange();
+          range.setStart(text, text.textContent.length - 1);
+          range.setEnd(text, text.textContent.length);
+          const character = range.getBoundingClientRect();
+          const caret = element.getBoundingClientRect();
+          const label = element.firstElementChild!.getBoundingClientRect();
+          return {
+            x: caret.x,
+            wordEnd: character.right,
+            y: caret.y,
+            textY: character.y,
+            labelBottom: label.bottom,
+            paragraph: element.closest("p") !== null,
+          };
+        });
+        expect(anchor).not.toBeNull();
+        expect(anchor!.paragraph).toBe(true);
+        expect(Math.abs(anchor!.x - anchor!.wordEnd)).toBeLessThanOrEqual(3);
+        expect(Math.abs(anchor!.y - anchor!.textY)).toBeLessThanOrEqual(3);
+        expect(anchor!.labelBottom).toBeLessThanOrEqual(anchor!.y + 3);
+      }
+      await page.screenshot({
+        path: testInfo.outputPath(
+          `collaboration-${mode.toLowerCase()}-${width}.png`,
+        ),
+      });
+    }
+  }
+});
+
 for (const width of [390, 1024]) {
   test(`code applies Premium once and persists on reload at ${width}px`, async ({
     page,

@@ -68,7 +68,14 @@ it("places separate outline and planning showcases before comparison and describ
       .compareDocumentPosition(el.querySelector("table")!) &
       Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
-  expect(el.textContent).toContain("fictional sample content");
+  expect(el.textContent).not.toContain("fictional sample content");
+  expect(el.querySelector(".collaboration-presence")?.textContent).toContain(
+    "Alex & Jordan",
+  );
+  expect(el.querySelector(".collaboration-presence")?.textContent).not.toMatch(
+    /Mara|Eli/,
+  );
+  expect(el.querySelector(".concept-cursor")).toBeNull();
   expect(el.textContent).toContain("Not enabled");
   expect(el.textContent).toContain(
     "Live collaboration is not enabled for this deployment",

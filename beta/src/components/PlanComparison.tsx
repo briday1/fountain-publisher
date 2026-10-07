@@ -1,3 +1,4 @@
+import { CollaborationExample } from "./CollaborationExample";
 import { FocusPremiumExample } from "./FocusPremiumExample";
 import { BookPremiumExamples } from "./BookPremiumExamples";
 import { WritingGoals } from "./WritingGoals";
@@ -57,9 +58,6 @@ export function PlanComparison({
       <p>
         Both formats are included. Choose an example below, then take a closer
         look at individual features.
-      </p>
-      <p className="sample-label">
-        The examples use fictional sample content from The Last Light.
       </p>
       <div
         className="premium-mode-tabs"
@@ -165,7 +163,7 @@ export function PlanComparison({
               </p>
               <figure>
                 <SampleOutline />
-                <figcaption>Scene outline from The Last Light</figcaption>
+                <figcaption>Scene outline</figcaption>
               </figure>
             </section>
             {features.map((feature) => (
@@ -328,26 +326,8 @@ export function PlanComparison({
               : "Live collaboration is not enabled for this deployment. Your own devices receive saved changes after they reach cloud storage."}
           </p>
           <figure>
-            <div
-              className="collaboration-concept"
-              aria-label="Concept illustration of two fictional collaborators, not a live session"
-            >
-              <div className="collaboration-presence">
-                <span className="collaborator-avatar">M</span>
-                <span className="collaborator-avatar second">E</span>
-                <span>
-                  Mara & Eli <small>Fictional sample</small>
-                </span>
-              </div>
-              <div className="collaboration-page" inert aria-hidden="true">
-                <SampleScript />
-                <span className="concept-cursor first">Mara</span>
-                <span className="concept-cursor second">Eli</span>
-              </div>
-            </div>
-            <figcaption>
-              Example of two collaborators; this preview is not a live session
-            </figcaption>
+            <CollaborationExample mode={mode} />
+            <figcaption>Shared editing with text-anchored cursors</figcaption>
           </figure>
         </section>
       </div>
