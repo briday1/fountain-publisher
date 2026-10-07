@@ -164,7 +164,7 @@ export function DocumentStatusBar({
               <div className="document-sync-details" role="status">
                 {message || label}
                 {buffer.status === "error" && destination && (
-                  <p>Device recovery copy needs attention.</p>
+                  <p>Unsynced writing on this device needs review.</p>
                 )}
               </div>
               {onReview && (

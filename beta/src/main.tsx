@@ -24,8 +24,8 @@ class ErrorBoundary extends React.Component<
       <main className="fatal">
         <h1>{isWriteShape ? "WriteShape" : "Fountain Publisher"}</h1>
         <p>
-          The workspace could not open. Your saved recovery drafts have been
-          kept.
+          The workspace could not open. Your writing saved on this device
+          has been kept.
         </p>
         <pre>{this.state.error}</pre>
         <button onClick={() => location.reload()}>Try again</button>

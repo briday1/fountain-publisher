@@ -52,6 +52,12 @@ jobs:
           npx vite preview --host 127.0.0.1 --port 4175 > "$RUNNER_TEMP/writeshape-preview.log" 2>&1 &
           preview_pid=$!
           trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          # Fetch fresh signed package indexes from Ubuntu's standard mirrors.
+          # A lagging Azure mirror can otherwise retry missing WebKit packages for minutes.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            printf '%s\n' https://archive.ubuntu.com/ubuntu/ https://security.ubuntu.com/ubuntu/ | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+            sudo find /var/lib/apt/lists -maxdepth 1 -type f -delete
+          fi
           npx playwright install --with-deps webkit
           WRITESHAPE_BUILD_SMOKE=1 TEST_BASE_URL=http://127.0.0.1:4175 npx playwright test e2e/writeshape-mobile-smoke.spec.ts e2e/writeshape-ipad-layout.spec.ts e2e/premium-themes.spec.ts --browser webkit
           WRITESHAPE_BUILD_SMOKE=1 TEST_BASE_URL=http://127.0.0.1:4175 npx playwright test e2e/live-collaboration.spec.ts --grep "WriteShape (opens with preview inline|review)" --browser webkit --output test-results/collaboration-mobile
