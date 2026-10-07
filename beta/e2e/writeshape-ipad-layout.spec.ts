@@ -23,7 +23,8 @@ test.beforeEach(async ({ page }) => {
         },
         premium: true,
         privateMode: true,
-        collaborationAvailable: true,
+        // This layout fixture mocks storage only; live collaboration has its own coverage.
+        collaborationAvailable: false,
       },
     }),
   );
