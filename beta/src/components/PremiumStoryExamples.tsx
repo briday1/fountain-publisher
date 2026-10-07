@@ -76,7 +76,7 @@ export function SampleBeatSheet({
 export function SampleCharacterGantt() {
   return (
     <CharacterAnalytics
-      doc={premiumSample}
+      doc={beatSampleScreenplay}
       onCharacter={noop}
       onScene={noop}
       onClose={noop}

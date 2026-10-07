@@ -15,7 +15,7 @@ const features: { title: PremiumFeature; benefit: string; caption: string }[] =
       title: "Insights",
       benefit: "Dialogue and character statistics",
       caption:
-        "Compare dialogue and action. See how much each character speaks and where their dialogue falls in the character Gantt chart.",
+        "Compare dialogue and action. The scene Gantt chart shows where each character speaks and how much dialogue they have within a scene.",
     },
     {
       title: "Beat Sheet",
@@ -131,8 +131,8 @@ export function PlanComparison({
                 "Scene outline · Basic",
                 "Insights",
                 "Beat Sheet",
-                "Mobile PDF",
                 "Character highlighting",
+                "Mobile PDF",
                 "Writing goals",
                 "Cloud storage · All your devices",
                 "Live collaboration",
@@ -180,21 +180,6 @@ export function PlanComparison({
               </section>
             ))}
             <section className="showcase-feature">
-              <small className="showcase-kicker">Mobile PDF</small>
-              <h3>PDFs for phone screens</h3>
-              <p>
-                Export a screenplay PDF with narrower pages for reading on a
-                phone. Each mobile page contains the same text as its
-                corresponding standard PDF page.
-              </p>
-              <figure className="sample-phone">
-                <div inert aria-hidden="true">
-                  <SampleScript mobile />
-                </div>
-                <figcaption>Mobile PDF example</figcaption>
-              </figure>
-            </section>
-            <section className="showcase-feature">
               <small className="showcase-kicker">Character highlighting</small>
               <h3>Highlight character cues</h3>
               <p>
@@ -207,6 +192,21 @@ export function PlanComparison({
                   <SampleScript highlight />
                 </div>
                 <figcaption>Mara's cues highlighted</figcaption>
+              </figure>
+            </section>
+            <section className="showcase-feature">
+              <small className="showcase-kicker">Mobile PDF</small>
+              <h3>PDFs for phone screens</h3>
+              <p>
+                Export a screenplay PDF with narrower pages for reading on a
+                phone. Each mobile page contains the same text as its
+                corresponding standard PDF page.
+              </p>
+              <figure className="sample-phone">
+                <div inert aria-hidden="true">
+                  <SampleScript mobile />
+                </div>
+                <figcaption>Mobile PDF example</figcaption>
               </figure>
             </section>
           </>
@@ -389,8 +389,8 @@ export function PlanComparison({
                 "Multiple tabs",
                 "Split panes",
                 "Zen mode",
-                "Mobile PDF formatting",
                 "Character highlighting",
+                "Mobile PDF formatting",
                 "Insights",
                 "Beat Sheet",
                 "Beat Guide",

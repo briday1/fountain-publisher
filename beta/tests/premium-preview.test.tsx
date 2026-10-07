@@ -82,9 +82,32 @@ it("places separate outline and planning showcases before comparison and describ
     el.querySelector('.focus-diagram[role="img"]')?.getAttribute("aria-label"),
   ).toContain("scene is isolated from Act II");
   expect(el.querySelector(".sample-pdf")).not.toBeNull();
+  const features = [...el.querySelectorAll(".showcase-kicker")].map(
+    (label) => label.textContent,
+  );
+  expect(features.indexOf("Character highlighting")).toBeLessThan(
+    features.indexOf("Mobile PDF"),
+  );
+  const navigation = [...el.querySelectorAll("option")].map(
+    (option) => option.textContent,
+  );
+  expect(navigation.indexOf("Character highlighting")).toBeLessThan(
+    navigation.indexOf("Mobile PDF"),
+  );
   expect(
     el.querySelector(".sample-analytics .character-analytics-viewport svg"),
   ).not.toBeNull();
+  expect(el.querySelector(".sample-analytics h2")?.textContent).toBe(
+    "Scene 1 Character Gantt",
+  );
+  expect(
+    el
+      .querySelector(".sample-analytics .character-analytics-viewport > svg")
+      ?.getAttribute("aria-label"),
+  ).toContain("word-position Gantt for INT. LANTERN ROOM - NIGHT");
+  expect(
+    el.querySelectorAll('.sample-analytics svg g[role="img"]'),
+  ).toHaveLength(2);
 });
 
 it("describes live writing only when the deployment enables it", () => {
