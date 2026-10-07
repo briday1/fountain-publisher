@@ -3027,6 +3027,7 @@ export default function App() {
             buffer={buffer}
             accountId={accountId}
             premium={account.state.premium}
+            collaborationAvailable={account.state.collaborationAvailable}
             changed={refreshWorkspace}
           />
         ))}

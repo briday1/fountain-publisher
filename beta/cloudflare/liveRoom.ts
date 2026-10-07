@@ -6,6 +6,7 @@ import { parseFountain, serializeFountain } from "../src/core/fountain";
 import {
   createSharedDocument,
   readSharedDocument,
+  replaceSharedDocument,
   validateSharedDocument,
 } from "../src/collaboration/sharedDocument";
 import {
@@ -59,6 +60,7 @@ interface RoomMeta {
   etag: string;
   checkpointCookie?: string;
   pending?: { hash: string; revision: number } | null;
+  refresh?: { version: string; previousHash: string };
 }
 interface AwarenessState {
   user: Pick<LiveIdentity, "id" | "name" | "color">;
@@ -250,17 +252,20 @@ export class LiveScreenplayRoom {
       >;
       parse?: (content: string, name: string) => Screenplay;
       serialize?: (doc: Screenplay, name?: string) => string;
+      refreshIdleRoom?: boolean;
     } = {},
   ) {
     this.drive = dependencies.drive || new LiveDrive(env, dependencies.network);
     this.parse = dependencies.parse || ((content) => parseFountain(content));
     this.serialize = dependencies.serialize || serializeFountain;
+    this.refreshIdleRoom = !!dependencies.refreshIdleRoom;
     this.ready = this.restore();
   }
 
   private content(document: Y.Doc, name = this.meta?.name) {
     return documentContent(document, (doc) => this.serialize(doc, name));
   }
+  private refreshIdleRoom: boolean;
 
   private async restore() {
     const [meta, layout] = await Promise.all([
@@ -410,12 +415,49 @@ export class LiveScreenplayRoom {
       if (
         snapshot.hash !== this.meta.driveHash &&
         snapshot.hash !== this.meta.pending?.hash
-      )
-        throw new LiveError(
-          409,
-          "LIVE_CONFLICT",
-          "Drive was changed outside this live room. Preserve both versions before continuing.",
-        );
+      ) {
+        // Ordinary autosave can advance a cloud file after a live session ended.
+        // Only a fully checkpointed, idle room may adopt that newer saved file.
+        // A dirty room or an active writer still requires preserving both versions.
+        if (
+          !this.refreshIdleRoom ||
+          !this.document ||
+          this.meta.pending ||
+          this.meta.revision !== this.meta.savedRevision ||
+          this.context.getWebSockets().some((socket) => socket.readyState === 1)
+        )
+          throw new LiveError(
+            409,
+            "LIVE_CONFLICT",
+            `${auth.file.id.startsWith("library_") ? "The WriteShape file" : "Drive"} was changed outside this live room. Preserve both versions before continuing.`,
+          );
+        const candidate = new Y.Doc();
+        try {
+          Y.applyUpdate(candidate, Y.encodeStateAsUpdate(this.document));
+          const previousHash = await contentHash(this.content(this.document));
+          replaceSharedDocument(
+            candidate,
+            this.parse(snapshot.content, auth.file.name),
+          );
+          this.content(candidate, auth.file.name);
+          const refreshed: RoomMeta = {
+            ...this.meta,
+            name: auth.file.name,
+            etag: snapshot.etag,
+            driveHash: snapshot.hash,
+            revision: this.meta.revision + 1,
+            savedRevision: this.meta.revision + 1,
+            refresh: { version: crypto.randomUUID(), previousHash },
+          };
+          await this.persist(candidate, refreshed);
+          this.document.destroy();
+          this.document = candidate;
+          this.meta = refreshed;
+        } catch (error) {
+          candidate.destroy();
+          throw error;
+        }
+      }
       this.meta = {
         ...this.meta,
         name: auth.file.name,
@@ -626,6 +668,7 @@ export class LiveScreenplayRoom {
         self: auth.self,
         revision: this.meta!.revision,
         savedRevision: this.meta!.savedRevision,
+        refresh: this.meta!.refresh,
       });
     const clientId = Number(url.searchParams.get("clientId"));
     if (
@@ -677,6 +720,7 @@ export class LiveScreenplayRoom {
         self: identity.self,
         revision: this.meta!.revision,
         savedRevision: this.meta!.savedRevision,
+        refresh: this.meta!.refresh,
       }),
     );
     for (const other of sockets) {
@@ -937,7 +981,7 @@ export class LiveScreenplayRoom {
       throw new LiveError(
         409,
         "LIVE_CONFLICT",
-        "Google Drive changed outside this live session. Preserve both versions before continuing.",
+        `${auth.file.id.startsWith("library_") ? "The WriteShape file" : "Google Drive"} changed outside this live session. Preserve both versions before continuing.`,
       );
     let etag = snapshot.etag;
     if (snapshot.hash !== hash) {

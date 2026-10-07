@@ -308,6 +308,35 @@ it("WriteShape accounts collaborate on a Book through real D1, Worker and durabl
     try {
       const first = await connectClient("owner");
       const second = await connectClient("writer");
+      // Two independent sessions for the same account must receive each other's edits.
+      const sameAccount = await connectClient("owner");
+      insert(sameAccount.doc, "Second owner session. ");
+      await until(() =>
+        first.doc
+          .getXmlFragment("script")
+          .toString()
+          .includes("Second owner session.")
+          ? true
+          : undefined,
+      );
+      insert(first.doc, "First owner session. ");
+      await until(() =>
+        sameAccount.doc
+          .getXmlFragment("script")
+          .toString()
+          .includes("First owner session.")
+          ? true
+          : undefined,
+      );
+      expect((await call("owner", path + "/checkpoint", {})).status).toBe(200);
+      const sameAccountSaved = await db
+        .prepare("SELECT content FROM items WHERE id=?")
+        .bind(id)
+        .first<any>();
+      expect(sameAccountSaved.content).toContain("First owner session.");
+      expect(sameAccountSaved.content).toContain("Second owner session.");
+      await sameAccount.stop();
+      sameAccount.destroy();
       bridges[0].close();
       insert(first.doc, "Offline preserved. ");
       // Persist and destroy before retry: this models closing the disconnected tab.
@@ -410,6 +439,16 @@ it("WriteShape accounts collaborate on a Book through real D1, Worker and durabl
     expect(((await reopened.json()) as any).content).toContain(
       "Durable after close.",
     );
+    // Ending the room and writing through ordinary cloud autosave must not strand it.
+    await db
+      .prepare("UPDATE items SET content=?,revision=revision+1 WHERE id=?")
+      .bind("# Book\n\n## One\n\nNew ordinary cloud save.\n", id)
+      .run();
+    const refreshed = await call("owner", path + "/bootstrap", {});
+    expect(refreshed.status, await refreshed.clone().text()).toBe(200);
+    const refreshedData = (await refreshed.json()) as any;
+    expect(refreshedData.content).toContain("New ordinary cloud save.");
+    expect(refreshedData.refresh.version).toBeTruthy();
     await db
       .prepare(
         "INSERT INTO maintenance_state VALUES('live_inventory_complete','1')",

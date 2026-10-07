@@ -5,6 +5,7 @@ export interface CachedLiveDocument {
   name: string;
   canEdit: boolean;
   accountId: string;
+  roomVersion?: string;
 }
 let database: Promise<IDBDatabase> | undefined;
 function db() {

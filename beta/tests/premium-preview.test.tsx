@@ -122,7 +122,7 @@ it("describes live writing only when the deployment enables it", () => {
     <PlanComparison collaborationAvailable onClose={() => {}} />,
   );
   expect(html).toContain("Live collaboration");
-  expect(html).toContain("Start live editing");
+  expect(html).toContain("Live editing connects automatically");
   expect(html).not.toContain("Not enabled");
 });
 

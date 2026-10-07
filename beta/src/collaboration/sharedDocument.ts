@@ -344,6 +344,18 @@ export function createSharedDocument(screenplay: Screenplay): Y.Doc {
   validateSharedDocument(doc);
   return doc;
 }
+/** Update an idle, fully saved room without changing its CRDT lineage. */
+export function replaceSharedDocument(
+  doc: Y.Doc,
+  screenplay: Screenplay,
+): void {
+  const previous = readSharedDocument(doc);
+  doc.transact(() => {
+    prosemirrorToYXmlFragment(blocksToDoc(screenplay.blocks), script(doc));
+    updateSharedDetails(doc, screenplay, previous, context(doc));
+  }, "stored-document-refresh");
+  validateSharedDocument(doc);
+}
 function invalid(): never {
   throw new Error("The shared screenplay contains invalid or oversized data.");
 }

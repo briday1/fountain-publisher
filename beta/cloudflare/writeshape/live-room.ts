@@ -11,7 +11,8 @@ import { serializeDocument } from "../../src/core/documentFormat";
 import { WriteShapeLiveStorage } from "./live-storage.mjs";
 // @ts-ignore JavaScript Worker module
 import * as cloudBackups from "./cloud-backup.mjs";
-const { sendBackupNotices, purgeExpiredCloud, freshBackupAccount } = cloudBackups;
+const { sendBackupNotices, purgeExpiredCloud, freshBackupAccount } =
+  cloudBackups;
 // @ts-ignore JavaScript Worker module
 import { syncBilling, billingConfigured, stripeClient } from "./billing.mjs";
 export class WriteShapeLiveRoom extends LiveScreenplayRoom {
@@ -40,6 +41,7 @@ export class WriteShapeLiveRoom extends LiveScreenplayRoom {
         }
       };
     super(context, env, {
+      refreshIdleRoom: true,
       drive: {
         authorize: wrap("authorize"),
         snapshot: wrap("snapshot"),

@@ -73,7 +73,7 @@ interface Bootstrap {
   self: { id: string; canEdit: boolean };
   revision: number;
 }
-function fixture() {
+function fixture(refreshIdleRoom = false) {
   const storage = new MemoryStorage();
   const sockets: Socket[] = [];
   const context: LiveRoomContext = {
@@ -175,7 +175,7 @@ function fixture() {
         : {}),
     });
   }) as typeof fetch;
-  let room = new LiveScreenplayRoom(context, env, { network });
+  let room = new LiveScreenplayRoom(context, env, { network, refreshIdleRoom });
   const request = (
     route: string,
     user = "alice",
@@ -223,7 +223,7 @@ function fixture() {
       return room;
     },
     restart() {
-      room = new LiveScreenplayRoom(context, env, { network });
+      room = new LiveScreenplayRoom(context, env, { network, refreshIdleRoom });
     },
     get content() {
       return content;
@@ -419,6 +419,43 @@ describe("structured live room durability and authorization", () => {
     };
     expect(recovery.content).toContain("Live room.");
     expect(recovery.driveContent).toContain("External editor.");
+  });
+
+  it("refreshes an idle checkpointed WriteShape room after ordinary cloud saving and survives restart", async () => {
+    const f = fixture(true);
+    const before = await bootstrap(f);
+    const stale = client(before.state);
+    f.external("INT. ROOM - DAY\n\nNew cloud writing.\n");
+    const refreshed = await bootstrap(f);
+    expect(refreshed.content).toContain("New cloud writing.");
+    expect(f.writes).toBe(0);
+    Y.applyUpdate(stale, decodeBytes(refreshed.state));
+    expect(
+      readSharedDocument(stale).blocks.find((b) => b.kind === "action")?.text,
+    ).toBe("New cloud writing.");
+    f.restart();
+    expect((await bootstrap(f)).content).toContain("New cloud writing.");
+    stale.destroy();
+  });
+
+  it("does not refresh an active or uncheckpointed WriteShape room over newer cloud content", async () => {
+    for (const dirty of [false, true]) {
+      const f = fixture(true);
+      const doc = client((await bootstrap(f)).state);
+      const socket = f.connect("alice", doc);
+      if (dirty) {
+        await send(f.room, socket, write(doc, "Uncheckpointed live draft. "));
+        socket.close();
+      }
+      f.external("INT. ROOM - DAY\n\nSeparate cloud draft.\n");
+      expect((await f.request("bootstrap")).status).toBe(409);
+      expect(f.writes).toBe(0);
+      const recovery = (await (await f.request("recovery")).json()) as any;
+      expect(recovery.driveContent).toContain("Separate cloud draft.");
+      if (dirty)
+        expect(recovery.content).toContain("Uncheckpointed live draft.");
+      doc.destroy();
+    }
   });
 
   it("recovers a committed upload with a lost response and safely checkpoints later edits", async () => {

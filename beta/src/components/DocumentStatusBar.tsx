@@ -10,6 +10,9 @@ import "./document-status-bar.css";
 export function documentSaveLabel(buffer: DocumentBuffer) {
   const destination = buffer.snapshot.destination;
   const label = destinationLabel(destination);
+  if (destination && !buffer.live && buffer.liveStatus?.phase === "paused")
+    return `${label} · live sync needs attention`;
+  if (buffer.joiningLive) return `${label} · connecting live editing…`;
   if (buffer.live) {
     const phase = buffer.liveStatus?.phase;
     const state =
@@ -199,7 +202,8 @@ export function DocumentStatusBar({
                     : "End live editing"}
                 </button>
               </>
-            ) : (
+            ) : buffer.liveStatus?.phase === "paused" ||
+              destination.livePaused ? (
               <button
                 disabled={buffer.joiningLive || !view.controller.writable}
                 onClick={() =>
@@ -208,9 +212,13 @@ export function DocumentStatusBar({
                   )
                 }
               >
-                {buffer.joiningLive ? "Joining…" : "Start live editing"}
+                {buffer.joiningLive
+                  ? "Connecting…"
+                  : destination.livePaused
+                    ? "Resume live editing"
+                    : "Retry connection"}
               </button>
-            )}
+            ) : null}
           </div>
         )}
       {buffer.liveStatus?.message && (

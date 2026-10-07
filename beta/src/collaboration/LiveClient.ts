@@ -9,6 +9,8 @@ import { apiBase, cloud } from "../storage/cloud";
 import { encodeBytes, decodeBytes } from "./encoding";
 import { loadLiveCache, saveLiveCache } from "./cache";
 import type { CachedLiveDocument } from "./cache";
+import { readSharedDocument } from "./sharedDocument";
+import { serializeDocument } from "../core/documentFormat";
 export interface LiveIdentity {
   id: string;
   name: string;
@@ -24,6 +26,7 @@ export interface LiveBootstrap {
   name: string;
   remote: { provider: "google"; id: string; etag: string; live: true };
   self: LiveIdentity;
+  refresh?: { version: string; previousHash: string };
 }
 export interface LiveStatus {
   phase: "connecting" | "live" | "syncing" | "offline" | "readonly" | "paused";
@@ -32,6 +35,24 @@ export interface LiveStatus {
   canEdit: boolean;
 }
 const remoteOrigin = Symbol("network update");
+async function documentHash(doc: Y.Doc) {
+  const content = serializeDocument(readSharedDocument(doc));
+  return Array.from(
+    new Uint8Array(
+      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(content)),
+    ),
+    (byte) => byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+async function documentHashFromState(state: Uint8Array) {
+  const doc = new Y.Doc();
+  try {
+    Y.applyUpdate(doc, state);
+    return await documentHash(doc);
+  } finally {
+    doc.destroy();
+  }
+}
 export class LiveClient {
   readonly doc = new Y.Doc();
   readonly awareness = new Awareness(this.doc);
@@ -60,6 +81,8 @@ export class LiveClient {
   private cacheError = "";
   private announced = "";
   private phase: LiveStatus["phase"] = "connecting";
+  private roomVersion?: string;
+  private refreshPending?: Promise<void>;
   onStatus?: (status: LiveStatus) => void;
   onSaved?: (etag: string) => void;
   onPermission?: (canEdit: boolean) => void;
@@ -69,11 +92,13 @@ export class LiveClient {
     name: string;
     self: LiveIdentity;
     state: Uint8Array;
+    roomVersion?: string;
   }) {
     this.fileId = input.fileId;
     this.accountId = input.self.id;
     this.name = input.name;
     this.self = input.self;
+    this.roomVersion = input.roomVersion;
     Y.applyUpdate(this.doc, input.state, remoteOrigin);
     this.awareness.setLocalStateField("user", {
       id: this.self.id,
@@ -89,10 +114,31 @@ export class LiveClient {
   static async prepare(bootstrap: LiveBootstrap): Promise<LiveClient> {
     const cached = await loadLiveCache(bootstrap.remote.id, bootstrap.self.id);
     const state = decodeBytes(bootstrap.state);
+    if (
+      cached &&
+      bootstrap.refresh &&
+      cached.roomVersion !== bootstrap.refresh.version
+    ) {
+      const previous = new Y.Doc();
+      try {
+        Y.applyUpdate(previous, cached.state);
+        const hash = await documentHash(previous);
+        if (
+          hash !== bootstrap.refresh.previousHash &&
+          hash !== (await documentHashFromState(state))
+        )
+          throw new Error(
+            "The WriteShape file was updated while this device had a different live draft. Your writing is kept on this device; save a copy to preserve both versions.",
+          );
+      } finally {
+        previous.destroy();
+      }
+    }
     const client = new LiveClient({
       fileId: bootstrap.remote.id,
       name: bootstrap.name,
       self: bootstrap.self,
+      roomVersion: bootstrap.refresh?.version,
       state:
         cached?.accountId === bootstrap.self.id && bootstrap.self.canEdit
           ? Y.mergeUpdates([state, cached.state])
@@ -112,6 +158,7 @@ export class LiveClient {
         fileId,
         name: cached.name,
         state: cached.state,
+        roomVersion: cached.roomVersion,
         self: {
           id: cached.accountId,
           name: "You",
@@ -146,6 +193,7 @@ export class LiveClient {
           name: this.name,
           canEdit: this.self.canEdit,
           accountId: this.accountId,
+          roomVersion: this.roomVersion,
         };
         try {
           await saveLiveCache(input);
@@ -208,7 +256,40 @@ export class LiveClient {
     socket.onmessage = (event) => {
       if (this.socket !== socket || this.disposed) return;
       try {
-        this.receive(JSON.parse(String(event.data)));
+        const data = JSON.parse(String(event.data));
+        if (this.refreshPending) {
+          const pending = this.refreshPending;
+          void pending.then(() => {
+            if (!this.disposed && !this.terminal && this.socket === socket)
+              this.receive(data);
+          });
+        } else if (
+          data.type === "sync" &&
+          data.refresh &&
+          data.refresh.version !== this.roomVersion
+        ) {
+          this.refreshPending = (async () => {
+            const hash = await documentHash(this.doc);
+            if (
+              hash !== data.refresh.previousHash &&
+              hash !== (await documentHashFromState(decodeBytes(data.state)))
+            ) {
+              this.pause(
+                "The WriteShape file was updated while this device had a different live draft. Your writing is kept on this device; save a copy to preserve both versions.",
+              );
+              return;
+            }
+            if (!this.disposed && this.socket === socket) this.receive(data);
+          })()
+            .catch(() =>
+              this.pause(
+                "Live synchronization could not verify the saved file. Your local draft is kept.",
+              ),
+            )
+            .finally(() => {
+              this.refreshPending = undefined;
+            });
+        } else this.receive(data);
       } catch {
         this.pause(
           "Live synchronization received an invalid message. Your local draft is kept.",
@@ -274,6 +355,7 @@ export class LiveClient {
           return;
         }
         this.self = identity;
+        this.roomVersion = (data.refresh as LiveBootstrap["refresh"])?.version;
         this.onPermission?.(this.self.canEdit);
         void this.persist(new Uint8Array([0, 0])).catch(() => {});
         this.awareness.setLocalStateField("user", {

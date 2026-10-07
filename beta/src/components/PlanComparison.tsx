@@ -322,7 +322,7 @@ export function PlanComparison({
           <h3>Write together</h3>
           <p>
             {collaborationAvailable
-              ? "Save a screenplay or book to WriteShape or Google Drive, then choose Start live editing. People with access can edit together and see each other's cursors. Everyone needs access to both the document and WriteShape. Live editing is available for cloud and Drive files."
+              ? "Save a screenplay or book to WriteShape or Google Drive. Live editing connects automatically, so people with access can write together and see each other's cursors. Everyone needs access to both the document and WriteShape. Live editing is available for cloud and Drive files."
               : "Live collaboration is not enabled for this deployment. Your own devices receive saved changes after they reach cloud storage."}
           </p>
           <figure>

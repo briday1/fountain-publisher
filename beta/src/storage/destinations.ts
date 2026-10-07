@@ -11,6 +11,7 @@ export type DestinationProvider = "writeshape" | "drive" | "local";
 export interface WriteShapeDestination {
   provider: DestinationProvider;
   live?: boolean;
+  livePaused?: boolean;
   id: string;
   accountId?: string;
   parent?: string;

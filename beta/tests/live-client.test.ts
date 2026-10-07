@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
+import { createHash, webcrypto } from "node:crypto";
 import { LiveClient } from "../src/collaboration/LiveClient";
 import type { LiveStatus } from "../src/collaboration/LiveClient";
-import { saveLiveCache } from "../src/collaboration/cache";
+import { loadLiveCache, saveLiveCache } from "../src/collaboration/cache";
+import { serializeDocument } from "../src/core/documentFormat";
 import { decodeBytes, encodeBytes } from "../src/collaboration/encoding";
 import { EditorController } from "../src/editor/EditorController";
 import { DocumentSession } from "../src/core/session";
@@ -10,6 +12,7 @@ import { emptyScreenplay } from "../src/core/model";
 import {
   createSharedDocument,
   readSharedDocument,
+  replaceSharedDocument,
 } from "../src/collaboration/sharedDocument";
 vi.mock("../src/collaboration/cache", () => ({
   loadLiveCache: vi.fn(async () => undefined),
@@ -50,8 +53,10 @@ const clients: LiveClient[] = [],
 beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal("WebSocket", Socket);
+  vi.stubGlobal("crypto", webcrypto);
   Socket.instances = [];
   vi.mocked(saveLiveCache).mockReset().mockResolvedValue();
+  vi.mocked(loadLiveCache).mockReset().mockResolvedValue(undefined);
 });
 afterEach(async () => {
   for (const client of clients.splice(0)) {
@@ -92,6 +97,68 @@ function fixture(initial?: Y.Doc) {
   return { server, client, socket, statuses, sync };
 }
 describe("live client durable synchronization", () => {
+  it.each([false, true])(
+    "verifies the old cached draft before adopting refreshed cloud content (unsaved=%s)",
+    async (unsaved) => {
+      const screenplay = emptyScreenplay();
+      screenplay.blocks[0].text = "Previously saved cloud text.";
+      const old = createSharedDocument(screenplay);
+      docs.push(old);
+      const previousHash = createHash("sha256")
+        .update(serializeDocument(readSharedDocument(old)))
+        .digest("hex");
+      const cached = new Y.Doc();
+      docs.push(cached);
+      Y.applyUpdate(cached, Y.encodeStateAsUpdate(old));
+      if (unsaved) {
+        const edited = readSharedDocument(cached);
+        edited.blocks[0].text = "Unsaved device writing.";
+        replaceSharedDocument(cached, edited);
+      }
+      vi.mocked(loadLiveCache).mockResolvedValue({
+        fileId: "library_refreshed-file",
+        accountId: "account-a",
+        name: "Draft.fountain",
+        canEdit: true,
+        state: Y.encodeStateAsUpdate(cached),
+      });
+      const refreshed = readSharedDocument(old);
+      refreshed.blocks[0].text = "New cloud text.";
+      replaceSharedDocument(old, refreshed);
+      const prepared = LiveClient.prepare({
+        name: "Draft.fountain",
+        content: serializeDocument(refreshed),
+        state: encodeBytes(Y.encodeStateAsUpdate(old)),
+        vector: encodeBytes(Y.encodeStateVector(old)),
+        remote: {
+          provider: "google",
+          id: "library_refreshed-file",
+          etag: "2",
+          live: true,
+        },
+        self: { id: "account-a", name: "A", color: "#3377bb", canEdit: true },
+        refresh: { version: "cloud-refresh-1", previousHash },
+      });
+      if (unsaved) {
+        await expect(prepared).rejects.toThrow(
+          "save a copy to preserve both versions",
+        );
+        expect(saveLiveCache).not.toHaveBeenCalled();
+        expect(readSharedDocument(cached).blocks[0].text).toBe(
+          "Unsaved device writing.",
+        );
+      } else {
+        const restored = await prepared;
+        clients.push(restored);
+        expect(readSharedDocument(restored.doc).blocks[0].text).toBe(
+          "New cloud text.",
+        );
+        expect(vi.mocked(saveLiveCache).mock.calls.at(-1)![0].roomVersion).toBe(
+          "cloud-refresh-1",
+        );
+      }
+    },
+  );
   it("resumes the same CRDT and undo history when writing aborts an awaited document switch", async () => {
     Range.prototype.getBoundingClientRect = () => new DOMRect(0, 0, 10, 20);
     Range.prototype.getClientRects = () =>

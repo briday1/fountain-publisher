@@ -25,4 +25,14 @@ it("reports the actual destination, including unsynced edits and conflicts", () 
   buffer.snapshot.destination.provider = "drive";
   buffer.syncStatus = { phase: "saved", message: "" };
   expect(documentSaveLabel(buffer)).toBe("Saved to Google Drive");
+  buffer.snapshot.destination.provider = "writeshape";
+  buffer.liveStatus = {
+    phase: "paused",
+    message: "Connection failed",
+    members: [],
+    canEdit: false,
+  };
+  expect(documentSaveLabel(buffer)).toBe(
+    "WriteShape · live sync needs attention",
+  );
 });

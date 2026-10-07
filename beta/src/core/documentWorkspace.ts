@@ -112,7 +112,8 @@ export class DocumentWorkspace {
       const roomId =
         (destination.provider === "drive" ? "drive_" : "library_") +
         destination.id;
-      if (resume)
+      const joiningToken = buffer.session.token();
+      if (resume && !navigator.onLine)
         client = await LiveClient.cached(roomId, destination.accountId || "");
       if (!client) {
         const bootstrap = await cloud.liveBootstrap(roomId);
@@ -134,9 +135,11 @@ export class DocumentWorkspace {
       }
       if (
         !this.buffers.has(bufferId) ||
-        buffer.session.current.destination?.accountId !== destination.accountId
+        destinationKey(buffer.session.current.destination) !==
+          destinationKey(destination)
       )
         throw new Error("The document changed while joining live writing.");
+      buffer.session.assertCurrent(joiningToken);
       buffer.sync.current?.dispose();
       buffer.sync.current = undefined;
       buffer.live = client;
@@ -180,7 +183,12 @@ export class DocumentWorkspace {
         ...buffer.session.current,
         screenplay: readSharedDocument(client.doc),
       };
-      buffer.session.setDestination({ ...currentDestination, live: true });
+      buffer.liveStatus = undefined;
+      buffer.session.setDestination({
+        ...currentDestination,
+        live: true,
+        livePaused: false,
+      });
       await buffer.session.flush();
       client.start();
     } catch (error) {
@@ -233,7 +241,11 @@ export class DocumentWorkspace {
       buffer.liveStatus = undefined;
       const destination = buffer.session.current.destination;
       if (destination)
-        buffer.session.setDestination({ ...destination, live: false });
+        buffer.session.setDestination({
+          ...destination,
+          live: false,
+          livePaused: true,
+        });
       client.destroy();
       await buffer.session.flush();
     } finally {

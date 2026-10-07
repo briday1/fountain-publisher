@@ -28,19 +28,34 @@ export function BufferSync({
   model,
   accountId,
   premium,
+  collaborationAvailable = false,
   changed,
 }: {
   buffer: DocumentBuffer;
   model: DocumentWorkspace;
   accountId?: string;
   premium: boolean;
+  collaborationAvailable?: boolean;
   changed: () => void;
 }) {
   const destination = buffer.snapshot.destination;
+  const autoLive = !!(
+    collaborationAvailable &&
+    destination &&
+    destination.provider !== "local" &&
+    premium &&
+    accountId === destination.accountId &&
+    !destination.pausedForPlan &&
+    !destination.livePaused
+  );
   useLayoutEffect(() => {
     const readOnly = destinationReadOnly(destination, accountId, premium);
+    const connecting =
+      autoLive && !buffer.live && buffer.liveStatus?.phase !== "paused";
     for (const id of buffer.views)
-      model.views.get(id)?.controller.setDestinationReadOnly(readOnly);
+      model.views
+        .get(id)
+        ?.controller.setDestinationReadOnly(readOnly || connecting);
     if (readOnly && buffer.live) model.stopLive(buffer.session.current.id);
     if (destination?.live && !premium && accountId === destination.accountId) {
       buffer.session.setDestination({
@@ -50,37 +65,49 @@ export function BufferSync({
       });
       void buffer.session.flush().catch(() => {});
     }
-  }, [destination, accountId, premium, model, buffer, model.views.size]);
+  }, [
+    destination,
+    accountId,
+    premium,
+    model,
+    buffer,
+    model.views.size,
+    autoLive,
+    buffer.live,
+    buffer.liveStatus?.phase,
+  ]);
   const sync = useDestinationSync(
     buffer.session,
     buffer.snapshot.id,
     destinationKey(buffer.snapshot.destination),
     accountId,
     premium,
-    !buffer.snapshot.destination?.live && !buffer.live,
+    !autoLive && !buffer.snapshot.destination?.live && !buffer.live,
   );
   useEffect(() => {
     const destination = buffer.session.current.destination;
     if (buffer.live && accountId !== destination?.accountId)
       model.stopLive(buffer.session.current.id);
-    if (
-      destination?.live &&
-      premium &&
-      !destination.pausedForPlan &&
-      accountId === destination.accountId &&
-      !buffer.live &&
-      !buffer.joiningLive
-    )
-      void model.startLive(buffer.session.current.id, true).catch((error) => {
-        buffer.liveStatus = {
-          phase: "paused",
-          message: String(error),
-          members: [],
-          canEdit: false,
-        };
-        changed();
-      });
-  }, [accountId, premium, buffer.snapshot.id]);
+    if (autoLive && !buffer.live && !buffer.joiningLive)
+      void model
+        .startLive(buffer.session.current.id, !!destination?.live)
+        .catch((error) => {
+          buffer.liveStatus = {
+            phase: "paused",
+            message: String(error),
+            members: [],
+            canEdit: false,
+          };
+          changed();
+        });
+  }, [
+    accountId,
+    premium,
+    autoLive,
+    destinationKey(destination),
+    destination?.live,
+    buffer.snapshot.id,
+  ]);
   useEffect(() => {
     buffer.sync.current = sync.engine.current;
     buffer.syncStatus = sync.status;
