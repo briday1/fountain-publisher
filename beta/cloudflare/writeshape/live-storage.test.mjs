@@ -65,6 +65,25 @@ function fixture() {
     credential: (user) => JSON.stringify({ cookie: user }),
   };
 }
+test("presence uses recognizable account names and stable writer colors", async () => {
+  const { env, adapter, room, credential } = fixture();
+  const owner = (await adapter.authorize(room, credential("owner"))).self;
+  const writer = (await adapter.authorize(room, credential("writer"))).self;
+  assert.equal(owner.name, "owner");
+  assert.equal(writer.name, "writer");
+  assert.match(owner.color, /^#[0-9a-f]{6}$/i);
+  assert.notEqual(owner.color, writer.color);
+  assert.equal(
+    (await adapter.authorize(room, credential("owner"))).self.color,
+    owner.color,
+  );
+  env.sql
+    .prepare("UPDATE accounts SET display_name=? WHERE id=?")
+    .run("  Alex Writer  ", "writer");
+  const named = (await adapter.authorize(room, credential("writer"))).self;
+  assert.equal(named.name, "Alex Writer");
+  assert.equal(named.color, writer.color);
+});
 test("live library uses owner entitlement and stable writer grants; downgrade and revocation take effect immediately", async () => {
   const { env, edit, adapter, room, credential } = fixture();
   for (const user of ["owner", "writer"])

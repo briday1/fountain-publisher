@@ -5,6 +5,34 @@ import { driveRoutes } from "./drive.mjs";
 import { libraryRoutes } from "./library.mjs";
 import { HttpError } from "./http.mjs";
 const origin = "https://writeshape.com";
+function writerColor(id) {
+  let value = 2166136261;
+  for (const char of String(id))
+    value = Math.imul(value ^ char.codePointAt(0), 16777619) >>> 0;
+  // Stable account color with enough hues to distinguish a writing team.
+  // This saturation and lightness keep white initials readable.
+  const hue = (value % 360) / 60;
+  const chroma = 0.36;
+  const x = chroma * (1 - Math.abs((hue % 2) - 1));
+  const rgb = [
+    [chroma, x, 0],
+    [x, chroma, 0],
+    [0, chroma, x],
+    [0, x, chroma],
+    [x, 0, chroma],
+    [chroma, 0, x],
+  ][Math.floor(hue)];
+  return (
+    "#" +
+    rgb
+      .map((component) =>
+        Math.round((component + 0.18) * 255)
+          .toString(16)
+          .padStart(2, "0"),
+      )
+      .join("")
+  );
+}
 const hash = async (content) =>
   Array.from(
     new Uint8Array(
@@ -132,8 +160,12 @@ export class WriteShapeLiveStorage {
     return {
       self: {
         id: account.id,
-        name: (account.display_name || "Writer").slice(0, 80),
-        color: "#3875c7",
+        name: (
+          account.display_name?.trim() ||
+          account.email?.split("@")[0] ||
+          "Writer"
+        ).slice(0, 80),
+        color: writerColor(account.id),
         canEdit: !!canEdit,
       },
       file: { ...file, id: fileId },

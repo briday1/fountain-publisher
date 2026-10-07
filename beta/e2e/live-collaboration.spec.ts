@@ -108,7 +108,15 @@ class SharedDriveRoom {
     };
   }
 
-  async install(context: BrowserContext, person: Person) {
+  async install(context: BrowserContext, person: Person, writeShape = false) {
+    const cloudRoomId = `library_${fileId}`;
+    if (writeShape)
+      await context.route("**/src/product.ts*", (route) =>
+        route.fulfill({
+          contentType: "text/javascript",
+          body: "export const isWriteShape = true;",
+        }),
+      );
     if (linuxKeys)
       await context.addInitScript(() => {
         Object.defineProperty(navigator, "platform", {
@@ -129,7 +137,23 @@ class SharedDriveRoom {
         return;
       }
       let json: unknown;
-      if (path === "/status") {
+      if (writeShape && path === "/account") {
+        json = {
+          account: {
+            id: person.id,
+            email: `${person.id}@example.test`,
+            displayName: person.name,
+            privateTester: true,
+          },
+          premium: true,
+          privateMode: true,
+          collaborationAvailable: true,
+        };
+      } else if (writeShape && path === "/shared") {
+        json = { shares: [], canReadShared: true };
+      } else if (writeShape && path === `/library/${fileId}/shares`) {
+        json = { shares: [], canShare: true, canCollaborate: true };
+      } else if (path === "/status") {
         json = {
           csrfToken: "collaboration-test-csrf",
           google: { configured: true, connected: true, account: person.name },
@@ -149,16 +173,23 @@ class SharedDriveRoom {
         };
       } else if (path === "/google/open") {
         json = { name: filename, content: this.content, remote: this.remote };
-      } else if (path === `/collaboration/${fileId}/bootstrap`) {
+      } else if (
+        path === `/collaboration/${writeShape ? cloudRoomId : fileId}/bootstrap`
+      ) {
         json = {
           state: encode(Y.encodeStateAsUpdate(this.document)),
           vector: encode(Y.encodeStateVector(this.document)),
           content: this.content,
           name: filename,
-          remote: this.remote,
+          remote: writeShape
+            ? { ...this.remote, id: cloudRoomId }
+            : this.remote,
           self: person,
         };
-      } else if (path === `/collaboration/${fileId}/checkpoint`) {
+      } else if (
+        path ===
+        `/collaboration/${writeShape ? cloudRoomId : fileId}/checkpoint`
+      ) {
         this.savedRevision = this.revision;
         json = {
           etag: this.remote.etag,
@@ -418,6 +449,138 @@ const writing = (page: Page) =>
       })
       .join("\n"),
   );
+
+base(
+  "WriteShape opens with preview inline markers and keeps sharing in one footer row on phones and tablets",
+  async ({ browser }, testInfo) => {
+    const longSource =
+      source +
+      "\n\n" +
+      Array.from(
+        { length: 45 },
+        (_, i) => `!Paragraph ${i + 1} keeps the other writer below the fold.`,
+      ).join("\n\n");
+    const room = new SharedDriveRoom(longSource);
+    const contexts: BrowserContext[] = [];
+    try {
+      const pages: Page[] = [];
+      for (const person of [people.alice, people.bob, people.viewer]) {
+        const context = await browser.newContext({
+          viewport: { width: 390, height: 844 },
+          serviceWorkers: "block",
+        });
+        contexts.push(context);
+        await room.install(context, person, true);
+        const page = await context.newPage();
+        pages.push(page);
+        await page.goto(`/?live=library_${fileId}`);
+        await expect(editor(page)).toContainText("Paragraph 45");
+        await expect(page.locator(".document-save-label")).toContainText(
+          person.canEdit ? "Saved to WriteShape" : "view only",
+        );
+      }
+      const [alice, bob] = pages;
+      // No editor interaction is required before a connected writer appears.
+      await expect(
+        editor(alice)
+          .locator(".collaboration-cursor")
+          .filter({ hasText: "Bob Writer" }),
+      ).toHaveCount(1);
+      await append(bob, " Both sessions write automatically.");
+      await expect(editor(alice)).toContainText(
+        "Both sessions write automatically.",
+      );
+      const footer = alice.locator(".writeshape-statusbar");
+      const cursor = editor(alice)
+        .locator(".collaboration-cursor")
+        .filter({ hasText: "Bob Writer" });
+      await expect(cursor).toHaveCount(1);
+      await expect(footer.locator(".collaborator-avatar")).toHaveCount(0);
+      expect(
+        await cursor
+          .locator("span")
+          .evaluate((el) => getComputedStyle(el).backgroundColor),
+      ).toBe(
+        await cursor.evaluate((el) => getComputedStyle(el).borderLeftColor),
+      );
+      // Using a menu must keep the writer's last position visible to their peer.
+      await bob.getByRole("button", { name: "File", exact: true }).click();
+      await expect(cursor).toHaveCount(1);
+      for (const width of [320, 390, 768, 1024]) {
+        await alice.setViewportSize({ width, height: 844 });
+        const box = (await footer.boundingBox())!;
+        expect(box.height).toBe(36);
+        expect(
+          await footer.evaluate((el) => el.scrollWidth <= el.clientWidth),
+        ).toBe(true);
+        for (const badge of [
+          footer.getByRole("button", { name: "Share document", exact: true }),
+        ]) {
+          const bounds = (await badge.boundingBox())!;
+          expect(bounds.y).toBeGreaterThanOrEqual(box.y);
+          expect(bounds.y + bounds.height).toBeLessThanOrEqual(
+            box.y + box.height,
+          );
+        }
+        await expect(footer).not.toContainText(
+          /start|end|live editing|copy live/i,
+        );
+      }
+      await alice.setViewportSize({ width: 390, height: 844 });
+      // Writers can be located when their inline marker is below the fold.
+      await editor(alice).click();
+      await alice.keyboard.press(`${modifier}+Home`);
+      await footer
+        .getByRole("button", { name: "Share document", exact: true })
+        .click();
+      await alice
+        .getByRole("button", {
+          name: "Bob Writer · Show writing position",
+          exact: true,
+        })
+        .click();
+      await expect
+        .poll(async () => {
+          const bounds = (await cursor.boundingBox())!;
+          const bar = (await footer.boundingBox())!;
+          return bounds.y >= 0 && bounds.y < bar.y;
+        })
+        .toBe(true);
+      await footer
+        .getByRole("button", { name: "Share document", exact: true })
+        .click();
+      await alice
+        .getByRole("button", { name: "Manage access…", exact: true })
+        .click();
+      const sharing = alice.getByRole("dialog", {
+        name: "Share document",
+        exact: true,
+      });
+      await expect(
+        sharing.getByRole("heading", { name: filename, exact: true }),
+      ).toBeVisible();
+      await expect(
+        sharing.getByRole("option", { name: "Can edit", exact: true }),
+      ).toHaveCount(1);
+      await sharing
+        .getByRole("button", { name: "Close sharing", exact: true })
+        .click();
+      await alice.screenshot({
+        path: testInfo.outputPath("writeshape-sharing-phone.png"),
+      });
+      await room.disconnect(people.bob);
+      await expect(cursor).toHaveCount(0);
+      await room.disconnect(people.alice);
+      await expect(
+        footer.getByRole("button", { name: /WriteShape offline/ }),
+      ).toBeVisible();
+      expect((await footer.boundingBox())!.height).toBe(36);
+    } finally {
+      for (const context of contexts) await context.close();
+      room.destroy();
+    }
+  },
+);
 
 async function openShared(page: Page, viaDrive = false) {
   const baseURL = process.env.TEST_BASE_URL || "http://127.0.0.1:5173";

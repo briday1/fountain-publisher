@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
+import {
+  Awareness,
+  applyAwarenessUpdate,
+  encodeAwarenessUpdate,
+} from "y-protocols/awareness";
 import { createHash, webcrypto } from "node:crypto";
 import { LiveClient } from "../src/collaboration/LiveClient";
 import type { LiveStatus } from "../src/collaboration/LiveClient";
@@ -97,6 +102,103 @@ function fixture(initial?: Y.Doc) {
   return { server, client, socket, statuses, sync };
 }
 describe("live client durable synchronization", () => {
+  it("keeps a connected writer's last inline position through focus loss and clears it on close", async () => {
+    const { client, socket, sync } = fixture();
+    sync();
+    const cursor = {
+      anchor: Y.relativePositionToJSON(
+        Y.createRelativePositionFromTypeIndex(client.doc.getText("body"), 1),
+      ),
+      head: Y.relativePositionToJSON(
+        Y.createRelativePositionFromTypeIndex(client.doc.getText("body"), 3),
+      ),
+    };
+    client.awareness.setLocalStateField("cursor", cursor);
+    client.awareness.setLocalStateField("cursor", null);
+    await vi.advanceTimersByTimeAsync(60);
+    const peerDoc = new Y.Doc();
+    docs.push(peerDoc);
+    const awareness = new Awareness(peerDoc);
+    awareness.setLocalState(null);
+    try {
+      const last = () =>
+        socket.sent.filter((message) => message.type === "presence").at(-1)!;
+      applyAwarenessUpdate(
+        awareness,
+        decodeBytes(last().awareness as string),
+        "server",
+      );
+      expect(awareness.getStates().get(client.doc.clientID)?.cursor).toEqual(
+        cursor,
+      );
+      const stopped = client.stop();
+      await vi.advanceTimersByTimeAsync(2100);
+      await stopped;
+      applyAwarenessUpdate(
+        awareness,
+        decodeBytes(last().awareness as string),
+        "server",
+      );
+      expect(awareness.getStates().has(client.doc.clientID)).toBe(false);
+    } finally {
+      awareness.destroy();
+    }
+  });
+  it("shows another session on the same account with its cursor position and authenticated viewing role", () => {
+    const { socket, statuses, sync } = fixture();
+    sync();
+    const peer = new Y.Doc();
+    docs.push(peer);
+    const awareness = new Awareness(peer);
+    try {
+      const sendPresence = () =>
+        socket.message({
+          type: "presence",
+          awareness: encodeBytes(
+            encodeAwarenessUpdate(awareness, [peer.clientID]),
+          ),
+        });
+      awareness.setLocalState({
+        user: {
+          id: "account-a",
+          name: "Alex Writer",
+          color: "#39765e",
+          canEdit: true,
+        },
+        cursor: { anchor: {}, head: {} },
+      });
+      sendPresence();
+      expect(statuses.at(-1)?.members).toEqual([
+        {
+          id: "account-a",
+          clientId: peer.clientID,
+          name: "Alex Writer",
+          color: "#39765e",
+          editing: true,
+          canEdit: true,
+        },
+      ]);
+      awareness.setLocalState({
+        user: {
+          id: "account-a",
+          name: "Alex Writer",
+          color: "#39765e",
+          canEdit: false,
+        },
+        cursor: { anchor: {}, head: {} },
+      });
+      sendPresence();
+      expect(statuses.at(-1)?.members[0]).toMatchObject({
+        editing: false,
+        canEdit: false,
+      });
+      awareness.setLocalState(null);
+      sendPresence();
+      expect(statuses.at(-1)?.members).toEqual([]);
+    } finally {
+      awareness.destroy();
+    }
+  });
   it.each([false, true])(
     "verifies the old cached draft before adopting refreshed cloud content (unsaved=%s)",
     async (unsaved) => {

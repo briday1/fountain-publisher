@@ -562,7 +562,7 @@ describe("structured live room durability and authorization", () => {
     await f.room.webSocketMessage(
       socket,
       presence(doc.clientID, 1, {
-        user: { id: "bob", name: "Admin", token: "secret" },
+        user: { id: "bob", name: "Admin", token: "secret", canEdit: false },
       }),
     );
     const broadcast = socket.messages[0];
@@ -572,7 +572,12 @@ describe("structured live room durability and authorization", () => {
     expect(decoding.readVarUint(decoded)).toBe(doc.clientID);
     decoding.readVarUint(decoded);
     expect(JSON.parse(decoding.readVarString(decoded))).toEqual({
-      user: { id: "alice", name: "ALICE", color: expect.stringMatching(/^#/) },
+      user: {
+        id: "alice",
+        name: "ALICE",
+        color: expect.stringMatching(/^#/),
+        canEdit: true,
+      },
     });
     await f.room.webSocketMessage(socket, presence(doc.clientID + 1, 2, null));
     expect(socket.messages.at(-1)).toMatchObject({

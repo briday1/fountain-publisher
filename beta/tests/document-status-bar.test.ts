@@ -32,7 +32,5 @@ it("reports the actual destination, including unsynced edits and conflicts", () 
     members: [],
     canEdit: false,
   };
-  expect(documentSaveLabel(buffer)).toBe(
-    "WriteShape · live sync needs attention",
-  );
+  expect(documentSaveLabel(buffer)).toBe("WriteShape sync needs attention");
 });

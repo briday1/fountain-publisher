@@ -35,7 +35,7 @@ afterEach(() => {
   }
   vi.restoreAllMocks();
 });
-function mount(bound = true) {
+function mount(bound = true, paused = false) {
   Range.prototype.getBoundingClientRect = () => new DOMRect();
   Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
   const screenplay = emptyScreenplay();
@@ -49,6 +49,7 @@ function mount(bound = true) {
     revision: "1",
     baseContent: content,
     canWrite: true,
+    livePaused: paused,
   };
   const session = new DocumentSession({
     id: crypto.randomUUID(),
@@ -130,4 +131,10 @@ it("connects automatically after saving a device draft to WriteShape without rem
   session.setDestination(destination);
   await vi.waitFor(() => expect(model.activeBuffer?.live).toBeDefined());
   expect(session.current.destination?.live).toBe(true);
+});
+it("opens automatically even when an older version saved an end-session preference", async () => {
+  const { model } = mount(true, true);
+  await vi.waitFor(() => expect(model.activeBuffer?.live).toBeDefined());
+  expect(model.activeBuffer?.snapshot.destination?.live).toBe(true);
+  expect(model.activeBuffer?.snapshot.destination?.livePaused).not.toBe(true);
 });

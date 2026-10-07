@@ -63,7 +63,7 @@ interface RoomMeta {
   refresh?: { version: string; previousHash: string };
 }
 interface AwarenessState {
-  user: Pick<LiveIdentity, "id" | "name" | "color">;
+  user: Pick<LiveIdentity, "id" | "name" | "color"> & { canEdit?: boolean };
   cursor?: { anchor: unknown; head: unknown } | null;
 }
 interface Attachment {
@@ -885,6 +885,7 @@ export class LiveScreenplayRoom {
                 id: identity.self.id,
                 name: identity.self.name,
                 color: identity.self.color,
+                canEdit: identity.self.canEdit,
               },
             };
       if (safe && state?.cursor)

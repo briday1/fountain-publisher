@@ -34,6 +34,7 @@ import {
   yCursorPlugin,
   initProseMirrorDoc,
   defaultDeleteFilter,
+  absolutePositionToRelativePosition,
 } from "y-prosemirror";
 import { closeHistory, undo, redo } from "./history";
 import {
@@ -49,6 +50,7 @@ import {
   validateSharedDocument,
 } from "../collaboration/sharedDocument";
 import type { SharedView } from "../collaboration/sharedDocument";
+import { collaborationCursor } from "./collaborationCursor";
 import type {
   BlockKind,
   Beat,
@@ -572,23 +574,12 @@ export class EditorController {
                 mapping: shared.mapping,
               }),
               yCursorPlugin(this.live.awareness, {
-                cursorBuilder: (user) => {
-                  const cursor = document.createElement("span");
-                  cursor.className = "collaboration-cursor";
-                  cursor.setAttribute("aria-hidden", "true");
-                  const color = /^#[0-9a-f]{6}$/i.test(user.color ?? "")
-                    ? user.color
-                    : "#7762bd";
-                  cursor.style.borderColor = color;
-                  const label = document.createElement("span");
-                  label.textContent = String(user.name || "Writer").slice(
-                    0,
-                    100,
-                  );
-                  label.style.backgroundColor = color;
-                  cursor.append(label);
-                  return cursor;
-                },
+                cursorBuilder: collaborationCursor,
+                awarenessStateFilter: (
+                  localId: number,
+                  clientId: number,
+                  state: { user?: { canEdit?: boolean } },
+                ) => localId !== clientId && state.user?.canEdit !== false,
               }),
               yUndoPlugin({ undoManager: this.live.undoManager }),
             ]
@@ -918,13 +909,38 @@ export class EditorController {
       refreshSharedRangeAliases(options.doc, view);
     });
     sharedDetails(options.doc).observeDeep(metadataObserver);
+    this.publishInitialCollaborationPosition();
     this.notifySelection();
+  }
+
+  private publishInitialCollaborationPosition(): void {
+    const live = this.live;
+    if (!live?.canEdit || live.awareness.getLocalState()?.positioned) return;
+    const { selection } = this.view.state;
+    const binding = ySyncPluginKey.getState(this.view.state);
+    live.awareness.setLocalState({
+      ...live.awareness.getLocalState(),
+      positioned: true,
+      cursor: {
+        anchor: absolutePositionToRelativePosition(
+          selection.anchor,
+          binding.type,
+          binding.binding.mapping,
+        ),
+        head: absolutePositionToRelativePosition(
+          selection.head,
+          binding.type,
+          binding.binding.mapping,
+        ),
+      },
+    });
   }
 
   setCollaborationEditable(canEdit: boolean): void {
     if (!this.live || this.live.canEdit === canEdit) return;
     this.live.canEdit = canEdit;
     this.view.setProps({ editable: () => this.writable });
+    this.publishInitialCollaborationPosition();
   }
 
   /** Only opening/leaving a document resets its history; peer updates never call this. */
@@ -947,6 +963,15 @@ export class EditorController {
   }
 
   /** Navigation highlights a passage without selecting text that typing could replace. */
+  revealCollaborator(clientId: number): boolean {
+    if (this.destroyed || !Number.isSafeInteger(clientId)) return false;
+    const cursor = this.view.dom.querySelector<HTMLElement>(
+      `.collaboration-cursor[data-client-id="${clientId}"]`,
+    );
+    if (!cursor) return false;
+    cursor.scrollIntoView({ block: "center", behavior: "smooth" });
+    return true;
+  }
   revealRange(range: BeatRange): boolean {
     if (this.destroyed || this.view.composing) return false;
     const { state } = this.view;

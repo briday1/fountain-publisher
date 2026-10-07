@@ -31,7 +31,14 @@ export interface LiveBootstrap {
 export interface LiveStatus {
   phase: "connecting" | "live" | "syncing" | "offline" | "readonly" | "paused";
   message?: string;
-  members: { id: string; name: string; color: string }[];
+  members: {
+    id: string;
+    name: string;
+    color: string;
+    clientId?: number;
+    editing?: boolean;
+    canEdit?: boolean;
+  }[];
   canEdit: boolean;
 }
 const remoteOrigin = Symbol("network update");
@@ -80,6 +87,7 @@ export class LiveClient {
   private failedPersistence: Uint8Array[] = [];
   private cacheError = "";
   private announced = "";
+  private lastCursor?: { anchor: unknown; head: unknown };
   private phase: LiveStatus["phase"] = "connecting";
   private roomVersion?: string;
   private refreshPending?: Promise<void>;
@@ -104,6 +112,7 @@ export class LiveClient {
       id: this.self.id,
       name: this.self.name,
       color: this.self.color,
+      canEdit: this.self.canEdit,
     });
     this.doc.on("update", this.updated);
     this.awareness.on("update", this.presenceChanged);
@@ -362,6 +371,7 @@ export class LiveClient {
           id: this.self.id,
           name: this.self.name,
           color: this.self.color,
+          canEdit: this.self.canEdit,
         });
         this.pending.clear();
         this.buffered = [];
@@ -521,6 +531,8 @@ export class LiveClient {
       ![...added, ...updated, ...removed].includes(this.doc.clientID)
     )
       return;
+    const cursor = this.awareness.getLocalState()?.cursor;
+    if (cursor) this.lastCursor = cursor;
     if (!this.presenceTimer)
       this.presenceTimer = setTimeout(() => {
         this.presenceTimer = undefined;
@@ -530,11 +542,22 @@ export class LiveClient {
   private sendPresence() {
     if (this.connected && this.socket?.readyState === WebSocket.OPEN) {
       try {
+        const local = this.awareness.getLocalState();
+        // Keep the last position while a connected writer uses menus or another
+        // window. A null local state still removes presence on document close.
+        const state =
+          local && this.self.canEdit && this.lastCursor
+            ? { ...local, cursor: this.lastCursor }
+            : local;
         this.socket.send(
           JSON.stringify({
             type: "presence",
             awareness: encodeBytes(
-              encodeAwarenessUpdate(this.awareness, [this.doc.clientID]),
+              encodeAwarenessUpdate(
+                this.awareness,
+                [this.doc.clientID],
+                state ? new Map([[this.doc.clientID, state]]) : undefined,
+              ),
             ),
           }),
         );
@@ -546,11 +569,15 @@ export class LiveClient {
   private announce = () => {
     const members = [...this.awareness.getStates()]
       .filter(([id]) => id !== this.doc.clientID)
-      .map(([, state]) => state.user)
-      .filter(
-        (user): user is { id: string; name: string; color: string } =>
-          !!user && typeof user.name === "string",
-      );
+      .filter(([, state]) => typeof state.user?.name === "string")
+      .map(([clientId, state]) => ({
+        id: state.user.id as string,
+        name: state.user.name as string,
+        color: state.user.color as string,
+        clientId,
+        editing: !!state.cursor && state.user.canEdit !== false,
+        canEdit: state.user.canEdit !== false,
+      }));
     const status = {
       phase: this.phase,
       members,
@@ -654,6 +681,7 @@ export class LiveClient {
       id: this.self.id,
       name: this.self.name,
       color: this.self.color,
+      canEdit: this.self.canEdit,
     });
     window.addEventListener("online", this.reconnect);
     window.addEventListener("offline", this.offline);

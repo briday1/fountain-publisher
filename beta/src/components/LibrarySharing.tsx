@@ -22,9 +22,11 @@ type Share = {
 export function LibrarySharing({
   file,
   onBack,
+  backLabel = "Back to files",
 }: {
   file: LibraryFile;
   onBack: () => void;
+  backLabel?: string;
 }) {
   const [shares, setShares] = useState<Share[]>([]),
     [enabled, setEnabled] = useState(false),
@@ -79,7 +81,7 @@ export function LibrarySharing({
       <div className="library-history-heading">
         <button disabled={busy} onClick={onBack}>
           <ArrowLeft size={16} />
-          Back to files
+          {backLabel}
         </button>
         <div>
           <h3>{file.name}</h3>
@@ -94,7 +96,8 @@ export function LibrarySharing({
           <p>
             Give a verified WriteShape account access to this document. Your
             folders and version history stay private. You can revoke access at
-            any time. Live writers share the document owner’s Premium access.
+            any time. People who can edit share the document owner’s Premium
+            access.
           </p>
         </div>
         {error && (
@@ -135,12 +138,12 @@ export function LibrarySharing({
                 onChange={(e) => setRole(e.target.value)}
                 disabled={busy || loading}
               >
-                <option value="read-only">Read only</option>
-                <option value="read-write">Live editing</option>
+                <option value="read-only">Can view</option>
+                <option value="read-write">Can edit</option>
               </select>
             </label>
           ) : (
-            <span className="library-share-role">Read only</span>
+            <span className="library-share-role">Can view</span>
           )}
           <button
             className="primary"
@@ -164,8 +167,8 @@ export function LibrarySharing({
                 <div>
                   <strong>{s.recipientEmail}</strong>
                   <small>
-                    {s.role === "read-write" ? "Live editing" : "Read only"} ·
-                    Shared {formatModified(s.createdAt)}
+                    {s.role === "read-write" ? "Can edit" : "Can view"} · Shared{" "}
+                    {formatModified(s.createdAt)}
                   </small>
                 </div>
                 <button
@@ -244,7 +247,7 @@ export function SharedWithMe({
           </button>
           <h3>{preview.name}</h3>
           <p>
-            {preview.readOnly ? "Read only" : "Live editing"} · Current version{" "}
+            {preview.readOnly ? "Can view" : "Can edit"} · Current version{" "}
             {preview.revision} · {formatModified(preview.updated)}
           </p>
           {preview.liveId && onOpenLive && (
@@ -257,7 +260,7 @@ export function SharedWithMe({
                   .finally(() => setBusy(false));
               }}
             >
-              Open live document
+              Open document
             </button>
           )}
           <pre tabIndex={0} aria-label="Shared screenplay">
@@ -294,8 +297,8 @@ export function SharedWithMe({
               <span>
                 <strong>{s.name}</strong>
                 <small>
-                  {s.role === "read-write" ? "Live editing" : "Read only"} ·
-                  Updated {formatModified(s.updated)}
+                  {s.role === "read-write" ? "Can edit" : "Can view"} · Updated{" "}
+                  {formatModified(s.updated)}
                 </small>
               </span>
             </button>

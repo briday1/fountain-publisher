@@ -45,8 +45,7 @@ export function BufferSync({
     destination.provider !== "local" &&
     premium &&
     accountId === destination.accountId &&
-    !destination.pausedForPlan &&
-    !destination.livePaused
+    !destination.pausedForPlan
   );
   useLayoutEffect(() => {
     const readOnly = destinationReadOnly(destination, accountId, premium);
@@ -94,7 +93,10 @@ export function BufferSync({
         .catch((error) => {
           buffer.liveStatus = {
             phase: "paused",
-            message: String(error),
+            message:
+              error instanceof Error
+                ? error.message
+                : "Sync could not connect.",
             members: [],
             canEdit: false,
           };

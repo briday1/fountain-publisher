@@ -3,6 +3,7 @@ import { Bookmarks } from "./components/Bookmarks";
 import { SceneOutline } from "./components/SceneOutline";
 import { VersionReview } from "./components/VersionReview";
 import { DocumentStatusBar } from "./components/DocumentStatusBar";
+import { LibrarySharing } from "./components/LibrarySharing";
 import { cloudRequest } from "./storage/writeshapeLibrary";
 import { ReportProblem } from "./components/ReportProblem";
 import { destinationReadOnly } from "./storage/destinations";
@@ -144,6 +145,9 @@ export default function App() {
   );
   const [cloudConflict, setCloudConflict] = useState<string>();
   const [libraryMode, setLibraryMode] = useState<"open" | "save" | null>(null);
+  const [documentSharing, setDocumentSharing] = useState<LibraryFile | null>(
+    null,
+  );
   const cloudCapturedContent = useRef("");
   const cloudFile = useRef<(LibraryFile & { localId: string }) | null>(null);
   const [session, setSession] = useState<DocumentSession>();
@@ -158,6 +162,7 @@ export default function App() {
   useEffect(() => {
     cloudFile.current = null;
     setLibraryMode(null);
+    setDocumentSharing(null);
     setCloudConflict(undefined);
     setFileTab(accountId ? "writeshape" : "local");
   }, [accountId]);
@@ -2657,6 +2662,22 @@ export default function App() {
               );
               setLibraryMode(mode);
             }}
+            onShare={() => {
+              const destination =
+                documentWorkspace.current?.activeBuffer?.snapshot.destination;
+              if (destination?.provider === "writeshape") {
+                setDocumentSharing({
+                  id: destination.id,
+                  name: destination.name,
+                  parent: destination.parent || "",
+                  kind: "file",
+                  revision: Number(destination.revision),
+                });
+              } else {
+                setFileTab("drive");
+                setLibraryMode("open");
+              }
+            }}
           />
         ) : (
           <>
@@ -2838,6 +2859,15 @@ export default function App() {
             onClose={() => setDialog(null)}
           />
         ))}
+      {documentSharing && (
+        <Modal title="Share document" onClose={() => setDocumentSharing(null)}>
+          <LibrarySharing
+            file={documentSharing}
+            onBack={() => setDocumentSharing(null)}
+            backLabel="Close sharing"
+          />
+        </Modal>
+      )}
       {libraryMode && fileProviders && (
         <WriteShapeFiles
           key={accountId}

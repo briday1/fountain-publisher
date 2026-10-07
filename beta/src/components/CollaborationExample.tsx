@@ -3,6 +3,7 @@ import { Decoration, DecorationSet } from "prosemirror-view";
 import { EditorSurface } from "./EditorSurface";
 import { premiumSample } from "./premiumSampleData";
 import { sampleBook } from "./BookPremiumExamples";
+import { collaborationCursor } from "../editor/collaborationCursor";
 
 /** Read-only illustration using the editor's real inline cursor styling. */
 export function CollaborationExample({
@@ -18,7 +19,7 @@ export function CollaborationExample({
         <span className="collaborator-avatar">A</span>
         <span className="collaborator-avatar second">J</span>
         <span>
-          Alex & Jordan <small>Editing</small>
+          Alex &amp; Jordan <small>Editing</small>
         </span>
       </div>
       <div className="collaboration-page" inert aria-hidden="true">
@@ -52,16 +53,12 @@ export function CollaborationExample({
                     Decoration.widget(
                       position,
                       () => {
-                        const cursor = document.createElement("span");
-                        cursor.className = "collaboration-cursor";
+                        const cursor = collaborationCursor({
+                          name: index === 0 ? "Alex" : "Jordan",
+                          color: index === 0 ? "#39765e" : "#87559c",
+                        });
                         cursor.dataset.previewCursor =
                           index === 0 ? "Alex" : "Jordan";
-                        const color = index === 0 ? "#39765e" : "#87559c";
-                        cursor.style.borderColor = color;
-                        const label = document.createElement("span");
-                        label.textContent = cursor.dataset.previewCursor;
-                        label.style.backgroundColor = color;
-                        cursor.append(label);
                         return cursor;
                       },
                       { side: -1 },
