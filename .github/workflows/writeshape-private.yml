@@ -1,0 +1,35 @@
+name: WriteShape private test deployment
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: writeshape-private-test
+    defaults:
+      run:
+        working-directory: beta
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: beta/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Test application
+        run: npm test
+      - name: Build WriteShape
+        run: npm run build:writeshape
+      - name: Validate isolated Worker bundle
+        run: npx wrangler deploy --config wrangler.writeshape.jsonc --dry-run
+      - name: Deploy private WriteShape test environment
+        run: npx wrangler deploy --config wrangler.writeshape.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
