@@ -50,9 +50,11 @@ function Keyboard({ colors, bg }: { colors: WriteShapeColors; bg: string }) {
       ].map(({ letter, x, y }) => {
         const glyph = keyboardGlyphs[letter as "W" | "S"];
         const [left, bottom, right, top] = glyph.bounds;
-        const scale = 0.106;
-        const tx = x + 172 - ((left + right) * scale) / 2;
-        const ty = y + 158.5 + ((bottom + top) * scale) / 2;
+        // Equal visible heights, including the rounded outline, on the 900px
+        // icon. Keep each legend's upper-left edge 35 units from its key.
+        const scale = 163 / (1.1842105263157894 * (top - bottom + 28));
+        const tx = x + 35 - (left - 14) * scale;
+        const ty = y + 35 + (top + 14) * scale;
         return (
           <g key={letter} data-key={letter}>
             <path d={cap(x + 18, y + 22)} fill={sideColor(colors)} />

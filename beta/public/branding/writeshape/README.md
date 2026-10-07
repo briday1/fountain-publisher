@@ -1,6 +1,6 @@
 # WriteShape branding
 
-The approved W/S design uses only two staggered keys, with simple depth on the right and bottom. Both share the theme accent. The complete silhouette, including its depth, is centered and fully visible with no rim or outer frame.
+The approved W/S design uses only two staggered keys, with simple depth on the right and bottom. Both share the theme accent. Their legends sit at fixed upper-left anchors and have equal visible heights of 163 pixels in the 900-pixel icon, including their rounded outlines. The complete silhouette, including its depth, is centered and fully visible with no rim or outer frame.
 
 - icons/: centered W/S icons in all nine themes.
 - logos/: the same two keys uncropped, with the Courier Prime WriteShape wordmark underneath and a transparent background.
