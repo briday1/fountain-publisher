@@ -1,4 +1,27 @@
 import { HttpError, sameOrigin } from "./http.mjs";
+export async function refreshLiveProfile(env, accountId) {
+  if (env.LIVE_COLLABORATION !== "true" || !env.LIVE_ROOMS) return;
+  const rooms = await env.DB.prepare(
+    "SELECT file_id FROM live_room_members WHERE account_id=?",
+  )
+    .bind(accountId)
+    .all();
+  // A profile save succeeds even if an idle room cannot currently be reached.
+  // Its next authenticated presence update will also pick up the saved name.
+  await Promise.allSettled(
+    rooms.results.map(({ file_id }) =>
+      env.LIVE_ROOMS.get(
+        env.LIVE_ROOMS.idFromName("writeshape-v1:" + file_id),
+      ).fetch(
+        new Request("https://room.internal/refresh-profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accountId }),
+        }),
+      ),
+    ),
+  );
+}
 export function liveCredential(request) {
   // Internal DO transport only. Client-provided identity headers are never forwarded.
   return JSON.stringify({

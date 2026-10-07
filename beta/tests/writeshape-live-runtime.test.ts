@@ -5,6 +5,11 @@ import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import * as Y from "yjs";
+import {
+  Awareness,
+  applyAwarenessUpdate,
+  encodeAwarenessUpdate,
+} from "y-protocols/awareness";
 import { encodeBytes, decodeBytes } from "../cloudflare/liveRoom";
 const origin = "https://writeshape.com";
 async function until<T>(
@@ -188,6 +193,107 @@ it("WriteShape accounts collaborate on a Book through real D1, Worker and durabl
       ws.accept();
       await until(() => messages.find((m) => m.type === "sync"));
       sessions.push({ ws, messages, doc });
+    }
+    // A saved profile changes existing inline labels immediately, while preserving
+    // the authenticated writer's position and without reconnecting the document.
+    const writerPresence = new Awareness(docs[1]);
+    const observer = new Awareness(docs[0]);
+    try {
+      observer.setLocalState(null);
+      const paragraph = docs[1]
+        .getXmlFragment("script")
+        .toArray()
+        .find(
+          (n) =>
+            n instanceof Y.XmlElement && n.getAttribute("kind") === "action",
+        ) as Y.XmlElement;
+      const text = paragraph.toArray()[0] as Y.XmlText;
+      const position = Y.createRelativePositionFromTypeIndex(text, 3);
+      writerPresence.setLocalState({
+        user: { name: "Untrusted claimed name", canEdit: false },
+        cursor: { anchor: position, head: position },
+      });
+      sessions[1].ws.send(
+        JSON.stringify({
+          type: "presence",
+          awareness: encodeBytes(
+            encodeAwarenessUpdate(writerPresence, [docs[1].clientID]),
+          ),
+        }),
+      );
+      await until(() =>
+        sessions[0].messages.find((m: any) => m.type === "presence"),
+      );
+      const readWriter = () => {
+        for (const frame of sessions[0].messages.filter(
+          (m: any) => m.type === "presence",
+        ))
+          applyAwarenessUpdate(
+            observer,
+            decodeBytes(frame.awareness),
+            "server",
+          );
+        return observer.getStates().get(docs[1].clientID);
+      };
+      expect(readWriter()?.user.name).toBe("writer");
+      const renamed = await call("writer", "/api/account/profile", {
+        displayName: "  Alex Writer  ",
+        id: "owner",
+      });
+      expect(renamed.status).toBe(200);
+      await until(() =>
+        readWriter()?.user.name === "Alex Writer" ? true : undefined,
+      );
+      expect(readWriter()?.user.canEdit).toBe(true);
+      expect(
+        Y.createAbsolutePositionFromRelativePosition(
+          Y.createRelativePositionFromJSON(readWriter()?.cursor.head),
+          docs[0],
+        )?.index,
+      ).toBe(3);
+      expect(
+        sessions[1].messages.some(
+          (m: any) => m.type === "identity" && m.self.name === "Alex Writer",
+        ),
+      ).toBe(true);
+      expect(
+        ((await call("owner", "/api/account").then((r) => r.json())) as any)
+          .account.displayName,
+      ).toBe("owner");
+      const cleared = await call("writer", "/api/account/profile", {
+        displayName: " ",
+      });
+      expect(cleared.status).toBe(200);
+      await until(() =>
+        readWriter()?.user.name === "writer" ? true : undefined,
+      );
+      for (const frame of sessions[1].messages.filter(
+        (m: any) => m.type === "presence",
+      ))
+        applyAwarenessUpdate(
+          writerPresence,
+          decodeBytes(frame.awareness),
+          "server",
+        );
+      writerPresence.setLocalStateField("cursor", {
+        anchor: position,
+        head: position,
+      });
+      sessions[1].ws.send(
+        JSON.stringify({
+          type: "presence",
+          awareness: encodeBytes(
+            encodeAwarenessUpdate(writerPresence, [docs[1].clientID]),
+          ),
+        }),
+      );
+      const publicRefresh = await call("stranger", path + "/refresh-profile", {
+        accountId: "writer",
+      });
+      expect(publicRefresh.status).toBe(404);
+    } finally {
+      writerPresence.destroy();
+      observer.destroy();
     }
     // Independently generated updates from the same starting state must both survive.
     for (const [i, text] of [

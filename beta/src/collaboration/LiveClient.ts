@@ -343,36 +343,51 @@ export class LiveClient {
     };
     socket.onerror = () => {}; // close handles retry without discarding local edits.
   }
+  private adoptIdentity(value: unknown) {
+    const identity = value as LiveIdentity | undefined;
+    if (
+      !identity ||
+      typeof identity.id !== "string" ||
+      typeof identity.canEdit !== "boolean" ||
+      typeof identity.name !== "string" ||
+      typeof identity.color !== "string"
+    )
+      throw new Error("Invalid live identity.");
+    if (identity.id !== this.accountId) {
+      this.self.canEdit = false;
+      this.onPermission?.(false);
+      this.pause(
+        "This draft belongs to a different Google account. Reconnect its original account to synchronize your saved writing.",
+      );
+      return false;
+    }
+    this.self = identity;
+    this.onPermission?.(this.self.canEdit);
+    this.awareness.setLocalStateField("user", {
+      id: this.self.id,
+      name: this.self.name,
+      color: this.self.color,
+      canEdit: this.self.canEdit,
+    });
+    return true;
+  }
   private receive(data: Record<string, unknown>) {
     switch (data.type) {
-      case "sync": {
-        const identity = data.self as LiveIdentity | undefined;
-        if (
-          !identity ||
-          typeof identity.id !== "string" ||
-          typeof identity.canEdit !== "boolean" ||
-          typeof identity.name !== "string" ||
-          typeof identity.color !== "string"
-        )
-          throw new Error("Invalid live identity.");
-        if (identity.id !== this.accountId) {
-          this.self.canEdit = false;
-          this.onPermission?.(false);
-          this.pause(
-            "This draft belongs to a different Google account. Reconnect its original account to synchronize your saved writing.",
-          );
-          return;
-        }
-        this.self = identity;
-        this.roomVersion = (data.refresh as LiveBootstrap["refresh"])?.version;
-        this.onPermission?.(this.self.canEdit);
+      case "identity":
+        if (!this.adoptIdentity(data.self)) return;
         void this.persist(new Uint8Array([0, 0])).catch(() => {});
-        this.awareness.setLocalStateField("user", {
-          id: this.self.id,
-          name: this.self.name,
-          color: this.self.color,
-          canEdit: this.self.canEdit,
-        });
+        if (this.connected)
+          this.phase = this.self.canEdit
+            ? this.pending.size || this.buffered.length || this.flushing
+              ? "syncing"
+              : "live"
+            : "readonly";
+        this.announce();
+        break;
+      case "sync": {
+        if (!this.adoptIdentity(data.self)) return;
+        this.roomVersion = (data.refresh as LiveBootstrap["refresh"])?.version;
+        void this.persist(new Uint8Array([0, 0])).catch(() => {});
         this.pending.clear();
         this.buffered = [];
         this.retry = 0;

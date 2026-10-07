@@ -50,11 +50,14 @@ function Keyboard({ colors, bg }: { colors: WriteShapeColors; bg: string }) {
       ].map(({ letter, x, y }) => {
         const glyph = keyboardGlyphs[letter as "W" | "S"];
         const [left, bottom, right, top] = glyph.bounds;
+        // The S's curved strokes need more weight to read like the W's stems
+        // at toolbar size. Preserve the same font, visible height and anchors.
+        const outline = letter === "S" ? 160 : 28;
         // Equal visible heights, including the rounded outline, on the 900px
         // icon. Keep each legend's upper-left edge 35 units from its key.
-        const scale = 163 / (1.1842105263157894 * (top - bottom + 28));
-        const tx = x + 35 - (left - 14) * scale;
-        const ty = y + 35 + (top + 14) * scale;
+        const scale = 163 / (1.1842105263157894 * (top - bottom + outline));
+        const tx = x + 35 - (left - outline / 2) * scale;
+        const ty = y + 35 + (top + outline / 2) * scale;
         return (
           <g key={letter} data-key={letter}>
             <path d={cap(x + 18, y + 22)} fill={sideColor(colors)} />
@@ -64,7 +67,7 @@ function Keyboard({ colors, bg }: { colors: WriteShapeColors; bg: string }) {
               transform={`translate(${tx} ${ty}) scale(${scale} ${-scale})`}
               fill={bg}
               stroke={bg}
-              strokeWidth={28}
+              strokeWidth={outline}
               strokeLinejoin="round"
               paintOrder="stroke"
             />

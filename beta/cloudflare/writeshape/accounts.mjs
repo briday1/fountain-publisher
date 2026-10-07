@@ -3,6 +3,7 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 import { billingMode } from "./billing-mode.mjs";
 import { identity } from "./access.mjs";
 import { HttpError, json, now, sameOrigin, bodyJson } from "./http.mjs";
+import { refreshLiveProfile } from "./live-routes.mjs";
 const SESSION = "__Host-writeshape_session";
 const STATE = "__Host-writeshape_oauth";
 const googleKeys = createRemoteJWKSet(
@@ -223,6 +224,7 @@ export async function accountRoutes(request, env, account, billingAvailable) {
     await env.DB.prepare("UPDATE accounts SET display_name=? WHERE id=?")
       .bind(data.displayName.trim(), account.id)
       .run();
+    await refreshLiveProfile(env, account.id).catch(() => {});
     return json({ ok: true });
   }
   if (url.pathname === "/api/auth/logout" && request.method === "POST") {

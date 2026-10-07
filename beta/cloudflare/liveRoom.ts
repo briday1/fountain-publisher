@@ -337,6 +337,55 @@ export class LiveScreenplayRoom {
   protected storedFileId() {
     return this.run(async () => this.meta?.fileId);
   }
+  /** Internal profile notification; every socket still resolves its signed account. */
+  protected refreshAccountIdentity(accountId: string) {
+    return this.run(async () => {
+      const frames: { type: string; awareness: string }[] = [];
+      for (const socket of this.context.getWebSockets()) {
+        let identity: Attachment;
+        try {
+          if (
+            socket.readyState !== 1 ||
+            attachment(socket).self.id !== accountId
+          )
+            continue;
+          identity = await this.authorizeSocket(socket, true);
+        } catch (error) {
+          if (
+            error instanceof LiveError &&
+            [401, 403, 404].includes(error.status)
+          )
+            socket.close(4003, "Document access changed");
+          // An expired session must not prevent other sessions from updating.
+          continue;
+        }
+        socket.send(JSON.stringify({ type: "identity", self: identity.self }));
+        if (!identity.awareness?.state) continue;
+        identity.awareness = {
+          clock: identity.awareness.clock + 1,
+          state: {
+            ...identity.awareness.state,
+            user: {
+              id: identity.self.id,
+              name: identity.self.name,
+              color: identity.self.color,
+              canEdit: identity.self.canEdit,
+            },
+          },
+        };
+        socket.serializeAttachment(identity);
+        frames.push({
+          type: "presence",
+          awareness: awarenessFrame(
+            identity.self.clientId,
+            identity.awareness.clock,
+            identity.awareness.state,
+          ),
+        });
+      }
+      for (const frame of frames) await this.broadcast(frame);
+    });
+  }
   /** Internal maintenance only; callers must verify an account-deletion lock. */
   protected purgeStoredRoom(
     preserveUnsaved: boolean,

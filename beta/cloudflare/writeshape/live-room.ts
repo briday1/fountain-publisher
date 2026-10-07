@@ -65,6 +65,13 @@ export class WriteShapeLiveRoom extends LiveScreenplayRoom {
   }
   async fetch(request: Request): Promise<Response> {
     const action = new URL(request.url).pathname;
+    if (request.method === "POST" && action === "/refresh-profile") {
+      const { accountId } = (await request.json()) as { accountId?: unknown };
+      if (typeof accountId !== "string" || !accountId || accountId.length > 200)
+        return new Response("Invalid account", { status: 400 });
+      await this.refreshAccountIdentity(accountId);
+      return Response.json({ ok: true });
+    }
     if (
       request.method === "POST" &&
       ["/backup-notices", "/expire-cloud", "/sync-billing"].includes(action)

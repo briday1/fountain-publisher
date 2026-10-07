@@ -102,6 +102,33 @@ function fixture(initial?: Y.Doc) {
   return { server, client, socket, statuses, sync };
 }
 describe("live client durable synchronization", () => {
+  it("updates a saved display name in place without losing the cursor, draft, or connection", async () => {
+    const { client, socket, statuses, sync } = fixture();
+    sync();
+    const cursor = { anchor: { tname: "body" }, head: { tname: "body" } };
+    client.awareness.setLocalStateField("cursor", cursor);
+    client.doc.getText("body").insert(0, "Unsaved. ");
+    const draft = client.doc.getText("body").toString();
+    socket.message({
+      type: "identity",
+      self: { ...client.self, name: "Alex Writer" },
+    });
+    await vi.advanceTimersByTimeAsync(60);
+    expect(client.self.name).toBe("Alex Writer");
+    expect(client.awareness.getLocalState()?.user.name).toBe("Alex Writer");
+    expect(client.awareness.getLocalState()?.cursor).toEqual(cursor);
+    expect(client.doc.getText("body").toString()).toBe(draft);
+    expect(socket.readyState).toBe(1);
+    expect(Socket.instances).toHaveLength(1);
+    expect(statuses.at(-1)?.phase).toBe("syncing");
+    socket.message({
+      type: "identity",
+      self: { ...client.self, id: "another-account", name: "Wrong writer" },
+    });
+    expect(statuses.at(-1)?.phase).toBe("paused");
+    expect(client.self.name).toBe("Alex Writer");
+    expect(client.doc.getText("body").toString()).toBe(draft);
+  });
   it("keeps a connected writer's last inline position through focus loss and clears it on close", async () => {
     const { client, socket, sync } = fixture();
     sync();
