@@ -181,6 +181,9 @@
 .collaboration-page {
   position: relative;
 }
+.collaboration-page .screenplay-editor p:has([data-preview-cursor]) {
+  padding-top: 24px;
+}
 
 .access-code-manager summary {
   cursor: pointer;

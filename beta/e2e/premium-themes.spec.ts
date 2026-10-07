@@ -170,6 +170,10 @@ test("collaboration examples anchor writer cursors to book and screenplay text a
             textY: character.y,
             labelBottom: label.bottom,
             paragraph: element.closest("p") !== null,
+            labelTop: label.top,
+            previousBottom: element
+              .closest("p")
+              ?.previousElementSibling?.getBoundingClientRect().bottom,
           };
         });
         expect(anchor).not.toBeNull();
@@ -177,6 +181,10 @@ test("collaboration examples anchor writer cursors to book and screenplay text a
         expect(Math.abs(anchor!.x - anchor!.wordEnd)).toBeLessThanOrEqual(3);
         expect(Math.abs(anchor!.y - anchor!.textY)).toBeLessThanOrEqual(3);
         expect(anchor!.labelBottom).toBeLessThanOrEqual(anchor!.y + 3);
+        if (anchor!.previousBottom !== undefined)
+          expect(anchor!.labelTop).toBeGreaterThanOrEqual(
+            anchor!.previousBottom,
+          );
       }
       await page.screenshot({
         path: testInfo.outputPath(
