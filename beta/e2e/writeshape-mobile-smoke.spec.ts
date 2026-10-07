@@ -312,6 +312,7 @@ for (const signedIn of [false, true]) {
       /^Save[^A-Za-z]*/,
       /^Save As…/,
       "Version history…",
+      "Review changes…",
       "Export…",
       "Rename…",
       "Account",
