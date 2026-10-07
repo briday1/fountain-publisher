@@ -145,7 +145,7 @@ class SharedDriveRoom {
             displayName: person.name,
             privateTester: true,
           },
-          premium: true,
+          premium: person.id === people.alice.id,
           privateMode: true,
           collaborationAvailable: true,
         };
@@ -488,6 +488,9 @@ base(
       ).toHaveCount(1);
       await append(bob, " Both sessions write automatically.");
       await expect(editor(alice)).toContainText(
+        "Both sessions write automatically.",
+      );
+      await expect(editor(pages[2])).toContainText(
         "Both sessions write automatically.",
       );
       const footer = alice.locator(".writeshape-statusbar");

@@ -35,7 +35,11 @@ afterEach(() => {
   }
   vi.restoreAllMocks();
 });
-function mount(bound = true, paused = false) {
+function mount(
+  bound = true,
+  paused = false,
+  access = { premium: true, canEdit: true },
+) {
   Range.prototype.getBoundingClientRect = () => new DOMRect();
   Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
   const screenplay = emptyScreenplay();
@@ -48,7 +52,7 @@ function mount(bound = true, paused = false) {
     name: "Cloud.fountain",
     revision: "1",
     baseContent: content,
-    canWrite: true,
+    canWrite: access.canEdit,
     livePaused: paused,
   };
   const session = new DocumentSession({
@@ -64,7 +68,12 @@ function mount(bound = true, paused = false) {
     name: destination.name,
     state: encodeBytes(Y.encodeStateAsUpdate(source)),
     vector: encodeBytes(Y.encodeStateVector(source)),
-    self: { id: "owner", name: "Owner", color: "#3875c7", canEdit: true },
+    self: {
+      id: "owner",
+      name: "Owner",
+      color: "#3875c7",
+      canEdit: access.canEdit,
+    },
     remote: {
       provider: "google",
       id: "library_" + destination.id,
@@ -84,7 +93,7 @@ function mount(bound = true, paused = false) {
           model={model}
           buffer={model.activeBuffer!}
           accountId="owner"
-          premium
+          premium={access.premium}
           collaborationAvailable
           changed={render}
         />,
@@ -138,3 +147,21 @@ it("opens automatically even when an older version saved an end-session preferen
   expect(model.activeBuffer?.snapshot.destination?.live).toBe(true);
   expect(model.activeBuffer?.snapshot.destination?.livePaused).not.toBe(true);
 });
+it.each([true, false])(
+  "keeps a Free shared account connected with the server's editing permission (%s)",
+  async (canEdit) => {
+    const { model } = mount(true, false, { premium: false, canEdit });
+    await vi.waitFor(() => expect(model.activeBuffer?.live).toBeDefined());
+    await vi.waitFor(() =>
+      expect(model.activeView?.controller.writable).toBe(canEdit),
+    );
+    expect(model.activeBuffer?.snapshot.destination?.pausedForPlan).not.toBe(
+      true,
+    );
+    expect(
+      vi
+        .mocked(useDestinationSync)
+        .mock.calls.every((args) => args[5] === false),
+    ).toBe(true);
+  },
+);

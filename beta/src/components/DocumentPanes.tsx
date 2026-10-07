@@ -43,20 +43,30 @@ export function BufferSync({
     collaborationAvailable &&
     destination &&
     destination.provider !== "local" &&
-    premium &&
     accountId === destination.accountId &&
-    !destination.pausedForPlan
+    (destination.provider === "writeshape" ||
+      (premium && !destination.pausedForPlan))
   );
   useLayoutEffect(() => {
-    const readOnly = destinationReadOnly(destination, accountId, premium);
+    const readOnly =
+      autoLive && buffer.live
+        ? !buffer.live.self.canEdit || buffer.liveStatus?.phase === "paused"
+        : destinationReadOnly(destination, accountId, premium);
     const connecting =
       autoLive && !buffer.live && buffer.liveStatus?.phase !== "paused";
     for (const id of buffer.views)
       model.views
         .get(id)
         ?.controller.setDestinationReadOnly(readOnly || connecting);
-    if (readOnly && buffer.live) model.stopLive(buffer.session.current.id);
-    if (destination?.live && !premium && accountId === destination.accountId) {
+    if (buffer.live && accountId !== destination?.accountId)
+      model.stopLive(buffer.session.current.id);
+    if (
+      destination?.provider === "drive" &&
+      destination.live &&
+      !premium &&
+      accountId === destination.accountId
+    ) {
+      model.stopLive(buffer.session.current.id);
       buffer.session.setDestination({
         ...destination,
         live: false,

@@ -167,14 +167,19 @@ export default function App() {
     setFileTab(accountId ? "writeshape" : "local");
   }, [accountId]);
   const [snapshot, setSnapshot] = useState<SessionSnapshot>();
+  const documentWorkspace = useRef<DocumentWorkspace | null>(null);
+  const activeSharedBuffer = documentWorkspace.current?.activeBuffer;
   const cloudReadOnly =
     isWriteShape &&
-    destinationReadOnly(
-      snapshot?.destination,
-      accountId,
-      account.state.premium,
-    );
-  const documentWorkspace = useRef<DocumentWorkspace | null>(null);
+    (activeSharedBuffer?.live
+      ? snapshot?.destination?.accountId !== accountId ||
+        !activeSharedBuffer.live.self.canEdit ||
+        activeSharedBuffer.liveStatus?.phase === "paused"
+      : destinationReadOnly(
+          snapshot?.destination,
+          accountId,
+          account.state.premium,
+        ));
   const [workspaceReady, setWorkspaceReady] = useState(!isWriteShape);
   const panelBounds = usePanelBounds();
   const [, updateWorkspace] = useState(0);
