@@ -186,6 +186,31 @@ describe("durable device storage", () => {
       "A silent room. He leaves.",
     );
   });
+  it("clears the reviewed device draft only while its stored writing still matches", async () => {
+    const repo = repository(),
+      doc = draft();
+    await repo.save(doc, null);
+    vi.spyOn(Date, "now").mockReturnValue(1_000);
+    await repo.writeRecovery(
+      doc.id,
+      draft(doc.id, "First unsynced change").screenplay,
+      1,
+    );
+    const reviewed = (await repo.recoveries())[0];
+    await repo.writeRecovery(
+      doc.id,
+      draft(doc.id, "Newer unsynced writing").screenplay,
+      1,
+    );
+    await repo.clearRecovery(reviewed.recoveryId, reviewed);
+    const remaining = await repo.recoveries();
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].screenplay.blocks[0].text).toBe(
+      "Newer unsynced writing",
+    );
+    await repo.clearRecovery(remaining[0].recoveryId, remaining[0]);
+    expect(await repo.recoveries()).toEqual([]);
+  });
   it("merges a stale save against its base without losing another tab's edit", async () => {
     const name = crypto.randomUUID(),
       a = repository(name),

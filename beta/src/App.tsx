@@ -365,6 +365,7 @@ export default function App() {
   const [recoveries, setRecoveries] = useState<Recovery[]>([]);
   const [recoveryReview, setRecoveryReview] = useState<{
     draft: Recovery;
+    storedDraft: Recovery;
     saved: WorkspaceDocument;
     token?: { id: string; epoch: number };
   }>();
@@ -1237,6 +1238,7 @@ export default function App() {
     const active = session?.current.id === draft.documentId;
     setRecoveryReview({
       saved,
+      storedDraft: draft,
       draft: active
         ? { ...draft, screenplay: session!.capture().screenplay }
         : draft,
@@ -1245,7 +1247,7 @@ export default function App() {
   }
   async function saveUnsynced(screenplay: Screenplay) {
     if (!recoveryReview) return;
-    const { saved, draft, token } = recoveryReview;
+    const { saved, storedDraft, token } = recoveryReview;
     if (token && session?.current.id === saved.id) {
       const live = documentWorkspace.current?.activeBuffer?.live;
       if (live) {
@@ -1267,7 +1269,7 @@ export default function App() {
       await workspace.save({ ...saved, screenplay }, saved.revision, {
         checkpoint: true,
       });
-    await workspace.clearRecovery(draft.recoveryId, draft);
+    await workspace.clearRecovery(storedDraft.recoveryId, storedDraft);
     setRecoveries(await workspace.reconcileRecoveries());
     setLibrary(await workspace.list());
     setRecoveryReview(undefined);
