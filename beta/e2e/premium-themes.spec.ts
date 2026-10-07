@@ -27,7 +27,7 @@ async function settings(page: Page) {
   return page.getByRole("dialog", { name: "Settings", exact: true });
 }
 
-test("Premium shows the complete sample beat sheet, graph and character timeline", async ({
+test("Premium shows the complete sample beat sheet, graph and scene Gantt", async ({
   page,
 }, testInfo) => {
   await setup(page);
@@ -66,6 +66,18 @@ test("Premium shows the complete sample beat sheet, graph and character timeline
   expect(
     await dialog.locator(".sample-analytics svg rect").count(),
   ).toBeGreaterThan(3);
+  await expect(dialog.locator(".sample-analytics h2")).toHaveText(
+    "Scene 1 Character Gantt",
+  );
+  await expect(
+    dialog.locator(".sample-analytics .character-analytics-viewport > svg"),
+  ).toHaveAttribute(
+    "aria-label",
+    /Character dialogue word-position Gantt for INT\. LANTERN ROOM - NIGHT/,
+  );
+  await expect(
+    dialog.locator('.sample-analytics svg g[role="img"]'),
+  ).toHaveCount(2);
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 844 });
     await dialog.locator(".sample-analytics").scrollIntoViewIfNeeded();

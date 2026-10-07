@@ -479,8 +479,7 @@ export function CharacterAnalytics({
                           aria-label={`${name}: ${segment.words} dialogue words, starting at word ${segment.start}`}
                         >
                           <title>
-                            {name}: {segment.words} dialogue words, starting at
-                            word {segment.start}
+                            {`${name}: ${segment.words} dialogue words, starting at word ${segment.start}`}
                           </title>
                           <rect
                             x={
