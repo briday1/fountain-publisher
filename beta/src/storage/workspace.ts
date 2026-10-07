@@ -1,6 +1,7 @@
 import type { Screenplay } from "../core/model";
-import type { WriteShapeDestination } from "./destinations";
+import { destinationKey, type WriteShapeDestination } from "./destinations";
 import type { RemoteLocation } from "./cloud";
+import { mergeScreenplays, sameValue } from "../core/merge";
 export interface WorkspaceDocument {
   id: string;
   name: string;
@@ -25,6 +26,7 @@ export interface Recovery {
   screenplay: Screenplay;
   updatedAt: number;
   baseRevision?: number;
+  baseScreenplay?: Screenplay;
 }
 export type DocumentInput = Pick<
   WorkspaceDocument,
@@ -208,7 +210,11 @@ export class WorkspaceRepository {
   async save(
     input: DocumentInput,
     expectedRevision: number | null,
-    options: { checkpoint?: boolean } = {},
+    options: {
+      checkpoint?: boolean;
+      baseScreenplay?: Screenplay;
+      baseName?: string;
+    } = {},
   ): Promise<WorkspaceDocument> {
     try {
       const db = await this.db();
@@ -233,15 +239,46 @@ export class WorkspaceRepository {
         typeof current.remote.accountId === "string" &&
         current.remote.accountId.trim().length > 0 &&
         current.remote.accountId === input.remote.accountId;
+      const remoteKey = (remote?: RemoteLocation) =>
+        remote?.provider === "google"
+          ? `google:${remote.accountId || ""}:${remote.id}`
+          : remote?.provider === "github"
+            ? `github:${remote.owner}:${remote.repo}:${remote.branch}:${remote.path}`
+            : "";
       if (
         (current?.revision ?? null) !== expectedRevision &&
         !sameLiveDocument
       ) {
-        tx.abort();
-        throw new StorageError(
-          "This screenplay changed in another tab. Your recovery draft is preserved; reload the saved version or save your draft as a copy.",
-          "CONFLICT",
-        );
+        const compatibleName =
+          current &&
+          remoteKey(current.remote) === remoteKey(input.remote) &&
+          (current.name === input.name ||
+            current.name === options.baseName ||
+            input.name === options.baseName);
+        const merged =
+          current &&
+          options.baseScreenplay &&
+          compatibleName &&
+          destinationKey(current.destination) ===
+            destinationKey(input.destination)
+            ? mergeScreenplays(
+                options.baseScreenplay,
+                current.screenplay,
+                input.screenplay,
+              )
+            : undefined;
+        if (!merged || merged.conflicts.length) {
+          tx.abort();
+          throw new StorageError(
+            "Some changes overlap. Your writing is kept; review the changes to finish merging.",
+            "CONFLICT",
+          );
+        }
+        input = {
+          ...input,
+          name: input.name === options.baseName ? current!.name : input.name,
+          screenplay: merged.value,
+        };
       }
       const now = Date.now();
       const next: WorkspaceDocument = {
@@ -335,6 +372,7 @@ export class WorkspaceRepository {
     documentId: string,
     screenplay: Screenplay,
     baseRevision?: number,
+    baseScreenplay?: Screenplay,
   ): Promise<void> {
     try {
       const db = await this.db();
@@ -345,6 +383,7 @@ export class WorkspaceRepository {
         documentId,
         screenplay,
         baseRevision,
+        baseScreenplay,
         updatedAt: Date.now(),
       } satisfies Recovery);
       await completion;
@@ -370,13 +409,68 @@ export class WorkspaceRepository {
       throw storageError(e);
     }
   }
-  async clearRecovery(id: string): Promise<void> {
+  /** Reconcile durable unsynced writing before presenting files. Only overlaps need a decision. */
+  async reconcileRecoveries(): Promise<Recovery[]> {
+    const unresolved: Recovery[] = [];
+    for (const draft of await this.recoveries()) {
+      const saved = await this.load(draft.documentId);
+      if (!saved) {
+        unresolved.push(draft);
+        continue;
+      }
+      if (sameValue(saved.screenplay, draft.screenplay)) {
+        await this.clearRecovery(draft.recoveryId, draft);
+        continue;
+      }
+      const base =
+        draft.baseScreenplay ||
+        (draft.baseRevision === saved.revision
+          ? saved.screenplay
+          : (await this.snapshots(saved.id)).find(
+              (s) => s.revision === draft.baseRevision,
+            )?.screenplay);
+      if (!base) {
+        unresolved.push(draft);
+        continue;
+      }
+      const merged = mergeScreenplays(base, saved.screenplay, draft.screenplay);
+      if (merged.conflicts.length) {
+        unresolved.push({ ...draft, baseScreenplay: base });
+        continue;
+      }
+      try {
+        await this.save(
+          { ...saved, screenplay: merged.value },
+          saved.revision,
+          { baseScreenplay: saved.screenplay, checkpoint: true },
+        );
+        await this.clearRecovery(draft.recoveryId, draft);
+      } catch (error) {
+        if (!(error instanceof StorageError) || error.code !== "CONFLICT")
+          throw error;
+        unresolved.push({ ...draft, baseScreenplay: base });
+      }
+    }
+    return unresolved;
+  }
+  async clearRecovery(
+    id: string,
+    expected?: Pick<Recovery, "updatedAt" | "screenplay">,
+  ): Promise<void> {
     try {
       const db = await this.db();
       const tx = db.transaction(["recovery", "tabRecovery"], "readwrite");
       const completion = done(tx);
-      tx.objectStore("recovery").delete(id);
-      tx.objectStore("tabRecovery").delete(id);
+      for (const store of ["recovery", "tabRecovery"]) {
+        const current = (await request(tx.objectStore(store).get(id))) as
+          Recovery | undefined;
+        if (
+          !expected ||
+          (current?.updatedAt === expected.updatedAt &&
+            sameValue(current.screenplay, expected.screenplay))
+        )
+          tx.objectStore(store).delete(id);
+      }
       await completion;
     } catch (e) {
       throw storageError(e);

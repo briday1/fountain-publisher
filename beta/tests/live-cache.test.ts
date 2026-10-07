@@ -27,3 +27,46 @@ it("restores and compacts incremental insertions and deletions with account isol
   doc.destroy();
   restored.destroy();
 });
+it("keeps unresolved reviews through reload and another same-account tab until a reviewed merge is committed", async () => {
+  const doc = new Y.Doc();
+  doc.getText("script").insert(0, "Device writing");
+  const input = {
+    fileId: "pending-file",
+    accountId: "writer-a",
+    name: "Draft.fountain",
+    canEdit: true,
+    state: Y.encodeStateAsUpdate(doc),
+    baseContent: "Original writing",
+    roomVersion: "old",
+    needsMerge: true,
+  };
+  await saveLiveCache(input);
+  await saveLiveCache({
+    ...input,
+    state: new Uint8Array([0, 0]),
+    baseContent: "New cloud writing",
+    roomVersion: "new",
+    needsMerge: false,
+  });
+  const pending = await loadLiveCache(input.fileId, input.accountId);
+  expect(pending).toMatchObject({
+    needsMerge: true,
+    roomVersion: "old",
+    baseContent: "Original writing",
+  });
+  await saveLiveCache(
+    {
+      ...input,
+      baseContent: "New cloud writing",
+      roomVersion: "new",
+      needsMerge: false,
+    },
+    true,
+  );
+  expect(await loadLiveCache(input.fileId, input.accountId)).toMatchObject({
+    needsMerge: false,
+    roomVersion: "new",
+    baseContent: "New cloud writing",
+  });
+  doc.destroy();
+});

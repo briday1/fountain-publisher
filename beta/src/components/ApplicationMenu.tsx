@@ -187,6 +187,7 @@ export function ApplicationMenu({
     "Save",
     "Save As…",
     "Version history…",
+    "Review changes…",
     "Export…",
   ];
   const files = fileLabels.map((label) =>

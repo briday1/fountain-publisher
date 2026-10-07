@@ -2,6 +2,9 @@ import { writingFonts, loadWritingFont } from "./core/writingFonts";
 import { Bookmarks } from "./components/Bookmarks";
 import { SceneOutline } from "./components/SceneOutline";
 import { VersionReview } from "./components/VersionReview";
+import { MergeReview } from "./components/MergeReview";
+import { WritingReview } from "./components/WritingReview";
+import { mergeScreenplays, type MergeChoice } from "./core/merge";
 import { DocumentStatusBar } from "./components/DocumentStatusBar";
 import { LibrarySharing } from "./components/LibrarySharing";
 import { cloudRequest } from "./storage/writeshapeLibrary";
@@ -89,6 +92,7 @@ import { LiveClient } from "./collaboration/LiveClient";
 import type { LiveStatus } from "./collaboration/LiveClient";
 import {
   readSharedDocument,
+  replaceSharedDocument,
   validateSharedDocument,
 } from "./collaboration/sharedDocument";
 import { EditorSurface } from "./components/EditorSurface";
@@ -293,11 +297,9 @@ export default function App() {
     if (!isWriteShape || !libraryMode) return;
     let active = true;
     void (async () => {
-      await session?.flush();
-      const [drafts, recoveries] = await Promise.all([
-        workspace.list(),
-        workspace.recoveries(),
-      ]);
+      await session?.flush().catch(() => {});
+      const recoveries = await workspace.reconcileRecoveries();
+      const drafts = await workspace.list();
       if (active) {
         setLibrary(drafts);
         setRecoveries(recoveries);
@@ -361,6 +363,16 @@ export default function App() {
     token: { id: string; epoch: number };
   }>();
   const [recoveries, setRecoveries] = useState<Recovery[]>([]);
+  const [recoveryReview, setRecoveryReview] = useState<{
+    draft: Recovery;
+    saved: WorkspaceDocument;
+    token?: { id: string; epoch: number };
+  }>();
+  const [writingReview, setWritingReview] = useState<{
+    fileId: string;
+    bufferId: string;
+    client?: LiveClient;
+  }>();
   const [rename, setRename] = useState("");
   const editor = useRef<EditorController | null>(null);
   const file = useRef<FileHandle | undefined>(undefined);
@@ -552,10 +564,10 @@ export default function App() {
         warning = errorMessage(error);
       }
       try {
+        const drafts = await workspace.reconcileRecoveries();
         const id = tabDocumentId || workspace.getActiveId();
         if (id) initial = await workspace.load(id);
         if (!initial) initial = migrated;
-        const drafts = await workspace.recoveries();
         if (live) setRecoveries(drafts);
       } catch (e) {
         warning = errorMessage(e);
@@ -1168,9 +1180,9 @@ export default function App() {
     requestAnimationFrame(() => editor.current?.focusBlock(id));
   }
   async function listWorkspace() {
-    await session?.flush();
+    await session?.flush().catch(() => {});
+    setRecoveries(await workspace.reconcileRecoveries());
     setLibrary(await workspace.list());
-    setRecoveries(await workspace.recoveries());
     if (isWriteShape) {
       setFileTab("local");
       setLibraryMode("open");
@@ -1181,6 +1193,85 @@ export default function App() {
     await session.flush();
     setHistory(await workspace.snapshots(session.current.id));
     setDialog("history");
+  }
+  function reviewWriting() {
+    const buffer = documentWorkspace.current?.activeBuffer;
+    const destination = buffer?.snapshot.destination;
+    if (!buffer || !destination || destination.provider === "local") {
+      void run(async () => {
+        const drafts = await workspace.reconcileRecoveries();
+        setRecoveries(drafts);
+        const draft = drafts.find((r) => r.documentId === session?.current.id);
+        if (draft) await reviewUnsynced(draft);
+        else await listHistory();
+      });
+      return;
+    }
+    setWritingReview({
+      fileId: `${destination.provider === "drive" ? "drive" : "library"}_${destination.id}`,
+      bufferId: buffer.snapshot.id,
+      client: buffer.live,
+    });
+  }
+  async function reviewUnsynced(draft: Recovery) {
+    const saved = await workspace.load(draft.documentId);
+    if (!saved) {
+      const restored = await workspace.importDraft({
+        id: draft.documentId,
+        name:
+          draft.screenplay.metadata.format === "markdown"
+            ? "Untitled.md"
+            : "Untitled.fountain",
+        screenplay: draft.screenplay,
+      });
+      await session?.open(
+        restored.screenplay,
+        restored.name,
+        restored.remote,
+        restored,
+      );
+      await workspace.clearRecovery(draft.recoveryId);
+      setRecoveries(await workspace.reconcileRecoveries());
+      return;
+    }
+    const active = session?.current.id === draft.documentId;
+    setRecoveryReview({
+      saved,
+      draft: active
+        ? { ...draft, screenplay: session!.capture().screenplay }
+        : draft,
+      token: active ? session!.token() : undefined,
+    });
+  }
+  async function saveUnsynced(screenplay: Screenplay) {
+    if (!recoveryReview) return;
+    const { saved, draft, token } = recoveryReview;
+    if (token && session?.current.id === saved.id) {
+      const live = documentWorkspace.current?.activeBuffer?.live;
+      if (live) {
+        session.assertCurrent(token);
+        const merged = mergeScreenplays(
+          saved.screenplay,
+          readSharedDocument(live.doc),
+          screenplay,
+        );
+        if (merged.conflicts.length)
+          throw new Error(
+            "The document changed during review. Refresh the review to keep the new writing.",
+          );
+        replaceSharedDocument(live.doc, merged.value);
+        await live.checkpoint();
+        await session.flush();
+      } else await session.commitMerged(screenplay, token, saved.revision);
+    } else
+      await workspace.save({ ...saved, screenplay }, saved.revision, {
+        checkpoint: true,
+      });
+    await workspace.clearRecovery(draft.recoveryId, draft);
+    setRecoveries(await workspace.reconcileRecoveries());
+    setLibrary(await workspace.list());
+    setRecoveryReview(undefined);
+    tell("Changes merged. Your writing is saved.");
   }
   async function openWriteShapeLive(liveId: string) {
     const model = documentWorkspace.current;
@@ -1639,28 +1730,21 @@ export default function App() {
       </div>
       {recoveries.length > 0 && (
         <div className="recovery-list">
-          <h3>Recovery drafts</h3>
+          <h3>Changes to review</h3>
+          <p>
+            These passages overlap. Review them to finish merging your writing.
+          </p>
           {recoveries.map((r) => (
             <div key={r.recoveryId}>
               <span>{new Date(r.updatedAt).toLocaleString()}</span>
               <button
                 onClick={() =>
                   void run(async () => {
-                    await session.open(
-                      r.screenplay,
-                      r.screenplay.metadata.format === "markdown"
-                        ? "Recovered document.md"
-                        : "Recovered screenplay.fountain",
-                    );
-                    await workspace.clearRecovery(r.recoveryId);
-                    setRecoveries(await workspace.recoveries());
-                    file.current = undefined;
-                    setDialog(null);
-                    if (isWriteShape) setLibraryMode(null);
+                    await reviewUnsynced(r);
                   })
                 }
               >
-                Open as a new copy
+                Review changes
               </button>
               <button
                 onClick={() =>
@@ -1931,6 +2015,9 @@ export default function App() {
             <MenuItem onClick={() => void run(listHistory)}>
               Version history…
             </MenuItem>
+            {isWriteShape && (
+              <MenuItem onClick={reviewWriting}>Review changes…</MenuItem>
+            )}
             <hr />
             {isWriteShape ? (
               <>
@@ -2660,6 +2747,7 @@ export default function App() {
           <DocumentStatusBar
             model={documentWorkspace.current}
             collaborationAvailable={!!account.state.collaborationAvailable}
+            onReview={reviewWriting}
             onFiles={(mode) => {
               setFileTab(
                 documentWorkspace.current?.activeBuffer?.snapshot.destination
@@ -2823,7 +2911,7 @@ export default function App() {
           className="recovery-banner"
           onClick={() => void run(listWorkspace)}
         >
-          Recovered writing is available · Open files
+          Some changes overlap · Review in Files
         </button>
       )}
       {dialog === "annotations" && (
@@ -3352,6 +3440,59 @@ export default function App() {
           </div>
         </Modal>
       )}
+      {writingReview && (
+        <WritingReview
+          fileId={writingReview.fileId}
+          client={writingReview.client}
+          onClose={() => setWritingReview(undefined)}
+          onMerged={async () => {
+            if (writingReview.client) {
+              writingReview.client.retrySync();
+              return;
+            }
+            await documentWorkspace.current?.startLive(
+              writingReview.bufferId,
+              true,
+            );
+          }}
+        />
+      )}
+      {recoveryReview &&
+        (recoveryReview.draft.baseScreenplay ? (
+          <MergeReview
+            conflicts={
+              mergeScreenplays(
+                recoveryReview.draft.baseScreenplay,
+                recoveryReview.saved.screenplay,
+                recoveryReview.draft.screenplay,
+              ).conflicts
+            }
+            currentLabel="Saved writing"
+            incomingLabel="Writing from this device"
+            onClose={() => setRecoveryReview(undefined)}
+            onSave={async (choices: Record<string, MergeChoice>) => {
+              const merged = mergeScreenplays(
+                recoveryReview.draft.baseScreenplay!,
+                recoveryReview.saved.screenplay,
+                recoveryReview.draft.screenplay,
+                choices,
+              );
+              await saveUnsynced(merged.value);
+            }}
+          />
+        ) : (
+          <VersionReview
+            older={serializeDocument(recoveryReview.draft.screenplay)}
+            current={serializeDocument(recoveryReview.saved.screenplay)}
+            olderLabel="Writing from this device"
+            onClose={() => setRecoveryReview(undefined)}
+            onSave={async (content) => {
+              await saveUnsynced(
+                importScreenplay(content, recoveryReview.saved.name).screenplay,
+              );
+            }}
+          />
+        ))}
       {historyReview && (
         <VersionReview
           novel={novel}
@@ -3361,10 +3502,17 @@ export default function App() {
           onClose={() => setHistoryReview(undefined)}
           onSave={async (content) => {
             const reviewed = importScreenplay(content, snapshot.name);
-            await session.commitReviewed(
-              reviewed.screenplay,
-              historyReview.token,
-            );
+            const live = documentWorkspace.current?.activeBuffer?.live;
+            if (live) {
+              session.assertCurrent(historyReview.token);
+              replaceSharedDocument(live.doc, reviewed.screenplay);
+              await live.checkpoint();
+              await session.flush();
+            } else
+              await session.commitReviewed(
+                reviewed.screenplay,
+                historyReview.token,
+              );
             setHistory(await workspace.snapshots(session.current.id));
             tell("Saved a new version. Earlier versions are kept.");
           }}

@@ -9,7 +9,15 @@ import { apiBase, cloud } from "../storage/cloud";
 import { encodeBytes, decodeBytes } from "./encoding";
 import { loadLiveCache, saveLiveCache } from "./cache";
 import type { CachedLiveDocument } from "./cache";
-import { readSharedDocument } from "./sharedDocument";
+import { readSharedDocument, replaceSharedDocument } from "./sharedDocument";
+import { importScreenplay } from "../core/fdx";
+import {
+  alignScreenplayIds,
+  mergeScreenplays,
+  type MergeChoice,
+  type MergeConflict,
+} from "../core/merge";
+import type { Screenplay } from "../core/model";
 import { serializeDocument } from "../core/documentFormat";
 export interface LiveIdentity {
   id: string;
@@ -26,7 +34,7 @@ export interface LiveBootstrap {
   name: string;
   remote: { provider: "google"; id: string; etag: string; live: true };
   self: LiveIdentity;
-  refresh?: { version: string; previousHash: string };
+  refresh?: { version: string; previousHash: string; previousContent?: string };
 }
 export interface LiveStatus {
   phase: "connecting" | "live" | "syncing" | "offline" | "readonly" | "paused";
@@ -91,6 +99,16 @@ export class LiveClient {
   private phase: LiveStatus["phase"] = "connecting";
   private roomVersion?: string;
   private refreshPending?: Promise<void>;
+  private baseContent?: string;
+  pendingMerge?: {
+    base: Screenplay;
+    current: Screenplay;
+    incoming: Screenplay;
+    conflicts: MergeConflict[];
+    state: Uint8Array;
+    version?: string;
+  };
+  hasCachedState = false;
   onStatus?: (status: LiveStatus) => void;
   onSaved?: (etag: string) => void;
   onPermission?: (canEdit: boolean) => void;
@@ -101,12 +119,14 @@ export class LiveClient {
     self: LiveIdentity;
     state: Uint8Array;
     roomVersion?: string;
+    baseContent?: string;
   }) {
     this.fileId = input.fileId;
     this.accountId = input.self.id;
     this.name = input.name;
     this.self = input.self;
     this.roomVersion = input.roomVersion;
+    this.baseContent = input.baseContent;
     Y.applyUpdate(this.doc, input.state, remoteOrigin);
     this.awareness.setLocalStateField("user", {
       id: this.self.id,
@@ -121,24 +141,60 @@ export class LiveClient {
     window.addEventListener("offline", this.offline);
   }
   static async prepare(bootstrap: LiveBootstrap): Promise<LiveClient> {
-    const cached = await loadLiveCache(bootstrap.remote.id, bootstrap.self.id);
+    const stored = await loadLiveCache(bootstrap.remote.id, bootstrap.self.id);
+    const cached =
+      stored?.accountId === bootstrap.self.id &&
+      stored.fileId === bootstrap.remote.id
+        ? stored
+        : undefined;
     const state = decodeBytes(bootstrap.state);
+    let pending: LiveClient["pendingMerge"];
     if (
       cached &&
-      bootstrap.refresh &&
-      cached.roomVersion !== bootstrap.refresh.version
+      cached.accountId === bootstrap.self.id &&
+      bootstrap.self.canEdit &&
+      (cached.needsMerge ||
+        (bootstrap.refresh && cached.roomVersion !== bootstrap.refresh.version))
     ) {
       const previous = new Y.Doc();
       try {
         Y.applyUpdate(previous, cached.state);
         const hash = await documentHash(previous);
         if (
-          hash !== bootstrap.refresh.previousHash &&
+          (cached.needsMerge || hash !== bootstrap.refresh?.previousHash) &&
           hash !== (await documentHashFromState(state))
-        )
-          throw new Error(
-            "The WriteShape file was updated while this device had a different live draft. Your writing is kept on this device; save a copy to preserve both versions.",
-          );
+        ) {
+          const content =
+            cached.baseContent || bootstrap.refresh?.previousContent;
+          if (!content)
+            throw new Error(
+              "The earlier saved version is unavailable. Review your device's writing before syncing.",
+            );
+          const current = readSharedDocument(previous);
+          const server = new Y.Doc();
+          try {
+            Y.applyUpdate(server, state);
+            const base = alignScreenplayIds(
+              current,
+              importScreenplay(content, bootstrap.name).screenplay,
+            );
+            const incoming = alignScreenplayIds(
+              base,
+              readSharedDocument(server),
+            );
+            const merged = mergeScreenplays(base, current, incoming);
+            pending = {
+              base,
+              current,
+              incoming,
+              conflicts: merged.conflicts,
+              state,
+              version: bootstrap.refresh?.version,
+            };
+          } finally {
+            server.destroy();
+          }
+        }
       } finally {
         previous.destroy();
       }
@@ -147,13 +203,24 @@ export class LiveClient {
       fileId: bootstrap.remote.id,
       name: bootstrap.name,
       self: bootstrap.self,
-      roomVersion: bootstrap.refresh?.version,
-      state:
-        cached?.accountId === bootstrap.self.id && bootstrap.self.canEdit
+      roomVersion: pending ? cached?.roomVersion : bootstrap.refresh?.version,
+      baseContent:
+        cached?.baseContent ||
+        (pending ? bootstrap.refresh?.previousContent : bootstrap.content),
+      state: pending
+        ? cached!.state
+        : cached?.accountId === bootstrap.self.id && bootstrap.self.canEdit
           ? Y.mergeUpdates([state, cached.state])
           : state,
     });
-    await client.persist(state);
+    if (pending) {
+      client.pendingMerge = pending;
+      if (pending.conflicts.length) {
+        client.pause("Some changes overlap. Review changes to finish syncing.");
+        await client.persist(new Uint8Array([0, 0]));
+      } else await client.resolveMerge({}, false);
+    } else await client.persist(state);
+    client.hasCachedState = !!cached;
     return client;
   }
   static async cached(
@@ -161,21 +228,21 @@ export class LiveClient {
     accountId: string,
   ): Promise<LiveClient | undefined> {
     const cached = await loadLiveCache(fileId, accountId);
-    return (
-      cached &&
-      new LiveClient({
-        fileId,
-        name: cached.name,
-        state: cached.state,
-        roomVersion: cached.roomVersion,
-        self: {
-          id: cached.accountId,
-          name: "You",
-          color: "#3478b9",
-          canEdit: cached.canEdit,
-        },
-      })
-    );
+    if (!cached || cached.accountId !== accountId || cached.fileId !== fileId)
+      return undefined;
+    return new LiveClient({
+      fileId,
+      name: cached.name,
+      state: cached.state,
+      roomVersion: cached.roomVersion,
+      baseContent: cached.baseContent,
+      self: {
+        id: cached.accountId,
+        name: "You",
+        color: "#3478b9",
+        canEdit: cached.canEdit,
+      },
+    });
   }
   private updated = (update: Uint8Array, origin: unknown) => {
     // Persist incremental updates, never encode the whole document in a keystroke.
@@ -190,7 +257,7 @@ export class LiveClient {
         void this.flushUpdates();
       }, 35);
   };
-  private persist(update: Uint8Array) {
+  private persist(update: Uint8Array, resolvedMerge = false) {
     this.persistTail = this.persistTail
       .catch(() => {})
       .then(async () => {
@@ -203,9 +270,11 @@ export class LiveClient {
           canEdit: this.self.canEdit,
           accountId: this.accountId,
           roomVersion: this.roomVersion,
+          baseContent: this.baseContent,
+          needsMerge: !!this.pendingMerge,
         };
         try {
-          await saveLiveCache(input);
+          await saveLiveCache(input, resolvedMerge);
           this.failedPersistence = [];
           if (this.cacheError && !this.terminal) {
             this.cacheError = "";
@@ -226,8 +295,68 @@ export class LiveClient {
     return this.persistTail;
   }
   start() {
+    if (this.pendingMerge) {
+      this.announce();
+      return;
+    }
     this.connect();
     this.announce();
+  }
+  get canCheckpoint() {
+    return this.connected && !this.terminal && this.self.canEdit;
+  }
+  retrySync() {
+    if (this.pendingMerge || this.disposed) return;
+    this.terminal = false;
+    this.cacheError = "";
+    this.retry = 0;
+    this.socket?.close();
+    this.socket = undefined;
+    this.start();
+  }
+  async mergeDeviceDraft(content: string, current: Screenplay) {
+    const incoming = readSharedDocument(this.doc);
+    const base = alignScreenplayIds(
+      incoming,
+      importScreenplay(content, this.name).screenplay,
+    );
+    current = alignScreenplayIds(base, current);
+    const merged = mergeScreenplays(base, current, incoming);
+    this.pendingMerge = {
+      base,
+      current,
+      incoming,
+      conflicts: merged.conflicts,
+      state: Y.encodeStateAsUpdate(this.doc),
+      version: this.roomVersion,
+    };
+    this.baseContent = content;
+    if (merged.conflicts.length) {
+      replaceSharedDocument(this.doc, current);
+      this.pause("Some changes overlap. Review changes to finish syncing.");
+      await this.persist(Y.encodeStateAsUpdate(this.doc));
+    } else await this.resolveMerge({}, false);
+  }
+  async resolveMerge(choices: Record<string, MergeChoice>, connect = true) {
+    const pending = this.pendingMerge;
+    if (!pending) return;
+    const merged = mergeScreenplays(
+      pending.base,
+      pending.current,
+      pending.incoming,
+      choices,
+    );
+    if (merged.conflicts.some((c) => !choices[c.id]))
+      throw new Error("Review every overlapping change before saving.");
+    Y.applyUpdate(this.doc, pending.state, remoteOrigin);
+    replaceSharedDocument(this.doc, merged.value);
+    this.baseContent = serializeDocument(pending.incoming);
+    this.roomVersion = pending.version;
+    this.pendingMerge = undefined;
+    this.terminal = false;
+    this.cacheError = "";
+    await this.persist(Y.encodeStateAsUpdate(this.doc), true);
+    if (connect) this.start();
   }
   private reconnect = () => {
     if (!this.disposed && !this.terminal) {
@@ -283,9 +412,42 @@ export class LiveClient {
               hash !== data.refresh.previousHash &&
               hash !== (await documentHashFromState(decodeBytes(data.state)))
             ) {
-              this.pause(
-                "The WriteShape file was updated while this device had a different live draft. Your writing is kept on this device; save a copy to preserve both versions.",
-              );
+              const source = this.baseContent || data.refresh.previousContent;
+              if (!source) {
+                this.pause(
+                  "The earlier saved version is unavailable. Review your device's writing before syncing.",
+                );
+                return;
+              }
+              const current = readSharedDocument(this.doc),
+                server = new Y.Doc();
+              try {
+                const state = decodeBytes(data.state);
+                Y.applyUpdate(server, state);
+                const base = alignScreenplayIds(
+                  current,
+                  importScreenplay(source, this.name).screenplay,
+                );
+                const incoming = alignScreenplayIds(
+                  base,
+                  readSharedDocument(server),
+                );
+                const merged = mergeScreenplays(base, current, incoming);
+                this.pendingMerge = {
+                  base,
+                  current,
+                  incoming,
+                  conflicts: merged.conflicts,
+                  state,
+                  version: data.refresh.version,
+                };
+                this.pause(
+                  "Some changes overlap. Review changes to finish syncing.",
+                );
+                if (!merged.conflicts.length) await this.resolveMerge({});
+              } finally {
+                server.destroy();
+              }
               return;
             }
             if (!this.disposed && this.socket === socket) this.receive(data);

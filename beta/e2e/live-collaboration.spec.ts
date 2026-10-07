@@ -17,8 +17,14 @@ import {
 import {
   createSharedDocument,
   readSharedDocument,
+  replaceSharedDocument,
 } from "../src/collaboration/sharedDocument";
 import { parseFountain, serializeFountain } from "../src/core/fountain";
+import {
+  emptyWritingReview,
+  recordWritingChanges,
+  undoWritingChange,
+} from "../src/core/changeReview";
 
 // Exercise the Linux keymap locally as well as the host platform in CI.
 const linuxKeys = process.env.TEST_LINUX_KEYS === "1";
@@ -64,6 +70,7 @@ class SharedDriveRoom {
   private sequence = 0;
   revision = 0;
   savedRevision = 0;
+  review = emptyWritingReview();
 
   constructor(fountain = source) {
     this.document = createSharedDocument(parseFountain(fountain));
@@ -174,6 +181,63 @@ class SharedDriveRoom {
       } else if (path === "/google/open") {
         json = { name: filename, content: this.content, remote: this.remote };
       } else if (
+        path === `/collaboration/${writeShape ? cloudRoomId : fileId}/review`
+      ) {
+        this.review.sealedAt = Date.now();
+        json = {
+          screenplay: this.screenplay,
+          review: this.review,
+          revision: this.revision,
+          canEdit: person.canEdit,
+          name: filename,
+        };
+      } else if (
+        path === `/collaboration/${writeShape ? cloudRoomId : fileId}/undo`
+      ) {
+        if (!person.canEdit) {
+          await route.fulfill({ status: 403, json: { error: "View only" } });
+          return;
+        }
+        const input = route.request().postDataJSON(),
+          change = this.review.changes.find((c) => c.id === input.id)!;
+        const merged = undoWritingChange(
+          this.screenplay,
+          change,
+          input.choices,
+        );
+        if (merged.conflicts.some((c) => !input.choices?.[c.id])) {
+          await route.fulfill({
+            status: 409,
+            json: {
+              code: "REVIEW_CONFLICT",
+              conflicts: merged.conflicts,
+              revision: this.revision,
+            },
+          });
+          return;
+        }
+        const before = this.screenplay,
+          vector = Y.encodeStateVector(this.document);
+        replaceSharedDocument(this.document, merged.value);
+        this.review = recordWritingChanges(
+          this.review,
+          before,
+          this.screenplay,
+          person,
+          Date.now(),
+          "undo",
+          change.id,
+        );
+        this.review.changes.find((c) => c.id === change.id)!.undoneBy =
+          this.review.changes.at(-1)!.id;
+        this.revision++;
+        this.broadcast({
+          type: "update",
+          update: encode(Y.encodeStateAsUpdate(this.document, vector)),
+          revision: this.revision,
+        });
+        json = { undone: true, revision: this.revision };
+      } else if (
         path === `/collaboration/${writeShape ? cloudRoomId : fileId}/bootstrap`
       ) {
         json = {
@@ -281,7 +345,16 @@ class SharedDriveRoom {
   private apply(connection: Connection, message: Update) {
     const key = `${connection.clientId}:${message.id}`;
     if (!this.processed.has(key)) {
+      const before = this.screenplay;
       Y.applyUpdate(this.document, decode(message.update));
+      this.review = recordWritingChanges(
+        this.review,
+        before,
+        this.screenplay,
+        connection.person,
+        Date.now(),
+        connection.connectionId,
+      );
       this.processed.add(key);
       this.revision++;
       this.broadcast(
@@ -652,6 +725,126 @@ async function downloadedFountain(page: Page) {
   expect(file.suggestedFilename()).toMatch(/\.fountain$/);
   return readFile((await file.path())!, "utf8");
 }
+
+base(
+  "WriteShape review shows passage writers and times, supports individual undo, and fits every theme on mobile",
+  async ({ browser }, testInfo) => {
+    const room = new SharedDriveRoom(),
+      contexts: BrowserContext[] = [];
+    try {
+      const pages: Page[] = [];
+      for (const person of [people.alice, people.bob, people.viewer]) {
+        const context = await browser.newContext({
+          viewport: { width: 390, height: 844 },
+          serviceWorkers: "block",
+        });
+        contexts.push(context);
+        await room.install(context, person, true);
+        const page = await context.newPage();
+        pages.push(page);
+        await page.goto(`/?live=library_${fileId}`);
+        await expect(editor(page)).toContainText("The radio waits.");
+        await expect(page.locator(".document-save-label")).toContainText(
+          person.canEdit ? "Saved to WriteShape" : "view only",
+        );
+      }
+      const [alice, bob, viewer] = pages;
+      await editor(alice).locator('p[data-kind="action"]').first().click();
+      await alice.keyboard.press("Home");
+      await alice.keyboard.insertText("Alice's opening. ");
+      await expect(editor(bob)).toContainText("Alice's opening.");
+      await editor(bob).locator('p[data-kind="action"]').last().click();
+      await bob.keyboard.press("End");
+      await bob.keyboard.insertText(" Bob's ending.");
+      await expect(editor(alice)).toContainText("Bob's ending.");
+      const review = async (page: Page) => {
+        await page.getByRole("button", { name: "File", exact: true }).click();
+        await page
+          .getByRole("button", { name: "Review changes…", exact: true })
+          .click();
+        return page.getByRole("dialog", {
+          name: "Review changes",
+          exact: true,
+        });
+      };
+      const dialog = await review(alice);
+      await expect(
+        dialog
+          .locator(".writing-change-card")
+          .filter({ hasText: "Alice Writer" }),
+      ).toHaveCount(1);
+      await expect(
+        dialog
+          .locator(".writing-change-card")
+          .filter({ hasText: "Bob Writer" }),
+      ).toHaveCount(1);
+      await expect(dialog.locator(".writing-passage-authors")).toContainText([
+        "Alice Writer",
+        "Bob Writer",
+      ]);
+      await expect(dialog.locator("time").first()).toHaveAttribute(
+        "datetime",
+        /T/,
+      );
+      for (const theme of [
+        "light",
+        "dark",
+        "solarized-light",
+        "solarized-dark",
+        "sepia",
+        "sage",
+        "rose",
+        "dusk",
+        "ocean",
+      ]) {
+        await alice.evaluate(
+          (theme) => document.documentElement.setAttribute("data-theme", theme),
+          theme,
+        );
+        expect(
+          await dialog.evaluate(
+            (el) => el.getBoundingClientRect().right <= innerWidth,
+          ),
+        ).toBe(true);
+        expect(
+          await dialog
+            .locator(".writing-review-paper")
+            .evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
+        ).toBe(true);
+        await alice.screenshot({
+          path: testInfo.outputPath(`writing-review-${theme}.png`),
+        });
+      }
+      await dialog
+        .locator(".writing-change-card")
+        .filter({ hasText: "Alice Writer" })
+        .getByRole("button", { name: "Undo this change", exact: true })
+        .click();
+      await expect(dialog).toContainText("Change undone.");
+      await dialog
+        .getByRole("button", { name: "Close dialog", exact: true })
+        .click();
+      await expect(editor(bob)).not.toContainText("Alice's opening.");
+      await expect(editor(alice)).toContainText("Bob's ending.");
+      expect(
+        await alice
+          .locator("footer.statusbar")
+          .evaluate((el) => el.getBoundingClientRect().height),
+      ).toBe(36);
+      const reader = await review(viewer);
+      await expect(
+        reader
+          .locator(".writing-change-card")
+          .filter({ hasText: "Bob Writer" })
+          .getByRole("button", { name: "Undo this change", exact: true }),
+      ).toBeDisabled();
+      expect(room.unexpectedMessages).toEqual([]);
+    } finally {
+      await Promise.all(contexts.map((c) => c.close()));
+      room.destroy();
+    }
+  },
+);
 
 test("shared Drive writers converge concurrent edits, retain local undo, and keep presence out of Fountain", async ({
   room,

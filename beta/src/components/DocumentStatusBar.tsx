@@ -61,11 +61,13 @@ export function DocumentStatusBar({
   collaborationAvailable,
   onFiles,
   onShare,
+  onReview,
 }: {
   model: DocumentWorkspace;
   collaborationAvailable: boolean;
   onFiles: (mode: "open" | "save") => void;
   onShare?: () => void;
+  onReview?: () => void;
 }) {
   const [copiedFor, setCopiedFor] = useState<string | null>(null);
   const [copyError, setCopyError] = useState("");
@@ -165,6 +167,9 @@ export function DocumentStatusBar({
                   <p>Device recovery copy needs attention.</p>
                 )}
               </div>
+              {onReview && (
+                <MenuItem onClick={onReview}>Review changes…</MenuItem>
+              )}
               {!buffer.live && buffer.liveStatus?.phase === "paused" && (
                 <MenuItem
                   disabled={buffer.joiningLive}

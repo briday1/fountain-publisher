@@ -333,6 +333,34 @@ it("WriteShape accounts collaborate on a Book through real D1, Worker and durabl
     expect(stored.content).toContain("Owner concurrent.");
     expect(stored.content).toContain("Writer concurrent.");
     expect(stored.content).not.toContain("Forbidden");
+    const reviewResponse = await call("viewer", path + "/review");
+    expect(reviewResponse.status).toBe(200);
+    const reviewData = (await reviewResponse.json()) as any;
+    expect(reviewData.canEdit).toBe(false);
+    expect(
+      new Set(reviewData.review.changes.map((c: any) => c.author.id)),
+    ).toEqual(new Set(["owner", "writer"]));
+    expect(JSON.stringify(reviewData)).not.toContain(tokens.owner);
+    expect((await call("stranger", path + "/review")).status).toBe(404);
+    expect(
+      (await call("writer", `/api/collaboration/library_${other}/review`))
+        .status,
+    ).toBe(404);
+    const ownerChange = reviewData.review.changes.find(
+      (c: any) => c.author.id === "owner",
+    );
+    const undo = { id: ownerChange.id, updatedAt: ownerChange.updatedAt };
+    expect((await call("viewer", path + "/undo", undo)).status).toBe(403);
+    const undone = await call("owner", path + "/undo", undo);
+    expect(undone.status, await undone.clone().text()).toBe(200);
+    expect((await call("owner", path + "/undo", undo)).status).toBe(200);
+    await call("owner", path + "/checkpoint", {});
+    const afterUndo = await db
+      .prepare("SELECT content FROM items WHERE id=?")
+      .bind(id)
+      .first<any>();
+    expect(afterUndo.content).not.toContain("Owner concurrent.");
+    expect(afterUndo.content).toContain("Writer concurrent.");
     // Actual LiveClient + IndexedDB implementation over real workerd sockets.
     // Only the browser transport and IndexedDB engine are adapted for Node.
     const { indexedDB, IDBKeyRange } = await import("fake-indexeddb");

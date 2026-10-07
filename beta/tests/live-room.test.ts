@@ -12,7 +12,10 @@ import {
 import type { LiveRoomContext, LiveSocket } from "../cloudflare/liveRoom";
 import type { LiveEnvironment } from "../cloudflare/liveDrive";
 import { parseFountain } from "../src/core/fountain";
-import { readSharedDocument } from "../src/collaboration/sharedDocument";
+import {
+  readSharedDocument,
+  replaceSharedDocument,
+} from "../src/collaboration/sharedDocument";
 
 const FILE = "drive_file_1234567890";
 const originalId = "a".repeat(48);
@@ -184,7 +187,13 @@ function fixture(refreshIdleRoom = false) {
   ) =>
     room.fetch(
       new Request(`https://room.internal/${route}?fileId=${fileId}`, {
-        method: ["bootstrap", "checkpoint", "plain-save"].includes(route)
+        method: [
+          "bootstrap",
+          "checkpoint",
+          "plain-save",
+          "undo",
+          "merge",
+        ].includes(route)
           ? "POST"
           : "GET",
         headers: {
@@ -438,7 +447,7 @@ describe("structured live room durability and authorization", () => {
     stale.destroy();
   });
 
-  it("does not refresh an active or uncheckpointed WriteShape room over newer cloud content", async () => {
+  it("automatically merges compatible saved changes into active and uncheckpointed WriteShape rooms", async () => {
     for (const dirty of [false, true]) {
       const f = fixture(true);
       const doc = client((await bootstrap(f)).state);
@@ -448,7 +457,7 @@ describe("structured live room durability and authorization", () => {
         socket.close();
       }
       f.external("INT. ROOM - DAY\n\nSeparate cloud draft.\n");
-      expect((await f.request("bootstrap")).status).toBe(409);
+      expect((await f.request("bootstrap")).status).toBe(200);
       expect(f.writes).toBe(0);
       const recovery = (await (await f.request("recovery")).json()) as any;
       expect(recovery.driveContent).toContain("Separate cloud draft.");
@@ -456,6 +465,137 @@ describe("structured live room durability and authorization", () => {
         expect(recovery.content).toContain("Uncheckpointed live draft.");
       doc.destroy();
     }
+  });
+
+  it("records trusted writers durably, lets readers review, and undoes one change without losing another writer's writing", async () => {
+    const f = fixture(true),
+      doc = client((await bootstrap(f)).state);
+    const alice = f.connect("alice", doc);
+    await f.room.webSocketMessage(
+      alice,
+      JSON.stringify({
+        type: "update",
+        id: 1,
+        update: encodeBytes(write(doc, "Alice's opening. ")),
+        author: { id: "forged", name: "Fake Author" },
+        at: 1,
+      }),
+    );
+    const first = (await (await f.request("review", "viewer")).json()) as any;
+    expect(first.canEdit).toBe(false);
+    expect(first.review.changes[0].author).toMatchObject({
+      id: "alice",
+      name: "ALICE",
+    });
+    expect(first.review.changes[0].at).toBeGreaterThan(1);
+    const bob = f.connect("bob", doc);
+    await send(
+      f.room,
+      bob,
+      write(
+        doc,
+        " Bob's ending.",
+        doc
+          .getXmlFragment("script")
+          .get(1)
+          .toString()
+          .replace(/<[^>]*>/g, "").length,
+      ),
+    );
+    const id = first.review.changes[0].id,
+      updatedAt = first.review.changes[0].updatedAt;
+    expect((await f.request("undo", "viewer", { id, updatedAt })).status).toBe(
+      403,
+    );
+    f.restart();
+    const restored = (await (await f.request("review", "bob")).json()) as any;
+    expect(restored.review.changes).toHaveLength(2);
+    expect((await f.request("undo", "bob", { id, updatedAt })).status).toBe(
+      200,
+    );
+    const result = (await (await f.request("review", "bob")).json()) as any;
+    const text = result.screenplay.blocks.map((b: any) => b.text).join(" ");
+    expect(text).not.toContain("Alice's opening.");
+    expect(text).toContain("Bob's ending.");
+    expect(
+      result.review.changes.find((c: any) => c.id === id).undoneBy,
+    ).toBeTruthy();
+    const revision = result.revision;
+    expect((await f.request("undo", "bob", { id, updatedAt })).status).toBe(
+      200,
+    );
+    expect(
+      ((await (await f.request("review", "bob")).json()) as any).revision,
+    ).toBe(revision);
+    f.permissions.set("bob", "none");
+    expect((await f.request("review", "bob")).status).toBe(401);
+    doc.destroy();
+  });
+
+  it("never broadcasts or records an undo before its state is durable", async () => {
+    const f = fixture(true),
+      doc = client((await bootstrap(f)).state),
+      socket = f.connect("alice", doc);
+    await send(f.room, socket, write(doc, "Opening. "));
+    const before = (await (await f.request("review")).json()) as any;
+    const change = before.review.changes[0],
+      messages = socket.messages.length;
+    f.storage.failNextTransaction = true;
+    expect(
+      (
+        await f.request("undo", "alice", {
+          id: change.id,
+          updatedAt: change.updatedAt,
+        })
+      ).status,
+    ).toBe(503);
+    expect(socket.messages).toHaveLength(messages);
+    f.restart();
+    const after = (await (await f.request("review")).json()) as any;
+    expect(after.screenplay).toEqual(before.screenplay);
+    expect(after.review.changes).toEqual(before.review.changes);
+    doc.destroy();
+  });
+
+  it("reviews genuine overlaps with a separately saved file and rejects stale decisions", async () => {
+    const f = fixture(true),
+      doc = client((await bootstrap(f)).state),
+      socket = f.connect("alice", doc);
+    let update!: Uint8Array;
+    doc.once("update", (value) => (update = value));
+    const changed = readSharedDocument(doc);
+    changed.blocks[1].text = "A live writer answers.";
+    replaceSharedDocument(doc, changed);
+    await send(f.room, socket, update);
+    f.external("INT. ROOM - DAY\n\nA saved writer answers.\n");
+    expect((await f.request("bootstrap")).status).toBe(409);
+    const review = (await (await f.request("review")).json()) as any;
+    expect(review.merge.conflicts.length).toBeGreaterThan(0);
+    const choices = Object.fromEntries(
+      review.merge.conflicts.map((c: any) => [c.id, "current"]),
+    );
+    expect(
+      (
+        await f.request("merge", "alice", {
+          choices,
+          revision: review.revision - 1,
+          etag: review.merge.etag,
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await f.request("merge", "alice", {
+          choices,
+          revision: review.revision,
+          etag: review.merge.etag,
+        })
+      ).status,
+    ).toBe(200);
+    await f.room.alarm();
+    expect(f.content).toContain("A live writer answers.");
+    expect((await bootstrap(f)).content).toContain("A live writer answers.");
+    doc.destroy();
   });
 
   it("recovers a committed upload with a lost response and safely checkpoints later edits", async () => {

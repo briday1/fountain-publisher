@@ -121,17 +121,18 @@ export class DocumentWorkspace {
           throw new Error(
             "The signed-in account changed. Your draft is preserved.",
           );
+        const deviceDraft = buffer.session.capture().screenplay;
+        client = await LiveClient.prepare(bootstrap);
         if (
           resume &&
-          serializeDocument(buffer.session.capture().screenplay) !==
-            bootstrap.content &&
-          serializeDocument(buffer.session.capture().screenplay) !==
-            currentDestination.baseContent
+          !client.hasCachedState &&
+          serializeDocument(deviceDraft) !== bootstrap.content &&
+          serializeDocument(deviceDraft) !== currentDestination.baseContent
         )
-          throw new Error(
-            "Your local draft differs from the live room. Save a copy before joining to preserve both versions.",
+          await client.mergeDeviceDraft(
+            currentDestination.baseContent,
+            deviceDraft,
           );
-        client = await LiveClient.prepare(bootstrap);
       }
       if (
         !this.buffers.has(bufferId) ||

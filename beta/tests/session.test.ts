@@ -103,6 +103,7 @@ it("keeps edits made while an asynchronous before-open hook finishes", async () 
   expect(repo.save).toHaveBeenCalledWith(
     expect.objectContaining({ screenplay: current }),
     null,
+    expect.objectContaining({ baseScreenplay: expect.any(Object) }),
   );
   expect(setDocument).not.toHaveBeenCalled();
   session.dispose();

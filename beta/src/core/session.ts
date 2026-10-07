@@ -4,6 +4,7 @@ import { workspace } from "../storage/workspace";
 import type { WorkspaceDocument } from "../storage/workspace";
 import type { WriteShapeDestination } from "../storage/destinations";
 import type { RemoteLocation } from "../storage/cloud";
+import { mergeScreenplays, sameValue } from "./merge";
 export interface SessionEditor {
   getDocument(base: Screenplay): Screenplay;
   setDocument(doc: Screenplay): void;
@@ -36,6 +37,8 @@ export class DocumentSession {
   private epoch = 0;
   private persistedEpoch = -1;
   private revisions = new Map<string, number | null>();
+  private bases = new Map<string, Screenplay>();
+  private baseNames = new Map<string, string>();
   private tail: Promise<void> = Promise.resolve();
   private timer?: ReturnType<typeof setTimeout>;
   private maximum?: ReturnType<typeof setTimeout>;
@@ -63,6 +66,8 @@ export class DocumentSession {
       "revision" in initial ? initial.revision : null,
     );
     this.persistedEpoch = "revision" in initial ? 0 : -1;
+    this.bases.set(initial.id, structuredClone(initial.screenplay));
+    this.baseNames.set(initial.id, initial.name);
   }
   get dirty() {
     return this.epoch !== this.persistedEpoch;
@@ -124,6 +129,8 @@ export class DocumentSession {
     const task = this.tail
       .catch(() => {})
       .then(async () => {
+        const baseScreenplay = this.bases.get(snapshot.id);
+        const baseRevision = this.revisions.get(snapshot.id) ?? undefined;
         try {
           const saved = await this.repository.save(
             {
@@ -134,18 +141,44 @@ export class DocumentSession {
               destination: snapshot.destination,
             },
             this.revisions.get(snapshot.id) ?? null,
+            { baseScreenplay, baseName: this.baseNames.get(snapshot.id) },
           );
           this.revisions.set(snapshot.id, saved.revision);
+          this.bases.set(snapshot.id, saved.screenplay);
+          this.baseNames.set(snapshot.id, saved.name);
           if (this.current.id === snapshot.id) {
+            if (this.current.name === snapshot.name)
+              this.current = { ...this.current, name: saved.name };
             this.persistedEpoch = snapshot.epoch;
+            if (!sameValue(saved.screenplay, snapshot.screenplay)) {
+              const latest = this.capture().screenplay;
+              const merged = mergeScreenplays(
+                snapshot.screenplay,
+                latest,
+                saved.screenplay,
+              );
+              if (!merged.conflicts.length) {
+                this.current = { ...this.current, screenplay: merged.value };
+                this.editor?.setDocument(merged.value);
+                this.onSnapshot(this.capture());
+              } else {
+                this.markChanged();
+                throw new Error(
+                  "Some changes overlap. Review the changes to finish merging.",
+                );
+              }
+            }
             if (this.epoch === snapshot.epoch) this.onStatus("saved");
           }
         } catch (error) {
           try {
             await this.repository.writeRecovery(
               snapshot.id,
-              snapshot.screenplay,
-              this.revisions.get(snapshot.id) ?? undefined,
+              this.current.id === snapshot.id
+                ? this.capture().screenplay
+                : snapshot.screenplay,
+              baseRevision,
+              baseScreenplay,
             );
           } catch {
             /* The original error is surfaced; memory still owns the draft. */
@@ -201,6 +234,8 @@ export class DocumentSession {
       };
       switched = true;
       this.revisions.set(this.current.id, saved?.revision ?? null);
+      this.bases.set(this.current.id, structuredClone(screenplay));
+      this.baseNames.set(this.current.id, name);
       this.repository.setActiveId(this.current.id);
       this.editor?.setDocument(screenplay);
       this.onOpenComplete?.();
@@ -248,6 +283,31 @@ export class DocumentSession {
     this.onSnapshot(this.capture());
   }
   /** A review never touches the session until every choice is resolved and Save is pressed. */
+  async commitMerged(
+    screenplay: Screenplay,
+    expected: { id: string; epoch: number },
+    revision: number,
+  ) {
+    clearTimeout(this.timer);
+    clearTimeout(this.maximum);
+    await this.tail.catch(() => {});
+    this.assertCurrent(expected);
+    const saved = await this.repository.save(
+      { ...this.current, screenplay },
+      revision,
+      { checkpoint: true },
+    );
+    this.assertCurrent(expected);
+    this.revisions.set(saved.id, saved.revision);
+    this.bases.set(saved.id, saved.screenplay);
+    this.baseNames.set(saved.id, saved.name);
+    this.epoch++;
+    this.persistedEpoch = this.epoch;
+    this.current = { ...this.current, ...saved, epoch: this.epoch };
+    this.editor?.setDocument(saved.screenplay);
+    this.onSnapshot(this.capture());
+    this.onStatus("saved");
+  }
   async commitReviewed(
     screenplay: Screenplay,
     expected: { id: string; epoch: number },
@@ -278,6 +338,8 @@ export class DocumentSession {
     )
       return false;
     this.revisions.set(saved.id, saved.revision);
+    this.bases.set(saved.id, saved.screenplay);
+    this.baseNames.set(saved.id, saved.name);
     this.epoch++;
     this.persistedEpoch = this.epoch;
     this.current = { ...this.current, ...saved, epoch: this.epoch };
@@ -312,6 +374,8 @@ export class DocumentSession {
       };
       switched = true;
       this.revisions.set(this.current.id, null);
+      this.bases.set(this.current.id, structuredClone(snapshot.screenplay));
+      this.baseNames.set(this.current.id, this.current.name);
       this.epoch++;
       this.persistedEpoch = -1;
       this.repository.setActiveId(this.current.id);

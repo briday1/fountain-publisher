@@ -2,6 +2,17 @@ import * as Y from "yjs";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import type { Screenplay } from "../src/core/model";
+import {
+  alignScreenplayIds,
+  mergeScreenplays,
+  type MergeChoice,
+} from "../src/core/merge";
+import {
+  emptyWritingReview,
+  recordWritingChanges,
+  undoWritingChange,
+  type WritingReview,
+} from "../src/core/changeReview";
 import { parseFountain, serializeFountain } from "../src/core/fountain";
 import {
   createSharedDocument,
@@ -238,6 +249,10 @@ export class LiveScreenplayRoom {
   private document: Y.Doc | null = null;
   private meta: RoomMeta | null = null;
   private chunks = 0;
+  private reviewChunks = 0;
+  private review: WritingReview = emptyWritingReview();
+  private checkpointContent?: string;
+  private refreshContent?: string;
   private queue: Promise<unknown> = Promise.resolve();
   private ready: Promise<void>;
 
@@ -323,6 +338,37 @@ export class LiveScreenplayRoom {
     this.document = document;
     this.meta = meta;
     this.chunks = layout.chunks;
+    const reviewLayout = await this.context.storage.get<{
+      chunks: number;
+      size: number;
+    }>("live-review-layout");
+    if (reviewLayout) {
+      if (
+        !Number.isSafeInteger(reviewLayout.size) ||
+        reviewLayout.size < 1 ||
+        reviewLayout.size > 24 * 1024 * 1024 ||
+        reviewLayout.chunks !== Math.ceil(reviewLayout.size / CHUNK_SIZE)
+      )
+        throw new Error("Invalid review storage");
+      const bytes = new Uint8Array(reviewLayout.size);
+      for (let i = 0; i < reviewLayout.chunks; i++) {
+        const part = await this.context.storage.get<Uint8Array>(
+          `live-review-${i}`,
+        );
+        if (
+          !part ||
+          part.byteLength !==
+            Math.min(CHUNK_SIZE, reviewLayout.size - i * CHUNK_SIZE)
+        )
+          throw new Error("Incomplete review storage");
+        bytes.set(new Uint8Array(part), i * CHUNK_SIZE);
+      }
+      const bundle = JSON.parse(new TextDecoder().decode(bytes));
+      this.review = bundle.review;
+      this.checkpointContent = bundle.checkpointContent;
+      this.refreshContent = bundle.refreshContent;
+      this.reviewChunks = reviewLayout.chunks;
+    }
   }
 
   private run<T>(operation: () => Promise<T>): Promise<T> {
@@ -422,10 +468,19 @@ export class LiveScreenplayRoom {
       this.document = null;
       this.meta = null;
       this.chunks = 0;
+      this.reviewChunks = 0;
+      this.review = emptyWritingReview();
+      this.checkpointContent = this.refreshContent = undefined;
     });
   }
 
-  private async persist(document: Y.Doc, meta: RoomMeta) {
+  private async persist(
+    document: Y.Doc,
+    meta: RoomMeta,
+    review = this.review,
+    checkpointContent = this.checkpointContent,
+    refreshContent = this.refreshContent,
+  ) {
     const state = Y.encodeStateAsUpdate(document);
     if (state.byteLength > MAX_STATE)
       throw new LiveError(
@@ -434,6 +489,16 @@ export class LiveScreenplayRoom {
         "The live document history is full. Save a new copy to continue.",
       );
     const chunks = Math.ceil(state.length / CHUNK_SIZE);
+    const reviewBytes = new TextEncoder().encode(
+      JSON.stringify({ review, checkpointContent, refreshContent }),
+    );
+    if (reviewBytes.length > 24 * 1024 * 1024)
+      throw new LiveError(
+        413,
+        "LIVE_TOO_LARGE",
+        "This document's review history is full. Your writing is kept.",
+      );
+    const reviewChunks = Math.ceil(reviewBytes.length / CHUNK_SIZE);
     await this.context.storage.transaction(async (storage) => {
       for (let index = 0; index < chunks; index++)
         await storage.put(
@@ -448,8 +513,68 @@ export class LiveScreenplayRoom {
         size: state.length,
       });
       await storage.put("live-meta", meta);
+      for (let i = 0; i < reviewChunks; i++)
+        await storage.put(
+          `live-review-${i}`,
+          reviewBytes.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE),
+        );
+      for (let i = reviewChunks; i < this.reviewChunks; i++)
+        await storage.delete(`live-review-${i}`);
+      await storage.put("live-review-layout", {
+        chunks: reviewChunks,
+        size: reviewBytes.length,
+      });
     });
     this.chunks = chunks;
+    this.reviewChunks = reviewChunks;
+    this.review = review;
+    this.checkpointContent = checkpointContent;
+    this.refreshContent = refreshContent;
+  }
+  private refresh() {
+    return (
+      this.meta?.refresh && {
+        ...this.meta.refresh,
+        ...(this.refreshContent
+          ? { previousContent: this.refreshContent }
+          : {}),
+      }
+    );
+  }
+  private mergeSaved(
+    content: string,
+    name: string,
+    choices: Record<string, MergeChoice> = {},
+  ) {
+    const current = readSharedDocument(this.document!);
+    const incoming = alignScreenplayIds(current, this.parse(content, name));
+    if (
+      !this.checkpointContent &&
+      this.meta!.revision !== this.meta!.savedRevision
+    ) {
+      return {
+        value: choices.document === "incoming" ? incoming : current,
+        conflicts: [
+          {
+            id: "document",
+            label: "Saved file and unsynced writing",
+            base: "",
+            current: this.content(this.document!),
+            incoming: content,
+          },
+        ],
+      };
+    }
+    const base = alignScreenplayIds(
+      current,
+      this.parse(this.checkpointContent || this.content(this.document!), name),
+    );
+    return mergeScreenplays(
+      base,
+      current,
+      alignScreenplayIds(base, incoming),
+      choices,
+    );
   }
 
   private async ensure(auth: LiveAuthorization) {
@@ -465,43 +590,84 @@ export class LiveScreenplayRoom {
         snapshot.hash !== this.meta.driveHash &&
         snapshot.hash !== this.meta.pending?.hash
       ) {
-        // Ordinary autosave can advance a cloud file after a live session ended.
-        // Only a fully checkpointed, idle room may adopt that newer saved file.
-        // A dirty room or an active writer still requires preserving both versions.
         if (
           !this.refreshIdleRoom ||
           !this.document ||
           this.meta.pending ||
-          this.meta.revision !== this.meta.savedRevision ||
-          this.context.getWebSockets().some((socket) => socket.readyState === 1)
+          (!this.checkpointContent &&
+            this.meta.revision !== this.meta.savedRevision)
         )
           throw new LiveError(
             409,
             "LIVE_CONFLICT",
-            `${auth.file.id.startsWith("library_") ? "The WriteShape file" : "Drive"} was changed outside this live room. Preserve both versions before continuing.`,
+            "Some saved changes need review before they can merge. Your writing is kept.",
           );
         const candidate = new Y.Doc();
         try {
           Y.applyUpdate(candidate, Y.encodeStateAsUpdate(this.document));
-          const previousHash = await contentHash(this.content(this.document));
-          replaceSharedDocument(
-            candidate,
+          const previousContent =
+            this.checkpointContent || this.content(this.document);
+          const before = readSharedDocument(this.document);
+          const base = alignScreenplayIds(
+            before,
+            this.parse(previousContent, auth.file.name),
+          );
+          const incoming = alignScreenplayIds(
+            base,
             this.parse(snapshot.content, auth.file.name),
           );
-          this.content(candidate, auth.file.name);
+          const merged = mergeScreenplays(base, before, incoming);
+          if (merged.conflicts.length)
+            throw new LiveError(
+              409,
+              "LIVE_CONFLICT",
+              "Some saved changes overlap. Review the changes to finish merging.",
+            );
+          const previousHash = await contentHash(this.content(this.document));
+          const vector = Y.encodeStateVector(this.document);
+          replaceSharedDocument(candidate, merged.value);
+          const candidateContent = this.content(candidate, auth.file.name);
+          const matchesSaved =
+            (await contentHash(candidateContent)) === snapshot.hash;
           const refreshed: RoomMeta = {
             ...this.meta,
             name: auth.file.name,
             etag: snapshot.etag,
             driveHash: snapshot.hash,
             revision: this.meta.revision + 1,
-            savedRevision: this.meta.revision + 1,
+            savedRevision: matchesSaved
+              ? this.meta.revision + 1
+              : this.meta.savedRevision,
+            checkpointCookie: auth.self.canEdit
+              ? auth.cookie
+              : this.meta.checkpointCookie,
             refresh: { version: crypto.randomUUID(), previousHash },
           };
-          await this.persist(candidate, refreshed);
+          const review = recordWritingChanges(
+            this.review,
+            before,
+            merged.value,
+            { id: "saved-version", name: "Saved version", color: "#58728a" },
+            Date.now(),
+            "saved-version",
+          );
+          await this.persist(
+            candidate,
+            refreshed,
+            review,
+            snapshot.content,
+            previousContent,
+          );
           this.document.destroy();
           this.document = candidate;
           this.meta = refreshed;
+          await this.broadcast({
+            type: "update",
+            update: encodeBytes(Y.encodeStateAsUpdate(candidate, vector)),
+            revision: refreshed.revision,
+          });
+          if (!matchesSaved && refreshed.checkpointCookie)
+            await this.context.storage.setAlarm(Date.now() + 2000);
         } catch (error) {
           candidate.destroy();
           throw error;
@@ -514,6 +680,17 @@ export class LiveScreenplayRoom {
         etag: snapshot.etag,
       };
       await this.context.storage.put("live-meta", this.meta);
+      if (
+        !this.checkpointContent &&
+        snapshot.hash === this.meta.driveHash &&
+        this.meta.revision === this.meta.savedRevision
+      )
+        await this.persist(
+          this.document!,
+          this.meta,
+          this.review,
+          snapshot.content,
+        );
       return;
     }
     await this.drive.verifyOriginalRoom(auth, snapshot.content);
@@ -532,7 +709,7 @@ export class LiveScreenplayRoom {
         driveHash: snapshot.hash,
         etag: snapshot.etag,
       };
-      await this.persist(document, meta);
+      await this.persist(document, meta, this.review, snapshot.content);
       this.document = document;
       this.meta = meta;
     } catch (error) {
@@ -568,6 +745,268 @@ export class LiveScreenplayRoom {
       request.headers.get("cookie") || "",
     );
     const authorizedAt = Date.now();
+    if (url.pathname === "/review" && request.method === "GET") {
+      let merge:
+        | {
+            conflicts: ReturnType<typeof mergeScreenplays>["conflicts"];
+            etag: string;
+          }
+        | undefined;
+      try {
+        await this.ensure(auth);
+      } catch (error) {
+        if (
+          !(error instanceof LiveError) ||
+          error.code !== "LIVE_CONFLICT" ||
+          !this.document ||
+          !this.meta
+        )
+          throw error;
+        const snapshot = await this.drive.snapshot(auth);
+        merge = {
+          conflicts: this.mergeSaved(snapshot.content, auth.file.name)
+            .conflicts,
+          etag: snapshot.etag,
+        };
+      }
+      const review = { ...this.review, sealedAt: Date.now() };
+      await this.persist(this.document!, this.meta!, review);
+      return json({
+        screenplay: readSharedDocument(this.document!),
+        review: {
+          changes: review.changes.map(
+            ({ connection: _connection, ...change }) => change,
+          ),
+          attribution: review.attribution,
+        },
+        revision: this.meta!.revision,
+        canEdit: auth.self.canEdit,
+        name: this.meta!.name,
+        merge,
+      });
+    }
+    if (url.pathname === "/merge" && request.method === "POST") {
+      if (!auth.self.canEdit)
+        throw new LiveError(
+          403,
+          "LIVE_READ_ONLY",
+          "You have view access to this document.",
+        );
+      let input: {
+        choices?: Record<string, MergeChoice>;
+        revision?: number;
+        etag?: string;
+      };
+      try {
+        input = JSON.parse(
+          await boundedText(new Response(request.body), 128 * 1024),
+        );
+      } catch {
+        throw new LiveError(
+          400,
+          "REVIEW_INVALID",
+          "Choose which changes to keep.",
+        );
+      }
+      if (
+        !this.document ||
+        !this.meta ||
+        !input ||
+        input.revision !== this.meta.revision ||
+        !input.choices ||
+        typeof input.choices !== "object" ||
+        Array.isArray(input.choices) ||
+        Object.values(input.choices).some(
+          (c) => c !== "current" && c !== "incoming",
+        )
+      )
+        throw new LiveError(
+          409,
+          "REVIEW_CHANGED",
+          "The document changed during review. Refresh the review to keep the new writing.",
+        );
+      const snapshot = await this.drive.snapshot(auth);
+      if (input.etag !== snapshot.etag)
+        throw new LiveError(
+          409,
+          "REVIEW_CHANGED",
+          "The saved file changed during review. Refresh the review.",
+        );
+      const merged = this.mergeSaved(
+        snapshot.content,
+        auth.file.name,
+        input.choices,
+      );
+      if (merged.conflicts.some((c) => !input.choices![c.id]))
+        throw new LiveError(
+          400,
+          "REVIEW_INVALID",
+          "Review every overlapping change before saving.",
+        );
+      const before = readSharedDocument(this.document),
+        vector = Y.encodeStateVector(this.document);
+      const candidate = new Y.Doc();
+      try {
+        Y.applyUpdate(candidate, Y.encodeStateAsUpdate(this.document));
+        replaceSharedDocument(candidate, merged.value);
+        this.content(candidate);
+        const review = recordWritingChanges(
+          this.review,
+          before,
+          merged.value,
+          auth.self,
+          Date.now(),
+          "reviewed-merge",
+        );
+        const meta = {
+          ...this.meta,
+          driveHash: snapshot.hash,
+          etag: snapshot.etag,
+          pending: null,
+          revision: this.meta.revision + 1,
+          checkpointCookie: auth.cookie,
+          refresh: {
+            version: crypto.randomUUID(),
+            previousHash: await contentHash(this.content(this.document)),
+          },
+        };
+        await this.context.storage.setAlarm(Date.now() + 2000);
+        await this.persist(
+          candidate,
+          meta,
+          review,
+          snapshot.content,
+          this.checkpointContent || this.content(this.document),
+        );
+        this.document.destroy();
+        this.document = candidate;
+        this.meta = meta;
+        await this.broadcast({
+          type: "update",
+          update: encodeBytes(Y.encodeStateAsUpdate(candidate, vector)),
+          revision: meta.revision,
+        });
+        return json({ merged: true, revision: meta.revision });
+      } catch (error) {
+        candidate.destroy();
+        throw error;
+      }
+    }
+    if (url.pathname === "/undo" && request.method === "POST") {
+      await this.ensure(auth);
+      if (!auth.self.canEdit)
+        throw new LiveError(
+          403,
+          "LIVE_READ_ONLY",
+          "You have view access to this document.",
+        );
+      let input: {
+        id?: unknown;
+        updatedAt?: unknown;
+        revision?: unknown;
+        choices?: Record<string, MergeChoice>;
+      };
+      try {
+        input = JSON.parse(
+          await boundedText(new Response(request.body), 128 * 1024),
+        );
+      } catch {
+        throw new LiveError(400, "REVIEW_INVALID", "Choose a change to undo.");
+      }
+      if (
+        !input ||
+        typeof input.id !== "string" ||
+        !Number.isSafeInteger(input.updatedAt) ||
+        (input.choices &&
+          (typeof input.choices !== "object" ||
+            Array.isArray(input.choices) ||
+            Object.values(input.choices).some(
+              (c) => c !== "current" && c !== "incoming",
+            )))
+      )
+        throw new LiveError(
+          400,
+          "REVIEW_INVALID",
+          "Choose a valid change to undo.",
+        );
+      const change = this.review.changes.find((c) => c.id === input.id);
+      if (!change)
+        throw new LiveError(
+          404,
+          "REVIEW_NOT_FOUND",
+          "This change is outside the recent undo history.",
+        );
+      if (change.undoneBy)
+        return json({ undone: true, revision: this.meta!.revision });
+      if (change.updatedAt !== input.updatedAt)
+        throw new LiveError(
+          409,
+          "REVIEW_CHANGED",
+          "This change has newer writing. Refresh the review before undoing.",
+        );
+      if (input.choices && input.revision !== this.meta!.revision)
+        throw new LiveError(
+          409,
+          "REVIEW_CHANGED",
+          "The document changed during review. Refresh the review to keep the new writing.",
+        );
+      const before = readSharedDocument(this.document!);
+      const merged = undoWritingChange(before, change, input.choices);
+      if (merged.conflicts.some((c) => !input.choices?.[c.id]))
+        return json(
+          {
+            code: "REVIEW_CONFLICT",
+            error: "Later writing overlaps this change. Choose what to keep.",
+            conflicts: merged.conflicts,
+            revision: this.meta!.revision,
+          },
+          409,
+        );
+      if (!merged.value.blocks.length)
+        merged.value.blocks.push({
+          id: crypto.randomUUID(),
+          kind: "action",
+          text: "",
+        });
+      const candidate = new Y.Doc();
+      try {
+        const vector = Y.encodeStateVector(this.document!);
+        Y.applyUpdate(candidate, Y.encodeStateAsUpdate(this.document!));
+        replaceSharedDocument(candidate, merged.value);
+        this.content(candidate);
+        const review = recordWritingChanges(
+          this.review,
+          before,
+          merged.value,
+          auth.self,
+          Date.now(),
+          `undo:${change.id}`,
+          change.id,
+        );
+        const original = review.changes.find((c) => c.id === change.id);
+        if (original)
+          original.undoneBy = review.changes.at(-1)?.id || crypto.randomUUID();
+        const meta = {
+          ...this.meta!,
+          revision: this.meta!.revision + 1,
+          checkpointCookie: auth.cookie,
+        };
+        await this.context.storage.setAlarm(Date.now() + 2000);
+        await this.persist(candidate, meta, review);
+        this.document!.destroy();
+        this.document = candidate;
+        this.meta = meta;
+        await this.broadcast({
+          type: "update",
+          update: encodeBytes(Y.encodeStateAsUpdate(candidate, vector)),
+          revision: meta.revision,
+        });
+        return json({ undone: true, revision: meta.revision });
+      } catch (error) {
+        candidate.destroy();
+        throw error;
+      }
+    }
     if (url.pathname === "/plain-save" && request.method === "POST") {
       let input: { expectedContent?: unknown; etag?: unknown };
       try {
@@ -717,7 +1156,7 @@ export class LiveScreenplayRoom {
         self: auth.self,
         revision: this.meta!.revision,
         savedRevision: this.meta!.savedRevision,
-        refresh: this.meta!.refresh,
+        refresh: this.refresh(),
       });
     const clientId = Number(url.searchParams.get("clientId"));
     if (
@@ -769,7 +1208,7 @@ export class LiveScreenplayRoom {
         self: identity.self,
         revision: this.meta!.revision,
         savedRevision: this.meta!.savedRevision,
-        refresh: this.meta!.refresh,
+        refresh: this.refresh(),
       }),
     );
     for (const other of sockets) {
@@ -986,7 +1425,15 @@ export class LiveScreenplayRoom {
         checkpointCookie: identity.cookie,
       };
       await this.context.storage.setAlarm(Date.now() + 2000);
-      await this.persist(candidate, next);
+      const review = recordWritingChanges(
+        this.review,
+        readSharedDocument(this.document),
+        readSharedDocument(candidate),
+        identity.self,
+        Date.now(),
+        identity.self.connectionId,
+      );
+      await this.persist(candidate, next, review);
       this.document.destroy();
       this.document = candidate;
       this.meta = next;
@@ -1059,7 +1506,7 @@ export class LiveScreenplayRoom {
       webViewLink: auth.file.webViewLink,
       pending: null,
     };
-    await this.context.storage.put("live-meta", saved);
+    await this.persist(this.document, saved, this.review, content);
     this.meta = saved;
     await this.broadcast({
       type: "saved",

@@ -36,7 +36,7 @@ export function liveCredential(request) {
 export async function liveRoutes(request, env, user) {
   const url = new URL(request.url),
     match = url.pathname.match(
-      /^\/api\/collaboration\/((?:drive|library)_[A-Za-z0-9_-]{10,200})\/(bootstrap|connect|checkpoint|recovery)$/,
+      /^\/api\/collaboration\/((?:drive|library)_[A-Za-z0-9_-]{10,200})\/(bootstrap|connect|checkpoint|recovery|review|undo|merge)$/,
     );
   if (!match) return null;
   if (!user) throw new HttpError(401, "Sign in before joining live writing.");
@@ -56,9 +56,12 @@ export async function liveRoutes(request, env, user) {
       request.headers.get("upgrade")?.toLowerCase() !== "websocket")
   )
     throw new HttpError(426, "A live connection is required.");
-  if (["bootstrap", "checkpoint"].includes(action) && request.method !== "POST")
+  if (
+    ["bootstrap", "checkpoint", "undo", "merge"].includes(action) &&
+    request.method !== "POST"
+  )
     throw new HttpError(405, "Use POST.");
-  if (action === "recovery" && request.method !== "GET")
+  if (["recovery", "review"].includes(action) && request.method !== "GET")
     throw new HttpError(405, "Use GET.");
   const target = new URL("https://room.internal/" + action);
   target.searchParams.set("fileId", fileId);

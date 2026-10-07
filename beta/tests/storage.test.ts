@@ -158,6 +158,51 @@ describe("durable device storage", () => {
     await b.clearRecovery(recoveries[0].recoveryId);
     expect(await b.recoveries()).toHaveLength(0);
   });
+  it("merges compatible unsynced writing automatically and keeps only genuine overlaps for review", async () => {
+    const a = repository(),
+      doc = draft();
+    doc.screenplay.blocks[0].text = "A quiet room. He stays.";
+    const first = await a.save(doc, null);
+    const device = structuredClone(doc.screenplay);
+    device.blocks[0].text = "A bright room. He stays.";
+    await a.writeRecovery(doc.id, device, first.revision, first.screenplay);
+    const otherTab = repository((a as any).databaseName);
+    const newer = structuredClone(doc.screenplay);
+    newer.blocks[0].text = "A quiet room. He leaves.";
+    await otherTab.save({ ...doc, screenplay: newer }, first.revision);
+    expect(await a.reconcileRecoveries()).toEqual([]);
+    expect((await a.load(doc.id))?.screenplay.blocks[0].text).toBe(
+      "A bright room. He leaves.",
+    );
+    const saved = (await a.load(doc.id))!;
+    const pending = structuredClone(saved.screenplay);
+    pending.blocks[0].text = "A dark room. He leaves.";
+    await a.writeRecovery(doc.id, pending, saved.revision, saved.screenplay);
+    const changed = structuredClone(saved.screenplay);
+    changed.blocks[0].text = "A silent room. He leaves.";
+    await otherTab.save({ ...saved, screenplay: changed }, saved.revision);
+    expect(await a.reconcileRecoveries()).toHaveLength(1);
+    expect((await a.load(doc.id))?.screenplay.blocks[0].text).toBe(
+      "A silent room. He leaves.",
+    );
+  });
+  it("merges a stale save against its base without losing another tab's edit", async () => {
+    const name = crypto.randomUUID(),
+      a = repository(name),
+      b = repository(name),
+      doc = draft();
+    doc.screenplay.blocks[0].text = "A quiet room. He stays.";
+    const first = await a.save(doc, null),
+      left = structuredClone(doc.screenplay),
+      right = structuredClone(doc.screenplay);
+    left.blocks[0].text = "A bright room. He stays.";
+    right.blocks[0].text = "A quiet room. He leaves.";
+    await a.save({ ...doc, screenplay: left }, first.revision);
+    const saved = await b.save({ ...doc, screenplay: right }, first.revision, {
+      baseScreenplay: first.screenplay,
+    });
+    expect(saved.screenplay.blocks[0].text).toBe("A bright room. He leaves.");
+  });
   it("does not erase a draft when deletion uses a stale revision", async () => {
     const repo = repository();
     const doc = draft();

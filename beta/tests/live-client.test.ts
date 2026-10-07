@@ -266,13 +266,32 @@ describe("live client durable synchronization", () => {
           live: true,
         },
         self: { id: "account-a", name: "A", color: "#3377bb", canEdit: true },
-        refresh: { version: "cloud-refresh-1", previousHash },
+        refresh: {
+          version: "cloud-refresh-1",
+          previousHash,
+          previousContent: serializeDocument(screenplay),
+        },
       });
       if (unsaved) {
-        await expect(prepared).rejects.toThrow(
-          "save a copy to preserve both versions",
+        const client = await prepared;
+        clients.push(client);
+        expect(client.pendingMerge?.conflicts.length).toBeGreaterThan(0);
+        expect(readSharedDocument(client.doc).blocks[0].text).toBe(
+          "Unsaved device writing.",
         );
-        expect(saveLiveCache).not.toHaveBeenCalled();
+        expect(vi.mocked(saveLiveCache).mock.calls.at(-1)![0].needsMerge).toBe(
+          true,
+        );
+        await client.resolveMerge(
+          Object.fromEntries(
+            client.pendingMerge!.conflicts.map((c) => [c.id, "current"]),
+          ),
+          false,
+        );
+        expect(readSharedDocument(client.doc).blocks[0].text).toBe(
+          "Unsaved device writing.",
+        );
+        expect(saveLiveCache).toHaveBeenCalled();
         expect(readSharedDocument(cached).blocks[0].text).toBe(
           "Unsaved device writing.",
         );

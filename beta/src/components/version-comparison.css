@@ -25,15 +25,15 @@
   margin-right: auto;
 }
 .version-comparison ins {
-  color: #175d3d;
-  background: #e0f1e6;
+  color: var(--paper-ink, var(--ink));
+  background: color-mix(in srgb, var(--accent) 22%, var(--paper));
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
 .version-comparison del {
-  color: #923a40;
-  background: #f9e6e8;
+  color: var(--paper-ink, var(--ink));
+  background: color-mix(in srgb, #c76d75 22%, var(--paper));
   text-decoration: line-through;
 }
 .version-diff-paper {
@@ -167,4 +167,203 @@
 }
 .review-details {
   white-space: pre-wrap;
+}
+.merge-review-list {
+  max-height: 60dvh;
+  overflow: auto;
+}
+.merge-review-change {
+  margin: 16px 0;
+}
+.merge-review-change h3 {
+  font-size: 14px;
+}
+.merge-review-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.merge-review-options button {
+  text-align: left;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  color: var(--ink);
+  background: var(--paper);
+  min-width: 0;
+}
+.merge-review-options button > span {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: "Courier Prime", monospace;
+}
+.merge-review-options button > small {
+  color: var(--accent);
+}
+.merge-review-options button[aria-pressed="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--paper));
+}
+.writing-review-dialog {
+  width: min(1160px, calc(100vw - 24px));
+}
+.writing-review-heading {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.writing-review-heading p {
+  flex: 1;
+  font-size: 13px;
+}
+.writing-review-heading button,
+.writing-change-card button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.writing-review-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(230px, 30%);
+  gap: 16px;
+}
+.writing-review-paper {
+  max-height: 65dvh;
+  border: 1px solid var(--border);
+}
+.writing-review-paper .diff-block > p {
+  margin: 0;
+}
+.writing-attribution {
+  display: inline;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-transform: inherit;
+  white-space: inherit;
+  background: color-mix(in srgb, var(--accent) 12%, var(--paper));
+  position: relative;
+  text-align: inherit;
+}
+.writing-attribution:hover,
+.writing-attribution:focus-visible {
+  background: color-mix(in srgb, var(--accent) 25%, var(--paper));
+}
+.writing-attribution-label {
+  display: none;
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  z-index: 2;
+  font:
+    11px/1.4 system-ui,
+    sans-serif;
+  text-transform: none;
+  white-space: nowrap;
+  padding: 5px 8px;
+  background: var(--panel, var(--paper));
+  color: var(--ink);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px #0002;
+}
+.writing-attribution:hover > .writing-attribution-label,
+.writing-attribution:focus-visible > .writing-attribution-label {
+  display: block;
+}
+.writing-passage-authors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font:
+    10px/1.5 system-ui,
+    sans-serif;
+  text-transform: none;
+  opacity: 0.8;
+  padding-top: 4px;
+}
+.writing-passage-authors time {
+  margin-left: 4px;
+}
+.writing-change-list {
+  max-height: 65dvh;
+  overflow: auto;
+}
+.writing-change-list h3 {
+  font-size: 13px;
+  margin: 4px 0 12px;
+}
+.writing-change-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 10px;
+  color: var(--ink);
+  background: var(--panel, var(--paper));
+}
+.writing-change-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.writing-change-card header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px;
+  font-size: 12px;
+}
+.writing-change-card time {
+  font-size: 10px;
+  opacity: 0.75;
+}
+.writing-change-excerpt {
+  font:
+    12px/1.5 "Courier Prime",
+    monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 180px;
+  overflow: auto;
+}
+.writing-change-excerpt del,
+.writing-change-excerpt ins {
+  display: block;
+  color: var(--ink);
+  padding: 4px;
+  margin: 4px 0;
+}
+.writing-change-excerpt ins {
+  background: color-mix(in srgb, var(--accent) 14%, var(--paper));
+  text-decoration: none;
+  border-left: 2px solid var(--accent);
+}
+.writing-change-excerpt del {
+  background: color-mix(in srgb, #c76d75 14%, var(--paper));
+}
+.writing-change-card > small {
+  display: block;
+  margin-bottom: 8px;
+}
+.novel-review-paper {
+  font-family: Georgia, serif;
+}
+@media (max-width: 650px) {
+  .writing-review-layout,
+  .merge-review-options {
+    grid-template-columns: 1fr;
+  }
+  .writing-review-paper {
+    max-height: 42dvh;
+    padding: 20px 16px;
+  }
+  .writing-change-list {
+    max-height: 35dvh;
+  }
+  .writing-review-heading {
+    align-items: flex-start;
+  }
 }
