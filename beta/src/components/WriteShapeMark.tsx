@@ -45,6 +45,7 @@ function cap(x: number, y: number) {
   return `M${x + r} ${y}H${x + w - r}Q${x + w} ${y} ${x + w} ${y + r}V${y + h - r}Q${x + w} ${y + h} ${x + w - r} ${y + h}H${x + r}Q${x} ${y + h} ${x} ${y + h - r}V${y + r}Q${x} ${y} ${x + r} ${y}Z`;
 }
 function Keyboard({ colors, bg }: { colors: WriteShapeColors; bg: string }) {
+  const inset = 55;
   return (
     <>
       {[
@@ -53,11 +54,11 @@ function Keyboard({ colors, bg }: { colors: WriteShapeColors; bg: string }) {
       ].map(({ letter, x, y }) => {
         const glyph = keyboardLegends[letter as "W" | "S"];
         const [left, , , top] = glyph.bounds;
-        // One font size and genuine weight for both key legends. Position each
-        // at the approved upper-left anchor without resizing its font outline.
+        // One font size and genuine weight, with equal top and left padding
+        // for both upper-left key legends.
         const scale = keyboardLegendScale;
-        const tx = x + 35 - left * scale;
-        const ty = y + 35 + top * scale;
+        const tx = x + inset - left * scale;
+        const ty = y + inset + top * scale;
         return (
           <g key={letter} data-key={letter}>
             <path d={cap(x + 18, y + 22)} fill={sideColor(colors)} />
