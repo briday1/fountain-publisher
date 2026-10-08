@@ -132,18 +132,15 @@ jobs:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: [build, account_worker]
     runs-on: ubuntu-latest
-    # Serialize reading gh-pages through Pages deployment.
+    # Serialize reading the retained publication tree through Cloudflare deployment.
     # Tests run before the lock, and PR checks never update the published site.
     concurrency:
       group: pages-push
       cancel-in-progress: false
     permissions:
       contents: write
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - name: Read the tested publication script
         uses: actions/checkout@v4
@@ -161,19 +158,48 @@ jobs:
         with:
           name: writing-app
           path: out
-      - name: Publish the writing app and retire obsolete runtimes
+      - name: Require the repository deployment credential
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Set CLOUDFLARE_API_TOKEN as a repository secret. Private GitHub Free releases cannot use environment secrets."
+            exit 1
+          fi
+      - name: Install Cloudflare deployment tools
+        working-directory: source/beta
+        run: npm ci
+      - name: Prepare the complete publication tree
         run: |
           node source/.github/scripts/prepare-pages.mjs out published
+          node source/.github/scripts/prepare-cloudflare.mjs published source/beta/site-dist "$GITHUB_SHA"
+      - name: Validate production hosting without changing account services
+        working-directory: source/beta
+        run: |
+          npx wrangler deploy --config wrangler.fountain.json --dry-run
+          npx wrangler deploy --config wrangler.fountain-www.json --dry-run
+      - name: Publish Fountain Publisher on Cloudflare
+        working-directory: source/beta
+        run: npx wrangler deploy --config wrangler.fountain.json
+      - name: Retain the existing www forwarding behavior
+        working-directory: source/beta
+        run: npx wrangler deploy --config wrangler.fountain-www.json
+      - name: Verify every retained publication file on the existing domain
+        run: node source/.github/scripts/check-fountain-hosting.mjs https://fountain-publisher.com source/beta/site-dist "$GITHUB_SHA"
+      - name: Verify saved drafts, offline use and unchanged account callbacks
+        working-directory: source/beta
+        env:
+          TEST_BASE_URL: https://fountain-publisher.com
+        run: |
+          if command -v google-chrome > /dev/null; then
+            export PLAYWRIGHT_CHROME_PATH="$(command -v google-chrome)"
+          else
+            npx playwright install --with-deps chromium
+          fi
+          npx playwright test e2e/editor.spec.ts --grep "existing production writing|deployed app exposes Drive|deployed app reopens a saved draft"
+      - name: Keep the verified publication snapshot for future releases and rollback
+        run: |
           cd published
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
           git diff --cached --quiet || git commit -m "Publish writing app from $GITHUB_SHA"
           git push origin HEAD:gh-pages
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: published
-      - name: Publish Pages
-        id: deployment
-        uses: actions/deploy-pages@v4

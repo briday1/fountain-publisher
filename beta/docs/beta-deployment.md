@@ -2,10 +2,12 @@
 
 ## Topology
 
-- Production: `https://fountain-publisher.com`, published from `main` to the existing GitHub Pages root.
+- Production: `https://fountain-publisher.com`, published from `main` to the static-only Cloudflare Worker `fountain-publisher-site`.
+- `www.fountain-publisher.com`: the `fountain-publisher-www` Worker redirects to the existing apex, preserving document paths and query strings.
+- Hosting validation: `https://hosting-check.fountain-publisher.com`, served by a separate staging Worker. Staging deployments cannot replace production domains.
 - Retired beta: `https://beta.fountain-publisher.com` forwards to production. Its forwarding files are published from `main` to `previews/beta/`.
 - Retired pull-request previews: existing `previews/pr-N/` entrypoints forward to production, preserving document links.
-- Application source: `beta/` in `briday1/fountain-publisher`. Local development, the local production server, and Pages use this same application.
+- Application source: `beta/` in `briday1/fountain-publisher`. Local development, the local production server, and Cloudflare use this same application.
 - Account and collaboration adapter: `fountain-publisher-beta`, at `https://api.fountain-publisher.com/beta/api/*`.
 - Shared account service: the existing `fountain-publisher` Worker via its service binding.
 
@@ -13,11 +15,21 @@ The Worker name and compatibility API prefix remain stable infrastructure identi
 
 ## Frontend releases
 
-The production workflow tests the application, runs its browser suite, builds `beta/dist`, and validates both Cloudflare Worker bundles without deploying them. Account Worker tests are a required publishing dependency. The built artifact is checked with the publication script, including mandatory `licenses.html` and `THIRD_PARTY_NOTICES.txt`, before it is retained or deployed. No Python or Pyodide compiler is built or tested, and no Cloudflare deployment secret is required. Pull requests retain a tested build artifact; they do not publish another editor.
+The production workflow tests the application, runs its browser suite, builds `beta/dist`, and validates account Worker bundles without deploying those account services. Account Worker tests are a required publishing dependency. The built artifact is checked with the publication script, including mandatory `licenses.html` and `THIRD_PARTY_NOTICES.txt`, before it is retained or deployed. No Python or Pyodide compiler is built or tested. Both public frontend hosting and private WriteShape deployments use the repository-level `CLOUDFLARE_API_TOKEN` secret; they do not use GitHub environments. Pull requests retain a tested build artifact; they do not publish another editor.
 
-The publishing job holds the `pages-push` lock while reading the latest Pages tree, preparing it, and deploying it. The [publication script](../../.github/scripts/prepare-pages.mjs) copies the tested app to the root and removes the retired Python editor, Screenplain wheels, Pyodide runtime, and their supporting files. Both root service-worker URLs remain available. Current-app hashed assets and root offline shells from prior releases remain available for already-open writing sessions.
+The publishing job holds the `pages-push` lock while reading the latest retained `gh-pages` tree, preparing it, and deploying it to Cloudflare. The [publication script](../../.github/scripts/prepare-pages.mjs) copies the tested app to the root and removes the retired Python editor, Screenplain wheels, Pyodide runtime, and their supporting files. The Cloudflare preparation script copies the entire resulting tree into `beta/site-dist`, excludes Git metadata, and adds a hosting revision marker. Both root service-worker URLs, earlier hashed assets, root offline shells and existing document links remain available. The deployment check compares every retained file with its live bytes before recording the new `gh-pages` snapshot; that branch now preserves publication history rather than being a hosting dependency.
 
-The same release replaces beta and existing `previews/pr-N/` entrypoints and both service-worker URLs with forwarding files. Retired preview offline HTML and Python runtime assets are removed. The forwarding page preserves query strings and fragments and replaces browser history. It does not clear browser storage or forcibly reload open tabs. The primary domain remains on GitHub Pages DNS; no new DNS record, account service or OAuth registration is needed.
+The same release replaces beta and existing `previews/pr-N/` entrypoints and both service-worker URLs with forwarding files. Retired preview offline HTML and Python runtime assets are removed. The forwarding page preserves query strings and fragments and replaces browser history. It does not clear browser storage or forcibly reload open tabs. Primary DNS routes to the new Cloudflare static host. The application origin, account services, OAuth registrations, collaboration room bindings and document databases remain the same.
+
+### Making the GitHub source private
+
+1. Deploy the migration branch to the separate hosting validation hostname and verify all retained files. The environment-free staging job also proves that the repository secret is available without paid GitHub environment features.
+2. Promote the tested publishing changes to `main`. Require both the Cloudflare Fountain Publisher deployment and the existing WriteShape deployment to finish successfully.
+3. On the existing domains, verify retained assets, local save/reload and offline use, provider callback boundaries, and WriteShape's Access policy. Allow the previous DNS TTL to expire while GitHub Pages remains available.
+4. Only then change `briday1/fountain-publisher` to private in GitHub Settings. Keep the repository, branches, issues and pull requests in place. GitHub Free will unpublish its old Pages site; production is already served from Cloudflare by this point.
+5. Verify authenticated source access and run the next gated release from the private repository. Neither deployment may reference GitHub Pages or GitHub environments.
+
+Changing source visibility does not make the websites private. WriteShape's existing Access settings remain the source of visitor restrictions. GitHub also documents changes to stars/watchers and existing public forks when visibility changes; review those separately from source and document preservation.
 
 After the tested cleanup release reaches `main`, fast-forward the historical `beta/writing-first` branch to that same commit. Its existing head is an ancestor of the cleanup release, so this preserves its history without a force push or branch deletion. Removing the obsolete workflow from both branches prevents an ordinary future beta-branch push from publishing another editor:
 
@@ -31,7 +43,7 @@ Proceed with the push only if the ancestry check succeeds and `origin/main` is t
 
 ## Adapter releases
 
-The Pages workflow deploys frontend files only. A successful Pages release does not update either Cloudflare Worker. Deploy compatible API changes before publishing a frontend that needs them, in this order:
+The frontend workflow updates static hosting only. A successful frontend release does not update either Fountain Publisher account Worker. Deploy compatible API changes before publishing a frontend that needs them, in this order:
 
 1. Apply any required `github-worker` database migrations, then deploy the shared `fountain-publisher` account Worker when that service changes. Follow the prerequisites in [Account integrations](integrations.md); the full Drive browser requires migration `0004_google_scopes.sql` and the updated shared Worker.
 2. Test, build, and deploy the `fountain-publisher-beta` adapter from the same source revision that will be published:
@@ -50,15 +62,15 @@ npx wrangler deploy
 TEST_BASE_URL=https://fountain-publisher.com npm run test:browser -- e2e/editor.spec.ts --grep 'deployed app exposes Drive browsing'
 ```
 
-4. Publish the frontend through the main Pages workflow, then run the deployed browser suite.
+4. Publish the frontend through the main workflow, then run the deployed browser suite.
 
 The account smoke check requires unauthenticated `/beta/api/google/browser` requests to return `401 NOT_CONNECTED` with the correct origin header. A `404` reveals an outdated adapter even when OAuth redirects still work. This check runs only against the deployed app; local browser checks cannot establish which Worker version is live.
 
-Wrangler uses the existing Cloudflare authentication. Automated Worker deployment is not configured; it would require separately provisioning an appropriate Cloudflare API token. The current CI checks and Pages release need no new secrets.
+Wrangler uses the existing Cloudflare authentication. Frontend deployments use the repository-level token already validated by the migration job. Account Worker releases remain separate; the hosting migration does not modify their secrets or bindings.
 
 The adapter's routes retain the beta custom domain, `/beta/*` API adapter and two exact existing OAuth callbacks. It accepts only the exact production and beta origins, retains CSRF checks, and directs authorization messages to the trusted origin that opened the popup. Credentials remain in the existing account service.
 
-The beta Worker proxies static files from `https://fountain-publisher.com/previews/beta`. Do not point the primary apex at this Worker while retaining that upstream URL: it would proxy back into itself. Production static files continue to be served by Pages.
+The beta Worker proxies static files from `https://fountain-publisher.com/previews/beta`. Do not point the primary apex at this Worker while retaining that upstream URL: it would proxy back into itself. The apex instead uses the separate static-only `fountain-publisher-site` Worker, with no API proxy or database bindings.
 
 ## Existing drafts and installed applications
 

@@ -5,7 +5,5 @@
   "compatibility_date": "2026-10-08",
   "workers_dev": false,
   "preview_urls": false,
-  "routes": [
-    { "pattern": "www.fountain-publisher.com", "custom_domain": true }
-  ]
+  "routes": [{ "pattern": "www.fountain-publisher.com", "custom_domain": true }]
 }

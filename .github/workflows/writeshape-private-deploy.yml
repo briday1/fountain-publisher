@@ -6,9 +6,8 @@ on:
   workflow_call:
     secrets:
       CLOUDFLARE_API_TOKEN:
-        # The protected environment can supply this instead of a repository secret.
-        # The deploy job validates it after environment secrets are resolved.
-        required: false
+        # Repository secrets work after the source repository becomes private.
+        required: true
 
 permissions:
   contents: read
@@ -25,7 +24,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    environment: writeshape-private-test
     defaults:
       run:
         working-directory: beta
@@ -41,7 +39,7 @@ jobs:
       - name: Require private deployment credential
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-            echo "::error::Set the CLOUDFLARE_API_TOKEN repository secret (or the writeshape-private-test environment secret)."
+            echo "::error::Set CLOUDFLARE_API_TOKEN as a repository secret."
             exit 1
           fi
       - name: Install

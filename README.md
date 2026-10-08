@@ -66,9 +66,11 @@ Automated collaboration checks use real document synchronization over controlled
 
 ## Deployment
 
-Pushes to `main` run the application's unit/integration tests, browser suite and production build, then publish `beta/dist` to the existing GitHub Pages root. The workflow preserves `CNAME`, `.nojekyll`, and older assets still needed by open writing sessions. Pull requests run the same checks and keep a downloadable build artifact. The retired [beta.fountain-publisher.com](https://beta.fountain-publisher.com) address forwards to production.
+Pushes to `main` run the application's unit/integration tests, browser suite and production build, then publish both sites to Cloudflare. Fountain Publisher uses the static-only `fountain-publisher-site` Worker at its existing domain; a separate small Worker forwards `www` to the same apex origin. The workflow retains the `gh-pages` publication history and older assets still needed by open writing sessions, then verifies every published file before recording the new snapshot. Pull requests run the same checks and keep a downloadable build artifact. The retired [beta.fountain-publisher.com](https://beta.fountain-publisher.com) address forwards to production.
 
-The existing Cloudflare account service continues to own Google/GitHub OAuth and encrypted sessions. The `fountain-publisher-beta` Worker name and `/beta/api` URLs remain stable infrastructure identifiers for both app origins, preserving the existing live collaboration rooms. Worker changes are deployed separately from static builds; primary DNS and provider callback registrations stay in place.
+The existing Cloudflare account service continues to own Google/GitHub OAuth and encrypted sessions. The `fountain-publisher-beta` Worker name and `/beta/api` URLs remain stable infrastructure identifiers for both app origins, preserving the existing live collaboration rooms. Account Worker changes are deployed separately from static builds; provider callback registrations and database bindings stay in place.
+
+Both deployment jobs use the repository-level `CLOUDFLARE_API_TOKEN` secret, so the source repository can be private on GitHub Free without GitHub Pages or paid environment features. Source visibility changes do not change either site's visitor access; WriteShape retains its Cloudflare Access policy. See the migration sequence in [deployment and rollback](beta/docs/beta-deployment.md) before changing visibility.
 
 See [deployment and rollback](beta/docs/beta-deployment.md) before changing those bindings, routes or room namespaces.
 
