@@ -280,7 +280,7 @@ export function novelRtf(
   return (
     "{\\rtf1\\ansi\\deff0\\uc1{\\fonttbl{\\f0 " +
     rtfEscape(options.fontName || "Georgia") +
-    ";}}{\\stylesheet{\\s0 Normal;}" +
+    ";}}{\\stylesheet{\\s0\\f0\\fs24 Normal;}" +
     [1, 2, 3, 4, 5, 6]
       .map(
         (n) =>
@@ -330,6 +330,22 @@ export async function novelPdf(
   let page = pdf.addPage(size),
     y = size[1] - margin;
   let missing = 0;
+  const characterSets = new Map(
+    Object.values(fonts).map((font) => [font, new Set(font.getCharacterSet())]),
+  );
+  // Custom-font encoding can silently return the missing-glyph box. Check the
+  // font's actual coverage instead, for body text and page-bottom notes alike.
+  const safeText = (text: string, font: typeof fonts.regular) => {
+    let safe = "";
+    for (const c of text) {
+      if (characterSets.get(font)!.has(c.codePointAt(0)!)) safe += c;
+      else {
+        safe += "?";
+        missing++;
+      }
+    }
+    return safe;
+  };
   let pageNotes: string[] = [];
   const counter = { value: 0 };
   const noteHeight = (lines: string[]) =>
@@ -355,18 +371,10 @@ export async function novelPdf(
   const wrapNote = (note: { number: number; text: string }) => {
     const lines: string[] = [];
     let line = "";
-    for (const token of `${note.number}. ${note.text}`.match(/\s+|[^\s]+/gu) ||
-      []) {
-      let safe = "";
-      for (const c of token) {
-        try {
-          fonts.regular.encodeText(c);
-          safe += c;
-        } catch {
-          safe += "?";
-          missing++;
-        }
-      }
+    for (const token of `${note.number}. ${note.text}`
+      .replace(/\t/g, "    ")
+      .match(/\s+|[^\s]+/gu) || []) {
+      const safe = safeText(token, fonts.regular);
       if (
         line &&
         fonts.regular.widthOfTextAtSize(line + safe, 9) > size[0] - 2 * margin
@@ -498,21 +506,14 @@ export async function novelPdf(
               ? "italic"
               : "regular"
         ];
-      for (const token of span.text.match(/\n|[^\S\n]+|[^\s]+/gu) || []) {
+      for (const token of span.text
+        .replace(/\t/g, "    ")
+        .match(/\n|[^\S\n]+|[^\s]+/gu) || []) {
         if (token === "\n") {
           draw();
           continue;
         }
-        let safe = "";
-        for (const c of token) {
-          try {
-            font.encodeText(c);
-            safe += c;
-          } catch {
-            safe += "?";
-            missing++;
-          }
-        }
+        const safe = safeText(token, font);
         const tokenWidth = font.widthOfTextAtSize(safe, fs);
         if (width + tokenWidth > max && line.length) draw();
         if (!line.length && /^\s+$/.test(safe)) continue;
