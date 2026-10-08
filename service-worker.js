@@ -1,6 +1,16 @@
-const CACHE='fp2-shell-eecee2feb18f5f5b';
-const SHELL="/offline-shell-eecee2feb18f5f5b.html";
-const FILES=["/offline-shell-eecee2feb18f5f5b.html","/manifest.webmanifest","/favicon.svg","/assets/DejaVuSerif-regular-CVd__PRv.woff","/assets/DejaVuSerif-italic-9g8XVSN-.woff","/assets/DejaVuSerif-boldItalic-U0jxU-E0.woff","/assets/DejaVuSans-bold-B1-5gqaq.woff","/assets/DejaVuSans-regular-BSP1L0Ua.woff","/assets/DejaVuSans-boldItalic-P5WmRDxG.woff","/assets/DejaVuSansMono-regular-B2yFx1z2.woff","/assets/DejaVuSans-italic-NTrZzTOm.woff","/assets/DejaVuSansMono-bold-5lmLBdLS.woff","/assets/DejaVuSansMono-italic-Cl1HeTfM.woff","/assets/DejaVuSansMono-boldItalic-4bO4Q19D.woff","/assets/DejaVuSerif-bold-CIacUclX.woff","/assets/courier-prime-latin-ext-400-normal-B-EsvyE4.woff2","/assets/courier-prime-latin-400-normal-BbyBr73r.woff2","/assets/courier-prime-latin-ext-400-italic-BTeyNO-8.woff2","/assets/courier-prime-latin-400-italic-CaR7PCvg.woff2","/assets/courier-prime-latin-ext-700-italic-BzK4HIs4.woff2","/assets/courier-prime-latin-ext-700-normal-ByMJlNdM.woff2","/assets/courier-prime-latin-700-normal-D1YCjmaD.woff2","/assets/courier-prime-latin-700-italic-CZikIXQl.woff2","/assets/courier-prime-latin-400-normal-BAlbUm6l.woff","/assets/courier-prime-latin-ext-400-italic-DU0XzPqs.woff","/assets/courier-prime-latin-ext-400-normal-CKOCNFvK.woff","/assets/courier-prime-latin-400-italic-GR5bBv_9.woff","/assets/courier-prime-latin-ext-700-italic-DHJjmZA7.woff","/assets/courier-prime-latin-ext-700-normal-BIFoAzHx.woff","/assets/courier-prime-latin-700-normal-CVvp4Sof.woff","/assets/courier-prime-latin-700-italic-Cxv_jV69.woff","/assets/index-C6W7E0UF.css","/assets/index-BkUg_oMG.js","/assets/export-BnfqQadT.js","/assets/fontkit.es-Cxl7Ab-W.js","/assets/index-C_nUHx0E.js","/assets/index-BtD61H6L.js","/assets/index-fDdggEIY.js","/assets/fontkit.es-NacMhbjk.js","/assets/index-B0LVhTEE.js","/assets/publish.worker-DqusY0ei.js","/THIRD_PARTY_NOTICES.txt","/licenses.html","/licenses/Adobe-AFM-MustRead.html"];
+const CACHE='fp2-shell-314567a941353c81';
+const SHELL="/offline-shell-314567a941353c81.html";
+const FILES=["/offline-shell-314567a941353c81.html","/manifest.webmanifest","/favicon.svg","/assets/DejaVuSerif-regular-CVd__PRv.woff","/assets/DejaVuSerif-italic-9g8XVSN-.woff","/assets/DejaVuSerif-bold-CIacUclX.woff","/assets/DejaVuSans-regular-BSP1L0Ua.woff","/assets/DejaVuSans-bold-B1-5gqaq.woff","/assets/DejaVuSansMono-regular-B2yFx1z2.woff","/assets/DejaVuSans-italic-NTrZzTOm.woff","/assets/DejaVuSans-boldItalic-P5WmRDxG.woff","/assets/DejaVuSansMono-italic-Cl1HeTfM.woff","/assets/DejaVuSansMono-bold-5lmLBdLS.woff","/assets/courier-prime-latin-ext-400-normal-B-EsvyE4.woff2","/assets/courier-prime-latin-400-normal-BbyBr73r.woff2","/assets/courier-prime-latin-ext-400-italic-BTeyNO-8.woff2","/assets/courier-prime-latin-400-italic-CaR7PCvg.woff2","/assets/courier-prime-latin-ext-700-normal-ByMJlNdM.woff2","/assets/courier-prime-latin-700-normal-D1YCjmaD.woff2","/assets/courier-prime-latin-ext-700-italic-BzK4HIs4.woff2","/assets/courier-prime-latin-700-italic-CZikIXQl.woff2","/assets/DejaVuSansMono-boldItalic-4bO4Q19D.woff","/assets/DejaVuSerif-boldItalic-U0jxU-E0.woff","/assets/courier-prime-latin-ext-400-normal-CKOCNFvK.woff","/assets/courier-prime-latin-400-normal-BAlbUm6l.woff","/assets/courier-prime-latin-ext-400-italic-DU0XzPqs.woff","/assets/courier-prime-latin-400-italic-GR5bBv_9.woff","/assets/courier-prime-latin-ext-700-normal-BIFoAzHx.woff","/assets/courier-prime-latin-ext-700-italic-DHJjmZA7.woff","/assets/courier-prime-latin-700-normal-CVvp4Sof.woff","/assets/courier-prime-latin-700-italic-Cxv_jV69.woff","/assets/index-C6W7E0UF.css","/assets/index-CHOhgFUW.js","/assets/export-DLpOfRHN.js","/assets/fontkit.es-nrXTHO4n.js","/assets/index-CKWrpzv9.js","/assets/index-Cbyqjm3h.js","/assets/index-fDdggEIY.js","/assets/fontkit.es-NacMhbjk.js","/assets/index-B0LVhTEE.js","/assets/publish.worker-DqusY0ei.js","/THIRD_PARTY_NOTICES.txt","/licenses.html","/licenses/Adobe-AFM-MustRead.html"];
+function cachedNavigation(response){
+  if(!response)return Response.error();
+  if(!response.redirected)return response;
+  // Hosts can redirect .html to canonical URLs. A redirected cached response
+  // cannot satisfy a navigation's manual redirect mode while offline.
+  const headers=new Headers(response.headers);
+  headers.delete('content-encoding');
+  headers.delete('content-length');
+  return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
+}
 self.addEventListener('install',event=>event.waitUntil((async()=>{
   const alreadyInstalled=await caches.has(CACHE);
   const cache=await caches.open(CACHE);
@@ -25,8 +35,8 @@ self.addEventListener('fetch',event=>{
         if(response.ok||response.type==='opaqueredirect'||response.status===401||response.status===403)return response;
       }catch{}
       const cache=await caches.open(CACHE);
-      if(FILES.includes(url.pathname))return (await cache.match(url.pathname,{ignoreVary:true}))||Response.error();
-      return (await cache.match(SHELL,{ignoreVary:true}))||Response.error();
+      if(FILES.includes(url.pathname))return cachedNavigation(await cache.match(url.pathname,{ignoreVary:true}));
+      return cachedNavigation(await cache.match(SHELL,{ignoreVary:true}));
     })());
     return;
   }
