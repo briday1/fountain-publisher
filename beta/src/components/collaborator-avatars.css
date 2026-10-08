@@ -7,6 +7,7 @@
 .collaborator-avatar-stack {
   display: flex;
   align-items: center;
+  gap: 4px;
 }
 .header-collaborators .collaborator-avatar {
   display: grid;
@@ -21,22 +22,18 @@
     600 10px/1 system-ui,
     sans-serif;
 }
-.header-collaborators .collaborator-avatar + .collaborator-avatar {
-  margin-left: -7px;
-}
 .header-collaborators .collaborator-overflow {
   background: var(--surface);
   color: var(--ink);
+  margin-right: 7px;
+  box-shadow:
+    3px 0 0 var(--surface),
+    4px 0 0 var(--panel),
+    6px 0 0 var(--surface),
+    7px 0 0 var(--panel);
 }
 @media (max-width: 950px) {
   .app-header > .header-collaborators {
-    order: 4;
-  }
-}
-@media (max-width: 720px) {
-  .header-collaborators .collaborator-avatar {
-    width: 24px;
-    height: 24px;
-    font-size: 9px;
+    display: none;
   }
 }

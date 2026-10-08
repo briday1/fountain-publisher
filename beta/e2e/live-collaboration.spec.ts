@@ -574,6 +574,8 @@ base(
       await expect(footer.locator(".collaborator-avatar")).toHaveCount(0);
       const header = alice.locator(".app-header");
       const avatars = header.locator(".header-collaborators");
+      await expect(avatars).toHaveCount(0);
+      await alice.setViewportSize({ width: 1440, height: 844 });
       await expect(avatars).toBeVisible();
       await expect(avatars.locator(".collaborator-avatar")).toHaveCount(3);
       await expect(avatars.locator('[title="Bob Writer"]')).toBeVisible();
@@ -592,14 +594,21 @@ base(
         expect(
           await header.evaluate((el) => el.scrollWidth <= el.clientWidth),
         ).toBe(true);
-        const avatarBounds = (await avatars.boundingBox())!;
-        const headerBounds = (await header.boundingBox())!;
-        expect(avatarBounds.x + avatarBounds.width).toBeGreaterThan(width - 30);
-        expect(avatarBounds.x + avatarBounds.width).toBeLessThanOrEqual(width);
-        expect(avatarBounds.y).toBeGreaterThanOrEqual(headerBounds.y);
-        expect(avatarBounds.y + avatarBounds.height).toBeLessThanOrEqual(
-          headerBounds.y + headerBounds.height,
-        );
+        await expect(cursor).toHaveCount(1);
+        await expect(cursor.locator("span")).toHaveText("Bob Writer");
+        if (width <= 950) {
+          await expect(avatars).toHaveCount(0);
+        } else {
+          await expect(avatars).toBeVisible();
+          const avatarBounds = (await avatars.boundingBox())!;
+          const headerBounds = (await header.boundingBox())!;
+          expect(avatarBounds.x + avatarBounds.width).toBeGreaterThan(width - 30);
+          expect(avatarBounds.x + avatarBounds.width).toBeLessThanOrEqual(width);
+          expect(avatarBounds.y).toBeGreaterThanOrEqual(headerBounds.y);
+          expect(avatarBounds.y + avatarBounds.height).toBeLessThanOrEqual(
+            headerBounds.y + headerBounds.height,
+          );
+        }
         const box = (await footer.boundingBox())!;
         expect(box.height).toBe(36);
         expect(
@@ -618,6 +627,48 @@ base(
           /start|end|live editing|copy live/i,
         );
       }
+      // Overflow stays compact, but every writer remains available in the list.
+      const extraContexts: BrowserContext[] = [];
+      for (const person of [
+        { id: "dani", name: "Dani Writer", color: "#256a50", canEdit: true },
+        { id: "eli", name: "Eli Writer", color: "#8a3dab", canEdit: true },
+      ]) {
+        const context = await browser.newContext({ serviceWorkers: "block" });
+        contexts.push(context);
+        extraContexts.push(context);
+        await room.install(context, person, true);
+        const page = await context.newPage();
+        await page.goto(`/?live=library_${fileId}`);
+        await expect(editor(page)).toContainText("Paragraph 45");
+      }
+      const individualAvatars = avatars.locator(
+        ".collaborator-avatar:not(.collaborator-overflow)",
+      );
+      await expect(individualAvatars).toHaveCount(3);
+      await expect(avatars.locator(".collaborator-overflow")).toHaveText("+2");
+      const bounds = await individualAvatars.evaluateAll((elements) =>
+        elements.map((element) => {
+          const { x, width } = element.getBoundingClientRect();
+          return { x, width };
+        }),
+      );
+      for (let i = 1; i < bounds.length; i++)
+        expect(bounds[i].x).toBeGreaterThan(bounds[i - 1].x + bounds[i - 1].width);
+      expect((await avatars.boundingBox())!.width).toBeLessThan(145);
+      await avatars.getByRole("button").click();
+      await alice
+        .getByRole("button", {
+          name: "Dani Writer · Show writing position",
+          exact: true,
+        })
+        .click();
+      await expect(
+        editor(alice)
+          .locator(".collaboration-cursor")
+          .filter({ hasText: "Dani Writer" }),
+      ).toBeVisible();
+      for (const context of extraContexts) await context.close();
+      await expect(avatars.locator(".collaborator-overflow")).toHaveCount(0);
       await alice.setViewportSize({ width: 390, height: 844 });
       // Writers can be located when their inline marker is below the fold.
       await editor(alice).click();

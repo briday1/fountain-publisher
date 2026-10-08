@@ -15,13 +15,14 @@ export function CollaboratorAvatars({
   onReveal: (clientId: number) => void;
 }) {
   if (
+    mobile ||
     !self ||
     !status?.members.length ||
     !["live", "syncing", "readonly"].includes(status.phase)
   )
     return null;
   const writers = [self, ...status.members];
-  const limit = mobile ? 2 : 4;
+  const limit = 3;
   return (
     <div className="header-collaborators" aria-label="Document collaborators">
       <Menu
@@ -52,7 +53,10 @@ export function CollaboratorAvatars({
               );
             })}
             {writers.length > limit && (
-              <span className="collaborator-avatar collaborator-overflow">
+              <span
+                className="collaborator-avatar collaborator-overflow"
+                title={`${writers.length - limit} more writers`}
+              >
                 +{writers.length - limit}
               </span>
             )}
