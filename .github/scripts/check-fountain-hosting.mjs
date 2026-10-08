@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { setTimeout as delay } from "node:timers/promises";
 
 async function paths(directory, prefix = "") {
   const result = [];
@@ -29,11 +30,31 @@ export async function checkFountainHosting({
 }) {
   const base = new URL(origin);
   assert.equal(base.protocol, "https:");
-  const marker = await fetchImpl(new URL("/__hosting.json", base), {
-    signal: AbortSignal.timeout(15000),
-  });
-  assert.equal(marker.status, 200, "Hosting marker is unavailable");
-  assert.deepEqual(await marker.json(), { hosting: "cloudflare", revision });
+  // A new custom hostname may need a short DNS/TLS propagation interval.
+  // Do not begin preservation checks until the exact release marker is live.
+  let ready = false;
+  let readinessError;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    try {
+      const marker = await fetchImpl(new URL("/__hosting.json", base), {
+        signal: AbortSignal.timeout(15000),
+      });
+      assert.equal(marker.status, 200, "Hosting marker is unavailable");
+      assert.deepEqual(await marker.json(), {
+        hosting: "cloudflare",
+        revision,
+      });
+      ready = true;
+      break;
+    } catch (error) {
+      readinessError = error;
+      if (attempt < 39) await delay(3000);
+    }
+  }
+  if (!ready)
+    throw new Error(
+      `Hosting did not become ready: ${readinessError?.cause?.code || readinessError?.message}`,
+    );
   const files = await paths(directory);
   // Check every retained file. A matching homepage alone cannot prove that an
   // already-open tab can still fetch its older JavaScript, font or offline shell.
