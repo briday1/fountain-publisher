@@ -84,6 +84,8 @@ Beta local drafts and offline collaboration updates remain on the beta origin an
 
 `sw.js` and the legacy `service-worker.js` URL serve the same versioned production offline worker. Each release caches matching HTML and assets together. Updates wait for existing controlled clients to close; they do not reload an active writing session. Legacy browser caches are not cleared by the retirement release, and current-app static assets remain available during promotion.
 
+Cloudflare can redirect `.html` assets to canonical URLs. For an offline navigation, the service worker copies a redirected cached response into an unredirected response while retaining its body and content type. This avoids a browser navigation error without changing hosting routes, cached documents or the published HTML.
+
 The retired Python runtime is removed immediately from the published tree. A still-open legacy editor may therefore be unable to fetch an uncached compiler or generate another PDF. Preserve its work as Fountain or in its local draft, then reopen the production app. This cleanup does not erase device-local drafts, account credentials, or durable room data.
 
 ## Rollback

@@ -52,6 +52,16 @@ export function offlineShell(): Plugin {
         const serviceWorker = `const CACHE='fp2-shell-${version}';
 const SHELL=${JSON.stringify(shell)};
 const FILES=${JSON.stringify(files)};
+function cachedNavigation(response){
+  if(!response)return Response.error();
+  if(!response.redirected)return response;
+  // Hosts can redirect .html to canonical URLs. A redirected cached response
+  // cannot satisfy a navigation's manual redirect mode while offline.
+  const headers=new Headers(response.headers);
+  headers.delete('content-encoding');
+  headers.delete('content-length');
+  return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
+}
 self.addEventListener('install',event=>event.waitUntil((async()=>{
   const alreadyInstalled=await caches.has(CACHE);
   const cache=await caches.open(CACHE);
@@ -76,8 +86,8 @@ self.addEventListener('fetch',event=>{
         if(response.ok||response.type==='opaqueredirect'||response.status===401||response.status===403)return response;
       }catch{}
       const cache=await caches.open(CACHE);
-      if(FILES.includes(url.pathname))return (await cache.match(url.pathname,{ignoreVary:true}))||Response.error();
-      return (await cache.match(SHELL,{ignoreVary:true}))||Response.error();
+      if(FILES.includes(url.pathname))return cachedNavigation(await cache.match(url.pathname,{ignoreVary:true}));
+      return cachedNavigation(await cache.match(SHELL,{ignoreVary:true}));
     })());
     return;
   }

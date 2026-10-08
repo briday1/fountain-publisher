@@ -1,5 +1,7 @@
 // @vitest-environment node
 import { runInNewContext } from "node:vm";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { describe, expect, it, vi } from "vitest";
 import { offlineShell } from "../build-tools/offline";
 
@@ -85,6 +87,7 @@ function harness() {
     caches,
     Request: WorkerRequest,
     Response,
+    Headers,
     URL,
     fetch: network,
     self: {
@@ -119,6 +122,33 @@ function harness() {
 }
 
 describe("offline release integrity", () => {
+  it("serves an unredirected offline navigation when the host canonicalizes its HTML URL", async () => {
+    const server = createServer((request, response) => {
+      if (request.url === "/redirect") {
+        response.writeHead(307, { Location: "/shell" }).end();
+      } else {
+        response.writeHead(200, { "Content-Type": "text/html" }).end("Offline writing shell");
+      }
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    try {
+      const port = (server.address() as AddressInfo).port;
+      const redirected = await fetch(`http://127.0.0.1:${port}/redirect`);
+      expect(redirected.redirected).toBe(true);
+      const h = harness();
+      h.network.mockImplementation(async () => redirected.clone());
+      await h.lifecycle("install");
+      h.network.mockRejectedValue(new TypeError("Offline"));
+      const response = (await h.request())!;
+      expect(response.redirected).toBe(false);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("text/html");
+      expect(await response.text()).toBe("Offline writing shell");
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
   it("emits an immutable HTML snapshot and versions HTML-only changes", () => {
     const first = build();
     expect(first.shell.fileName).toMatch(/^offline-shell-[a-f0-9]+\.html$/);
