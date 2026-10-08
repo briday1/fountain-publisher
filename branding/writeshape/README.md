@@ -1,6 +1,6 @@
 # WriteShape branding
 
-The approved W/S design uses only two staggered keys, with simple depth on the right and bottom. Both share the theme accent. Their legends sit at fixed upper-left anchors and use unmodified Liberation Sans Bold outlines at one shared font scale. The common cap height is 163 pixels in the 900-pixel icon; the S retains its natural curve overshoot. Neither letter has an added outline or a separate size or weight adjustment. The complete silhouette, including its depth, is centered and fully visible with no rim or outer frame.
+The approved W/S design uses only two staggered keys, with simple depth on the right and bottom. Both share the theme accent. Their legends have equal 55-unit top and left insets at the upper-left anchors and use unmodified Liberation Sans Bold outlines at one shared font scale. The common cap height is 163 pixels in the 900-pixel icon; the S retains its natural curve overshoot. Neither letter has an added outline or a separate size or weight adjustment. The complete silhouette, including its depth, is centered and fully visible with no rim or outer frame.
 
 - icons/: centered W/S icons in all nine themes.
 - logos/: the same two keys uncropped, with the Courier Prime WriteShape wordmark underneath and a transparent background.
