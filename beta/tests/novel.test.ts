@@ -1,4 +1,5 @@
 import { nextBookHeading } from "../src/core/book";
+import { mockBookExportFonts } from "./helpers/bookExportFonts";
 import { expect, it, beforeAll } from "vitest";
 import {
   parseMarkdown,
@@ -23,6 +24,7 @@ import { sceneBeatRange } from "../src/core/beatRanges";
 const source =
   "# The Last Light\n\n## Chapter One\n\nMara has **bold hopes** and *quiet doubts*.\n\n> A letter, read aloud.\n\n> *We find our way together.*\n\n> — June\n\n---\n\n### A turn\n\nINT. ROOM - NIGHT\n\nMARA\n\nThis is still prose.\n";
 beforeAll(() => {
+  mockBookExportFonts();
   Range.prototype.getBoundingClientRect = () => new DOMRect(0, 0, 10, 20);
   Range.prototype.getClientRects = () =>
     [new DOMRect(0, 0, 10, 20)] as unknown as DOMRectList;

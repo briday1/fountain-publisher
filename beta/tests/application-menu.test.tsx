@@ -77,6 +77,31 @@ function button(node: ParentNode, name: string) {
 const click = async (node: ParentNode, name: string) => {
   await act(async () => button(node, name).click());
 };
+it("puts the Book footnote command in mobile Tools and closes the menu before inserting", async () => {
+  const addFootnote = vi.fn(() =>
+    expect(document.querySelector(".mobile-command-panel")).toBeNull(),
+  );
+  const h = await mount(
+    <Menu label="Insert">
+      <MenuItem onClick={addFootnote}>Footnote…</MenuItem>
+      <MenuItem onClick={noop}>Title page…</MenuItem>
+      <MenuItem onClick={noop}>Body text</MenuItem>
+    </Menu>,
+    true,
+    true,
+  );
+  try {
+    await click(h.node, "File");
+    const tools = h.node.querySelector(".mobile-command-group")!;
+    expect(tools.querySelector("h3")!.textContent).toBe("Tools");
+    expect(button(tools, "Footnote…")).toBeTruthy();
+    expect(h.node.textContent).not.toContain("Body text");
+    await click(tools, "Footnote…");
+    expect(addFootnote).toHaveBeenCalledOnce();
+  } finally {
+    await h.close();
+  }
+});
 function fountainCommands(action: (name: string) => void) {
   return (
     <Fragment>

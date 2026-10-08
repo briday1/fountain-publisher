@@ -1,5 +1,6 @@
 // @vitest-environment node
-import { it, expect } from "vitest";
+import { beforeAll, it, expect } from "vitest";
+import { mockBookExportFonts } from "./helpers/bookExportFonts";
 import { parseMarkdown, serializeMarkdown } from "../src/core/markdown";
 import {
   novelDocx,
@@ -8,6 +9,9 @@ import {
   novelPdf,
 } from "../src/core/novelExport";
 import { unzipSync, strFromU8 } from "fflate";
+beforeAll(() => {
+  mockBookExportFonts();
+});
 it("preserves a 100,000-word Book across Markdown and all export formats", async () => {
   const started = performance.now();
   const paragraph =

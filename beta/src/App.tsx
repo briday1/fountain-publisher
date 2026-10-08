@@ -3194,7 +3194,7 @@ export default function App() {
             font={preferences.bookFont}
             busy={busy}
             onClose={() => setDialog(null)}
-            onExport={(format, keepFont, suppliedFonts) =>
+            onExport={(format, keepFont, suppliedFonts, exportOptions) =>
               void run(async () => {
                 const snap = session.capture();
                 const { exportNovel } = await import("./core/novelExport");
@@ -3204,16 +3204,15 @@ export default function App() {
                     ? (suppliedFonts ??
                       (await loadWritingFont(preferences.bookFont)))
                     : undefined;
-                const result = await exportNovel(
-                  snap.screenplay,
-                  format,
-                  keepFont
+                const result = await exportNovel(snap.screenplay, format, {
+                  ...exportOptions,
+                  ...(keepFont
                     ? {
                         fontName: writingFonts[preferences.bookFont].name,
                         fontBytes,
                       }
-                    : {},
-                );
+                    : {}),
+                });
                 downloadFile(
                   result.blob,
                   snap.name.replace(/\.[^.]+$/, "") + "." + format,

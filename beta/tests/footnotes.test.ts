@@ -1,4 +1,5 @@
 import { beforeAll, expect, it } from "vitest";
+import { mockBookExportFonts } from "./helpers/bookExportFonts";
 import { TextSelection } from "prosemirror-state";
 import { unzipSync, strFromU8 } from "fflate";
 import { parseMarkdown, serializeMarkdown } from "../src/core/markdown";
@@ -13,6 +14,7 @@ import { EditorController } from "../src/editor/EditorController";
 import type { AnnotationTarget } from "../src/editor/annotations";
 import { versionDiff } from "../src/core/versionDiff";
 beforeAll(() => {
+  mockBookExportFonts();
   Range.prototype.getBoundingClientRect = () => new DOMRect(0, 0, 10, 20);
   Range.prototype.getClientRects = () =>
     [new DOMRect(0, 0, 10, 20)] as unknown as DOMRectList;

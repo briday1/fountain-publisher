@@ -139,7 +139,7 @@ export function ApplicationMenu({
       if (
         simpleMobile &&
         ((menu.props.label === "Insert" &&
-          commandLabel(command) !== "Title page…") ||
+          !["Title page…", "Footnote…"].includes(commandLabel(command))) ||
           ["Full screen", "Exit full screen"].includes(commandLabel(command)))
       )
         return;
@@ -199,6 +199,7 @@ export function ApplicationMenu({
   const renameCommand =
     findCommand("Rename screenplay…") ?? findCommand("Rename document…");
   const titlePageCommand = findCommand("Title page…");
+  const footnoteCommand = findCommand("Footnote…");
   const premiumCommand = findCommand("Explore Premium…");
   const mobileControls = cloneElement(controls, {
     showZen: false,
@@ -303,6 +304,7 @@ export function ApplicationMenu({
                     <button onClick={dismissThen(controls.props.onSearch)}>
                       Find and replace
                     </button>
+                    {footnoteCommand}
                   </div>
                 </div>
                 <div className="mobile-command-group">

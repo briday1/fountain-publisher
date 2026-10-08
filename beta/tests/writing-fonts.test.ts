@@ -1,4 +1,5 @@
-import { expect, it } from "vitest";
+import { beforeAll, expect, it } from "vitest";
+import { mockBookExportFonts } from "./helpers/bookExportFonts";
 import { readFileSync } from "node:fs";
 import { PDFDocument, PDFName, PDFDict } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
@@ -21,6 +22,9 @@ const fonts = Object.fromEntries(
     new Uint8Array(readFileSync(`src/fonts/DejaVuSerif-${key}.woff`)),
   ]),
 ) as FontBytes;
+beforeAll(() => {
+  mockBookExportFonts();
+});
 it("keeps existing writing defaults and remembers independent validated font choices", () => {
   localStorage.clear();
   expect(readPreferences().screenplayFont).toBe("courier");
@@ -81,7 +85,7 @@ it("preserves all font styles in Word and EPUB and writes the selected family to
   );
   expect(exportFdx(screenplay)).not.toContain('Font="DejaVu');
 });
-it("embeds the selected font in book and screenplay PDFs, leaving default book PDF unchanged", async () => {
+it("embeds selected fonts and the standard book PDF's serif font", async () => {
   const doc = parseMarkdown("A **bold** claim.^[A supporting reference.]");
   const output = await novelPdf(doc, {
     fontName: "DejaVu Serif",
@@ -121,5 +125,5 @@ it("embeds the selected font in book and screenplay PDFs, leaving default book P
           ?.toString(),
       )
       .join(" "),
-  ).toContain("Times-Roman");
+  ).toContain("DejaVuSerif");
 }, 15000);

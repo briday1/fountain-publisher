@@ -6,9 +6,15 @@ import { withoutFootnotes, footnoteRuns, type FootnoteRun } from "./footnotes";
 import { bookFrontMatter, type PublicationBlock } from "./book";
 import { zipSync, strToU8 } from "fflate";
 import type { Screenplay, ScriptBlock, TextSpan } from "./model";
+import { novelPdf } from "./novelPdf";
+export { novelPdf } from "./novelPdf";
+export type NovelPdfStyle = "book" | "manuscript";
+export type NovelPageSize = "6x9" | "5.5x8.5" | "5x8" | "letter" | "a4";
 export interface NovelExportOptions {
   fontName?: string;
   fontBytes?: FontBytes;
+  pdfStyle?: NovelPdfStyle;
+  pageSize?: NovelPageSize;
 }
 export type NovelExportFormat = "pdf" | "docx" | "epub" | "rtf";
 const xml = (s: string) =>
@@ -197,7 +203,7 @@ export function novelEpub(
       '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>',
     ),
     "EPUB/package.opf": strToU8(
-      `<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id" xml:lang="en"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">${identifier}</dc:identifier><dc:title>${bookTitle}</dc:title><dc:language>en</dc:language>${doc.titlePage.author ? `<dc:creator>${xml(doc.titlePage.author)}</dc:creator>` : ""}<meta property="dcterms:modified">${new Date().toISOString().replace(/\.\d+Z$/, "Z")}</meta></metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="book" href="book.xhtml" media-type="application/xhtml+xml"/><item id="style" href="style.css" media-type="text/css"/></manifest><spine><itemref idref="nav"/><itemref idref="book"/></spine></package>`,
+      `<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id" xml:lang="en"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">${identifier}</dc:identifier><dc:title>${bookTitle}</dc:title><dc:language>en</dc:language><meta property="rendition:layout">reflowable</meta>${doc.titlePage.author ? `<dc:creator>${xml(doc.titlePage.author)}</dc:creator>` : ""}<meta property="dcterms:modified">${new Date().toISOString().replace(/\.\d+Z$/, "Z")}</meta></metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="book" href="book.xhtml" media-type="application/xhtml+xml"/><item id="style" href="style.css" media-type="text/css"/></manifest><spine><itemref idref="book"/></spine></package>`,
     ),
     "EPUB/nav.xhtml": strToU8(xhtml("Contents", nav)),
     "EPUB/book.xhtml": strToU8(
@@ -216,7 +222,7 @@ export function novelEpub(
       ),
     ),
     "EPUB/style.css": strToU8(
-      '.front-title{text-align:center;font-size:2em;margin-top:25%;}.front-author,.front-dedication{text-align:center;}.front-dedication{font-style:italic;margin-top:35%;}body{font-family:serif;line-height:1.65;margin:1em;}p{margin:0 0 1em;}h1,h2{break-before:page;page-break-before:always;}h1:first-child{break-before:auto;}h1,h2,h3,h4,h5,h6{break-after:avoid;}blockquote{margin:1em 8%;}.centered{text-align:center;font-style:italic;margin:2em 10% .5em;}.parenthetical{text-align:right;margin-right:10%;font-size:.9em;}hr{border:0;text-align:center;margin:2em;}hr:after{content:"* * *";}',
+      '.front-title{text-align:center;font-size:2em;margin-top:25%;}.front-author,.front-dedication{text-align:center;}.front-dedication{font-style:italic;margin-top:35%;}body{font-family:serif;line-height:1.5;margin:1em;}p{margin:0;orphans:2;widows:2;}p.action{text-indent:1.2em;text-align:justify;}h1+p.action,h2+p.action,h3+p.action,h4+p.action,h5+p.action,h6+p.action,hr+p.action,body>p.action:first-child{ text-indent:0; }h1,h2{break-before:page;page-break-before:always;text-align:center;}h1:first-child,h2:first-child{break-before:auto;page-break-before:auto;}h1,h2,h3,h4,h5,h6{break-after:avoid;page-break-after:avoid;}blockquote{margin:1em 8%;}.centered{text-align:center;font-style:italic;margin:2em 10% .5em;}.parenthetical{text-align:right;margin-right:10%;font-size:.9em;}hr{border:0;text-align:center;margin:1.5em;}hr:after{content:"* * *";}aside[role="doc-footnote"]{margin-top:1em;font-size:.85em;}aside[role="doc-footnote"] p{text-indent:0;text-align:left;}',
     ),
   };
   if (options.fontName) {
@@ -297,263 +303,6 @@ export function novelRtf(
       .join("") +
     "}"
   );
-}
-export async function novelPdf(
-  doc: Screenplay,
-  options: NovelExportOptions & { pageSize?: "a4" | "letter" } = {},
-) {
-  const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
-  const pdf = await PDFDocument.create();
-  pdf.setTitle(title(doc));
-  if (doc.titlePage.author) pdf.setAuthor(doc.titlePage.author);
-  let fonts = {
-    regular: await pdf.embedFont(StandardFonts.TimesRoman),
-    bold: await pdf.embedFont(StandardFonts.TimesRomanBold),
-    italic: await pdf.embedFont(StandardFonts.TimesRomanItalic),
-    boldItalic: await pdf.embedFont(StandardFonts.TimesRomanBoldItalic),
-  };
-  if (options.fontBytes) {
-    const { default: fontkit } = await import("@pdf-lib/fontkit");
-    pdf.registerFontkit(fontkit);
-    fonts = Object.fromEntries(
-      await Promise.all(
-        fontKeys.map(async (key) => [
-          key,
-          await pdf.embedFont(options.fontBytes![key], { subset: true }),
-        ]),
-      ),
-    ) as typeof fonts;
-  }
-  const size: [number, number] =
-    options.pageSize === "a4" ? [595.28, 841.89] : [612, 792];
-  const margin = 64;
-  let page = pdf.addPage(size),
-    y = size[1] - margin;
-  let missing = 0;
-  let pageNotes: string[] = [];
-  const counter = { value: 0 };
-  const noteHeight = (lines: string[]) =>
-    lines.length ? lines.length * 12 + 16 : 0;
-  const drawNotes = () => {
-    if (!pageNotes.length) return;
-    const top = margin + pageNotes.length * 12;
-    page.drawLine({
-      start: { x: margin, y: top + 8 },
-      end: { x: margin + 110, y: top + 8 },
-      thickness: 0.5,
-    });
-    pageNotes.forEach((text, i) =>
-      page.drawText(text, {
-        x: margin,
-        y: top - i * 12 - 2,
-        size: 9,
-        font: fonts.regular,
-      }),
-    );
-    pageNotes = [];
-  };
-  const wrapNote = (note: { number: number; text: string }) => {
-    const lines: string[] = [];
-    let line = "";
-    for (const token of `${note.number}. ${note.text}`.match(/\s+|[^\s]+/gu) ||
-      []) {
-      let safe = "";
-      for (const c of token) {
-        try {
-          fonts.regular.encodeText(c);
-          safe += c;
-        } catch {
-          safe += "?";
-          missing++;
-        }
-      }
-      if (
-        line &&
-        fonts.regular.widthOfTextAtSize(line + safe, 9) > size[0] - 2 * margin
-      ) {
-        lines.push(line.trimEnd());
-        line = "";
-      }
-      for (const c of safe) {
-        if (!line && /\s/.test(c)) continue;
-        if (
-          fonts.regular.widthOfTextAtSize(line + c, 9) >
-          size[0] - 2 * margin
-        ) {
-          lines.push(line);
-          line = "";
-        }
-        line += c;
-      }
-    }
-    if (line) lines.push(line);
-    return lines;
-  };
-  const newPage = () => {
-    drawNotes();
-    page = pdf.addPage(size);
-    y = size[1] - margin;
-  };
-  for (const b of [
-    ...bookFrontMatter(doc),
-    ...(doc.blocks as PublicationBlock[]),
-  ]) {
-    if (b.front === "break") {
-      newPage();
-      continue;
-    }
-    if (b.front === "title" || b.front === "dedication") y = size[1] * 0.65;
-    const heading = b.kind === "section",
-      fs =
-        b.front === "title"
-          ? 24
-          : heading
-            ? level(b) === 1
-              ? 24
-              : level(b) === 2
-                ? 19
-                : 15
-            : 12;
-    const lineHeight = fs * 1.6;
-    const inset = ["dialogue", "centered", "parenthetical"].includes(b.kind)
-      ? 28
-      : 0;
-    const max = size[0] - 2 * (margin + inset);
-    if (heading && level(b) <= 2 && y < size[1] - margin - 24) newPage();
-    if (heading && y < margin + lineHeight * 3) newPage();
-    type Glyph = {
-      text: string;
-      font: typeof fonts.regular;
-      width: number;
-      underline?: boolean;
-      note?: { number: number; text: string };
-    };
-    let line: Glyph[] = [];
-    let width = 0;
-    const draw = () => {
-      const added = line.flatMap((g) => (g.note ? wrapNote(g.note) : []));
-      const required =
-        margin + lineHeight + noteHeight([...pageNotes, ...added]);
-      if (y < required && (pageNotes.length || y < size[1] - margin - 0.1))
-        newPage();
-      pageNotes.push(...added);
-      let x = margin + inset;
-      if (b.kind === "centered" || b.kind === "pageBreak")
-        x = (size[0] - width) / 2;
-      if (b.kind === "parenthetical") x = size[0] - margin - inset - width;
-      for (const g of line) {
-        page.drawText(g.text, {
-          x,
-          y: y + (g.note ? fs * 0.35 : 0),
-          font: g.font,
-          size: g.note ? fs * 0.7 : fs,
-          color: rgb(0.12, 0.12, 0.12),
-        });
-        if (g.underline)
-          page.drawLine({
-            start: { x, y: y - 2 },
-            end: { x: x + g.width, y: y - 2 },
-            thickness: 0.6,
-            color: rgb(0.12, 0.12, 0.12),
-          });
-        if (g.text) x += g.width;
-      }
-      y -= lineHeight;
-      // Very long notes continue on following pages; reserve their space before more body text.
-      while (noteHeight(pageNotes) > y - margin) {
-        const available = Math.max(1, Math.floor((y - margin - 16) / 12));
-        const remaining = pageNotes.splice(available);
-        newPage();
-        pageNotes = remaining;
-      }
-      line = [];
-      width = 0;
-    };
-    for (const span of (b.kind === "pageBreak"
-      ? [{ text: "* * *" }]
-      : footnoteRuns(b, counter)) as FootnoteRun[]) {
-      if (span.note) {
-        const w = fonts.regular.widthOfTextAtSize(span.text, fs * 0.7);
-        if (width + w > max && line.length) draw();
-        line.push({
-          text: span.text,
-          font: fonts.regular,
-          width: w,
-          note: span.note,
-        });
-        width += w;
-        continue;
-      }
-      const bold = heading || span.marks?.includes("bold"),
-        italic =
-          (b.kind === "centered" && (!b.front || b.front === "dedication")) ||
-          span.marks?.includes("italic");
-      const font =
-        fonts[
-          bold
-            ? italic
-              ? "boldItalic"
-              : "bold"
-            : italic
-              ? "italic"
-              : "regular"
-        ];
-      for (const token of span.text.match(/\n|[^\S\n]+|[^\s]+/gu) || []) {
-        if (token === "\n") {
-          draw();
-          continue;
-        }
-        let safe = "";
-        for (const c of token) {
-          try {
-            font.encodeText(c);
-            safe += c;
-          } catch {
-            safe += "?";
-            missing++;
-          }
-        }
-        const tokenWidth = font.widthOfTextAtSize(safe, fs);
-        if (width + tokenWidth > max && line.length) draw();
-        if (!line.length && /^\s+$/.test(safe)) continue;
-        for (const c of safe) {
-          const w = font.widthOfTextAtSize(c, fs);
-          if (width + w > max && line.length) draw();
-          line.push({
-            text: c,
-            font,
-            width: w,
-            underline: span.marks?.includes("underline"),
-          });
-          width += w;
-        }
-      }
-    }
-    if (line.length) draw();
-    y -= heading ? 12 : 9;
-  }
-  drawNotes();
-  pdf.getPages().forEach((p, i) =>
-    p.drawText(String(i + 1), {
-      x: size[0] / 2 - 3,
-      y: 30,
-      font: fonts.regular,
-      size: 9,
-      color: rgb(0.4, 0.4, 0.4),
-    }),
-  );
-  const pageCount = pdf.getPageCount();
-  return {
-    bytes: await pdf.save(),
-    pageCount,
-    scriptPageCount: pageCount,
-    pageEquivalent: pageCount,
-    warnings: missing
-      ? [
-          `${missing} unsupported characters were shown as ? in this PDF. Markdown, DOCX, EPUB and RTF retain the original Unicode text.`,
-        ]
-      : [],
-  };
 }
 export async function exportNovel(
   doc: Screenplay,
