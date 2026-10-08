@@ -50,10 +50,6 @@ export async function prepareCloudflare(
     ].join("\n"),
   );
   await writeFile(
-    join(output, "_redirects"),
-    "https://www.fountain-publisher.com/* https://fountain-publisher.com/:splat 301\n",
-  );
-  await writeFile(
     join(output, "__hosting.json"),
     JSON.stringify({ hosting: "cloudflare", revision }) + "\n",
   );

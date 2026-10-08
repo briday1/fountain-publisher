@@ -63,10 +63,7 @@ test("hosting migration retains older assets, offline shells and links while exc
     JSON.parse(await readFile(join(output, "__hosting.json"), "utf8")),
     { hosting: "cloudflare", revision: "tested-revision" },
   );
-  assert.match(
-    await readFile(join(output, "_redirects"), "utf8"),
-    /https:\/\/www\.fountain-publisher\.com\/\* https:\/\/fountain-publisher\.com\/:splat 301/,
-  );
+  await assert.rejects(stat(join(output, "_redirects")), { code: "ENOENT" });
 });
 
 test("an incomplete source fails before replacing the last prepared artifact", async (t) => {
