@@ -572,6 +572,11 @@ base(
         .filter({ hasText: "Bob Writer" });
       await expect(cursor).toHaveCount(1);
       await expect(footer.locator(".collaborator-avatar")).toHaveCount(0);
+      const header = alice.locator(".app-header");
+      const avatars = header.locator(".header-collaborators");
+      await expect(avatars).toBeVisible();
+      await expect(avatars.locator(".collaborator-avatar")).toHaveCount(3);
+      await expect(avatars.locator('[title="Bob Writer"]')).toBeVisible();
       expect(
         await cursor
           .locator("span")
@@ -582,8 +587,19 @@ base(
       // Using a menu must keep the writer's last position visible to their peer.
       await bob.getByRole("button", { name: "File", exact: true }).click();
       await expect(cursor).toHaveCount(1);
-      for (const width of [320, 390, 768, 1024]) {
+      for (const width of [320, 390, 768, 1024, 1440]) {
         await alice.setViewportSize({ width, height: 844 });
+        expect(
+          await header.evaluate((el) => el.scrollWidth <= el.clientWidth),
+        ).toBe(true);
+        const avatarBounds = (await avatars.boundingBox())!;
+        const headerBounds = (await header.boundingBox())!;
+        expect(avatarBounds.x + avatarBounds.width).toBeGreaterThan(width - 30);
+        expect(avatarBounds.x + avatarBounds.width).toBeLessThanOrEqual(width);
+        expect(avatarBounds.y).toBeGreaterThanOrEqual(headerBounds.y);
+        expect(avatarBounds.y + avatarBounds.height).toBeLessThanOrEqual(
+          headerBounds.y + headerBounds.height,
+        );
         const box = (await footer.boundingBox())!;
         expect(box.height).toBe(36);
         expect(
@@ -646,11 +662,111 @@ base(
       });
       await room.disconnect(people.bob);
       await expect(cursor).toHaveCount(0);
+      await expect(avatars.locator('[title="Bob Writer"]')).toHaveCount(0);
       await room.disconnect(people.alice);
+      await expect(avatars).toHaveCount(0);
       await expect(
         footer.getByRole("button", { name: /WriteShape offline/ }),
       ).toBeVisible();
       expect((await footer.boundingBox())!.height).toBe(36);
+    } finally {
+      for (const context of contexts) await context.close();
+      room.destroy();
+    }
+  },
+);
+
+base(
+  "WriteShape keeps the same name in scene and dialogue cursors across two windows of one account",
+  async ({ browser }, testInfo) => {
+    const room = new SharedDriveRoom(
+      source + "\n\nBRIAN\nA spoken sentence.\n\n>FADE OUT.\n\n# Act One",
+    );
+    const person = { ...people.alice, name: "Brian" };
+    const contexts: BrowserContext[] = [];
+    try {
+      const pages: Page[] = [];
+      for (let i = 0; i < 2; i++) {
+        const context = await browser.newContext({
+          viewport: { width: 1440, height: 1000 },
+          serviceWorkers: "block",
+        });
+        contexts.push(context);
+        await room.install(context, person, true);
+        const page = await context.newPage();
+        pages.push(page);
+        await page.goto(`/?live=library_${fileId}`);
+        await expect(page.locator(".document-save-label")).toHaveText(
+          "Saved to WriteShape",
+        );
+      }
+      const [first, second] = pages;
+      for (const page of pages) {
+        await expect(
+          page.locator(".header-collaborators .collaborator-avatar"),
+        ).toHaveCount(2);
+        await expect(
+          editor(page).locator(".collaboration-cursor > span"),
+        ).toHaveText("Brian");
+      }
+      for (const kind of [
+        "scene",
+        "action",
+        "character",
+        "dialogue",
+        "transition",
+        "section",
+      ]) {
+        await editor(second)
+          .locator(`p[data-kind="${kind}"]`)
+          .first()
+          .evaluate((paragraph) => {
+            const surface =
+              paragraph.closest<HTMLElement>(".screenplay-editor")!;
+            surface.focus();
+            const range = document.createRange();
+            range.selectNodeContents(paragraph);
+            range.collapse(true);
+            const selection = window.getSelection()!;
+            selection.removeAllRanges();
+            selection.addRange(range);
+          });
+        const cursor = editor(first).locator(
+          `p[data-kind="${kind}"] .collaboration-cursor`,
+        );
+        await expect(cursor).toHaveCount(1);
+        await expect(cursor).toHaveAttribute("contenteditable", "false");
+        await expect(cursor).toHaveAttribute("spellcheck", "false");
+        await expect(cursor.locator("span")).toHaveText("Brian");
+        await expect(cursor.locator("span")).toHaveAttribute(
+          "spellcheck",
+          "false",
+        );
+        await expect(cursor.locator("span")).toHaveCSS(
+          "text-transform",
+          "none",
+        );
+        expect(await editor(first).getAttribute("spellcheck")).not.toBe(
+          "false",
+        );
+      }
+      await first.locator(".header-collaborators").getByRole("button").click();
+      await expect(
+        first.getByRole("button", {
+          name: "Brian · Show writing position",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await first
+        .getByRole("button", {
+          name: "Brian · Show writing position",
+          exact: true,
+        })
+        .click();
+      expect(room.content).not.toContain("Brian");
+      await first.screenshot({
+        path: testInfo.outputPath("same-account-collaboration.png"),
+      });
     } finally {
       for (const context of contexts) await context.close();
       room.destroy();

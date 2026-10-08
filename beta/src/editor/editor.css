@@ -162,6 +162,10 @@
   margin-right: -1px;
   pointer-events: none;
   user-select: none;
+  /* Scene headings and character cues uppercase their content, not writer UI. */
+  text-transform: none;
+  letter-spacing: normal;
+  font-style: normal;
 }
 .collaboration-cursor > span {
   position: absolute;

@@ -25,6 +25,8 @@ afterEach(() => {
 });
 
 it("migrates old preferences and validates each new setting independently", () => {
+  for (const options of Object.values(readPreferences().backgroundOptions))
+    expect(options.animated).toBe(false);
   localStorage.setItem(
     "fp2.preferences",
     JSON.stringify({ background: "grid" }),
@@ -38,14 +40,14 @@ it("migrates old preferences and validates each new setting independently", () =
     JSON.stringify({
       background: "hyperspace",
       backgroundOptions: {
-        dots: { animated: false, speed: "fast", density: "dense" },
+        dots: { animated: true, speed: "fast", density: "dense" },
         hyperspace: { animated: "yes", speed: "constructor", density: 1000000 },
         topographic: null,
       },
     }),
   );
   expect(readPreferences().backgroundOptions).toEqual({
-    dots: { animated: false, speed: "fast", density: "dense" },
+    dots: { animated: true, speed: "fast", density: "dense" },
     hyperspace: defaultBackgroundOptions,
     topographic: defaultBackgroundOptions,
   });
@@ -84,12 +86,22 @@ it("keeps independent choices across backgrounds and reloads, hiding irrelevant 
   };
   try {
     await act(async () => root.render(<Harness />));
+    expect(control("Animation speed")).toBeUndefined();
+    expect((control("Animate background") as HTMLInputElement).checked).toBe(
+      false,
+    );
+    await act(async () => control("Animate background")!.click());
     await select("Animation speed", "fast");
     await select("Dot density", "dense");
     await act(async () => control("Animate background")!.click());
     expect(control("Animation speed")).toBeUndefined();
     expect(control("Dot density")?.value).toBe("dense");
     await select("Workspace background", "hyperspace");
+    expect(control("Animation speed")).toBeUndefined();
+    expect((control("Animate background") as HTMLInputElement).checked).toBe(
+      false,
+    );
+    await act(async () => control("Animate background")!.click());
     expect(control("Animation speed")?.value).toBe("normal");
     await select("Star density", "sparse");
     await select("Workspace background", "topographic");

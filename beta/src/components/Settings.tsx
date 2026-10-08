@@ -199,8 +199,8 @@ export function Settings({
               </select>
             </label>
             <p className="muted" id="background-motion-note">
-              Turn animation off for a still background. Your system’s
-              reduced-motion setting always keeps backgrounds still.
+              Backgrounds are still by default. Turn animation on here. Your
+              system’s reduced-motion setting always keeps backgrounds still.
             </p>
           </fieldset>
         )}

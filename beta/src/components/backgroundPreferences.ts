@@ -11,7 +11,7 @@ export type BackgroundPreferences = Record<AnimatedPattern, BackgroundOptions>;
 export const speedFactors = { slow: 0.5, normal: 1, fast: 2 } as const;
 export const densityFactors = { sparse: 0.65, normal: 1, dense: 1.5 } as const;
 export const defaultBackgroundOptions: BackgroundOptions = {
-  animated: true,
+  animated: false,
   speed: "normal",
   density: "normal",
 };
@@ -29,7 +29,9 @@ export function readBackgroundPreferences(
         pattern,
         {
           animated:
-            typeof options?.animated === "boolean" ? options.animated : true,
+            typeof options?.animated === "boolean"
+              ? options.animated
+              : defaultBackgroundOptions.animated,
           speed: Object.hasOwn(speedFactors, options?.speed ?? "")
             ? options!.speed
             : "normal",

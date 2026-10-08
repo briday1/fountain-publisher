@@ -2,11 +2,15 @@ import { test, expect, type Page } from "@playwright/test";
 
 const mod = process.platform === "darwin" ? "Meta" : "Control";
 
-async function chooseBackground(page: Page, value: string) {
+async function chooseBackground(page: Page, value: string, animate = false) {
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page
     .getByRole("combobox", { name: "Workspace background", exact: true })
     .selectOption(value);
+  if (animate)
+    await page
+      .getByRole("switch", { name: "Animate background", exact: true })
+      .check();
   await page.getByRole("button", { name: "Done", exact: true }).click();
 }
 
@@ -41,7 +45,7 @@ test("background choices preserve the editor, undo history, and saved appearance
     await expect(decoration).toBeVisible();
     await expect(decoration).toHaveAttribute("data-pattern", pattern);
     await expect(decoration).toHaveAttribute("aria-hidden", "true");
-    await expect(decoration).toHaveAttribute("data-running", "true");
+    await expect(decoration).toHaveAttribute("data-running", "false");
     await expect(decoration).toHaveCSS("pointer-events", "none");
     await page.screenshot({ path: `test-results/workspace-${pattern}.png` });
     expect(
@@ -70,7 +74,7 @@ test("background choices preserve the editor, undo history, and saved appearance
     "The ambient canvas leaves the words alone.",
   );
   await expect(decoration).toHaveAttribute("data-pattern", "hyperspace");
-  await expect(decoration).toHaveAttribute("data-running", "true");
+  await expect(decoration).toHaveAttribute("data-running", "false");
   await chooseBackground(page, "plain");
   await expect(decoration).toHaveCount(0);
   await page.reload();
@@ -88,7 +92,7 @@ test("backgrounds respect reduced motion and stop when hidden on narrow screens"
   ).toBeVisible();
   const decoration = page.locator(".workspace-background");
   for (const pattern of ["dots", "topographic", "hyperspace"]) {
-    await chooseBackground(page, pattern);
+    await chooseBackground(page, pattern, true);
     await expect(decoration).toHaveAttribute("data-running", "false");
     expect(
       await decoration.evaluate((element) =>
@@ -130,7 +134,7 @@ test("hyperspace keeps long-draft typing and dialogue popup scrolling responsive
     });
   });
   await page.goto("/");
-  await chooseBackground(page, "hyperspace");
+  await chooseBackground(page, "hyperspace", true);
   const source =
     "INT. OBSERVATORY - NIGHT\n\n" +
     Array.from(

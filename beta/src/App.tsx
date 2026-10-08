@@ -6,6 +6,7 @@ import { MergeReview } from "./components/MergeReview";
 import { WritingReview } from "./components/WritingReview";
 import { mergeScreenplays, type MergeChoice } from "./core/merge";
 import { DocumentStatusBar } from "./components/DocumentStatusBar";
+import { CollaboratorAvatars } from "./components/CollaboratorAvatars";
 import { LibrarySharing } from "./components/LibrarySharing";
 import { cloudRequest } from "./storage/writeshapeLibrary";
 import { ReportProblem } from "./components/ReportProblem";
@@ -2258,6 +2259,16 @@ export default function App() {
             <Download size={15} />
             <span>Save</span>
           </button>
+        )}
+        {isWriteShape && (
+          <CollaboratorAvatars
+            self={activeSharedBuffer?.live?.self}
+            status={activeSharedBuffer?.liveStatus}
+            mobile={mobile}
+            onReveal={(clientId) =>
+              editor.current?.revealCollaborator(clientId)
+            }
+          />
         )}
       </header>
       {cloudReadOnly && (
