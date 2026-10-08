@@ -1,0 +1,67 @@
+name: Validate Fountain Publisher Cloudflare hosting
+
+on:
+  push:
+    branches: [hosting/private-github-cloudflare]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fountain-cloudflare-migration
+  cancel-in-progress: false
+
+env:
+  WRANGLER_SEND_METRICS: "false"
+  WRANGLER_SEND_ERROR_REPORTS: "false"
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: published
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: beta/package-lock.json
+      - name: Test publication preservation
+        run: node --test .github/scripts/*.test.mjs
+      - name: Require a credential available to private GitHub repositories
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN must be a repository secret, not only an environment secret."
+            exit 1
+          fi
+      - name: Install build and deployment tools
+        working-directory: beta
+        run: npm ci
+      - name: Build with the unchanged production API
+        working-directory: beta
+        run: npm run build:beta
+      - name: Preserve the complete published asset tree
+        run: |
+          node .github/scripts/prepare-pages.mjs beta/dist published
+          node .github/scripts/prepare-cloudflare.mjs published beta/site-dist "$GITHUB_SHA"
+      - name: Validate the static-only hosting configuration
+        working-directory: beta
+        run: npx wrangler deploy --config wrangler.fountain-staging.json --dry-run
+      - name: Deploy on a separate hostname before changing production
+        working-directory: beta
+        run: npx wrangler deploy --config wrangler.fountain-staging.json
+      - name: Verify the retained files on Cloudflare
+        run: node .github/scripts/check-fountain-hosting.mjs https://hosting-check.fountain-publisher.com beta/site-dist "$GITHUB_SHA"
+      - name: Keep the verified hosting artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fountain-cloudflare-hosting
+          path: beta/site-dist
+          if-no-files-found: error
