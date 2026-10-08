@@ -4,7 +4,7 @@
   "compatibility_date": "2026-10-08",
   "workers_dev": false,
   "preview_urls": false,
-  "routes": [{ "pattern": "fountain-publisher.com", "custom_domain": true }],
+  "routes": [{ "pattern": "fountain-publisher.com/*", "zone_id": "62e5d3a224278f2090184111b886e0cc" }],
   "assets": {
     "directory": "./site-dist",
     "not_found_handling": "single-page-application"
