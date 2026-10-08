@@ -39,6 +39,7 @@ it("migrates old preferences and validates each new setting independently", () =
     "fp2.preferences",
     JSON.stringify({
       background: "hyperspace",
+      backgroundMotionVersion: defaults.backgroundMotionVersion,
       backgroundOptions: {
         dots: { animated: true, speed: "fast", density: "dense" },
         hyperspace: { animated: "yes", speed: "constructor", density: 1000000 },
@@ -53,6 +54,30 @@ it("migrates old preferences and validates each new setting independently", () =
   });
   localStorage.setItem("fp2.preferences", "{broken");
   expect(readPreferences()).toEqual(defaults);
+});
+
+it("starts previously saved animated backgrounds still after the upgrade", () => {
+  localStorage.setItem(
+    "fp2.preferences",
+    JSON.stringify({
+      background: "hyperspace",
+      backgroundOptions: {
+        dots: { animated: true, speed: "fast", density: "dense" },
+        hyperspace: { animated: true, speed: "normal", density: "normal" },
+        topographic: { animated: true, speed: "slow", density: "sparse" },
+      },
+    }),
+  );
+  const migrated = readPreferences();
+  expect(migrated.background).toBe("hyperspace");
+  for (const options of Object.values(migrated.backgroundOptions))
+    expect(options.animated).toBe(false);
+  expect(migrated.backgroundOptions.dots.speed).toBe("fast");
+  expect(migrated.backgroundOptions.topographic.density).toBe("sparse");
+  migrated.backgroundOptions.hyperspace.animated = true;
+  localStorage.setItem("fp2.preferences", JSON.stringify(migrated));
+  expect(readPreferences().backgroundOptions.hyperspace.animated).toBe(true);
+  expect(readPreferences().backgroundOptions.dots.animated).toBe(false);
 });
 
 it("keeps independent choices across backgrounds and reloads, hiding irrelevant controls", async () => {

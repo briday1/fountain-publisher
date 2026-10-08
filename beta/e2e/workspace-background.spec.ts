@@ -82,6 +82,44 @@ test("background choices preserve the editor, undo history, and saved appearance
   await expect(decoration).toHaveCount(0);
 });
 
+test("saved animation defaults become still after upgrading, and a later opt-in survives reload", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem("fp2.preferences")) return;
+    localStorage.setItem(
+      "fp2.preferences",
+      JSON.stringify({
+        background: "hyperspace",
+        backgroundOptions: Object.fromEntries(
+          ["dots", "topographic", "hyperspace"].map((pattern) => [
+            pattern,
+            {
+              animated: true,
+              speed: "normal",
+              density: "normal",
+            },
+          ]),
+        ),
+      }),
+    );
+  });
+  await page.goto("/");
+  const decoration = page.locator(".workspace-background");
+  await expect(decoration).toHaveAttribute("data-pattern", "hyperspace");
+  await expect(decoration).toHaveAttribute("data-running", "false");
+  for (const pattern of ["dots", "topographic", "hyperspace"]) {
+    await chooseBackground(page, pattern);
+    await expect(decoration).toHaveAttribute("data-running", "false");
+  }
+  await chooseBackground(page, "hyperspace", true);
+  await expect(decoration).toHaveAttribute("data-running", "true");
+  await page.reload();
+  await expect(decoration).toHaveAttribute("data-running", "true");
+  await chooseBackground(page, "dots");
+  await expect(decoration).toHaveAttribute("data-running", "false");
+});
+
 test("backgrounds respect reduced motion and stop when hidden on narrow screens", async ({
   page,
 }) => {

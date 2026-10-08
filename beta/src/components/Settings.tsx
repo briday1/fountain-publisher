@@ -24,6 +24,7 @@ export interface Preferences {
   pageSize: "letter" | "a4";
   background: WorkspacePattern;
   backgroundOptions: BackgroundPreferences;
+  backgroundMotionVersion: number;
   typewriter: boolean;
   outline: boolean;
   insights: boolean;
@@ -43,6 +44,7 @@ export const defaults: Preferences = {
   pageSize: "letter",
   background: "dots",
   backgroundOptions: readBackgroundPreferences(undefined),
+  backgroundMotionVersion: 1,
   typewriter: false,
   outline: true,
   insights: true,
@@ -52,6 +54,14 @@ export const defaults: Preferences = {
 export function readPreferences(): Preferences {
   try {
     const saved = JSON.parse(localStorage.getItem("fp2.preferences") || "{}");
+    const backgroundOptions = readBackgroundPreferences(
+      saved?.backgroundOptions,
+    );
+    // Earlier releases saved animation-on defaults without an explicit opt-in.
+    // Start those installations still once; later animation choices persist.
+    if (saved?.backgroundMotionVersion !== defaults.backgroundMotionVersion)
+      for (const options of Object.values(backgroundOptions))
+        options.animated = false;
     return {
       ...defaults,
       ...saved,
@@ -61,7 +71,8 @@ export function readPreferences(): Preferences {
       bookFont: bookFonts.includes(saved?.bookFont)
         ? saved.bookFont
         : defaults.bookFont,
-      backgroundOptions: readBackgroundPreferences(saved?.backgroundOptions),
+      backgroundOptions,
+      backgroundMotionVersion: defaults.backgroundMotionVersion,
       background: ["dots", "topographic", "hyperspace", "plain"].includes(
         saved?.background,
       )
