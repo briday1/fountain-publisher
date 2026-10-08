@@ -3194,9 +3194,13 @@ export default function App() {
             </button>
             <button onClick={() => void run(() => newDocument("novel"))}>
               <strong>Book</strong>
-              <small>Fiction or nonfiction, saved as Markdown.</small>
+              <small>Text only. Fiction or nonfiction, saved as Markdown.</small>
             </button>
           </div>
+          <p>
+            Book writing is text only in Basic and Premium. Images,
+            illustrations and embedded media are not supported.
+          </p>
         </Modal>
       )}
       {dialog === "export" &&

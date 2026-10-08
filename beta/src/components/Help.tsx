@@ -27,6 +27,12 @@ export function Help({
         as you go, but additional formatting and styles are provided in the menu
         bar.
       </p>
+      {onReport && (
+        <p>
+          Book writing and exports are text only in Basic and Premium. Images,
+          illustrations and embedded media are not supported.
+        </p>
+      )}
       <table className="shortcut-table">
         <tbody>
           {[

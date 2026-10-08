@@ -59,6 +59,10 @@ export function PlanComparison({
         Both formats are included. Choose an example below, then take a closer
         look at individual features.
       </p>
+      <p>
+        <strong>Book writing is text only in Basic and Premium.</strong>{" "}
+        Images, illustrations and embedded media are not supported.
+      </p>
       <div
         className="premium-mode-tabs"
         role="tablist"
@@ -148,6 +152,15 @@ export function PlanComparison({
         aria-labelledby={`premium-${mode}-tab`}
         className="premium-showcase"
       >
+        {mode === "book" && (
+          <p>
+            <strong>Text-only books · Basic and Premium</strong>
+            <br />
+            Write fiction or nonfiction with headings, paragraphs and
+            footnotes. Premium adds planning, cloud saving and collaboration;
+            books remain text only.
+          </p>
+        )}
         <FocusPremiumExample mode={mode} />
         {mode === "book" ? (
           <BookPremiumExamples />
@@ -392,6 +405,13 @@ export function PlanComparison({
               </td>
             </tr>
           ))}
+          {mode === "book" && (
+            <tr>
+              <th scope="row">Images, illustrations and embedded media</th>
+              <td>Not supported</td>
+              <td>Not supported</td>
+            </tr>
+          )}
         </tbody>
       </table>
       <p>

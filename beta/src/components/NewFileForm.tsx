@@ -62,9 +62,15 @@ export function NewFileForm({
           }
         >
           <option value="screenplay">Screenplay (.fountain)</option>
-          <option value="novel">Book (.md)</option>
+          <option value="novel">Book · Text only (.md)</option>
         </select>
       </label>
+      {format === "novel" && (
+        <p>
+          Book writing is text only in Basic and Premium. Images,
+          illustrations and embedded media are not supported.
+        </p>
+      )}
       <button className="primary" disabled={busy || !name.trim()}>
         {busy ? "Creating…" : "Create file"}
       </button>

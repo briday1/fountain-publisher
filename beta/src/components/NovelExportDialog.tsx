@@ -32,6 +32,10 @@ export function NovelExportDialog({
   const [manuscriptSize, setManuscriptSize] = useState<NovelPageSize>("letter");
   return (
     <Modal title="Export book" onClose={onClose}>
+      <p>
+        Book exports are text only in Basic and Premium. Images, illustrations
+        and embedded media are not supported in any book export format.
+      </p>
       <label className="field">
         Export format
         <select

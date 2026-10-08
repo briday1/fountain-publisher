@@ -23,6 +23,8 @@ The same release replaces beta and existing `previews/pr-N/` entrypoints and bot
 
 Production uses explicit Worker routes over proxied apex and `www` DNS records. This allows the hosting cutover while retaining the old GitHub Pages DNS records for clients with cached answers. After verifying the Cloudflare route, the apex origin can be replaced with the reserved `192.0.2.0` placeholder; the static-only Worker serves requests without fetching an origin. Keep the apex and `www` records proxied. Do not replace these routes with Custom Domains during a release: Cloudflare rejects existing externally managed DNS records, and deleting all records first would create a DNS gap.
 
+The established routes are managed in Cloudflare: `fountain-publisher.com/*` belongs to `fountain-publisher-site`, and `www.fountain-publisher.com/*` belongs to `fountain-publisher-www`. The production Wrangler configurations deliberately use an empty `routes` array. Wrangler skips route updates when this array is empty, retaining the installed routes while publishing new code and assets. This keeps routine releases within the repository token's existing Worker permissions. The live hosting verification still requires the exact release at the apex domain and the correct `www` redirect; a missing or incorrect route fails the release.
+
 ### Making the GitHub source private
 
 1. Deploy the migration branch to the separate hosting validation hostname and verify all retained files. The environment-free staging job also proves that the repository secret is available without paid GitHub environment features.
