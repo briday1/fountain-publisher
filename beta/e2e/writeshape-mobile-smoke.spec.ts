@@ -396,7 +396,7 @@ test("Premium file locations exclude hosted storage without an owner invitation"
     await page.goto("/");
     for (const action of ["Files…", "Save As…"]) {
       await page.getByRole("button", { name: "File", exact: true }).click();
-      await page.getByRole("button", { name: action, exact: true }).click();
+      await page.getByRole("button", { name: action }).click();
       const dialog = page.getByRole("dialog", {
         name: action === "Files…" ? "Files" : "Save as…",
         exact: true,
