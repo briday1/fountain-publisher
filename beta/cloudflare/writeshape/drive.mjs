@@ -1,3 +1,4 @@
+import { inviteOnlyStorage } from "./cloud-access.mjs";
 import { HttpError, json, sameOrigin, now } from "./http.mjs";
 import { backupAllowed } from "./cloud-backup.mjs";
 import {
@@ -531,7 +532,7 @@ export function createDriveRoutes({
           canWrite: premium(account),
           reason: premium(account)
             ? null
-            : "Premium is required to save to Google Drive. You can still open and download your files.",
+            : "Google Drive access requires Premium. Your files remain in Google Drive.",
         });
       } catch (error) {
         if (!(error instanceof HttpError)) throw error;
@@ -545,6 +546,15 @@ export function createDriveRoutes({
         });
       }
     }
+    if (
+      inviteOnlyStorage(env) &&
+      path !== "/api/drive/disconnect" &&
+      !premium(account)
+    )
+      throw new HttpError(
+        403,
+        "Google Drive access requires Premium. Your files remain in Google Drive.",
+      );
     if (request.method === "POST") {
       sameOrigin(request);
       if (

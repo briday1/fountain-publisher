@@ -299,6 +299,7 @@ test("new palettes coordinate UI colors, remain readable, and persist", async ({
       json: {
         account,
         premium: true,
+        cloudStorage: true,
         accessCodesAvailable: true,
         billingAvailable: false,
       },
@@ -424,6 +425,7 @@ for (const width of [390, 834, 1280]) {
         json: {
           account,
           premium: true,
+        cloudStorage: true,
           billingAvailable: false,
           privateMode: false,
         },
@@ -503,6 +505,7 @@ test("Book starts clean, saves front matter, numbers headings and keeps colored 
       json: {
         account: { ...account, privateTester: true },
         premium: true,
+        cloudStorage: true,
         billingAvailable: false,
       },
     }),
@@ -715,6 +718,7 @@ test("Premium chapter focus edits the same book and navigates on desktop and pho
       json: {
         account: { ...account, privateTester: true },
         premium: true,
+        cloudStorage: true,
         billingAvailable: false,
       },
     }),

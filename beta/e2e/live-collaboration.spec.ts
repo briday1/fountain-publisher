@@ -115,8 +115,12 @@ class SharedDriveRoom {
     };
   }
 
-  async install(context: BrowserContext, person: Person, writeShape = false) {
-    const cloudRoomId = `library_${fileId}`;
+  async install(
+    context: BrowserContext,
+    person: Person,
+    writeShape: boolean | "drive" = false,
+  ) {
+    const cloudRoomId = `${writeShape === "drive" ? "drive" : "library"}_${fileId}`;
     if (writeShape)
       await context.route("**/src/product.ts*", (route) =>
         route.fulfill({
@@ -152,7 +156,8 @@ class SharedDriveRoom {
             displayName: person.name,
             privateTester: true,
           },
-          premium: person.id === people.alice.id,
+          premium: true,
+          cloudStorage: writeShape !== "drive",
           privateMode: true,
           collaborationAvailable: true,
         };
@@ -602,8 +607,12 @@ base(
           await expect(avatars).toBeVisible();
           const avatarBounds = (await avatars.boundingBox())!;
           const headerBounds = (await header.boundingBox())!;
-          expect(avatarBounds.x + avatarBounds.width).toBeGreaterThan(width - 30);
-          expect(avatarBounds.x + avatarBounds.width).toBeLessThanOrEqual(width);
+          expect(avatarBounds.x + avatarBounds.width).toBeGreaterThan(
+            width - 30,
+          );
+          expect(avatarBounds.x + avatarBounds.width).toBeLessThanOrEqual(
+            width,
+          );
           expect(avatarBounds.y).toBeGreaterThanOrEqual(headerBounds.y);
           expect(avatarBounds.y + avatarBounds.height).toBeLessThanOrEqual(
             headerBounds.y + headerBounds.height,
@@ -653,7 +662,9 @@ base(
         }),
       );
       for (let i = 1; i < bounds.length; i++)
-        expect(bounds[i].x).toBeGreaterThan(bounds[i - 1].x + bounds[i - 1].width);
+        expect(bounds[i].x).toBeGreaterThan(
+          bounds[i - 1].x + bounds[i - 1].width,
+        );
       expect((await avatars.boundingBox())!.width).toBeLessThan(145);
       await avatars.getByRole("button").click();
       await alice
@@ -1012,6 +1023,47 @@ base(
     }
   },
 );
+
+test("WriteShape Premium writers automatically collaborate in the same Drive file without storage invitations", async ({
+  browser,
+}) => {
+  const room = new SharedDriveRoom();
+  const contexts: BrowserContext[] = [];
+  try {
+    const pages: Page[] = [];
+    for (const person of [people.alice, people.bob]) {
+      const context = await browser.newContext({ serviceWorkers: "block" });
+      contexts.push(context);
+      await room.install(context, person, "drive");
+      const page = await context.newPage();
+      pages.push(page);
+      await page.goto(`/?live=drive_${fileId}`);
+      await expect(editor(page)).toContainText("Both writers have a turn.");
+    }
+    const [alice, bob] = pages;
+    await append(alice, " Both Premium writers share this Drive file.");
+    await expect(editor(bob)).toContainText(
+      "Both Premium writers share this Drive file.",
+    );
+    await alice
+      .getByRole("button", { name: "Share document", exact: true })
+      .click();
+    await alice
+      .getByRole("button", { name: "Manage access…", exact: true })
+      .click();
+    const sharing = alice.getByRole("dialog", {
+      name: "Share Google Drive document",
+      exact: true,
+    });
+    await expect(
+      sharing.getByRole("link", { name: "Manage sharing in Google Drive" }),
+    ).toHaveAttribute("href", `https://drive.google.com/file/d/${fileId}/view`);
+    await expect(sharing).toContainText("collaboration connects automatically");
+  } finally {
+    for (const context of contexts) await context.close();
+    room.destroy();
+  }
+});
 
 test("shared Drive writers converge concurrent edits, retain local undo, and keep presence out of Fountain", async ({
   room,

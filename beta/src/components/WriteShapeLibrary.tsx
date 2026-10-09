@@ -977,7 +977,7 @@ export function WriteShapeLibrary({
               {!canWrite && !loading && (
                 <p className="library-readonly">
                   Your library is read only. Open or download your scripts;
-                  Premium is required for new saves.
+                  New cloud saves require an owner invitation.
                 </p>
               )}
               {cloudBackup && (

@@ -1,3 +1,4 @@
+import { inviteOnlyStorage } from "./cloud-access.mjs";
 import { premium } from "./accounts.mjs";
 import { accountBilling } from "./billing-mode.mjs";
 import { withComplimentaryAccess } from "./access-codes.mjs";
@@ -20,6 +21,7 @@ export async function freshBackupAccount(env, id) {
   );
 }
 export async function reconcileBackupGrace(env, account) {
+  if (inviteOnlyStorage(env)) return null;
   if (!account || env.CLOUD_BACKUP_POLICY !== "true") return null;
   const time = now();
   if (premium(account)) {
@@ -104,6 +106,7 @@ export async function reconcileBackupGrace(env, account) {
       };
 }
 export async function backupAllowed(env, account) {
+  if (inviteOnlyStorage(env)) return false;
   if (premium(account)) return true;
   if (env.CLOUD_BACKUP_POLICY !== "true") return false;
   const state = await env.DB.prepare(
@@ -115,6 +118,7 @@ export async function backupAllowed(env, account) {
 }
 
 export async function sendBackupNotices(env, accountId = null) {
+  if (inviteOnlyStorage(env)) return;
   if (!env.CUSTOMER_EMAIL || env.CLOUD_BACKUP_POLICY !== "true") return;
   const time = now();
   const pending = await env.DB.prepare(
@@ -194,6 +198,7 @@ export async function sendBackupNotices(env, accountId = null) {
 }
 
 export async function maintainCloudBackups(env) {
+  if (inviteOnlyStorage(env)) return;
   if (env.CLOUD_BACKUP_POLICY !== "true") return;
   const owners = await env.DB.prepare(
     `SELECT id FROM accounts WHERE id IN (SELECT owner FROM items)
@@ -258,6 +263,7 @@ export async function maintainCloudBackups(env) {
 }
 
 export async function purgeExpiredCloud(env, state) {
+  if (inviteOnlyStorage(env)) return;
   const account = await freshBackupAccount(env, state.account_id);
   if (!account || premium(account)) {
     await reconcileBackupGrace(env, account);

@@ -82,7 +82,7 @@ it("places separate outline and planning showcases before comparison and describ
   );
   expect(el.querySelector(".collaboration-concept")).not.toBeNull();
   expect(el.querySelector(".showcase-cloud")?.textContent).toContain(
-    "same account",
+    "Google Drive",
   );
   expect(el.querySelectorAll(".sample-cloud-devices > div")).toHaveLength(3);
   expect(

@@ -1,3 +1,4 @@
+import { cloudStorageAllowed, inviteOnlyStorage } from "./cloud-access.mjs";
 import { resolveAccount, premium } from "./accounts.mjs";
 import { accountBilling } from "./billing-mode.mjs";
 import { withComplimentaryAccess } from "./access-codes.mjs";
@@ -100,6 +101,12 @@ export class WriteShapeLiveStorage {
         .first())
     )
       throw new HttpError(403, "Account deletion is pending.");
+    if (
+      inviteOnlyStorage(this.env) &&
+      !this.deletionCheckpoint &&
+      !premium(account)
+    )
+      throw new HttpError(403, "Premium is required for live collaboration.");
     const [, provider, id] = match;
     let file, canEdit;
     if (provider === "drive") {
@@ -145,7 +152,12 @@ export class WriteShapeLiveStorage {
               .first();
       if (!own && !edit && !read)
         throw new HttpError(404, "Live document not found.");
-      canEdit = !!(own || edit) && premium(owner);
+      canEdit =
+        !!(own || edit) &&
+        (await cloudStorageAllowed(owner, this.env)) &&
+        (own ||
+          !inviteOnlyStorage(this.env) ||
+          (await cloudStorageAllowed(account, this.env)));
       file = { ...file, etag: String(file.revision), canEdit };
     }
     if (!this.deletionCheckpoint)

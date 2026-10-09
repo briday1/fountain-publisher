@@ -79,6 +79,7 @@ it("WriteShape accounts collaborate on a Book through real D1, Worker and durabl
       "migrations/0004_code_claim_counts",
       "migrations/0005_rolling_history",
       "migrations/0006_cloud_backup_grace",
+      "migrations/0010_cloud_storage_grants",
     ]) {
       const sql = await readFile(`cloudflare/writeshape/${name}.sql`, "utf8");
       const clean = sql.replace(/--[^\n]*/g, "");
@@ -101,7 +102,7 @@ it("WriteShape accounts collaborate on a Book through real D1, Worker and durabl
         .prepare(
           "INSERT INTO accounts(id,email,display_name,private_tester,created) VALUES(?,?,?,?,0)",
         )
-        .bind(id, id + "@example.test", id, id === "owner" ? 1 : 0)
+        .bind(id, id + "@example.test", id, 1)
         .run();
       await db
         .prepare("INSERT INTO account_identities VALUES(?,?,?)")
@@ -116,6 +117,8 @@ it("WriteShape accounts collaborate on a Book through real D1, Worker and durabl
         )
         .run();
     }
+    for (const id of ["owner", "writer", "viewer"])
+      await db.prepare("INSERT INTO cloud_storage_grants(account_id,granted_by,granted_at) VALUES(?, 'owner',0)").bind(id).run();
     const id = crypto.randomUUID(),
       other = crypto.randomUUID(),
       room = "library_" + id;
@@ -699,6 +702,7 @@ it("WriteShape Drive rooms use independent encrypted connections and provider pe
       "migrations/0004_code_claim_counts",
       "migrations/0005_rolling_history",
       "migrations/0006_cloud_backup_grace",
+      "migrations/0010_cloud_storage_grants",
     ]) {
       const sql = (
         await readFile(`cloudflare/writeshape/${name}.sql`, "utf8")

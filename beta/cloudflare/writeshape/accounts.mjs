@@ -201,6 +201,9 @@ export async function accountRoutes(request, env, account, billingAvailable) {
           }
         : null,
       premium: premium(account),
+      cloudStorage: !!account?.cloud_storage,
+      existingCloudFiles: !!account?.existing_cloud_files,
+      manageCloudAccess: accessCodeOwner(account, env),
       collaborationAvailable: env.LIVE_COLLABORATION === "true",
       accessCodesAvailable: accessCodesAvailable(env),
       manageAccessCodes: accessCodeOwner(account, env),

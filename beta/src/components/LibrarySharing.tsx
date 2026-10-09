@@ -96,8 +96,8 @@ export function LibrarySharing({
           <p>
             Give a verified WriteShape account access to this document. Your
             folders and version history stay private. You can revoke access at
-            any time. People who can edit share the document owner’s Premium
-            access.
+            any time. Each writer needs Premium and a separate cloud storage
+            invitation.
           </p>
         </div>
         {error && (

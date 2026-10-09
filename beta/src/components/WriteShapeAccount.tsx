@@ -1,3 +1,4 @@
+import { CloudAccessManager } from "./CloudAccessManager";
 import { ChevronDown } from "lucide-react";
 import { recordDiagnostic } from "../support/diagnostics";
 import { AccessCodes, AccessCodeManager } from "./AccessCodes";
@@ -29,6 +30,9 @@ export interface AccountState {
   accessCodesAvailable?: boolean;
   manageAccessCodes?: boolean;
   premium: boolean;
+  cloudStorage?: boolean;
+  existingCloudFiles?: boolean;
+  manageCloudAccess?: boolean;
   collaborationAvailable?: boolean;
   googleAvailable: boolean;
   billingAvailable: boolean;
@@ -97,6 +101,7 @@ export function useWriteShapeAccount() {
   return { state, error, refresh };
 }
 export interface BillingSummary {
+  unitAmount?: number | null;
   status: string;
   plan: BillingPlan | null;
   periodEnd: number;
@@ -391,22 +396,15 @@ export function WriteShapeAccount({
         <p>
           Your subscription will stop renewing
           {end ? ` on ${dateLabel(end)}` : " at the end of your billing period"}
-          . You keep Premium until paid access ends. Then you have 30 days to
-          back up your cloud documents and saved version history. They remain
-          read-only and downloadable until the deadline, then are automatically
-          deleted.
+          . You keep Premium until paid access ends. Google Drive sync and live
+          collaboration then stop; your Drive files and local copies are kept.
         </p>
         {billing?.backupDeadlineLabel && (
           <p>Backup deadline: {billing.backupDeadlineLabel}.</p>
         )}
         <p>
-          Your account, local files, and Google Drive files are preserved.{" "}
-          <a href="/backup.html" target="_blank" rel="noopener noreferrer">
-            How to back up your data
-          </a>
-          . We email your account address when the window begins, with 10 days
-          left, and with 1 day left. Reactivating Premium cancels the remaining
-          reminders and deletion.
+          Your account stays available. Premium cancellation does not delete
+          existing cloud drafts or change a separate storage invitation.
         </p>
         <form
           onSubmit={(e) => {
@@ -481,18 +479,7 @@ export function WriteShapeAccount({
           )}
         </div>
       </div>
-      {account.cloudBackup && (
-        <p className="account-notice">
-          Your cloud backup window ends {account.cloudBackup.deadlineLabel}.
-          Cloud documents and saved version history are automatically deleted
-          afterward.{" "}
-          <a href="/backup.html" target="_blank" rel="noopener noreferrer">
-            Back up your data
-          </a>
-          . Reactivating Premium before deletion cancels this deadline and
-          remaining reminder emails.
-        </p>
-      )}
+
       {(error || notice) && (
         <p className="account-notice" role="status">
           {notice || error}
@@ -639,9 +626,15 @@ export function WriteShapeAccount({
               <div>
                 <dt>Current billing period</dt>
                 <dd>
-                  {billing.plan === "yearly"
-                    ? "Yearly · $80 USD / year"
-                    : "Monthly · $8 USD / month"}
+                  {billing.plan === "yearly" ? "Yearly" : "Monthly"} · $
+                  {billing.unitAmount == null
+                    ? billing.plan === "yearly"
+                      ? "59"
+                      : "5.99"
+                    : (billing.unitAmount / 100).toLocaleString("en-US", {
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                  USD / {billing.plan === "yearly" ? "year" : "month"}
                 </dd>
               </div>
             )}
@@ -691,8 +684,9 @@ export function WriteShapeAccount({
               Stripe shows the amount and timing before you confirm a change.
               Cancellation takes effect at the end of the billing period
               {end ? ` (${dateLabel(end)})` : ""}. Your documents are not
-              deleted. After paid access ends, you can still open and download
-              existing cloud files; new cloud saves need Premium.
+              deleted. Drive sync and live collaboration require Premium.
+              WriteShape-hosted storage is separate and is not included in this
+              subscription.
             </p>
           </>
         ) : !hasCodeAccess || showBilling ? (
@@ -713,8 +707,8 @@ export function WriteShapeAccount({
               Selected for checkout:{" "}
               <strong>
                 {billingPlan === "yearly"
-                  ? "$80 USD billed annually"
-                  : "$8 USD billed monthly"}
+                  ? "$59 USD billed annually"
+                  : "$5.99 USD billed monthly"}
               </strong>
               . This does not change your current access.
             </p>
@@ -766,6 +760,13 @@ export function WriteShapeAccount({
           writing, passwords, and payment details.
         </p>
       </section>
+      {state.manageCloudAccess && <CloudAccessManager refresh={refresh} />}
+      {state.cloudStorage && (
+        <p>
+          Cloud storage testing is enabled for your account by a separate owner
+          invitation.
+        </p>
+      )}
       {state.accessCodesAvailable && state.manageAccessCodes && (
         <AccessCodeManager refresh={refresh} />
       )}

@@ -53,15 +53,16 @@ export function PlanComparison({
       <p>
         Writing, local saves, standard exports, Outline, multiple tabs, and
         split panes are included in Basic. Premium adds scene and chapter Focus
-        mode, cloud saving, and planning tools for both books and screenplays.
+        mode, Google Drive access, live collaboration, and planning tools for
+        both books and screenplays.
       </p>
       <p>
         Both formats are included. Choose an example below, then take a closer
         look at individual features.
       </p>
       <p>
-        <strong>Book writing is text only in Basic and Premium.</strong>{" "}
-        Images, illustrations and embedded media are not supported.
+        <strong>Book writing is text only in Basic and Premium.</strong> Images,
+        illustrations and embedded media are not supported.
       </p>
       <div
         className="premium-mode-tabs"
@@ -125,7 +126,7 @@ export function PlanComparison({
                 "Character profiles",
                 "Beat Sheet",
                 "Writing goals",
-                "Cloud storage · All your devices",
+                "Google Drive · Your files",
                 "Live collaboration",
               ]
             : [
@@ -136,7 +137,7 @@ export function PlanComparison({
                 "Character highlighting",
                 "Mobile PDF",
                 "Writing goals",
-                "Cloud storage · All your devices",
+                "Google Drive · Your files",
                 "Live collaboration",
               ]
           ).map((label, index) => (
@@ -156,9 +157,9 @@ export function PlanComparison({
           <p>
             <strong>Text-only books · Basic and Premium</strong>
             <br />
-            Write fiction or nonfiction with headings, paragraphs and
-            footnotes. Premium adds planning, cloud saving and collaboration;
-            books remain text only.
+            Write fiction or nonfiction with headings, paragraphs and footnotes.
+            Premium adds planning, Google Drive and collaboration; books remain
+            text only.
           </p>
         )}
         <FocusPremiumExample mode={mode} />
@@ -273,26 +274,22 @@ export function PlanComparison({
           </figure>
         </section>
         <section className="showcase-feature showcase-cloud">
-          <small className="showcase-kicker">Cloud storage · Premium</small>
-          <h3>Pick up your draft on any device</h3>
+          <small className="showcase-kicker">Google Drive · Premium</small>
+          <h3>Your files in Google Drive</h3>
           <p>
-            Save your books and screenplays to My Storage in WriteShape. Sign in
-            with the same account on your phone, tablet, or computer to open
-            your saved draft and keep writing. Changes become available on your
-            other devices after they are saved to the cloud.
+            Open and save books and screenplays in your own Google Drive. Your
+            Drive storage allowance and sharing permissions stay with Google.
+            WriteShape Premium does not include hosted document storage.
           </p>
           <p>
-            Premium includes 1 GB for your cloud files and version history. Keep
-            your current draft plus the newest 50 previous versions per
-            document. Older versions expire as you save; download a copy of
-            anything you want to keep longer. Local files do not use this
-            allowance.
+            Local files and device autosave are included in Basic. Google Drive
+            access and live collaboration are included in Premium.
           </p>
           <figure>
             <div className="sample-cloud" inert aria-hidden="true">
               <div className="sample-cloud-library">
                 <h4>
-                  <Cloud size={18} /> My Storage
+                  <Cloud size={18} /> Google Drive
                 </h4>
                 <div>
                   <FileText size={20} />
@@ -300,7 +297,7 @@ export function PlanComparison({
                     The Last Light
                     <small>
                       {mode === "book" ? "Book" : "Screenplay"} · Saved to
-                      WriteShape
+                      Google Drive
                     </small>
                   </span>
                 </div>
@@ -322,9 +319,7 @@ export function PlanComparison({
                 })}
               </div>
             </div>
-            <figcaption>
-              One cloud library, available across your devices
-            </figcaption>
+            <figcaption>Your Google Drive files across your devices</figcaption>
           </figure>
         </section>
         <section className="showcase-feature showcase-collaboration">
@@ -335,8 +330,8 @@ export function PlanComparison({
           <h3>Write together</h3>
           <p>
             {collaborationAvailable
-              ? "Share a screenplay or book from WriteShape or Google Drive to write together. See who's in the document and follow their cursor and selection as they write. Everyone needs access to both the document and WriteShape."
-              : "Live collaboration is not enabled for this deployment. Your own devices receive saved changes after they reach cloud storage."}
+              ? "Share a screenplay or book in Google Drive. When Premium writers open the same file in WriteShape, live collaboration connects automatically. See who is in the document and where they are writing. Google Drive controls file access."
+              : "Live collaboration is not enabled for this deployment."}
           </p>
           <figure>
             <CollaborationExample mode={mode} />
@@ -371,7 +366,7 @@ export function PlanComparison({
                 "Beat Sheet",
                 "Beat Guide",
                 "Focus mode",
-                "Cloud library",
+                "Google Drive access",
                 "Writing goals",
                 "Live collaboration",
               ]
@@ -388,7 +383,7 @@ export function PlanComparison({
                 "Beat Sheet",
                 "Beat Guide",
                 "Focus mode",
-                "Cloud library",
+                "Google Drive access",
                 "Writing goals",
                 "Live collaboration",
               ]
@@ -415,15 +410,10 @@ export function PlanComparison({
         </tbody>
       </table>
       <p>
-        When Premium access ends, you have 30 days to back up your cloud files
-        and version history. They remain read-only and downloadable during that
-        window, then are automatically deleted. The deadline is 11:59:59 p.m.
-        Eastern Time on the final day. Your local files and Google Drive files
-        are preserved.{" "}
-        <a href="/backup.html" target="_blank" rel="noopener noreferrer">
-          Backup instructions
-        </a>
-        .
+        Premium is $5.99 USD per month or $59 USD per year. It includes both
+        books and screenplays, Google Drive access, and live collaboration.
+        WriteShape-hosted storage is not included. When Premium ends, your local
+        and Google Drive files remain yours.
       </p>
       {billingMode !== "live" && (
         <p>

@@ -1,5 +1,5 @@
 import { HttpError, json, sameOrigin } from "./http.mjs";
-import { premium } from "./accounts.mjs";
+import { cloudStorageAllowed } from "./cloud-access.mjs";
 const metadata =
   "id,parent,name,kind,revision,updated,length(CAST(COALESCE(content,'') AS BLOB)) AS bytes";
 const usageExpression =
@@ -288,12 +288,13 @@ async function writeFile(env, owner, input) {
 export async function libraryRoutes(request, env, user) {
   const url = new URL(request.url);
   if (!user) throw new HttpError(401, "Sign in to your WriteShape account.");
+  const cloudAccess = await cloudStorageAllowed(user, env);
   if (request.method !== "GET") {
     sameOrigin(request);
-    if (!premium(user))
+    if (!cloudAccess)
       throw new HttpError(
         403,
-        "Premium is required for cloud saves and restores. You can still open and download your existing scripts.",
+        "Cloud storage is available by owner invitation. You can still open and download your existing files.",
       );
   }
   const segments = url.pathname
@@ -313,7 +314,7 @@ export async function libraryRoutes(request, env, user) {
       items: items.results,
       breadcrumbs,
       usage: await storageUsage(env, user.id),
-      canWrite: premium(user),
+      canWrite: cloudAccess,
       cloudBackup: user.cloudBackup || null,
     });
   }
