@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { inviteOnlyStorage } from "./cloud-access.mjs";
 import {
   accountBilling,
   billingColumns,
@@ -12,6 +13,18 @@ import { freshBackupAccount, reconcileBackupGrace } from "./cloud-backup.mjs";
 
 // Explicit catalogs; live activation requires separate credentials and approval.
 export const TEST_PLANS = Object.freeze({
+  monthly: Object.freeze({
+    id: "price_1UORGOCoZzTH3rR08IJCaYY5",
+    amount: 599,
+    interval: "month",
+  }),
+  yearly: Object.freeze({
+    id: "price_1UORGuCoZzTH3rR0dEmlY9hW",
+    amount: 5900,
+    interval: "year",
+  }),
+});
+export const LEGACY_TEST_PLANS = Object.freeze({
   monthly: Object.freeze({
     id: "price_1UJI3mCoZzTH3rR02FrxECSY",
     amount: 800,
@@ -28,6 +41,7 @@ export function billingCatalog(env = {}) {
   const live = billingMode(env) === "live";
   return {
     livemode: live,
+    legacyPlans: live ? {} : LEGACY_TEST_PLANS,
     product: live ? env.STRIPE_LIVE_PRODUCT_ID : TEST_PRODUCT,
     plans: live
       ? {
@@ -74,6 +88,10 @@ export const billingConfigured = (env) => {
     catalog.plans.monthly.id !== catalog.plans.yearly.id
   );
 };
+const subscriptionPlans = (catalog) => [
+  ...Object.values(catalog.plans),
+  ...Object.values(catalog.legacyPlans || {}),
+];
 export function approvedPrice(price, plan, catalog = billingCatalog()) {
   return (
     !!plan &&
@@ -126,7 +144,7 @@ export function subscriptionState(
   const items = allItems.filter(
     (item) =>
       item.quantity === 1 &&
-      Object.values(catalog.plans).some((plan) =>
+      subscriptionPlans(catalog).some((plan) =>
         approvedPrice(item.price, plan, catalog),
       ),
   );
@@ -160,7 +178,7 @@ export function subscriptionState(
                   line.parent?.subscription_item_details?.subscription ||
                     line.subscription,
                 ) === sub.id &&
-                Object.values(catalog.plans).some(
+                subscriptionPlans(catalog).some(
                   (p) =>
                     p.id ===
                     objectId(line.pricing?.price_details?.price || line.price),
@@ -180,7 +198,9 @@ export function subscriptionState(
     plan:
       items.length === 1
         ? Object.keys(catalog.plans).find(
-            (key) => catalog.plans[key].id === items[0].price.id,
+            (key) =>
+              catalog.plans[key].id === items[0].price.id ||
+              catalog.legacyPlans?.[key]?.id === items[0].price.id,
           )
         : null,
     periodEnd: Number.isFinite(end) ? end : 0,
@@ -378,6 +398,7 @@ export function billingSummary(subscriptions, catalog = billingCatalog()) {
     subscriptionId: sub?.id || null,
     status: sub?.status || "none",
     plan: state?.plan || null,
+    unitAmount: sub?.items?.data?.[0]?.price?.unit_amount ?? null,
     periodEnd: state?.periodEnd || 0,
     cancelAtPeriodEnd: cancellationScheduled(sub),
     cancelAt:
@@ -408,7 +429,7 @@ async function portalConfiguration(
   // Explicit per-session configuration; never inherit an unrelated default portal.
   // Versions are immutable. Concurrent calls use the same idempotency key.
   const version =
-    "writeshape-account-v4-" +
+    "writeshape-account-v5-" +
     (catalog.livemode ? "live-" : "test-") +
     (allowChange ? "change-" : "manage-") +
     catalog.product;
@@ -540,10 +561,12 @@ export async function billingRoutes(request, env, account, stripe, ctx) {
     const end = summary.cancelAt || summary.periodEnd;
     return json({
       ...summary,
-      backupDeadline: end ? backupDeadline(end) : null,
-      backupDeadlineLabel: end
-        ? backupDeadlineLabel(backupDeadline(end))
-        : null,
+      backupDeadline:
+        end && !inviteOnlyStorage(env) ? backupDeadline(end) : null,
+      backupDeadlineLabel:
+        end && !inviteOnlyStorage(env)
+          ? backupDeadlineLabel(backupDeadline(end))
+          : null,
     });
   }
   if (path === "/api/billing/cancel") {
@@ -737,22 +760,34 @@ export async function billingRoutes(request, env, account, stripe, ctx) {
       409,
       "A subscription already exists. Use Manage subscription to update it.",
     );
-  // One persisted attempt per account across tabs/plans. Plan is encoded in the
-  // token, so retries always use the exact original Stripe parameters. A plan
-  // change must expire the previous session before atomically replacing it.
+  // One persisted attempt per account across tabs/plans. Plan and price are encoded
+  // in the token, so retries use the original Stripe parameters. A plan or price
+  // change expires the previous session before atomically replacing it.
   // No schema change is required; the existing token is opaque to other code.
   for (let retry = 0; retry < 5; retry++) {
     await env.DB.prepare(
       `INSERT INTO ${attemptsTable} (account_id,token,expires) VALUES (?,?,?) ON CONFLICT(account_id) DO UPDATE SET token=excluded.token,expires=excluded.expires WHERE ${attemptsTable}.expires<=?`,
     )
-      .bind(account.id, selection + ":" + randomToken(), now() + 3600, now())
+      .bind(
+        account.id,
+        selection + ":" + plan.id + ":" + randomToken(),
+        now() + 3600,
+        now(),
+      )
       .run();
     const attempt = await env.DB.prepare(
       `SELECT * FROM ${attemptsTable} WHERE account_id=?`,
     )
       .bind(account.id)
       .first();
-    const priorPlan = catalog.plans[attempt.token.split(":")[0]];
+    const [priorSelection, persistedPrice] = attempt.token.split(":");
+    const priorPlan = persistedPrice?.startsWith("price_")
+      ? subscriptionPlans(catalog).find(
+          (p) =>
+            p.id === persistedPrice &&
+            p.interval === catalog.plans[priorSelection]?.interval,
+        )
+      : catalog.legacyPlans?.[priorSelection] || catalog.plans[priorSelection];
     if (!priorPlan)
       throw new HttpError(
         409,
@@ -794,7 +829,7 @@ export async function billingRoutes(request, env, account, stripe, ctx) {
         },
         success_url: env.APP_ORIGIN + "/?account=billing",
         cancel_url:
-          env.APP_ORIGIN + "/?account=billing-cancelled&plan=" + selection,
+          env.APP_ORIGIN + "/?account=billing-cancelled&plan=" + priorSelection,
         expires_at: attempt.expires,
       },
       {
@@ -834,7 +869,7 @@ export async function billingRoutes(request, env, account, stripe, ctx) {
         `UPDATE ${attemptsTable} SET token=?,expires=? WHERE account_id=? AND token=? AND expires=?`,
       )
         .bind(
-          selection + ":" + randomToken(),
+          selection + ":" + plan.id + ":" + randomToken(),
           now() + 3600,
           account.id,
           attempt.token,

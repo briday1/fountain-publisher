@@ -4,6 +4,7 @@ import Stripe from "stripe";
 import { testDB, request } from "./test-db.mjs";
 import {
   TEST_PLANS,
+  LEGACY_TEST_PLANS,
   billingSummary,
   approvedPrice,
   billingConfigured,
@@ -618,6 +619,46 @@ test("monthly/yearly choice validates the complete approved sandbox price shape"
         ),
       /Choose monthly or yearly/,
     );
+});
+
+test("the pricing change expires a pending $8 checkout before opening the $5.99 checkout", async () => {
+  const f = setup();
+  const token = "monthly:checkout-from-before-the-price-change";
+  f.env.sql
+    .prepare(
+      "INSERT INTO checkout_attempts(account_id,token,expires) VALUES(?,?,?)",
+    )
+    .run("alice", token, future());
+  const key = "writeshape-test-checkout-" + token;
+  f.sessions.set(key, {
+    id: "cs_old_price",
+    livemode: false,
+    mode: "subscription",
+    customer: "cus_alice",
+    status: "open",
+    url: "https://checkout.stripe.com/c/pay/cs_old_price",
+  });
+  const retrievePrice = f.stripe.prices.retrieve;
+  f.stripe.prices.retrieve = async (id) =>
+    id === LEGACY_TEST_PLANS.monthly.id
+      ? price("monthly", { id, unit_amount: 800 })
+      : retrievePrice(id);
+  await billingRoutes(
+    request("/api/billing/checkout", { plan: "monthly" }),
+    f.env,
+    f.account("alice"),
+    f.stripe,
+  );
+  const created = f.calls.filter((c) => c[0] === "checkout");
+  assert.equal(created[0][1].line_items[0].price, LEGACY_TEST_PLANS.monthly.id);
+  assert.equal(created[0][2].idempotencyKey, key);
+  assert.equal(created.at(-1)[1].line_items[0].price, TEST_PLANS.monthly.id);
+  assert.notEqual(created.at(-1)[2].idempotencyKey, key);
+  assert.equal(f.sessions.get(key).status, "expired");
+  assert.equal(
+    [...f.sessions.values()].filter((s) => s.status === "open").length,
+    1,
+  );
 });
 
 test("switching plans expires the prior Checkout, retains account ownership, and uses a distinct safe key", async () => {

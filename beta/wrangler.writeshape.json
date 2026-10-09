@@ -14,7 +14,9 @@
     "directory": "./dist",
     "not_found_handling": "single-page-application",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": [
+      "/api/*"
+    ]
   },
   "main": "cloudflare/writeshape/worker-live.ts",
   "d1_databases": [
@@ -30,15 +32,16 @@
     "ACCESS_AUD": "5b994abbc43a74f2f4023fdcf11c340bd582ca7909f6f76869978ac3c9a0f1fa",
     "TESTER_EMAIL": "brian.day1@gmail.com",
     "APP_ORIGIN": "https://writeshape.com",
-    "STRIPE_MONTHLY_PRICE_ID": "price_1UJI3mCoZzTH3rR02FrxECSY",
-    "STRIPE_YEARLY_PRICE_ID": "price_1UJI3rCoZzTH3rR0fHBGdUzU",
+    "STRIPE_MONTHLY_PRICE_ID": "price_1UORGOCoZzTH3rR08IJCaYY5",
+    "STRIPE_YEARLY_PRICE_ID": "price_1UORGuCoZzTH3rR0dEmlY9hW",
     "BILLING_MODE": "test",
     "LIVE_COLLABORATION": "true",
     "STORAGE_QUOTA_BYTES": "1000000000",
     "HISTORY_MAX_VERSIONS": "50",
     "HISTORY_RETENTION_MODE": "rolling",
-    "CLOUD_BACKUP_POLICY": "true",
-    "CLOUD_BACKUP_PURGE": "false"
+    "CLOUD_BACKUP_POLICY": "false",
+    "CLOUD_BACKUP_PURGE": "false",
+    "CLOUD_STORAGE_INVITE_ONLY": "true"
   },
   "observability": {
     "enabled": true,
@@ -55,7 +58,9 @@
     }
   ],
   "triggers": {
-    "crons": ["*/15 * * * *"]
+    "crons": [
+      "*/15 * * * *"
+    ]
   },
   "durable_objects": {
     "bindings": [
@@ -68,7 +73,9 @@
   "migrations": [
     {
       "tag": "writeshape-live-v1",
-      "new_sqlite_classes": ["WriteShapeLiveRoom"]
+      "new_sqlite_classes": [
+        "WriteShapeLiveRoom"
+      ]
     }
   ]
 }

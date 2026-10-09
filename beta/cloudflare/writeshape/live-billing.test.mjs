@@ -74,7 +74,7 @@ test("live price checks reject test product, mode and price even if amount match
     livemode: true,
     active: true,
     currency: "usd",
-    unit_amount: 800,
+    unit_amount: 599,
     type: "recurring",
     billing_scheme: "per_unit",
     product: catalog.product,

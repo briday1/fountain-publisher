@@ -86,7 +86,13 @@ export interface WriteShapeFilesProps extends Omit<
   ComponentProps<typeof WriteShapeLibrary>,
   "embedded" | "onBusyChange"
 > {
-  account: { authenticated: boolean; premium: boolean; email?: string };
+  account: {
+    authenticated: boolean;
+    premium: boolean;
+    email?: string;
+    cloudStorage?: boolean;
+    existingCloudFiles?: boolean;
+  };
   providers: { drive: FilesProvider; local: FilesProvider };
   initialDestination?: FileDestination;
   deviceDrafts?: ReactNode;
@@ -104,9 +110,24 @@ const locations: { id: FileDestination; name: string; icon: ReactNode }[] = [
 ];
 
 export function WriteShapeFiles(props: WriteShapeFilesProps) {
-  const [destination, setDestination] = useState<FileDestination>(
-    props.initialDestination || "writeshape",
+  const visibleLocations = locations.filter(
+    (location) =>
+      location.id !== "writeshape" ||
+      props.account.cloudStorage ||
+      (props.mode === "open" && props.account.existingCloudFiles),
   );
+  const [destination, setDestination] = useState<FileDestination>(
+    visibleLocations.some((l) => l.id === props.initialDestination)
+      ? props.initialDestination!
+      : "local",
+  );
+  useEffect(() => {
+    if (!visibleLocations.some((l) => l.id === destination)) select("local");
+  }, [
+    props.account.cloudStorage,
+    props.account.existingCloudFiles,
+    props.mode,
+  ]);
   const [busy, setBusy] = useState(false);
   const id = useId();
   const tabs = useRef(new Map<FileDestination, HTMLButtonElement>());
@@ -131,7 +152,7 @@ export function WriteShapeFiles(props: WriteShapeFilesProps) {
         role="tablist"
         aria-label="File location"
       >
-        {locations.map((location, index) => (
+        {visibleLocations.map((location, index) => (
           <button
             key={location.id}
             ref={(node) => {
@@ -148,19 +169,25 @@ export function WriteShapeFiles(props: WriteShapeFilesProps) {
             onKeyDown={(event) => {
               let next: number | undefined;
               if (event.key === "ArrowRight")
-                next = (index + 1) % locations.length;
+                next = (index + 1) % visibleLocations.length;
               if (event.key === "ArrowLeft")
-                next = (index + locations.length - 1) % locations.length;
+                next =
+                  (index + visibleLocations.length - 1) %
+                  visibleLocations.length;
               if (event.key === "Home") next = 0;
-              if (event.key === "End") next = locations.length - 1;
+              if (event.key === "End") next = visibleLocations.length - 1;
               if (next === undefined) return;
               event.preventDefault();
-              select(locations[next].id);
-              tabs.current.get(locations[next].id)?.focus();
+              select(visibleLocations[next].id);
+              tabs.current.get(visibleLocations[next].id)?.focus();
             }}
           >
             {location.icon}
-            <span>{location.name}</span>
+            <span>
+              {location.id === "writeshape" && !props.account.cloudStorage
+                ? "Existing cloud files"
+                : location.name}
+            </span>
           </button>
         ))}
       </div>
@@ -194,11 +221,11 @@ export function WriteShapeFiles(props: WriteShapeFilesProps) {
               }
               note="You can always open and save files on this device without an account."
             />
-          ) : !props.account.premium && props.mode === "save" ? (
+          ) : !props.account.cloudStorage && props.mode === "save" ? (
             <LocationIntro
               icon={<LockKeyhole size={29} />}
-              title="Cloud saving is a Premium feature"
-              description="Your existing cloud files remain available to open. Save locally any time, or explore Premium for new cloud saves."
+              title="Cloud storage is invitation only"
+              description="Your existing files can still be downloaded. Save locally or use Google Drive with Premium."
               action={
                 <button className="primary" onClick={props.onUpgrade}>
                   Explore Premium <ArrowRight size={16} />

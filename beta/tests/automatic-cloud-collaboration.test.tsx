@@ -34,11 +34,13 @@ afterEach(() => {
     source.destroy();
   }
   vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 function mount(
   bound = true,
   paused = false,
-  access = { premium: true, canEdit: true },
+  access = { premium: true, canEdit: true, cloudStorage: true },
+  provider: "writeshape" | "drive" = "writeshape",
 ) {
   Range.prototype.getBoundingClientRect = () => new DOMRect();
   Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
@@ -46,7 +48,7 @@ function mount(
   screenplay.blocks[0].text = "Cloud paragraph.";
   const content = serializeDocument(screenplay);
   const destination = {
-    provider: "writeshape" as const,
+    provider,
     id: "cloud-file-12345678",
     accountId: "owner",
     name: "Cloud.fountain",
@@ -76,7 +78,7 @@ function mount(
     },
     remote: {
       provider: "google",
-      id: "library_" + destination.id,
+      id: (provider === "drive" ? "drive_" : "library_") + destination.id,
       etag: "1",
       live: true,
     },
@@ -94,6 +96,7 @@ function mount(
           buffer={model.activeBuffer!}
           accountId="owner"
           premium={access.premium}
+          cloudStorage={access.cloudStorage}
           collaborationAvailable
           changed={render}
         />,
@@ -148,20 +151,44 @@ it("opens automatically even when an older version saved an end-session preferen
   expect(model.activeBuffer?.snapshot.destination?.livePaused).not.toBe(true);
 });
 it.each([true, false])(
-  "keeps a Free shared account connected with the server's editing permission (%s)",
+  "does not join live collaboration for a Free cloud tester (%s)",
   async (canEdit) => {
-    const { model } = mount(true, false, { premium: false, canEdit });
-    await vi.waitFor(() => expect(model.activeBuffer?.live).toBeDefined());
-    await vi.waitFor(() =>
-      expect(model.activeView?.controller.writable).toBe(canEdit),
-    );
-    expect(model.activeBuffer?.snapshot.destination?.pausedForPlan).not.toBe(
-      true,
-    );
+    const { model } = mount(true, false, {
+      premium: false,
+      canEdit,
+      cloudStorage: true,
+    });
+    await vi.waitFor(() => expect(useDestinationSync).toHaveBeenCalled());
+    expect(model.activeBuffer?.live).toBeUndefined();
+    expect(cloud.liveBootstrap).not.toHaveBeenCalled();
     expect(
-      vi
-        .mocked(useDestinationSync)
-        .mock.calls.every((args) => args[5] === false),
+      vi.mocked(useDestinationSync).mock.calls.some((args) => args[5] === true),
     ).toBe(true);
   },
 );
+it("a Premium account without a storage invitation cannot automatically join a cloud file", async () => {
+  const { model } = mount(true, false, {
+    premium: true,
+    canEdit: true,
+    cloudStorage: false,
+  });
+  await vi.waitFor(() => expect(useDestinationSync).toHaveBeenCalled());
+  expect(model.activeBuffer?.live).toBeUndefined();
+  expect(cloud.liveBootstrap).not.toHaveBeenCalled();
+  expect(model.activeView?.controller.writable).toBe(false);
+});
+it("a Premium account automatically joins the same Drive file without a storage invitation", async () => {
+  const { model } = mount(
+    true,
+    false,
+    {
+      premium: true,
+      canEdit: true,
+      cloudStorage: false,
+    },
+    "drive",
+  );
+  await vi.waitFor(() => expect(model.activeBuffer?.live).toBeDefined());
+  expect(cloud.liveBootstrap).toHaveBeenCalledWith("drive_cloud-file-12345678");
+  expect(model.activeBuffer?.snapshot.destination?.live).toBe(true);
+});

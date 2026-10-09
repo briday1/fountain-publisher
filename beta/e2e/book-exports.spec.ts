@@ -21,6 +21,7 @@ async function setup(page: Page) {
           privateTester: true,
         },
         premium: true,
+        cloudStorage: true,
         billingAvailable: false,
       },
     }),

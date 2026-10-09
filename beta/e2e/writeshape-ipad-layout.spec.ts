@@ -22,6 +22,7 @@ test.beforeEach(async ({ page }) => {
           privateTester: true,
         },
         premium: true,
+        cloudStorage: true,
         privateMode: true,
         // This layout fixture mocks storage only; live collaboration has its own coverage.
         collaborationAvailable: false,

@@ -97,11 +97,14 @@ export function destinationReadOnly(
   d: WriteShapeDestination | undefined,
   accountId: string | undefined,
   premium: boolean,
+  cloudStorage = false,
 ) {
   return (
     !!d &&
     (!d.canWrite ||
       !!d.pausedForPlan ||
-      (d.provider !== "local" && (!premium || d.accountId !== accountId)))
+      (d.provider !== "local" &&
+        (d.accountId !== accountId ||
+          (d.provider === "drive" ? !premium : !cloudStorage))))
   );
 }

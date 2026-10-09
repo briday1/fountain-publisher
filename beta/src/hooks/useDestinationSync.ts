@@ -14,6 +14,7 @@ export function useDestinationSync(
   accountId: string | undefined,
   premium: boolean,
   enabled: boolean,
+  cloudStorage = false,
 ) {
   const engine = useRef<DestinationSync | undefined>(undefined);
   const [status, setStatus] = useState<DestinationStatus>();
@@ -23,6 +24,9 @@ export function useDestinationSync(
     setStatus(undefined);
     if (!enabled || !session || !session.current.destination) return;
     const original = session.current.destination;
+    const entitled =
+      original.provider === "local" ||
+      (original.provider === "drive" ? premium : cloudStorage);
     if (original.provider !== "local" && original.accountId !== accountId) {
       setStatus({
         phase: "readonly",
@@ -33,7 +37,7 @@ export function useDestinationSync(
     }
     if (
       original.provider !== "local" &&
-      !premium &&
+      !entitled &&
       accountId === original.accountId &&
       serializeDocument(session.capture().screenplay) !==
         original.baseContent &&
@@ -42,10 +46,7 @@ export function useDestinationSync(
       session.setDestination({ ...original, pausedForPlan: true });
       void session.flush().catch(() => {});
     }
-    if (
-      (original.provider === "drive" && !premium) ||
-      session.current.destination?.pausedForPlan
-    ) {
+    if (!entitled || session.current.destination?.pausedForPlan) {
       setStatus({
         phase: "readonly",
         message:
@@ -100,7 +101,7 @@ export function useDestinationSync(
         revision: original.revision,
       },
       capture,
-      canWrite: original.canWrite && (original.provider === "local" || premium),
+      canWrite: original.canWrite && entitled,
       apply: async (remote, expected) => {
         assertBinding();
         const now = capture();
@@ -170,6 +171,7 @@ export function useDestinationSync(
     key,
     accountId,
     premium,
+    cloudStorage,
     enabled,
     session?.current.destination?.pausedForPlan,
   ]);

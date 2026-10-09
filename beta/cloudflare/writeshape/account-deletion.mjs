@@ -178,6 +178,7 @@ export async function accountDeletionRoutes(
       ).bind(id, id),
     );
   for (const table of [
+    "cloud_storage_grants",
     "account_identities",
     "account_sessions",
     "oauth_attempts",

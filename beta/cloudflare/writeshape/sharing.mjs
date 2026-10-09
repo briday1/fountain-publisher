@@ -1,4 +1,5 @@
 import { HttpError, json, sameOrigin, bodyJson } from "./http.mjs";
+import { cloudStorageAllowed, inviteOnlyStorage } from "./cloud-access.mjs";
 import { premium } from "./accounts.mjs";
 
 const pilotReason = "External sharing is unavailable during the private pilot.";
@@ -24,13 +25,13 @@ async function ownedFile(env, owner, fileId) {
     .first();
   if (!file) missing();
 }
-function capabilities(env, user) {
+async function capabilities(env, user) {
   if (!sharingEnabled(env)) return { canShare: false, reason: pilotReason };
-  if (!premium(user))
+  if (!(await cloudStorageAllowed(user, env)))
     return {
       canShare: false,
       reason:
-        "Premium is required to share a file. Existing shares can still be revoked.",
+        "Cloud storage requires an owner invitation. Existing shares can still be revoked.",
     };
   return { canShare: true, reason: null };
 }
@@ -67,8 +68,8 @@ export async function sharingRoutes(request, env, user) {
         .all();
       return json({
         shares: shares.results,
-        ...capabilities(env, user),
-        canCollaborate: env.LIVE_COLLABORATION === "true",
+        ...(await capabilities(env, user)),
+        canCollaborate: env.LIVE_COLLABORATION === "true" && premium(user),
       });
     }
     if (request.method !== "POST") missing();
@@ -86,7 +87,7 @@ export async function sharingRoutes(request, env, user) {
       return json({ share: await ownerGrant(env, user.id, fileId, revoke[1]) });
     }
     if (tail !== undefined) missing();
-    const capability = capabilities(env, user);
+    const capability = await capabilities(env, user);
     if (!capability.canShare) throw new HttpError(403, capability.reason);
     const input = await bodyJson(request);
     if (
@@ -120,6 +121,11 @@ export async function sharingRoutes(request, env, user) {
         "Choose an unambiguous, already verified WriteShape account email. No invitation was sent.",
       );
     const recipient = matches.results[0];
+    if (inviteOnlyStorage(env) && !(await cloudStorageAllowed(recipient, env)))
+      throw new HttpError(
+        403,
+        "The recipient needs a separate owner invitation to cloud storage testing.",
+      );
     if (recipient.id === user.id)
       throw new HttpError(400, "You already own this file.");
     const role = input.role || "read-only";

@@ -28,6 +28,7 @@ export function BufferSync({
   model,
   accountId,
   premium,
+  cloudStorage = false,
   collaborationAvailable = false,
   changed,
 }: {
@@ -35,6 +36,7 @@ export function BufferSync({
   model: DocumentWorkspace;
   accountId?: string;
   premium: boolean;
+  cloudStorage?: boolean;
   collaborationAvailable?: boolean;
   changed: () => void;
 }) {
@@ -44,14 +46,15 @@ export function BufferSync({
     destination &&
     destination.provider !== "local" &&
     accountId === destination.accountId &&
-    (destination.provider === "writeshape" ||
-      (premium && !destination.pausedForPlan))
+    premium &&
+    !destination.pausedForPlan &&
+    (destination.provider === "drive" || cloudStorage)
   );
   useLayoutEffect(() => {
     const readOnly =
       autoLive && buffer.live
         ? !buffer.live.self.canEdit || buffer.liveStatus?.phase === "paused"
-        : destinationReadOnly(destination, accountId, premium);
+        : destinationReadOnly(destination, accountId, premium, cloudStorage);
     const connecting =
       autoLive && !buffer.live && buffer.liveStatus?.phase !== "paused";
     for (const id of buffer.views)
@@ -61,9 +64,9 @@ export function BufferSync({
     if (buffer.live && accountId !== destination?.accountId)
       model.stopLive(buffer.session.current.id);
     if (
-      destination?.provider === "drive" &&
-      destination.live &&
-      !premium &&
+      destination?.provider !== "local" &&
+      destination?.live &&
+      (!premium || (destination.provider === "writeshape" && !cloudStorage)) &&
       accountId === destination.accountId
     ) {
       model.stopLive(buffer.session.current.id);
@@ -78,6 +81,7 @@ export function BufferSync({
     destination,
     accountId,
     premium,
+    cloudStorage,
     model,
     buffer,
     model.views.size,
@@ -92,6 +96,7 @@ export function BufferSync({
     accountId,
     premium,
     !autoLive && !buffer.snapshot.destination?.live && !buffer.live,
+    cloudStorage,
   );
   useEffect(() => {
     const destination = buffer.session.current.destination;

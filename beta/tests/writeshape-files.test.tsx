@@ -47,7 +47,7 @@ async function mount(overrides: Partial<WriteShapeFilesProps> = {}) {
   const props: WriteShapeFilesProps = {
     mode: "open",
     name: "Draft",
-    account: { authenticated: true, premium: true },
+    account: { authenticated: true, premium: true, cloudStorage: true },
     providers: { drive: provider(), local: provider() },
     initialDestination: "local",
     captureSave: () => ({ content: "", onSaved: () => {} }),
@@ -79,6 +79,23 @@ function button(node: HTMLElement, label: string) {
   if (!b) throw Error(label);
   return b;
 }
+it("Premium without a storage invitation sees Local and Drive even if an old preference selects cloud", async () => {
+  const h = await mount({ account: { authenticated: true, premium: true, cloudStorage: false }, initialDestination: "writeshape" });
+  try {
+    expect(h.node.querySelectorAll('[role="tab"]')).toHaveLength(2);
+    expect(h.node.textContent).not.toContain("My Storage");
+    expect(button(h.node, "Local").getAttribute("aria-selected")).toBe("true");
+    expect(button(h.node, "Google Drive")).toBeDefined();
+  } finally { await h.close(); }
+});
+it("existing cloud documents provide recovery access without offering cloud as a Save As destination", async () => {
+  const h = await mount({ account: { authenticated: true, premium: true, cloudStorage: false, existingCloudFiles: true } });
+  try { expect(button(h.node, "Existing cloud files")).toBeDefined(); }
+  finally { await h.close(); }
+  const save = await mount({ mode: "save", account: { authenticated: true, premium: true, cloudStorage: false, existingCloudFiles: true } });
+  try { expect(save.node.querySelectorAll('[role="tab"]')).toHaveLength(2); }
+  finally { await save.close(); }
+});
 it("uses one modal, keyboard-switchable tabs and native local connect directly in user gesture", async () => {
   const local = provider(false);
   let gesture = false;

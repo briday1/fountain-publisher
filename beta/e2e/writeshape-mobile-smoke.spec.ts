@@ -30,6 +30,7 @@ test("returning from Account or navigation restores the full mobile canvas", asy
           privateTester: true,
         },
         premium: true,
+        cloudStorage: true,
         privateMode: true,
         billingAvailable: false,
         portalAvailable: false,
@@ -266,6 +267,7 @@ for (const signedIn of [false, true]) {
               }
             : null,
           premium: signedIn,
+          cloudStorage: signedIn,
           privateMode: true,
           googleAvailable: true,
           billingAvailable: false,
@@ -374,7 +376,43 @@ for (const signedIn of [false, true]) {
   });
 }
 
-test("free cloud documents open read-only and make an explicit editable local copy", async ({
+test("Premium file locations exclude hosted storage without an owner invitation", async ({
+  page,
+}) => {
+  await page.route("**/api/account", (route) =>
+    route.fulfill({
+      json: {
+        account: { id: "premium-writer", email: "writer@example.test" },
+        premium: true,
+        cloudStorage: false,
+        existingCloudFiles: false,
+        privateMode: true,
+        manageCloudAccess: false,
+      },
+    }),
+  );
+  for (const width of [320, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/");
+    for (const action of ["Files…", "Save As…"]) {
+      await page.getByRole("button", { name: "File", exact: true }).click();
+      await page.getByRole("button", { name: action, exact: true }).click();
+      const dialog = page.getByRole("dialog", {
+        name: action === "Files…" ? "Files" : "Save as…",
+        exact: true,
+      });
+      await expect(dialog.getByRole("tab")).toHaveText([
+        "Google Drive",
+        "Local",
+      ]);
+      await dialog
+        .getByRole("button", { name: "Close dialog", exact: true })
+        .click();
+    }
+  }
+});
+
+test("cloud documents without a storage invitation open read-only and make an editable local copy", async ({
   page,
 }) => {
   await page.route("**/api/account", (route) =>
@@ -382,6 +420,8 @@ test("free cloud documents open read-only and make an explicit editable local co
       json: {
         account: { id: "downgrade-test", email: "writer@example.test" },
         premium: false,
+        cloudStorage: false,
+        existingCloudFiles: true,
         privateMode: true,
       },
     }),
@@ -398,7 +438,7 @@ test("free cloud documents open read-only and make an explicit editable local co
     if (route.request().method() !== "GET")
       return route.fulfill({
         status: 403,
-        json: { error: "Premium required" },
+        json: { error: "Storage invitation required" },
       });
     const path = new URL(route.request().url()).pathname;
     return route.fulfill({
@@ -426,6 +466,9 @@ test("free cloud documents open read-only and make an explicit editable local co
   await page.getByRole("textbox", { name: "Screenplay editor" }).waitFor();
   await page.getByRole("button", { name: "File", exact: true }).click();
   await page.getByRole("button", { name: "Files…", exact: true }).click();
+  await page
+    .getByRole("tab", { name: "Existing cloud files", exact: true })
+    .click();
   await page
     .getByRole("option", { name: "Fountain file: Preserved.fountain" })
     .click();
@@ -466,10 +509,10 @@ test("support reports expose reviewed technical context without document content
   ).toBeVisible();
 });
 
-test("losing Premium preserves unsynced writing and requires an explicit sync restart", async ({
+test("removing a storage invitation preserves unsynced writing and requires an explicit sync restart", async ({
   page,
 }) => {
-  let premium = true;
+  let cloudStorage = true;
   const file = {
     id: "22222222-2222-2222-2222-222222222222",
     parent: "",
@@ -483,7 +526,9 @@ test("losing Premium preserves unsynced writing and requires an explicit sync re
     route.fulfill({
       json: {
         account: { id: "writer", email: "writer@example.test" },
-        premium,
+        premium: true,
+        cloudStorage,
+        existingCloudFiles: true,
         privateMode: true,
       },
     }),
@@ -496,7 +541,7 @@ test("losing Premium preserves unsynced writing and requires an explicit sync re
     return route.fulfill({
       json:
         new URL(route.request().url()).pathname === "/api/library"
-          ? { items: [file], breadcrumbs: [], canWrite: premium }
+          ? { items: [file], breadcrumbs: [], canWrite: cloudStorage }
           : file,
     });
   });
@@ -515,11 +560,11 @@ test("losing Premium preserves unsynced writing and requires an explicit sync re
   await expect(editor).toHaveAttribute("contenteditable", "true");
   await editor.click();
   await editor.fill("Unsynced words that must survive.");
-  premium = false;
+  cloudStorage = false;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(editor).toHaveAttribute("contenteditable", "false");
   await expect(editor).toContainText("Unsynced words that must survive.");
-  premium = true;
+  cloudStorage = true;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(
     page.getByRole("button", { name: "Resume sync", exact: true }),
@@ -545,6 +590,7 @@ test("mobile file browser selects downloads and renames without replacing the dr
       json: {
         account: { id: "files", email: "writer@example.test" },
         premium: true,
+        cloudStorage: true,
         privateMode: true,
       },
     }),
@@ -663,6 +709,7 @@ test("Finder folder menus copy nested folders and move complete folders to Trash
           googleLinked: false,
         },
         premium: true,
+        cloudStorage: true,
         privateMode: true,
         googleAvailable: false,
         billingAvailable: false,

@@ -26,12 +26,12 @@ export function BillingPlanChoice({
             <span>
               <strong>{plan === "monthly" ? "Monthly" : "Yearly"}</strong>
               <span>
-                {plan === "monthly" ? "$8 USD / month" : "$80 USD / year"}
+                {plan === "monthly" ? "$5.99 USD / month" : "$59 USD / year"}
               </span>
               <small>
                 {plan === "monthly"
                   ? "Billed each month"
-                  : "Billed annually · Save $16 per year"}
+                  : "Billed annually · Save $12.88 per year"}
               </small>
             </span>
           </label>

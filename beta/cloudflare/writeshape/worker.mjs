@@ -1,3 +1,4 @@
+import { withCloudAccess, cloudAccessRoutes } from "./cloud-access.mjs";
 import { accountDeletionRoutes } from "./account-deletion.mjs";
 import { liveRoutes } from "./live-routes.mjs";
 import { sendPendingFeedback } from "./cancellation-feedback.mjs";
@@ -18,8 +19,11 @@ export function createHandler(authenticate = resolveAccount) {
     try {
       if (url.pathname === "/api/billing/webhook")
         return await stripeWebhook(request, env);
-      const user = await withComplimentaryAccess(
-        accountBilling(await authenticate(request, env), env),
+      const user = await withCloudAccess(
+        await withComplimentaryAccess(
+          accountBilling(await authenticate(request, env), env),
+          env,
+        ),
         env,
       );
       if (user) user.cloudBackup = await reconcileBackupGrace(env, user);
@@ -64,6 +68,8 @@ export function createHandler(authenticate = resolveAccount) {
       }
       const liveResponse = await liveRoutes(request, env, user);
       if (liveResponse) return liveResponse;
+      const cloudAccessResponse = await cloudAccessRoutes(request, env, user);
+      if (cloudAccessResponse) return cloudAccessResponse;
       const codeResponse = await accessCodeRoutes(request, env, user);
       if (codeResponse) return codeResponse;
       const accountResponse = await accountRoutes(

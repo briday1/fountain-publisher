@@ -45,6 +45,9 @@ export function testDB() {
     return statement;
   };
   return {
+    // Existing fixtures exercise pre-migration retention and downgrade behavior.
+    // Invite-only entitlement regressions explicitly override this to true.
+    CLOUD_STORAGE_INVITE_ONLY: "false",
     sql,
     DB: {
       prepare,

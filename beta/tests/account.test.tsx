@@ -135,7 +135,7 @@ it("shows actual monthly subscription despite yearly prospective intent, with no
     canCancel: true,
   });
   try {
-    expect(h.node.textContent).toContain("Monthly · $8 USD / month");
+    expect(h.node.textContent).toContain("Monthly · $5.99 USD / month");
     expect(h.node.querySelector('input[type="radio"]')).toBeNull();
     expect(h.node.textContent).not.toContain(
       "Continue to yearly test checkout",

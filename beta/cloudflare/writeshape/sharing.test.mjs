@@ -136,7 +136,7 @@ test('a share stays bound to account ID when an email changes or is reassigned',
 test('downgrade preserves recipient reads and owner revocation, but forbids new grants', async () => {
   const { env, fileId } = fixture(); const grant = await share(env, fileId);
   const list = await (await call(env, 'owner', `/api/library/${fileId}/shares`, undefined, { free: true })).json();
-  assert.equal(list.canShare, false); assert.match(list.reason, /Premium/);
+  assert.equal(list.canShare, false); assert.match(list.reason, /invitation/);
   assert.equal((await call(env, 'owner', `/api/library/${fileId}/shares`, { email: 'stranger@example.test' }, { free: true })).status, 403);
   assert.equal((await call(env, 'recipient', `/api/shared/${grant.id}`, undefined, { free: true })).status, 200);
   assert.equal((await call(env, 'owner', `/api/library/${fileId}/shares/${grant.id}/revoke`, {}, { free: true })).status, 200);

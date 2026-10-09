@@ -8,6 +8,7 @@ import { mergeScreenplays, type MergeChoice } from "./core/merge";
 import { DocumentStatusBar } from "./components/DocumentStatusBar";
 import { CollaboratorAvatars } from "./components/CollaboratorAvatars";
 import { LibrarySharing } from "./components/LibrarySharing";
+import { DriveSharing } from "./components/DriveSharing";
 import { cloudRequest } from "./storage/writeshapeLibrary";
 import { ReportProblem } from "./components/ReportProblem";
 import { destinationReadOnly } from "./storage/destinations";
@@ -153,6 +154,10 @@ export default function App() {
   const [documentSharing, setDocumentSharing] = useState<LibraryFile | null>(
     null,
   );
+  const [driveSharing, setDriveSharing] = useState<{
+    id: string;
+    name: string;
+  }>();
   const cloudCapturedContent = useRef("");
   const cloudFile = useRef<(LibraryFile & { localId: string }) | null>(null);
   const [session, setSession] = useState<DocumentSession>();
@@ -169,7 +174,7 @@ export default function App() {
     setLibraryMode(null);
     setDocumentSharing(null);
     setCloudConflict(undefined);
-    setFileTab(accountId ? "writeshape" : "local");
+    setFileTab("local");
   }, [accountId]);
   const [snapshot, setSnapshot] = useState<SessionSnapshot>();
   const documentWorkspace = useRef<DocumentWorkspace | null>(null);
@@ -184,6 +189,7 @@ export default function App() {
           snapshot?.destination,
           accountId,
           account.state.premium,
+          !!account.state.cloudStorage,
         ));
   const [workspaceReady, setWorkspaceReady] = useState(!isWriteShape);
   const panelBounds = usePanelBounds();
@@ -219,6 +225,7 @@ export default function App() {
     accountId,
     account.state.premium,
     isWriteShape && !documentWorkspace.current,
+    !!account.state.cloudStorage,
   );
   const destinationSync = documentWorkspace.current?.activeBuffer
     ? {
@@ -1348,6 +1355,7 @@ export default function App() {
       !session ||
       !accountId ||
       !account.state.collaborationAvailable ||
+      !account.state.premium ||
       !liveId ||
       openingWriteShapeLive.current
     )
@@ -1360,7 +1368,12 @@ export default function App() {
         window.history.replaceState({}, "", url);
       })
       .catch((error) => setNotice(String(error)));
-  }, [session, accountId, account.state.collaborationAvailable]);
+  }, [
+    session,
+    accountId,
+    account.state.collaborationAvailable,
+    account.state.premium,
+  ]);
   async function openCloudDocument(doc: CloudDocument) {
     if (!session) return;
     const imported = importScreenplay(doc.content, doc.name);
@@ -1982,7 +1995,9 @@ export default function App() {
             {isWriteShape && (
               <MenuItem
                 onClick={() => {
-                  setFileTab("writeshape");
+                  setFileTab(
+                    account.state.cloudStorage ? "writeshape" : "local",
+                  );
                   setLibraryMode("open");
                 }}
               >
@@ -2303,26 +2318,32 @@ export default function App() {
           >
             Make local copy
           </button>
-          {!account.state.premium && (
-            <button onClick={() => setPlansOpen(true)}>Explore Premium</button>
-          )}
-          {account.state.premium && snapshot.destination?.pausedForPlan && (
-            <button
-              onClick={() => {
-                const d = session.current.destination;
-                if (
-                  !d ||
-                  !confirm(
-                    "Resume cloud syncing for this draft? If the cloud version has changed, WriteShape will ask you to resolve the conflict.",
+          {snapshot.destination?.provider === "drive" &&
+            !account.state.premium && (
+              <button onClick={() => setPlansOpen(true)}>
+                Explore Premium
+              </button>
+            )}
+          {(snapshot.destination?.provider === "drive"
+            ? account.state.premium
+            : account.state.cloudStorage) &&
+            snapshot.destination?.pausedForPlan && (
+              <button
+                onClick={() => {
+                  const d = session.current.destination;
+                  if (
+                    !d ||
+                    !confirm(
+                      "Resume cloud syncing for this draft? If the cloud version has changed, WriteShape will ask you to resolve the conflict.",
+                    )
                   )
-                )
-                  return;
-                session.setDestination({ ...d, pausedForPlan: false });
-              }}
-            >
-              Resume sync
-            </button>
-          )}
+                    return;
+                  session.setDestination({ ...d, pausedForPlan: false });
+                }}
+              >
+                Resume sync
+              </button>
+            )}
         </div>
       )}
       {liveStatus && (liveStatus.phase === "paused" || !liveStatus.canEdit) && (
@@ -2779,6 +2800,11 @@ export default function App() {
                   kind: "file",
                   revision: Number(destination.revision),
                 });
+              } else if (
+                destination?.provider === "drive" &&
+                account.state.premium
+              ) {
+                setDriveSharing({ id: destination.id, name: destination.name });
               } else {
                 setFileTab("drive");
                 setLibraryMode("open");
@@ -2965,6 +2991,12 @@ export default function App() {
             onClose={() => setDialog(null)}
           />
         ))}
+      {driveSharing && (
+        <DriveSharing
+          {...driveSharing}
+          onClose={() => setDriveSharing(undefined)}
+        />
+      )}
       {documentSharing && (
         <Modal title="Share document" onClose={() => setDocumentSharing(null)}>
           <LibrarySharing
@@ -2981,6 +3013,8 @@ export default function App() {
             authenticated: !!accountId,
             premium: account.state.premium,
             email: account.state.account?.email,
+            cloudStorage: account.state.cloudStorage,
+            existingCloudFiles: account.state.existingCloudFiles,
           }}
           initialDestination={fileTab}
           deviceDrafts={deviceDrafts}
@@ -3163,6 +3197,7 @@ export default function App() {
             buffer={buffer}
             accountId={accountId}
             premium={account.state.premium}
+            cloudStorage={account.state.cloudStorage}
             collaborationAvailable={account.state.collaborationAvailable}
             changed={refreshWorkspace}
           />
@@ -3194,7 +3229,9 @@ export default function App() {
             </button>
             <button onClick={() => void run(() => newDocument("novel"))}>
               <strong>Book</strong>
-              <small>Text only. Fiction or nonfiction, saved as Markdown.</small>
+              <small>
+                Text only. Fiction or nonfiction, saved as Markdown.
+              </small>
             </button>
           </div>
           <p>
